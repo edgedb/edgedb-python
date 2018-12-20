@@ -1,0 +1,3 @@
+[submodule "edgedb/pgproto"]
+	path = edgedb/pgproto
+	url = https://github.com/MagicStack/py-pgproto.git
