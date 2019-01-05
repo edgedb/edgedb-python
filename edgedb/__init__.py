@@ -124,6 +124,7 @@ async def connect(*,
     time_between_tries = 0.1
 
     con_param = _ConnectionParameters(user, password, database, False, 1, None)
+    tr = None
 
     while budget >= 0:
         start = time.monotonic()
@@ -151,8 +152,9 @@ async def connect(*,
         if last_ex is None:
             try:
                 await pr.connect()
-            except BaseException as ex:
+            except Exception as ex:
                 tr.close()
+                tr = None
                 last_ex = ex
             else:
                 break
@@ -164,5 +166,8 @@ async def connect(*,
                     await asyncio.sleep(time_between_tries)
             else:
                 raise last_ex
+
+    if tr is None:
+        raise last_ex
 
     return Connection(tr, pr, loop, database)
