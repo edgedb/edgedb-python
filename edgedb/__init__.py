@@ -52,7 +52,7 @@ _ConnectionParameters = collections.namedtuple(
 
 class Connection:
 
-    def __init__(self, transport, protocol, loop):
+    def __init__(self, transport, protocol, loop, dbname):
         self._loop = loop
         self._transport = transport
         self._protocol = protocol
@@ -61,6 +61,12 @@ class Connection:
         self._query_cache = _QueryCache()
 
         self._top_xact = None
+
+        self._dbname = dbname
+
+    @property
+    def dbname(self):
+        return self._dbname
 
     async def fetch(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
@@ -159,4 +165,4 @@ async def connect(*,
             else:
                 raise last_ex
 
-    return Connection(tr, pr, loop)
+    return Connection(tr, pr, loop, database)
