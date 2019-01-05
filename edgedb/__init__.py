@@ -84,7 +84,7 @@ class Connection:
             self, 'read_committed', False, False)
 
 
-EDGEDB_PORT = 5656 + 1
+EDGEDB_PORT = 5656
 
 
 async def connect(*,
