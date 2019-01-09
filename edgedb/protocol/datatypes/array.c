@@ -169,16 +169,23 @@ array_getitem(EdgeArrayObject *o, Py_ssize_t i)
 
 
 static PyObject *
-array_richcompare(EdgeArrayObject *v, EdgeArrayObject *w, int op)
+array_richcompare(EdgeArrayObject *v, PyObject *w, int op)
 {
-    if (!EdgeArray_Check(v) || !EdgeArray_Check(w)) {
-        Py_RETURN_NOTIMPLEMENTED;
+    if (EdgeArray_Check(w)) {
+        return _EdgeGeneric_RichCompareValues(
+            v->ob_item, Py_SIZE(v),
+            ((EdgeArrayObject *)w)->ob_item, Py_SIZE(w),
+            op);
     }
 
-    return _EdgeGeneric_RichCompareValues(
-        v->ob_item, Py_SIZE(v),
-        w->ob_item, Py_SIZE(w),
-        op);
+    if (PyList_CheckExact(w)) {
+        return _EdgeGeneric_RichCompareValues(
+            v->ob_item, Py_SIZE(v),
+            _PyList_ITEMS(w), Py_SIZE(w),
+            op);
+    }
+
+    Py_RETURN_NOTIMPLEMENTED;
 }
 
 

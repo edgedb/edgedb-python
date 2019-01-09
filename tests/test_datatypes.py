@@ -106,7 +106,7 @@ class TestTuple(unittest.TestCase):
         for t in lst:
             self.assertEqual(t[0], 1)
 
-    def test_tuple5(self):
+    def test_tuple_5(self):
         self.assertEqual(
             edgedb.Tuple([1, 2, 3]),
             edgedb.Tuple([1, 2, 3]))
@@ -154,6 +154,64 @@ class TestTuple(unittest.TestCase):
         self.assertNotEqual(
             edgedb.Tuple([1, 1]),
             edgedb.Tuple([2, 2, 1]))
+
+    def test_tuple_6(self):
+        self.assertEqual(
+            edgedb.Tuple([1, 2, 3]),
+            (1, 2, 3))
+
+        self.assertEqual(
+            (1, 2, 3),
+            edgedb.Tuple([1, 2, 3]))
+
+        self.assertNotEqual(
+            edgedb.Tuple([1, 2, 3]),
+            (1, 3, 2))
+
+        self.assertLess(
+            edgedb.Tuple([1, 2, 3]),
+            (1, 3, 2))
+
+        self.assertEqual(
+            edgedb.Tuple([]),
+            ())
+
+        self.assertEqual(
+            edgedb.Tuple([1]),
+            (1,))
+
+        self.assertGreaterEqual(
+            edgedb.Tuple([1]),
+            (1,))
+
+        self.assertNotEqual(
+            edgedb.Tuple([1]),
+            ())
+
+        self.assertGreater(
+            edgedb.Tuple([1]),
+            ())
+
+        self.assertNotEqual(
+            edgedb.Tuple([1]),
+            (2,))
+
+        self.assertLess(
+            edgedb.Tuple([1]),
+            (2,))
+
+        self.assertNotEqual(
+            edgedb.Tuple([1, 2]),
+            (2, 2))
+
+        self.assertNotEqual(
+            edgedb.Tuple([1, 1]),
+            (2, 2, 1))
+
+    def test_tuple_7(self):
+        self.assertNotEqual(
+            edgedb.Tuple([1, 2, 3]),
+            123)
 
 
 class TestNamedTuple(unittest.TestCase):
@@ -220,6 +278,36 @@ class TestNamedTuple(unittest.TestCase):
         self.assertEqual(
             edgedb.NamedTuple(a=1),
             edgedb.NamedTuple(a=1))
+
+    def test_namedtuple_6(self):
+        self.assertEqual(
+            edgedb.NamedTuple(a=1, b=2, c=3),
+            (1, 2, 3))
+
+        self.assertEqual(
+            (1, 2, 3),
+            edgedb.NamedTuple(a=1, b=2, c=3))
+
+        self.assertNotEqual(
+            edgedb.NamedTuple(a=1, b=2, c=3),
+            (1, 3, 2))
+
+        self.assertLess(
+            edgedb.NamedTuple(a=1, b=2, c=3),
+            (1, 3, 2))
+
+        self.assertEqual(
+            edgedb.NamedTuple(a=1),
+            (1,))
+
+        self.assertEqual(
+            edgedb.NamedTuple(a=1),
+            (1,))
+
+    def test_namedtuple_7(self):
+        self.assertNotEqual(
+            edgedb.NamedTuple(a=1, b=2, c=3),
+            1)
 
 
 class TestObject(unittest.TestCase):
@@ -376,6 +464,19 @@ class TestSet(unittest.TestCase):
             edgedb.Set([o1, o1]),
             edgedb.Set([o2, o3]))
 
+    def test_set_7(self):
+        self.assertEqual(
+            edgedb.Set([1, 2, 3]),
+            [1, 2, 3])
+
+        self.assertNotEqual(
+            edgedb.Set([1, 2, 3]),
+            [3, 2, 1])
+
+        self.assertNotEqual(
+            edgedb.Set([1, 2, 3]),
+            1)
+
 
 class TestArray(unittest.TestCase):
 
@@ -456,3 +557,65 @@ class TestArray(unittest.TestCase):
         self.assertNotEqual(
             edgedb.Array([1, 1]),
             edgedb.Array([2, 2, 1]))
+
+    def test_array_5(self):
+        self.assertEqual(
+            edgedb.Array([1, 2, 3]),
+            [1, 2, 3])
+
+        self.assertEqual(
+            [1, 2, 3],
+            edgedb.Array([1, 2, 3]))
+
+        self.assertNotEqual(
+            [1, 2, 4],
+            edgedb.Array([1, 2, 3]))
+
+        self.assertNotEqual(
+            edgedb.Array([1, 2, 3]),
+            [1, 3, 2])
+
+        self.assertLess(
+            edgedb.Array([1, 2, 3]),
+            [1, 3, 2])
+
+        self.assertEqual(
+            edgedb.Array([]),
+            [])
+
+        self.assertEqual(
+            edgedb.Array([1]),
+            [1])
+
+        self.assertGreaterEqual(
+            edgedb.Array([1]),
+            [1])
+
+        self.assertNotEqual(
+            edgedb.Array([1]),
+            [])
+
+        self.assertGreater(
+            edgedb.Array([1]),
+            [])
+
+        self.assertNotEqual(
+            edgedb.Array([1]),
+            [2])
+
+        self.assertLess(
+            edgedb.Array([1]),
+            [2])
+
+        self.assertNotEqual(
+            edgedb.Array([1, 2]),
+            [2, 2])
+
+        self.assertNotEqual(
+            edgedb.Array([1, 1]),
+            [2, 2, 1])
+
+    def test_array_6(self):
+        self.assertNotEqual(
+            edgedb.Array([1, 2, 3]),
+            False)

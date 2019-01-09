@@ -169,16 +169,23 @@ tuple_getitem(EdgeTupleObject *o, Py_ssize_t i)
 
 
 static PyObject *
-tuple_richcompare(EdgeTupleObject *v, EdgeTupleObject *w, int op)
+tuple_richcompare(EdgeTupleObject *v, PyObject *w, int op)
 {
-    if (!EdgeTuple_Check(v) || !EdgeTuple_Check(w)) {
-        Py_RETURN_NOTIMPLEMENTED;
+    if (EdgeTuple_Check(w)) {
+        return _EdgeGeneric_RichCompareValues(
+            v->ob_item, Py_SIZE(v),
+            ((EdgeTupleObject *)w)->ob_item, Py_SIZE(w),
+            op);
     }
 
-    return _EdgeGeneric_RichCompareValues(
-        v->ob_item, Py_SIZE(v),
-        w->ob_item, Py_SIZE(w),
-        op);
+    if (PyTuple_CheckExact(w)) {
+        return _EdgeGeneric_RichCompareValues(
+            v->ob_item, Py_SIZE(v),
+            ((PyTupleObject *)w)->ob_item, Py_SIZE(w),
+            op);
+    }
+
+    Py_RETURN_NOTIMPLEMENTED;
 }
 
 

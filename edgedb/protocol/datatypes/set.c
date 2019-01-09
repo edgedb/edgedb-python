@@ -152,14 +152,21 @@ set_getitem(EdgeSetObject *o, Py_ssize_t i)
 
 
 static PyObject *
-set_richcompare(EdgeSetObject *v, EdgeSetObject *w, int op)
+set_richcompare(EdgeSetObject *v, PyObject *ww, int op)
 {
-    if (!EdgeSet_Check(v) ||
-        !EdgeSet_Check(w) ||
-        (op != Py_EQ && op != Py_NE))
-    {
-        Py_RETURN_NOTIMPLEMENTED;
+    if (op != Py_EQ && op != Py_NE) {
+        goto not_imp;
     }
+
+    if (PyList_CheckExact(ww)) {
+        return PyObject_RichCompare(v->els, ww, op);
+    }
+
+    if (!EdgeSet_Check(ww)) {
+        goto not_imp;
+    }
+
+    EdgeSetObject *w = (EdgeSetObject *)ww;
 
     int res = -1;
     Py_ssize_t vlen = PyList_Size(v->els);
@@ -210,6 +217,9 @@ error:
     Py_XDECREF(left);
     Py_XDECREF(right);
     return NULL;
+
+not_imp:
+    Py_RETURN_NOTIMPLEMENTED;
 
 done:
     assert(res != -1);
