@@ -52,7 +52,7 @@ cdef class EmptyTupleCodec(BaseCodec):
     def __cinit__(self):
         self.tid = EMPTY_TUPLE_CODEC_ID
         self.name = 'no-input'
-        self.empty_tup = datatypes.EdgeTuple_New(0)
+        self.empty_tup = None
 
     cdef encode(self, WriteBuffer buf, object obj):
         if type(obj) is not tuple:
@@ -72,6 +72,8 @@ cdef class EmptyTupleCodec(BaseCodec):
                 f'cannot decode empty Tuple: expected 0 elements, '
                 f'got {elem_count}')
 
+        if self.empty_tup is None:
+            self.empty_tup = datatypes.EdgeTuple_New(0)
         return self.empty_tup
 
 
