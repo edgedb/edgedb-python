@@ -169,6 +169,20 @@ array_getitem(EdgeArrayObject *o, Py_ssize_t i)
 
 
 static PyObject *
+array_richcompare(EdgeArrayObject *v, EdgeArrayObject *w, int op)
+{
+    if (!EdgeArray_Check(v) || !EdgeArray_Check(w)) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    return _EdgeGeneric_RichCompareValues(
+        v->ob_item, Py_SIZE(v),
+        w->ob_item, Py_SIZE(w),
+        op);
+}
+
+
+static PyObject *
 array_repr(EdgeArrayObject *o)
 {
     _PyUnicodeWriter writer;
@@ -215,6 +229,7 @@ PyTypeObject EdgeArray_Type = {
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_traverse = (traverseproc)array_traverse,
     .tp_new = array_new,
+    .tp_richcompare = (richcmpfunc)array_richcompare,
     .tp_free = PyObject_GC_Del,
     .tp_repr = (reprfunc)array_repr,
 };

@@ -266,6 +266,21 @@ namedtuple_getitem(EdgeNamedTupleObject *o, Py_ssize_t i)
 
 
 static PyObject *
+namedtuple_richcompare(EdgeNamedTupleObject *v,
+                       EdgeNamedTupleObject *w, int op)
+{
+    if (!EdgeNamedTuple_Check(v) || !EdgeNamedTuple_Check(w)) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    return _EdgeGeneric_RichCompareValues(
+        v->ob_item, Py_SIZE(v),
+        w->ob_item, Py_SIZE(w),
+        op);
+}
+
+
+static PyObject *
 namedtuple_repr(EdgeNamedTupleObject *o)
 {
     _PyUnicodeWriter writer;
@@ -311,6 +326,7 @@ PyTypeObject EdgeNamedTuple_Type = {
     .tp_hash = (hashfunc)namedtuple_hash,
     .tp_getattro = (getattrofunc)namedtuple_getattr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .tp_richcompare = (richcmpfunc)namedtuple_richcompare,
     .tp_traverse = (traverseproc)namedtuple_traverse,
     .tp_new = namedtuple_new,
     .tp_free = PyObject_GC_Del,

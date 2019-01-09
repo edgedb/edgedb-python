@@ -177,6 +177,7 @@ setuptools.setup(
              "edgedb/protocol/datatypes/hash.c",
              "edgedb/protocol/datatypes/array.c",
              "edgedb/protocol/datatypes/repr.c",
+             "edgedb/protocol/datatypes/comp.c",
              "edgedb/protocol/aprotocol.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS),

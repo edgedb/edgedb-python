@@ -169,6 +169,20 @@ tuple_getitem(EdgeTupleObject *o, Py_ssize_t i)
 
 
 static PyObject *
+tuple_richcompare(EdgeTupleObject *v, EdgeTupleObject *w, int op)
+{
+    if (!EdgeTuple_Check(v) || !EdgeTuple_Check(w)) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    return _EdgeGeneric_RichCompareValues(
+        v->ob_item, Py_SIZE(v),
+        w->ob_item, Py_SIZE(w),
+        op);
+}
+
+
+static PyObject *
 tuple_repr(EdgeTupleObject *o)
 {
     _PyUnicodeWriter writer;
@@ -215,6 +229,7 @@ PyTypeObject EdgeTuple_Type = {
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_traverse = (traverseproc)tuple_traverse,
     .tp_new = tuple_new,
+    .tp_richcompare = (richcmpfunc)tuple_richcompare,
     .tp_free = PyObject_GC_Del,
     .tp_repr = (reprfunc)tuple_repr,
 };

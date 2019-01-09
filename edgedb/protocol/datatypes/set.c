@@ -152,6 +152,82 @@ set_getitem(EdgeSetObject *o, Py_ssize_t i)
 
 
 static PyObject *
+set_richcompare(EdgeSetObject *v, EdgeSetObject *w, int op)
+{
+    if (!EdgeSet_Check(v) ||
+        !EdgeSet_Check(w) ||
+        (op != Py_EQ && op != Py_NE))
+    {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    int res = -1;
+    Py_ssize_t vlen = PyList_Size(v->els);
+
+    if (vlen != PyList_Size(w->els)) {
+        res = 0;
+        goto done;
+    }
+
+    if (vlen == 1) {
+        res = PyObject_RichCompareBool(v->els, w->els, Py_EQ);
+        if (res < 0) {
+            return NULL;
+        }
+        goto done;
+    }
+
+    PyObject *left = NULL;
+    PyObject *right = NULL;
+
+    left = PyList_GetSlice(v->els, 0, vlen);
+    if (left == NULL) {
+        goto error;
+    }
+
+    right = PyList_GetSlice(w->els, 0, vlen);
+    if (right == NULL) {
+        goto error;
+    }
+
+    if (PyList_Sort(left) < 0) {
+        goto error;
+    }
+
+    if (PyList_Sort(right) < 0) {
+        goto error;
+    }
+
+    res = PyObject_RichCompareBool(left, right, Py_EQ);
+    Py_CLEAR(left);
+    Py_CLEAR(right);
+    if (res < 0) {
+        goto error;
+    }
+    goto done;
+
+error:
+    Py_XDECREF(left);
+    Py_XDECREF(right);
+    return NULL;
+
+done:
+    assert(res != -1);
+
+    if (op == Py_NE) {
+        res = !res;
+    }
+
+    if (res) {
+        Py_RETURN_TRUE;
+    }
+    else {
+        Py_RETURN_FALSE;
+    }
+}
+
+
+static PyObject *
 set_repr(EdgeSetObject *o)
 {
     _PyUnicodeWriter writer;
@@ -199,6 +275,7 @@ PyTypeObject EdgeSet_Type = {
     .tp_new = set_tp_new,
     .tp_hash = (hashfunc)set_hash,
     .tp_as_sequence = &set_as_sequence,
+    .tp_richcompare = (richcmpfunc)set_richcompare,
     .tp_repr = (reprfunc)set_repr,
     .tp_free = PyObject_GC_Del,
 };
