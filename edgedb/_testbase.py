@@ -20,8 +20,8 @@
 import edgedb
 
 
-from edb.lang.common import devmode
-from edb.server import _testbase as tb
+from edb.common import devmode
+from edb.testbase import server as tb
 
 
 class QueryTestCase(tb.QueryTestCase):
