@@ -100,10 +100,10 @@ class TestTuple(unittest.TestCase):
             edgedb.Tuple([1] * 20000)
 
     def test_tuple_freelist_1(self):
-        l = []
+        lst = []
         for i in range(5000):
-            l.append(edgedb.Tuple((1,)))
-        for t in l:
+            lst.append(edgedb.Tuple((1,)))
+        for t in lst:
             self.assertEqual(t[0], 1)
 
     def test_tuple5(self):
