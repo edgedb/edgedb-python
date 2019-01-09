@@ -445,6 +445,14 @@ cdef class Protocol:
                 'either positional or named arguments are supported; '
                 'not both')
 
+        if type(in_dc) is EmptyTupleCodec:
+            if args:
+                raise RuntimeError('expected no positional arguments')
+            if kwargs:
+                raise RuntimeError('expected no named arguments')
+            in_dc.encode(buf, ())
+            return
+
         if kwargs:
             if type(in_dc) is not NamedTupleCodec:
                 raise RuntimeError(

@@ -40,6 +40,9 @@ DEF CTYPE_ARRAY = 6
 DEF _CODECS_BUILD_CACHE_SIZE = 200
 
 
+cdef BaseCodec NULL_CODEC = NullCodec.__new__(NullCodec)
+cdef BaseCodec EMPTY_TUPLE_CODEC = EmptyTupleCodec.__new__(EmptyTupleCodec)
+
 
 cdef class CodecsRegistry:
 
@@ -182,11 +185,24 @@ cdef class CodecsRegistry:
         return res
 
     cdef has_codec(self, bytes type_id):
-        return type_id in self.codecs
+        return (
+            type_id in self.codecs or
+            type_id in {NULL_CODEC_ID, EMPTY_TUPLE_CODEC_ID}
+        )
 
     cdef BaseCodec get_codec(self, bytes type_id):
-        codec = self.codecs[type_id]
-        return <BaseCodec>codec
+        try:
+            return <BaseCodec>self.codecs[type_id]
+        except KeyError:
+            pass
+
+        if type_id == NULL_CODEC_ID:
+            return NULL_CODEC
+
+        if type_id == EMPTY_TUPLE_CODEC_ID:
+            return EMPTY_TUPLE_CODEC
+
+        raise LookupError
 
     cdef BaseCodec build_codec(self, bytes spec):
         cdef:

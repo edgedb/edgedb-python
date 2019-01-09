@@ -23,6 +23,9 @@ import codecs
 cdef uint64_t RECORD_ENCODER_CHECKED = 1 << 0
 cdef uint64_t RECORD_ENCODER_INVALID = 1 << 1
 
+cdef bytes NULL_CODEC_ID = b'\x00' * 16
+cdef bytes EMPTY_TUPLE_CODEC_ID = b'\x00' * 15 + b'\xFF'
+
 
 cdef class BaseCodec:
 
@@ -42,6 +45,41 @@ cdef class BaseCodec:
 
     cdef dump(self, int level = 0):
         return f'{level * " "}{self.name}'
+
+
+cdef class EmptyTupleCodec(BaseCodec):
+
+    def __cinit__(self):
+        self.tid = EMPTY_TUPLE_CODEC_ID
+        self.name = 'no-input'
+        self.empty_tup = datatypes.EdgeTuple_New(0)
+
+    cdef encode(self, WriteBuffer buf, object obj):
+        if type(obj) is not tuple:
+            raise RuntimeError(
+                f'cannot encode empty Tuple: expected a tuple, '
+                f'got {type(obj).__name__}')
+        if len(obj) != 0:
+            raise RuntimeError(
+                f'cannot encode empty Tuple: expected 0 elements, '
+                f'got {len(obj)}')
+        buf.write_bytes(b'\x00\x00\x00\x04\x00\x00\x00\x00')
+
+    cdef decode(self, FRBuffer *buf):
+        elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
+        if elem_count != 0:
+            raise RuntimeError(
+                f'cannot decode empty Tuple: expected 0 elements, '
+                f'got {elem_count}')
+
+        return self.empty_tup
+
+
+cdef class NullCodec(BaseCodec):
+
+    def __cinit__(self):
+        self.tid = NULL_CODEC_ID
+        self.name = 'null-codec'
 
 
 cdef class BaseRecordCodec(BaseCodec):

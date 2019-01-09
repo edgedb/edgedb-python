@@ -41,6 +41,16 @@ cdef class BaseRecordCodec(BaseCodec):
     cdef _check_encoder(self)
 
 
+cdef class EmptyTupleCodec(BaseCodec):
+
+    cdef:
+        object empty_tup
+
+
+cdef class NullCodec(BaseCodec):
+    pass
+
+
 cdef class BaseNamedRecordCodec(BaseRecordCodec):
 
     cdef:
