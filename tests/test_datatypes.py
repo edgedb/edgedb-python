@@ -155,12 +155,13 @@ class TestNamedTuple(unittest.TestCase):
 class TestObject(unittest.TestCase):
 
     def test_object_1(self):
-        f = private._create_object_factory(('a', 'lb', 'c'), frozenset(['lb']))
+        f = private._create_object_factory(
+            ('id', 'lb', 'c'), frozenset(['lb']))
         o = f(1, 2, 3)
 
-        self.assertEqual(repr(o), 'Object{a := 1, @lb := 2, c := 3}')
+        self.assertEqual(repr(o), 'Object{id := 1, @lb := 2, c := 3}')
 
-        self.assertEqual(o.a, 1)
+        self.assertEqual(o.id, 1)
         self.assertEqual(o.c, 3)
 
         with self.assertRaises(AttributeError):
@@ -176,7 +177,8 @@ class TestObject(unittest.TestCase):
             o[0]
 
     def test_object_2(self):
-        f = private._create_object_factory(('a', 'lb', 'c'), frozenset(['lb']))
+        f = private._create_object_factory(
+            ('id', 'lb', 'c'), frozenset(['lb']))
         o = f(1, 2, 3)
 
         self.assertEqual(hash(o), hash(f(1, 2, 3)))
@@ -184,14 +186,20 @@ class TestObject(unittest.TestCase):
         self.assertNotEqual(hash(o), hash((1, 2, 3)))
 
     def test_object_3(self):
-        f = private._create_object_factory(('a', 'c'), frozenset())
+        f = private._create_object_factory(('id', 'c'), frozenset())
         o = f(1, [])
 
         o.c.append(o)
-        self.assertEqual(repr(o), 'Object{a := 1, c := [Object{...}]}')
+        self.assertEqual(repr(o), 'Object{id := 1, c := [Object{...}]}')
 
         with self.assertRaisesRegex(TypeError, 'unhashable'):
             hash(o)
+
+    def test_object_5(self):
+        f = private._create_object_factory(
+            ('a', 'lb', 'c'), frozenset(['lb']))
+        with self.assertRaisesRegex(ValueError, "without 'id' field"):
+            f(1, 2, 3)
 
 
 class TestSet(unittest.TestCase):

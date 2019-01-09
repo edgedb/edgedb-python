@@ -81,7 +81,8 @@ int
 _EdgeGeneric_RenderItems(_PyUnicodeWriter *writer,
                          PyObject *host, PyObject *desc,
                          PyObject **items, Py_ssize_t len,
-                         int include_link_props)
+                         int include_link_props,
+                         int include_implicit)
 {
     assert(EdgeRecordDesc_GetSize(desc) == len);
 
@@ -105,6 +106,15 @@ _EdgeGeneric_RenderItems(_PyUnicodeWriter *writer,
         int is_linkprop = EdgeRecordDesc_PointerIsLinkProp(desc, i);
         if (is_linkprop < 0) {
             goto error;
+        }
+
+        int is_implicit = EdgeRecordDesc_PointerIsImplicit(desc, i);
+        if (is_implicit < 0) {
+            goto error;
+        }
+
+        if (is_implicit && !include_implicit) {
+            continue;
         }
 
         if (is_linkprop) {

@@ -170,6 +170,8 @@ EdgeRecordDesc_New(PyObject *names, PyObject *flags)
         }
     }
 
+    Py_ssize_t idpos = -1;
+
     PyObject *index = PyDict_New();
     if (index == NULL) {
         return NULL;
@@ -191,14 +193,18 @@ EdgeRecordDesc_New(PyObject *names, PyObject *flags)
         }
 
         if (flags != NULL) {
+            if (PyUnicode_CompareWithASCIIString(key, "id") == 0) {
+                idpos = i;
+            }
+
             PyObject *flag = PyTuple_GET_ITEM(flags, i);
             long flag_long = PyLong_AsLong(flag);
-            if (flag_long < 0) {
-                assert(PyErr_Occurred());
+            if (flag_long == -1) {
                 goto fail;
             }
             if ((unsigned long)flag_long > 128) {
-                PyErr_Format(PyExc_OverflowError, "invalid name flag %d", flag_long);
+                PyErr_Format(PyExc_OverflowError,
+                             "invalid name flag %d", flag_long);
                 goto fail;
             }
             bits[i] = (uint8_t)flag_long;
@@ -233,6 +239,7 @@ EdgeRecordDesc_New(PyObject *names, PyObject *flags)
     o->names = names;
 
     o->size = size;
+    o->idpos = idpos;
 
     PyObject_GC_Track(o);
     return (PyObject *)o;
@@ -288,6 +295,14 @@ EdgeRecordDesc_PointerName(PyObject *ob, Py_ssize_t pos)
     }
     Py_INCREF(key);
     return key;
+}
+
+
+Py_ssize_t
+EdgeRecordDesc_IDPos(PyObject *ob)
+{
+    assert(EdgeRecordDesc_Check(ob));
+    return ((EdgeRecordDescObject *)ob)->idpos;
 }
 
 

@@ -44,7 +44,7 @@ int _EdgeGeneric_RenderValues(
 
 int _EdgeGeneric_RenderItems(_PyUnicodeWriter *,
                              PyObject *, PyObject *,
-                             PyObject **, Py_ssize_t, int);
+                             PyObject **, Py_ssize_t, int, int);
 
 
 #endif

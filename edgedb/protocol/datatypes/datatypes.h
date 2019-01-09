@@ -42,6 +42,7 @@ typedef struct {
     PyObject *index;
     PyObject *names;
     uint8_t *posbits;
+    Py_ssize_t idpos;
     Py_ssize_t size;
 } EdgeRecordDescObject;
 
@@ -50,6 +51,7 @@ typedef enum {L_ERROR, L_NOT_FOUND, L_LINKPROP, L_ATTR} edge_attr_lookup_t;
 PyObject * EdgeRecordDesc_InitType(void);
 PyObject * EdgeRecordDesc_New(PyObject *, PyObject *);
 PyObject * EdgeRecordDesc_PointerName(PyObject *, Py_ssize_t);
+Py_ssize_t EdgeRecordDesc_IDPos(PyObject *ob);
 int EdgeRecordDesc_PointerIsLinkProp(PyObject *, Py_ssize_t);
 int EdgeRecordDesc_PointerIsImplicit(PyObject *, Py_ssize_t);
 Py_ssize_t EdgeRecordDesc_GetSize(PyObject *);

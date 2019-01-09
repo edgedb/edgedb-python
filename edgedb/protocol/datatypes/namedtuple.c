@@ -278,7 +278,7 @@ namedtuple_repr(EdgeNamedTupleObject *o)
 
     if (_EdgeGeneric_RenderItems(&writer,
                                  (PyObject *)o, o->desc,
-                                 o->ob_item, Py_SIZE(o), 0) < 0)
+                                 o->ob_item, Py_SIZE(o), 0, 0) < 0)
     {
         goto error;
     }
