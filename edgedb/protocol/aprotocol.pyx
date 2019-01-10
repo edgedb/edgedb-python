@@ -684,7 +684,7 @@ cdef class Protocol:
             self.connected_fut.set_exception(ConnectionAbortedError())
             return
 
-        if self.msg_waiter is not None:
+        if self.msg_waiter is not None and not self.msg_waiter.done():
             self.msg_waiter.set_exception(ConnectionAbortedError())
             self.msg_waiter = None
 
