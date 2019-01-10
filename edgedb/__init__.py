@@ -73,6 +73,9 @@ class Connection:
             self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
+    async def execute(self, query):
+        await self._protocol.simple_query(query)
+
     async def _legacy_execute(self, query, *, graphql=False):
         return await self._protocol.legacy(query, graphql)
 

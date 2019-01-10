@@ -345,6 +345,49 @@ cdef class Protocol:
 
         return json.loads(json_data.decode('utf-8'))
 
+    async def simple_query(self, str query):
+        cdef:
+            WriteBuffer buf
+            char mtype
+
+        if not self.connected:
+            raise RuntimeError('not connected')
+        if self.transport is None:
+            raise RuntimeError('no transport object in simple_query()')
+
+        buf = WriteBuffer.new_message(b'Q')
+        buf.write_utf8(query)
+        self.write(buf.end_message())
+
+        exc = None
+
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            try:
+                if mtype == b'C':
+                    # CommandComplete
+                    self.buffer.discard_message()
+
+                elif mtype == b'E':
+                    # ErrorResponse
+                    exc = self.handle_error_message()
+
+                elif mtype == b'Z':
+                    self.parse_sync_message()
+                    break
+
+                else:
+                    self.fallthrough()
+
+            finally:
+                self.buffer.finish_message()
+
+        if exc is not None:
+            raise exc
+
     async def execute_anonymous(self, CodecsRegistry reg, QueryCache qc,
                                 str query, args, kwargs):
         cdef:
