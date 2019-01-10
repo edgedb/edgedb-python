@@ -105,9 +105,10 @@ cdef class Protocol:
         buf.write_utf8('')  # stmt_name
         buf.write_utf8(query)
         buf.end_message()
-        buf.write_bytes(FLUSH_MESSAGE)
+        buf.write_bytes(SYNC_MESSAGE)
         self.write(buf)
 
+        exc = None
         while True:
             if not self.buffer.take_message():
                 await self.wait_for_message()
@@ -117,16 +118,22 @@ cdef class Protocol:
                 if mtype == b'1':
                     in_type_id = self.buffer.read_bytes(16)
                     out_type_id = self.buffer.read_bytes(16)
-                    break
 
                 elif mtype == b'E':
                     # ErrorResponse
-                    raise self.handle_error_message()
+                    exc = self.handle_error_message()
+
+                elif mtype == b'Z':
+                    self.parse_sync_message()
+                    break
 
                 else:
                     self.fallthrough()
             finally:
                 self.buffer.finish_message()
+
+        if exc is not None:
+            raise exc
 
         if reg.has_codec(in_type_id):
             in_dc = reg.get_codec(in_type_id)
@@ -138,7 +145,7 @@ cdef class Protocol:
             buf.write_byte(b'T')
             buf.write_utf8('')  # stmt_name
             buf.end_message()
-            buf.write_bytes(FLUSH_MESSAGE)
+            buf.write_bytes(SYNC_MESSAGE)
             self.write(buf)
 
             while True:
@@ -149,17 +156,23 @@ cdef class Protocol:
                 try:
                     if mtype == b'T':
                         in_dc, out_dc = self.parse_describe_type_message(reg)
-                        break
 
                     elif mtype == b'E':
                         # ErrorResponse
-                        raise self.handle_error_message()
+                        exc = self.handle_error_message()
+
+                    elif mtype == b'Z':
+                        self.parse_sync_message()
+                        break
 
                     else:
                         self.fallthrough()
 
                 finally:
                     self.buffer.finish_message()
+
+        if exc is not None:
+            raise exc
 
         return in_dc, out_dc
 
@@ -184,6 +197,7 @@ cdef class Protocol:
 
         result = datatypes.EdgeSet_New(0)
 
+        exc = None
         while True:
             if not self.buffer.take_message():
                 await self.wait_for_message()
@@ -198,17 +212,20 @@ cdef class Protocol:
 
                 elif mtype == b'E':
                     # ErrorResponse
-                    raise self.handle_error_message()
+                    exc = self.handle_error_message()
 
                 elif mtype == b'Z':
                     self.parse_sync_message()
-                    return result
+                    break
 
                 else:
                     self.fallthrough()
 
             finally:
                 self.buffer.finish_message()
+
+        if exc is not None:
+            raise exc
 
         return result
 
@@ -236,6 +253,7 @@ cdef class Protocol:
 
         result = None
         re_exec = False
+        exc = None
         while True:
             if not self.buffer.take_message():
                 await self.wait_for_message()
@@ -258,14 +276,11 @@ cdef class Protocol:
 
                 elif mtype == b'E':
                     # ErrorResponse
-                    raise self.handle_error_message()
+                    exc = self.handle_error_message()
 
                 elif mtype == b'Z':
                     self.parse_sync_message()
-                    if not re_exec:
-                        return result
-                    else:
-                        break
+                    break
 
                 else:
                     self.fallthrough()
@@ -273,8 +288,13 @@ cdef class Protocol:
             finally:
                 self.buffer.finish_message()
 
-        assert re_exec
-        return await self._execute(in_dc, out_dc, args, kwargs)
+        if exc is not None:
+            raise exc
+
+        if re_exec:
+            return await self._execute(in_dc, out_dc, args, kwargs)
+        else:
+            return result
 
     async def legacy(self, str query, bint graphql):
         cdef:
