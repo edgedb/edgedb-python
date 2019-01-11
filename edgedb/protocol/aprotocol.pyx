@@ -230,6 +230,7 @@ cdef class Protocol:
         return result
 
     async def _opportunistic_execute(self, CodecsRegistry reg,
+                                     QueryCache qc,
                                      BaseCodec in_dc, BaseCodec out_dc,
                                      str query, args, kwargs):
         cdef:
@@ -263,6 +264,7 @@ cdef class Protocol:
                 if mtype == b'T':
                     # our in/out type spec is out-dated
                     in_dc, out_dc = self.parse_describe_type_message(reg)
+                    qc.set(query, in_dc, out_dc)
                     re_exec = True
 
                 elif mtype == b'D':
@@ -420,7 +422,7 @@ cdef class Protocol:
             out_dc = <BaseCodec>codecs[1]
 
             return await self._opportunistic_execute(
-                reg, in_dc, out_dc, query, args, kwargs)
+                reg, qc, in_dc, out_dc, query, args, kwargs)
 
     async def connect(self):
         cdef:
