@@ -701,7 +701,9 @@ cdef class Protocol:
     def data_received(self, data):
         self.buffer.feed_data(data)
 
-        if self.msg_waiter is not None and self.buffer.take_message():
+        if (self.msg_waiter is not None and
+                self.buffer.take_message() and
+                not self.msg_waiter.done()):
             self.msg_waiter.set_result(True)
             self.msg_waiter = None
 
