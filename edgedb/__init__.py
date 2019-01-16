@@ -64,6 +64,11 @@ class Connection:
 
         self._dbname = dbname
 
+    def _get_unique_id(self, prefix):
+        global _uid
+        _uid += 1
+        return f'_edgedb_{prefix}_{_uid:x}_'
+
     @property
     def dbname(self):
         return self._dbname
@@ -174,3 +179,6 @@ async def connect(*,
         raise last_ex
 
     return Connection(tr, pr, loop, database)
+
+
+_uid = 0

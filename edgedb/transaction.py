@@ -108,7 +108,8 @@ class Transaction:
             self._nested = True
 
         if self._nested:
-            query = 'START TRANSACTION;'
+            self._id = con._get_unique_id('savepoint')
+            query = f'DECLARE SAVEPOINT {self._id};'
         else:
             if self._isolation == 'read_committed':
                 query = 'START TRANSACTION;'
@@ -158,7 +159,10 @@ class Transaction:
         if self._connection._top_xact is self:
             self._connection._top_xact = None
 
-        query = 'COMMIT;'
+        if self._nested:
+            query = f'RELEASE SAVEPOINT {self._id};'
+        else:
+            query = 'COMMIT;'
 
         try:
             await self._connection._legacy_execute(query)
@@ -174,7 +178,10 @@ class Transaction:
         if self._connection._top_xact is self:
             self._connection._top_xact = None
 
-        query = 'ROLLBACK;'
+        if self._nested:
+            query = f'ROLLBACK TO SAVEPOINT {self._id};'
+        else:
+            query = 'ROLLBACK;'
 
         try:
             await self._connection._legacy_execute(query)
