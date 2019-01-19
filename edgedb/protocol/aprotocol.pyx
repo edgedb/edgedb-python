@@ -255,7 +255,7 @@ cdef class Protocol:
         packet.write_bytes(SYNC_MESSAGE)
         self.write(packet)
 
-        result = None
+        result = datatypes.EdgeSet_New(0)
         re_exec = False
         exc = None
         while True:
@@ -272,8 +272,6 @@ cdef class Protocol:
 
                 elif mtype == b'D':
                     assert not re_exec
-                    if result is None:
-                        result = datatypes.EdgeSet_New(0)
                     self.parse_data_messages(out_dc, result)
 
                 elif mtype == b'C':  # CommandComplete
