@@ -48,6 +48,11 @@ cdef enum TransactionStatus:
     TRANS_UNKNOWN = 4              # cannot determine status
 
 
+cdef enum EdgeParseFlags:
+    PARSE_HAS_RESULT = 1 << 0
+    PARSE_SINGLETON_RESULT = 1 << 1
+
+
 cdef class Protocol:
 
     cdef:
@@ -85,4 +90,5 @@ cdef class QueryCache:
         LRUMapping queries
 
     cdef get(self, str query)
-    cdef set(self, str query, BaseCodec in_type, BaseCodec out_type)
+    cdef set(self, str query, int32_t parse_flags,
+             BaseCodec in_type, BaseCodec out_type)

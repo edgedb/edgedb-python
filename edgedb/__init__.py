@@ -82,7 +82,12 @@ class Connection:
 
     async def fetch(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
-            self._codecs_registry, self._query_cache,
+            False, self._codecs_registry, self._query_cache,
+            query, args, kwargs)
+
+    async def fetchval(self, query, *args, **kwargs):
+        return await self._protocol.execute_anonymous(
+            True, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
     async def execute(self, query):

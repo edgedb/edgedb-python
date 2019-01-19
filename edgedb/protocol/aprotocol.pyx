@@ -64,10 +64,11 @@ cdef class QueryCache:
     cdef get(self, str query):
         return self.queries.get(query, None)
 
-    cdef set(self, str query, BaseCodec in_type, BaseCodec out_type):
+    cdef set(self, str query, int32_t parse_flags,
+             BaseCodec in_type, BaseCodec out_type):
         assert in_type is not None
         assert out_type is not None
-        self.queries[query] = (in_type, out_type)
+        self.queries[query] = (parse_flags, in_type, out_type)
 
 
 cdef class Protocol:
@@ -98,6 +99,7 @@ cdef class Protocol:
             BaseCodec in_dc = None
             BaseCodec out_dc = None
             int16_t type_size
+            int32_t parse_flags
             bytes in_type_id
             bytes out_type_id
 
@@ -119,6 +121,7 @@ cdef class Protocol:
 
             try:
                 if mtype == b'1':
+                    parse_flags = self.buffer.read_int32()
                     in_type_id = self.buffer.read_bytes(16)
                     out_type_id = self.buffer.read_bytes(16)
 
@@ -158,7 +161,8 @@ cdef class Protocol:
 
                 try:
                     if mtype == b'T':
-                        in_dc, out_dc = self.parse_describe_type_message(reg)
+                        parse_flags, in_dc, out_dc = \
+                            self.parse_describe_type_message(reg)
 
                     elif mtype == b'E':
                         # ErrorResponse
@@ -177,7 +181,7 @@ cdef class Protocol:
         if exc is not None:
             raise exc
 
-        return in_dc, out_dc
+        return parse_flags, in_dc, out_dc
 
     async def _execute(self, BaseCodec in_dc, BaseCodec out_dc, args, kwargs):
         cdef:
@@ -234,6 +238,7 @@ cdef class Protocol:
 
     async def _opportunistic_execute(self, CodecsRegistry reg,
                                      QueryCache qc,
+                                     int32_t parse_flags,
                                      BaseCodec in_dc, BaseCodec out_dc,
                                      str query, args, kwargs):
         cdef:
@@ -245,6 +250,7 @@ cdef class Protocol:
 
         buf = WriteBuffer.new_message(b'O')
         buf.write_utf8(query)
+        buf.write_int32(parse_flags)
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
         self.encode_args(in_dc, buf, args, kwargs)
@@ -266,8 +272,9 @@ cdef class Protocol:
             try:
                 if mtype == b'T':
                     # our in/out type spec is out-dated
-                    in_dc, out_dc = self.parse_describe_type_message(reg)
-                    qc.set(query, in_dc, out_dc)
+                    parse_flags, in_dc, out_dc = \
+                        self.parse_describe_type_message(reg)
+                    qc.set(query, parse_flags, in_dc, out_dc)
                     re_exec = True
 
                 elif mtype == b'D':
@@ -391,12 +398,14 @@ cdef class Protocol:
         if exc is not None:
             raise exc
 
-    async def execute_anonymous(self, CodecsRegistry reg, QueryCache qc,
+    async def execute_anonymous(self, bint fetchval_mode,
+                                CodecsRegistry reg, QueryCache qc,
                                 str query, args, kwargs):
         cdef:
             BaseCodec in_dc
             BaseCodec out_dc
             bint cached
+            int32_t parse_flags
 
         if not self.connected:
             raise RuntimeError('not connected')
@@ -410,20 +419,39 @@ cdef class Protocol:
 
             codecs = await self._parse(reg, query)
 
-            in_dc = <BaseCodec>codecs[0]
-            out_dc = <BaseCodec>codecs[1]
+            parse_flags = <int32_t>codecs[0]
+            if fetchval_mode and not (
+                    parse_flags & PARSE_SINGLETON_RESULT):
+                raise errors.InterfaceError(
+                    f'cannot execute {query!r} in fetchval(): '
+                    f'the result set can be a multiset')
+
+            in_dc = <BaseCodec>codecs[1]
+            out_dc = <BaseCodec>codecs[2]
 
             if not cached:
-                qc.set(query, in_dc, out_dc)
+                qc.set(query, parse_flags, in_dc, out_dc)
 
-            return await self._execute(in_dc, out_dc, args, kwargs)
+            ret = await self._execute(in_dc, out_dc, args, kwargs)
 
         else:
-            in_dc = <BaseCodec>codecs[0]
-            out_dc = <BaseCodec>codecs[1]
+            parse_flags = <int32_t>codecs[0]
+            in_dc = <BaseCodec>codecs[1]
+            out_dc = <BaseCodec>codecs[2]
 
-            return await self._opportunistic_execute(
-                reg, qc, in_dc, out_dc, query, args, kwargs)
+            if fetchval_mode and not (
+                    parse_flags & PARSE_SINGLETON_RESULT):
+                raise errors.InterfaceError(
+                    f'cannot execute {query!r} in fetchval(): '
+                    f'the result set can be a multiset')
+
+            ret = await self._opportunistic_execute(
+                reg, qc, parse_flags, in_dc, out_dc, query, args, kwargs)
+
+        if fetchval_mode:
+            return ret[0] if ret else None
+        else:
+            return ret
 
     async def connect(self):
         cdef:
@@ -539,8 +567,11 @@ cdef class Protocol:
             bytes type_id
             int16_t type_size
             bytes type_data
+            int32_t parse_flags
 
         try:
+            parse_flags = self.buffer.read_int32()
+
             type_id = self.buffer.read_bytes(16)
             type_size = self.buffer.read_int16()
             type_data = self.buffer.read_bytes(type_size)
@@ -561,7 +592,7 @@ cdef class Protocol:
         finally:
             self.buffer.finish_message()
 
-        return in_dc, out_dc
+        return parse_flags, in_dc, out_dc
 
     cdef parse_data_messages(self, BaseCodec out_dc, result):
         cdef:
