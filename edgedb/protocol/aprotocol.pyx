@@ -86,7 +86,10 @@ cdef class Protocol:
         self.connected = False
         self.backend_secret = None
 
-        self.xact_status = PQTRANS_UNKNOWN
+        self.xact_status = TRANS_UNKNOWN
+
+    def is_in_transaction(self):
+        return self.xact_status in (TRANS_INTRANS, TRANS_INERROR)
 
     async def _parse(self, CodecsRegistry reg, str query):
         cdef:
@@ -483,7 +486,7 @@ cdef class Protocol:
             elif mtype == b'Z':
                 # ReadyForQuery
                 self.parse_sync_message()
-                if self.xact_status == PQTRANS_IDLE:
+                if self.xact_status == TRANS_IDLE:
                     self.connected = True
                     return
                 else:
@@ -624,13 +627,13 @@ cdef class Protocol:
         status = self.buffer.read_byte()
 
         if status == b'I':
-            self.xact_status = PQTRANS_IDLE
+            self.xact_status = TRANS_IDLE
         elif status == b'T':
-            self.xact_status = PQTRANS_INTRANS
+            self.xact_status = TRANS_INTRANS
         elif status == b'E':
-            self.xact_status = PQTRANS_INERROR
+            self.xact_status = TRANS_INERROR
         else:
-            self.xact_status = PQTRANS_UNKNOWN
+            self.xact_status = TRANS_UNKNOWN
 
         self.buffer.finish_message()
 

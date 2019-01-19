@@ -41,11 +41,11 @@ ctypedef object (*decode_row_method)(BaseCodec, FRBuffer *buf)
 
 
 cdef enum TransactionStatus:
-    PQTRANS_IDLE = 0                 # connection idle
-    PQTRANS_ACTIVE = 1               # command in progress
-    PQTRANS_INTRANS = 2              # idle, within transaction block
-    PQTRANS_INERROR = 3              # idle, within failed transaction
-    PQTRANS_UNKNOWN = 4              # cannot determine status
+    TRANS_IDLE = 0                 # connection idle
+    TRANS_ACTIVE = 1               # command in progress
+    TRANS_INTRANS = 2              # idle, within transaction block
+    TRANS_INERROR = 3              # idle, within failed transaction
+    TRANS_UNKNOWN = 4              # cannot determine status
 
 
 cdef class Protocol:

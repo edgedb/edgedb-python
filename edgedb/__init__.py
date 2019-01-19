@@ -73,6 +73,13 @@ class Connection:
     def dbname(self):
         return self._dbname
 
+    def is_in_transaction(self):
+        """Return True if Connection is currently inside a transaction.
+
+        :return bool: True if inside transaction, False otherwise.
+        """
+        return self._protocol.is_in_transaction()
+
     async def fetch(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
             self._codecs_registry, self._query_cache,
