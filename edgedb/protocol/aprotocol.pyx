@@ -213,7 +213,25 @@ cdef class Protocol:
 
             try:
                 if mtype == b'D':
-                    self.parse_data_messages(out_dc, result)
+                    if exc is None:
+                        try:
+                            self.parse_data_messages(out_dc, result)
+                        except Exception as ex:
+                            # An error during data decoding.  We need to
+                            # handle this as gracefully as possible:
+                            # * save the exception to raise it once SYNC is
+                            #   received;
+                            # * ignore all 'D' messages for this query.
+                            exc = ex
+                            # Take care of a partially consumed 'D' message
+                            # (if any).
+                            if self.buffer.take_message():
+                                if self.buffer.get_message_type() == b'D':
+                                    self.buffer.discard_message()
+                                else:
+                                    self.buffer.put_message()
+                    else:
+                        self.buffer.discard_message()
 
                 elif mtype == b'C':  # CommandComplete
                     self.buffer.discard_message()
