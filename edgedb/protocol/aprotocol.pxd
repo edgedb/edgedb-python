@@ -89,6 +89,7 @@ cdef class QueryCache:
     cdef:
         LRUMapping queries
 
-    cdef get(self, str query)
-    cdef set(self, str query, int32_t parse_flags,
+    cdef get(self, str query, bint json_mode)
+    cdef set(self, str query, bint json_mode,
+             int32_t parse_flags,
              BaseCodec in_type, BaseCodec out_type)

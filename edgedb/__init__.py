@@ -82,12 +82,17 @@ class Connection:
 
     async def fetch(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
-            False, self._codecs_registry, self._query_cache,
+            False, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
     async def fetchval(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
-            True, self._codecs_registry, self._query_cache,
+            True, False, self._codecs_registry, self._query_cache,
+            query, args, kwargs)
+
+    async def fetch_json(self, query, *args, **kwargs):
+        return await self._protocol.execute_anonymous(
+            False, True, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
     async def execute(self, query):

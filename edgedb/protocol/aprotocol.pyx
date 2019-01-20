@@ -61,14 +61,14 @@ cdef class QueryCache:
     def __init__(self, *, cache_size=1000):
         self.queries = LRUMapping(maxsize=cache_size)
 
-    cdef get(self, str query):
-        return self.queries.get(query, None)
+    cdef get(self, str query, bint json_mode):
+        return self.queries.get((query, json_mode), None)
 
-    cdef set(self, str query, int32_t parse_flags,
+    cdef set(self, str query, bint json_mode, int32_t parse_flags,
              BaseCodec in_type, BaseCodec out_type):
         assert in_type is not None
         assert out_type is not None
-        self.queries[query] = (parse_flags, in_type, out_type)
+        self.queries[(query, json_mode)] = (parse_flags, in_type, out_type)
 
 
 cdef class Protocol:
@@ -92,7 +92,7 @@ cdef class Protocol:
     def is_in_transaction(self):
         return self.xact_status in (TRANS_INTRANS, TRANS_INERROR)
 
-    async def _parse(self, CodecsRegistry reg, str query):
+    async def _parse(self, CodecsRegistry reg, str query, bint json_mode):
         cdef:
             WriteBuffer buf
             char mtype
@@ -107,6 +107,7 @@ cdef class Protocol:
             raise RuntimeError('not connected')
 
         buf = WriteBuffer.new_message(b'P')
+        buf.write_byte(b'j' if json_mode else b'b')
         buf.write_utf8('')  # stmt_name
         buf.write_utf8(query)
         buf.end_message()
@@ -238,6 +239,7 @@ cdef class Protocol:
 
     async def _opportunistic_execute(self, CodecsRegistry reg,
                                      QueryCache qc,
+                                     bint json_mode,
                                      int32_t parse_flags,
                                      BaseCodec in_dc, BaseCodec out_dc,
                                      str query, args, kwargs):
@@ -249,6 +251,7 @@ cdef class Protocol:
             object result
 
         buf = WriteBuffer.new_message(b'O')
+        buf.write_byte(b'j' if json_mode else b'b')
         buf.write_utf8(query)
         buf.write_int32(parse_flags)
         buf.write_bytes(in_dc.get_tid())
@@ -274,7 +277,7 @@ cdef class Protocol:
                     # our in/out type spec is out-dated
                     parse_flags, in_dc, out_dc = \
                         self.parse_describe_type_message(reg)
-                    qc.set(query, parse_flags, in_dc, out_dc)
+                    qc.set(query, json_mode, parse_flags, in_dc, out_dc)
                     re_exec = True
 
                 elif mtype == b'D':
@@ -399,6 +402,7 @@ cdef class Protocol:
             raise exc
 
     async def execute_anonymous(self, bint fetchval_mode,
+                                bint json_mode,
                                 CodecsRegistry reg, QueryCache qc,
                                 str query, args, kwargs):
         cdef:
@@ -413,11 +417,11 @@ cdef class Protocol:
             raise RuntimeError('no transport object in legacy()')
 
         cached = True
-        codecs = qc.get(query)
+        codecs = qc.get(query, json_mode)
         if codecs is None:
             cached = False
 
-            codecs = await self._parse(reg, query)
+            codecs = await self._parse(reg, query, json_mode)
 
             parse_flags = <int32_t>codecs[0]
             if fetchval_mode and not (
@@ -430,7 +434,7 @@ cdef class Protocol:
             out_dc = <BaseCodec>codecs[2]
 
             if not cached:
-                qc.set(query, parse_flags, in_dc, out_dc)
+                qc.set(query, json_mode, parse_flags, in_dc, out_dc)
 
             ret = await self._execute(in_dc, out_dc, args, kwargs)
 
@@ -446,7 +450,11 @@ cdef class Protocol:
                     f'the result set can be a multiset')
 
             ret = await self._opportunistic_execute(
-                reg, qc, parse_flags, in_dc, out_dc, query, args, kwargs)
+                reg, qc, json_mode, parse_flags,
+                in_dc, out_dc, query, args, kwargs)
+
+        if json_mode:
+            return ret[0] if ret else '[]'
 
         if fetchval_mode:
             return ret[0] if ret else None
