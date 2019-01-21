@@ -28,6 +28,12 @@ compile:
 	$(PYTHON) setup.py build_ext --inplace
 
 
+gen-errors:
+	edb gen-errors --import "from edgedb.errors._base import *" \
+		--extra-all "_base.__all__" --stdout --client > $(ROOT)/.errors
+	mv $(ROOT)/.errors $(ROOT)/edgedb/errors/__init__.py
+
+
 debug:
 	EDGEDB_DEBUG=1 $(PYTHON) setup.py build_ext --inplace
 
