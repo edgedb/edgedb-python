@@ -27,12 +27,12 @@ import time
 from .errors import *  # NoQA
 from . import transaction
 
-from edgedb.protocol.aprotocol import CodecsRegistry as _CodecsRegistry
-from edgedb.protocol.aprotocol import QueryCache as _QueryCache
+from edgedb.protocol.asyncio_proto import CodecsRegistry as _CodecsRegistry
+from edgedb.protocol.asyncio_proto import QueryCache as _QueryCache
 
-from edgedb.protocol.aprotocol import Tuple, NamedTuple  # NoQA
-from edgedb.protocol.aprotocol import Set, Object, Array  # NoQA
-from edgedb.protocol.aprotocol import Protocol
+from edgedb.protocol.asyncio_proto import Tuple, NamedTuple  # NoQA
+from edgedb.protocol.asyncio_proto import Set, Object, Array  # NoQA
+from edgedb.protocol.asyncio_proto import AsyncIOProtocol
 
 
 __all__ = errors.__all__ + ('connect',)  # NoQA
@@ -156,7 +156,8 @@ async def async_connect(*,
 
         last_ex = None
         for h in host:
-            protocol_factory = lambda: Protocol((h, port), con_param, loop)
+            protocol_factory = lambda: AsyncIOProtocol(
+                (h, port), con_param, loop)
 
             if h.startswith('/'):
                 # UNIX socket name

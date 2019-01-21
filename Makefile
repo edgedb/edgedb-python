@@ -16,7 +16,8 @@ clean:
 	rm -fr $(ROOT)/edgedb/pgproto/codecs/*.html
 	rm -fr $(ROOT)/edgedb/protocol/*.c
 	rm -fr $(ROOT)/edgedb/protocol/*.html
-	rm -fr $(ROOT)/edgedb/protocol/*.so build
+	rm -fr $(ROOT)/edgedb/protocol/*.so
+	rm -fr $(ROOT)/build
 	rm -fr $(ROOT)/*.egg-info
 	rm -fr $(ROOT)/edgedb/protocol/codecs/*.html
 	find . -name '__pycache__' | xargs rm -rf

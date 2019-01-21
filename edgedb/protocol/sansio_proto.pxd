@@ -53,37 +53,6 @@ cdef enum EdgeParseFlags:
     PARSE_SINGLETON_RESULT = 1 << 1
 
 
-cdef class Protocol:
-
-    cdef:
-        ReadBuffer buffer
-        object transport
-
-        bint connected
-        object connected_fut
-
-        object loop
-        object msg_waiter
-
-        readonly object addr
-        readonly object con_params
-
-        object backend_secret
-
-        TransactionStatus xact_status
-
-    cdef write(self, WriteBuffer buf)
-    cpdef abort(self)
-    cdef handle_error_message(self)
-
-    cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
-    cdef parse_data_messages(self, BaseCodec out_dc, result)
-    cdef parse_sync_message(self)
-    cdef parse_describe_type_message(self, CodecsRegistry reg)
-
-    cdef fallthrough(self)
-
-
 cdef class QueryCache:
 
     cdef:
@@ -93,3 +62,25 @@ cdef class QueryCache:
     cdef set(self, str query, bint json_mode,
              int32_t parse_flags,
              BaseCodec in_type, BaseCodec out_type)
+
+
+cdef class SansIOProtocol:
+
+    cdef:
+        ReadBuffer buffer
+
+        bint connected
+
+        readonly object addr
+        readonly object con_params
+
+        object backend_secret
+
+        TransactionStatus xact_status
+
+    cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
+
+    cdef parse_data_messages(self, BaseCodec out_dc, result)
+    cdef parse_sync_message(self)
+    cdef parse_describe_type_message(self, CodecsRegistry reg)
+    cdef parse_error_message(self)
