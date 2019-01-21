@@ -168,7 +168,7 @@ setuptools.setup(
             extra_link_args=LDFLAGS),
 
         distutils_extension.Extension(
-            "edgedb.protocol.asyncio_proto",
+            "edgedb.protocol.sansio_proto",
             ["edgedb/protocol/datatypes/args.c",
              "edgedb/protocol/datatypes/record_desc.c",
              "edgedb/protocol/datatypes/tuple.c",
@@ -179,7 +179,19 @@ setuptools.setup(
              "edgedb/protocol/datatypes/array.c",
              "edgedb/protocol/datatypes/repr.c",
              "edgedb/protocol/datatypes/comp.c",
-             "edgedb/protocol/asyncio_proto.pyx"],
+             "edgedb/protocol/sansio_proto.pyx"],
+            extra_compile_args=CFLAGS,
+            extra_link_args=LDFLAGS),
+
+        distutils_extension.Extension(
+            "edgedb.protocol.asyncio_proto",
+            ["edgedb/protocol/asyncio_proto.pyx"],
+            extra_compile_args=CFLAGS,
+            extra_link_args=LDFLAGS),
+
+        distutils_extension.Extension(
+            "edgedb.protocol.blocking_proto",
+            ["edgedb/protocol/blocking_proto.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS),
     ],

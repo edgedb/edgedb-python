@@ -33,13 +33,7 @@ class TransactionState(enum.Enum):
 ISOLATION_LEVELS = {'read_committed', 'serializable', 'repeatable_read'}
 
 
-class Transaction:
-    """Represents a transaction or savepoint block.
-
-    Transactions are created by calling the
-    :meth:`Connection.transaction() <connection.Connection.transaction>`
-    function.
-    """
+class BaseTransaction:
 
     __slots__ = ('_connection', '_isolation', '_readonly', '_deferrable',
                  '_state', '_nested', '_id', '_managed')
@@ -70,24 +64,29 @@ class Transaction:
         self._id = None
         self._managed = False
 
-    async def __aenter__(self):
-        if self._managed:
+    def __check_state_base(self, opname):
+        if self._state is TransactionState.COMMITTED:
             raise errors.InterfaceError(
-                'cannot enter context: already in an `async with` block')
-        self._managed = True
-        await self.start()
+                'cannot {}; the transaction is already committed'.format(
+                    opname))
+        if self._state is TransactionState.ROLLEDBACK:
+            raise errors.InterfaceError(
+                'cannot {}; the transaction is already rolled back'.format(
+                    opname))
+        if self._state is TransactionState.FAILED:
+            raise errors.InterfaceError(
+                'cannot {}; the transaction is in error state'.format(
+                    opname))
 
-    async def __aexit__(self, extype, ex, tb):
-        try:
-            if extype is not None:
-                await self.__rollback()
-            else:
-                await self.__commit()
-        finally:
-            self._managed = False
+    def __check_state(self, opname):
+        if self._state is not TransactionState.STARTED:
+            if self._state is TransactionState.NEW:
+                raise errors.InterfaceError(
+                    'cannot {}; the transaction is not yet started'.format(
+                        opname))
+            self.__check_state_base(opname)
 
-    async def start(self):
-        """Enter the transaction or savepoint block."""
+    def _make_start_query(self):
         self.__check_state_base('start')
         if self._state is TransactionState.STARTED:
             raise errors.InterfaceError(
@@ -123,37 +122,9 @@ class Transaction:
                     query += ' DEFERRABLE'
                 query += ';'
 
-        try:
-            await self._connection._legacy_execute(query)
-        except BaseException:
-            self._state = TransactionState.FAILED
-            raise
-        else:
-            self._state = TransactionState.STARTED
+        return query
 
-    def __check_state_base(self, opname):
-        if self._state is TransactionState.COMMITTED:
-            raise errors.InterfaceError(
-                'cannot {}; the transaction is already committed'.format(
-                    opname))
-        if self._state is TransactionState.ROLLEDBACK:
-            raise errors.InterfaceError(
-                'cannot {}; the transaction is already rolled back'.format(
-                    opname))
-        if self._state is TransactionState.FAILED:
-            raise errors.InterfaceError(
-                'cannot {}; the transaction is in error state'.format(
-                    opname))
-
-    def __check_state(self, opname):
-        if self._state is not TransactionState.STARTED:
-            if self._state is TransactionState.NEW:
-                raise errors.InterfaceError(
-                    'cannot {}; the transaction is not yet started'.format(
-                        opname))
-            self.__check_state_base(opname)
-
-    async def __commit(self):
+    def _make_commit_query(self):
         self.__check_state('commit')
 
         if self._connection._top_xact is self:
@@ -164,15 +135,9 @@ class Transaction:
         else:
             query = 'COMMIT;'
 
-        try:
-            await self._connection._legacy_execute(query)
-        except BaseException:
-            self._state = TransactionState.FAILED
-            raise
-        else:
-            self._state = TransactionState.COMMITTED
+        return query
 
-    async def __rollback(self):
+    def _make_rollback_query(self):
         self.__check_state('rollback')
 
         if self._connection._top_xact is self:
@@ -183,8 +148,70 @@ class Transaction:
         else:
             query = 'ROLLBACK;'
 
+        return query
+
+    def __repr__(self):
+        attrs = []
+        attrs.append('state:{}'.format(self._state.name.lower()))
+
+        attrs.append(self._isolation)
+        if self._readonly:
+            attrs.append('readonly')
+        if self._deferrable:
+            attrs.append('deferrable')
+
+        if self.__class__.__module__.startswith('edgedb.'):
+            mod = 'edgedb'
+        else:
+            mod = self.__class__.__module__
+
+        return '<{}.{} {} {:#x}>'.format(
+            mod, self.__class__.__name__, ' '.join(attrs), id(self))
+
+
+class AsyncTransaction(BaseTransaction):
+
+    async def __aenter__(self):
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot enter context: already in an `async with` block')
+        self._managed = True
+        await self.start()
+
+    async def __aexit__(self, extype, ex, tb):
         try:
-            await self._connection._legacy_execute(query)
+            if extype is not None:
+                await self.__rollback()
+            else:
+                await self.__commit()
+        finally:
+            self._managed = False
+
+    async def start(self):
+        """Enter the transaction or savepoint block."""
+        query = self._make_start_query()
+        try:
+            await self._connection.execute(query)
+        except BaseException:
+            self._state = TransactionState.FAILED
+            raise
+        else:
+            self._state = TransactionState.STARTED
+
+    async def __commit(self):
+        query = self._make_commit_query()
+        try:
+            await self._connection.execute(query)
+        except BaseException:
+            self._state = TransactionState.FAILED
+            raise
+        else:
+            self._state = TransactionState.COMMITTED
+
+    async def __rollback(self):
+        query = self._make_rollback_query()
+        try:
+            await self._connection.execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -205,20 +232,66 @@ class Transaction:
                 'cannot manually rollback from within an `async with` block')
         await self.__rollback()
 
-    def __repr__(self):
-        attrs = []
-        attrs.append('state:{}'.format(self._state.name.lower()))
 
-        attrs.append(self._isolation)
-        if self._readonly:
-            attrs.append('readonly')
-        if self._deferrable:
-            attrs.append('deferrable')
+class Transaction(BaseTransaction):
 
-        if self.__class__.__module__.startswith('edb.'):
-            mod = 'edb'
+    def __enter__(self):
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot enter context: already in a `with` block')
+        self._managed = True
+        self.start()
+
+    def __exit__(self, extype, ex, tb):
+        try:
+            if extype is not None:
+                self.__rollback()
+            else:
+                self.__commit()
+        finally:
+            self._managed = False
+
+    def start(self):
+        """Enter the transaction or savepoint block."""
+        query = self._make_start_query()
+        try:
+            self._connection.execute(query)
+        except BaseException:
+            self._state = TransactionState.FAILED
+            raise
         else:
-            mod = self.__class__.__module__
+            self._state = TransactionState.STARTED
 
-        return '<{}.{} {} {:#x}>'.format(
-            mod, self.__class__.__name__, ' '.join(attrs), id(self))
+    def __commit(self):
+        query = self._make_commit_query()
+        try:
+            self._connection.execute(query)
+        except BaseException:
+            self._state = TransactionState.FAILED
+            raise
+        else:
+            self._state = TransactionState.COMMITTED
+
+    def __rollback(self):
+        query = self._make_rollback_query()
+        try:
+            self._connection.execute(query)
+        except BaseException:
+            self._state = TransactionState.FAILED
+            raise
+        else:
+            self._state = TransactionState.ROLLEDBACK
+
+    def commit(self):
+        """Exit the transaction or savepoint block and commit changes."""
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot manually commit from within a `with` block')
+        self.__commit()
+
+    def rollback(self):
+        """Exit the transaction or savepoint block and rollback changes."""
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot manually rollback from within a `with` block')
+        self.__rollback()

@@ -71,7 +71,6 @@ cdef class SansIOProtocol:
 
         bint connected
 
-        readonly object addr
         readonly object con_params
 
         object backend_secret
@@ -84,3 +83,8 @@ cdef class SansIOProtocol:
     cdef parse_sync_message(self)
     cdef parse_describe_type_message(self, CodecsRegistry reg)
     cdef parse_error_message(self)
+
+    cdef write(self, WriteBuffer buf)
+    cpdef abort(self)
+
+    cdef fallthrough(self)

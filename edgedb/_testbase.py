@@ -19,24 +19,31 @@
 
 import edgedb
 
-
-from edb.common import devmode
 from edb.testbase import server as tb
 
 
-class QueryTestCase(tb.QueryTestCase):
+class AsyncQueryTestCase(tb.QueryTestCase):
+    pass
 
-    BASE_TEST_CLASS = True
 
-    @classmethod
-    def setUpClass(cls):
-        devmode.enable_dev_mode()
-        super().setUpClass()
+class SyncQueryTestCase(tb.QueryTestCase):
 
-    @classmethod
-    def connect(cls, loop, cluster, database=None):
-        connect_args = cluster.get_connect_args().copy()
-        connect_args['user'] = 'edgedb'
-        connect_args['port'] += 1  # XXX
-        connect_args['database'] = database
-        return loop.run_until_complete(edgedb.connect(**connect_args))
+    def setUp(self):
+        super().setUp()
+
+        cls = type(self)
+        cls.async_con = cls.con
+
+        conargs = cls.cluster.get_connect_args().copy()
+        conargs.update(dict(user='edgedb', database=cls.async_con.dbname))
+
+        cls.con = edgedb.connect(**conargs)
+
+    def tearDown(self):
+        cls = type(self)
+        cls.con.close()
+        cls.con = cls.async_con
+        del cls.async_con
+
+
+gen_lock_key = tb.gen_lock_key

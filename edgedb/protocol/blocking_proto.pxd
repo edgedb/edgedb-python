@@ -22,12 +22,9 @@ from . cimport sansio_proto
 from edgedb.pgproto.debug cimport PG_DEBUG
 
 
-cdef class AsyncIOProtocol(sansio_proto.SansIOProtocol):
+cdef class BlockingIOProtocol(sansio_proto.SansIOProtocol):
 
     cdef:
-        object transport
+        object sock
 
-        object connected_fut
-
-        object loop
-        object msg_waiter
+    cdef _iter_coroutine(self, coro)

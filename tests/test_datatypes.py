@@ -21,7 +21,7 @@ import unittest
 
 
 import edgedb
-from edgedb.protocol import asyncio_proto as private
+from edgedb.protocol import sansio_proto as private
 
 
 class TestRecordDesc(unittest.TestCase):
