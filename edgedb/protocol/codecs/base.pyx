@@ -24,7 +24,7 @@ cdef uint64_t RECORD_ENCODER_CHECKED = 1 << 0
 cdef uint64_t RECORD_ENCODER_INVALID = 1 << 1
 
 cdef bytes NULL_CODEC_ID = b'\x00' * 16
-cdef bytes EMPTY_TUPLE_CODEC_ID = b'\x00' * 15 + b'\xFF'
+cdef bytes EMPTY_TUPLE_CODEC_ID = TYPE_IDS.get('empty-tuple').bytes
 
 
 cdef class BaseCodec:

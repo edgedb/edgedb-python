@@ -34,6 +34,10 @@ gen-errors:
 	mv $(ROOT)/.errors $(ROOT)/edgedb/errors/__init__.py
 
 
+gen-types:
+	edb gen-types --stdout > $(ROOT)/edgedb/protocol/codecs/edb_types.pxi
+
+
 debug:
 	EDGEDB_DEBUG=1 $(PYTHON) setup.py build_ext --inplace
 

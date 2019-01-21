@@ -20,6 +20,9 @@
 import uuid
 
 
+include "./edb_types.pxi"
+
+
 include "./base.pyx"
 include "./scalar.pyx"
 include "./tuple.pyx"
@@ -228,15 +231,18 @@ cdef dict BASE_SCALAR_CODECS = {}
 
 
 cdef register_base_scalar_codec(
-        str name, str id,
+        str name,
         pgproto.encode_func encoder,
         pgproto.decode_func decoder):
 
     cdef:
-        bytes tid
         BaseCodec codec
 
-    tid = uuid.UUID(id).bytes
+    tid = TYPE_IDS.get(name)
+    if tid is None:
+        raise RuntimeError(f'cannot find known ID for type {name!r}')
+    tid = tid.bytes
+
     if tid in BASE_SCALAR_CODECS:
         raise RuntimeError(f'base scalar codec for {id} is already registered')
 
@@ -247,97 +253,81 @@ cdef register_base_scalar_codec(
 cdef register_base_scalar_codecs():
     register_base_scalar_codec(
         'std::uuid',
-        '00000000-0000-0000-0000-000000000100',
         pgproto.uuid_encode,
         pgproto.uuid_decode)
 
     register_base_scalar_codec(
         'std::str',
-        '00000000-0000-0000-0000-000000000101',
         pgproto.text_encode,
         pgproto.text_decode)
 
     register_base_scalar_codec(
         'std::bytes',
-        '00000000-0000-0000-0000-000000000102',
         pgproto.bytea_encode,
         pgproto.bytea_decode)
 
     register_base_scalar_codec(
         'std::int16',
-        '00000000-0000-0000-0000-000000000103',
         pgproto.int2_encode,
         pgproto.int2_decode)
 
     register_base_scalar_codec(
         'std::int32',
-        '00000000-0000-0000-0000-000000000104',
         pgproto.int4_encode,
         pgproto.int4_decode)
 
     register_base_scalar_codec(
         'std::int64',
-        '00000000-0000-0000-0000-000000000105',
         pgproto.int8_encode,
         pgproto.int8_decode)
 
     register_base_scalar_codec(
         'std::float32',
-        '00000000-0000-0000-0000-000000000106',
         pgproto.float4_encode,
         pgproto.float4_decode)
 
     register_base_scalar_codec(
         'std::float64',
-        '00000000-0000-0000-0000-000000000107',
         pgproto.float8_encode,
         pgproto.float8_decode)
 
     register_base_scalar_codec(
         'std::decimal',
-        '00000000-0000-0000-0000-000000000108',
         pgproto.numeric_encode_binary,
         pgproto.numeric_decode_binary)
 
     register_base_scalar_codec(
         'std::bool',
-        '00000000-0000-0000-0000-000000000109',
         pgproto.bool_encode,
         pgproto.bool_decode)
 
     register_base_scalar_codec(
         'std::datetime',
-        '00000000-0000-0000-0000-00000000010A',
         pgproto.timestamptz_encode,
         pgproto.timestamptz_decode)
 
     register_base_scalar_codec(
         'std::naive_datetime',
-        '00000000-0000-0000-0000-00000000010B',
         pgproto.timestamp_encode,
         pgproto.timestamp_decode)
 
     register_base_scalar_codec(
         'std::naive_date',
-        '00000000-0000-0000-0000-00000000010C',
         pgproto.date_encode,
         pgproto.date_decode)
 
     register_base_scalar_codec(
         'std::naive_time',
-        '00000000-0000-0000-0000-00000000010D',
         pgproto.time_encode,
         pgproto.time_decode)
 
     register_base_scalar_codec(
         'std::timedelta',
-        '00000000-0000-0000-0000-00000000010E',
         pgproto.interval_encode,
         pgproto.interval_decode)
 
     register_base_scalar_codec(
         'std::json',
-        '00000000-0000-0000-0000-00000000010F',
         pgproto.jsonb_encode,
         pgproto.jsonb_decode)
 
