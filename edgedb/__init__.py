@@ -50,7 +50,7 @@ _ConnectionParameters = collections.namedtuple(
     ])
 
 
-class Connection:
+class AsyncIOConnection:
 
     def __init__(self, transport, protocol, loop, dbname):
         self._loop = loop
@@ -112,12 +112,12 @@ class Connection:
 EDGEDB_PORT = 5656
 
 
-async def connect(*,
-                  host=None, port=None,
-                  user=None, password=None,
-                  database=None,
-                  timeout=60,
-                  retry_on_failure=False):
+async def async_connect(*,
+                        host=None, port=None,
+                        user=None, password=None,
+                        database=None,
+                        timeout=60,
+                        retry_on_failure=False):
 
     loop = asyncio.get_event_loop()
 
@@ -195,7 +195,7 @@ async def connect(*,
     if tr is None:
         raise last_ex
 
-    return Connection(tr, pr, loop, database)
+    return AsyncIOConnection(tr, pr, loop, database)
 
 
 _uid = 0
