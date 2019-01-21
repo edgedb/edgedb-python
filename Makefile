@@ -1,4 +1,4 @@
-.PHONY: compile debug test quicktest clean all
+.PHONY: compile debug test quicktest clean all gen-errors gen-types
 
 
 PYTHON ?= python
@@ -9,16 +9,22 @@ all: compile
 
 
 clean:
-	rm -fr dist/ doc/_build/
-	rm -fr edgedb/pgproto/*.c edgedb/pgproto/*.html
-	rm -fr edgedb/pgproto/codecs/*.html
-	rm -fr edgedb/protocol/*.c edgedb/protocol/*.html
-	rm -fr edgedb/protocol/*.so build *.egg-info
-	rm -fr edgedb/protocol/codecs/*.html
+	rm -fr $(ROOT)/dist/
+	rm -fr $(ROOT)/doc/_build/
+	rm -fr $(ROOT)/edgedb/pgproto/*.c
+	rm -fr $(ROOT)/edgedb/pgproto/*.html
+	rm -fr $(ROOT)/edgedb/pgproto/codecs/*.html
+	rm -fr $(ROOT)/edgedb/protocol/*.c
+	rm -fr $(ROOT)/edgedb/protocol/*.html
+	rm -fr $(ROOT)/edgedb/protocol/*.so build
+	rm -fr $(ROOT)/*.egg-info
+	rm -fr $(ROOT)/edgedb/protocol/codecs/*.html
 	find . -name '__pycache__' | xargs rm -rf
 
 
 compile:
+	find $(ROOT)/edgedb/protocol -name '*.pyx' | xargs touch
+	find $(ROOT)/edgedb/protocol/datatypes -name '*.c' | xargs touch
 	$(PYTHON) setup.py build_ext --inplace
 
 
