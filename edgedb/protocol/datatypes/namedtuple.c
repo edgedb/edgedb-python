@@ -228,12 +228,13 @@ namedtuple_getattr(EdgeNamedTupleObject *o, PyObject *name)
             PyErr_SetObject(PyExc_AttributeError, name);
             return NULL;
 
+        case L_LINK:
         case L_LINKPROP:
             /* shouldn't be possible for namedtuples */
             PyErr_BadInternalCall();
             return NULL;
 
-        case L_ATTR: {
+        case L_PROPERTY: {
             PyObject *val = EdgeNamedTuple_GET_ITEM(o, pos);
             Py_INCREF(val);
             return val;

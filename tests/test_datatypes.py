@@ -50,13 +50,22 @@ class TestRecordDesc(unittest.TestCase):
 
     def test_recorddesc_2(self):
         rd = private._RecordDescriptor(
-            ('a', 'b'), (private._EDGE_POINTER_IS_LINKPROP, 0))
+            ('a', 'b', 'c'),
+            (private._EDGE_POINTER_IS_LINKPROP,
+             0,
+             private._EDGE_POINTER_IS_LINK))
 
         self.assertEqual(rd.get_pos('a'), 0)
         self.assertEqual(rd.get_pos('b'), 1)
+        self.assertEqual(rd.get_pos('c'), 2)
 
         self.assertTrue(rd.is_linkprop('a'))
         self.assertFalse(rd.is_linkprop('b'))
+        self.assertFalse(rd.is_linkprop('c'))
+
+        self.assertFalse(rd.is_link('a'))
+        self.assertFalse(rd.is_link('b'))
+        self.assertTrue(rd.is_link('c'))
 
         with self.assertRaises(LookupError):
             rd.get_pos('z')
@@ -313,8 +322,12 @@ class TestNamedTuple(unittest.TestCase):
 class TestObject(unittest.TestCase):
 
     def test_object_1(self):
-        f = private._create_object_factory(
-            ('id', 'lb', 'c'), frozenset(['lb']))
+        f = private.create_object_factory(
+            id='property',
+            lb='link-property',
+            c='property'
+        )
+
         o = f(1, 2, 3)
 
         self.assertEqual(repr(o), 'Object{id := 1, @lb := 2, c := 3}')
@@ -335,16 +348,22 @@ class TestObject(unittest.TestCase):
             o[0]
 
     def test_object_2(self):
-        f = private._create_object_factory(
-            ('id', 'lb', 'c'), frozenset(['lb']))
+        f = private.create_object_factory(
+            id={'property', 'implicit'},
+            lb='link-property',
+            c='property'
+        )
+
         o = f(1, 2, 3)
+
+        self.assertEqual(repr(o), 'Object{@lb := 2, c := 3}')
 
         self.assertEqual(hash(o), hash(f(1, 2, 3)))
         self.assertNotEqual(hash(o), hash(f(1, 2, 'aaaa')))
         self.assertNotEqual(hash(o), hash((1, 2, 3)))
 
     def test_object_3(self):
-        f = private._create_object_factory(('id', 'c'), frozenset())
+        f = private.create_object_factory(id='property', c='link')
         o = f(1, [])
 
         o.c.append(o)
@@ -354,8 +373,11 @@ class TestObject(unittest.TestCase):
             hash(o)
 
     def test_object_4(self):
-        f = private._create_object_factory(
-            ('id', 'lb', 'c'), frozenset(['lb']))
+        f = private.create_object_factory(
+            id={'property', 'implicit'},
+            lb='link-property',
+            c='property'
+        )
 
         o1 = f(1, 'aa', 'ba')
         o2 = f(1, 'ab', 'bb')
@@ -367,8 +389,11 @@ class TestObject(unittest.TestCase):
         self.assertGreater(o3, o2)
 
     def test_object_5(self):
-        f = private._create_object_factory(
-            ('a', 'lb', 'c'), frozenset(['lb']))
+        f = private.create_object_factory(
+            a='property',
+            lb='link-property',
+            c='property'
+        )
         with self.assertRaisesRegex(ValueError, "without 'id' field"):
             f(1, 2, 3)
 
@@ -445,8 +470,11 @@ class TestSet(unittest.TestCase):
             edgedb.Set([2, 2, 1]))
 
     def test_set_6(self):
-        f = private._create_object_factory(
-            ('id', 'lb', 'c'), frozenset(['lb']))
+        f = private.create_object_factory(
+            id={'property', 'implicit'},
+            lb='link-property',
+            c='property'
+        )
 
         o1 = f(1, 'aa', edgedb.Set([1, 2, 3]))
         o2 = f(1, 'ab', edgedb.Set([1, 2, 4]))

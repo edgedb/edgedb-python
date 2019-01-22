@@ -743,17 +743,34 @@ Array = datatypes.EdgeArray_InitType()
 
 _EDGE_POINTER_IS_IMPLICIT = datatypes.EDGE_POINTER_IS_IMPLICIT
 _EDGE_POINTER_IS_LINKPROP = datatypes.EDGE_POINTER_IS_LINKPROP
+_EDGE_POINTER_IS_LINK = datatypes.EDGE_POINTER_IS_LINK
 
 
-def _create_object_factory(tuple pointers, frozenset linkprops):
+def create_object_factory(**pointers):
     flags = ()
-    for name in pointers:
-        if name in linkprops:
-            flags += (datatypes.EDGE_POINTER_IS_LINKPROP,)
-        else:
-            flags += (0,)
+    names = ()
+    for pname, ptype in pointers.items():
+        names += (pname,)
 
-    desc = datatypes.EdgeRecordDesc_New(pointers, flags)
+        if not isinstance(ptype, set):
+            ptype = {ptype}
+
+        flag = 0
+        for pt in ptype:
+            if pt == 'link':
+                flag |= datatypes.EDGE_POINTER_IS_LINK
+            elif pt == 'property':
+                pass
+            elif pt == 'link-property':
+                flag |= datatypes.EDGE_POINTER_IS_LINKPROP
+            elif pt == 'implicit':
+                flag |= datatypes.EDGE_POINTER_IS_IMPLICIT
+            else:
+                raise ValueError(f'unknown pointer type {pt}')
+
+        flags += (flag,)
+
+    desc = datatypes.EdgeRecordDesc_New(names, flags)
     size = len(pointers)
 
     def factory(*items):

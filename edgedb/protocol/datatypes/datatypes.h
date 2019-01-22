@@ -29,6 +29,7 @@
 
 #define EDGE_POINTER_IS_IMPLICIT    (1 << 0)
 #define EDGE_POINTER_IS_LINKPROP    (1 << 1)
+#define EDGE_POINTER_IS_LINK        (1 << 2)
 
 
 /* === edgedb.RecordDesc ==================================== */
@@ -46,13 +47,20 @@ typedef struct {
     Py_ssize_t size;
 } EdgeRecordDescObject;
 
-typedef enum {L_ERROR, L_NOT_FOUND, L_LINKPROP, L_ATTR} edge_attr_lookup_t;
+typedef enum {
+    L_ERROR,
+    L_NOT_FOUND,
+    L_LINKPROP,
+    L_PROPERTY,
+    L_LINK
+} edge_attr_lookup_t;
 
 PyObject * EdgeRecordDesc_InitType(void);
 PyObject * EdgeRecordDesc_New(PyObject *, PyObject *);
 PyObject * EdgeRecordDesc_PointerName(PyObject *, Py_ssize_t);
 Py_ssize_t EdgeRecordDesc_IDPos(PyObject *ob);
 int EdgeRecordDesc_PointerIsLinkProp(PyObject *, Py_ssize_t);
+int EdgeRecordDesc_PointerIsLink(PyObject *, Py_ssize_t);
 int EdgeRecordDesc_PointerIsImplicit(PyObject *, Py_ssize_t);
 Py_ssize_t EdgeRecordDesc_GetSize(PyObject *);
 edge_attr_lookup_t EdgeRecordDesc_Lookup(PyObject *, PyObject *, Py_ssize_t *);

@@ -149,7 +149,8 @@ object_getattr(EdgeObject *o, PyObject *name)
             PyErr_SetObject(PyExc_AttributeError, name);
             return NULL;
 
-        case L_ATTR: {
+        case L_LINK:
+        case L_PROPERTY: {
             PyObject *val = EdgeObject_GET_ITEM(o, pos);
             Py_INCREF(val);
             return val;

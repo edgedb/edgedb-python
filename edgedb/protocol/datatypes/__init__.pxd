@@ -24,6 +24,7 @@ cdef extern from "datatypes/datatypes.h":
 
     int EDGE_POINTER_IS_IMPLICIT
     int EDGE_POINTER_IS_LINKPROP
+    int EDGE_POINTER_IS_LINK
 
     object EdgeRecordDesc_InitType()
     object EdgeRecordDesc_New(object, object)

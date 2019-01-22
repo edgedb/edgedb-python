@@ -79,7 +79,34 @@ record_desc_is_linkprop(EdgeRecordDescObject *o, PyObject *arg)
         case L_LINKPROP:
             Py_RETURN_TRUE;
 
-        case L_ATTR:
+        case L_LINK:
+        case L_PROPERTY:
+            Py_RETURN_FALSE;
+
+        default:
+            abort();
+    }
+}
+
+
+static PyObject *
+record_desc_is_link(EdgeRecordDescObject *o, PyObject *arg)
+{
+    Py_ssize_t pos;
+    edge_attr_lookup_t ret = EdgeRecordDesc_Lookup((PyObject *)o, arg, &pos);
+    switch (ret) {
+        case L_ERROR:
+            return NULL;
+
+        case L_NOT_FOUND:
+            PyErr_SetObject(PyExc_LookupError, arg);
+            return NULL;
+
+        case L_LINK:
+            Py_RETURN_TRUE;
+
+        case L_LINKPROP:
+        case L_PROPERTY:
             Py_RETURN_FALSE;
 
         default:
@@ -100,8 +127,9 @@ record_desc_get_pos(EdgeRecordDescObject *o, PyObject *arg) {
             PyErr_SetObject(PyExc_LookupError, arg);
             return NULL;
 
+        case L_LINK:
         case L_LINKPROP:
-        case L_ATTR:
+        case L_PROPERTY:
             return PyLong_FromLong((long)pos);
 
         default:
@@ -112,6 +140,7 @@ record_desc_get_pos(EdgeRecordDescObject *o, PyObject *arg) {
 
 static PyMethodDef record_desc_methods[] = {
     {"is_linkprop", (PyCFunction)record_desc_is_linkprop, METH_O, NULL},
+    {"is_link", (PyCFunction)record_desc_is_link, METH_O, NULL},
     {"get_pos", (PyCFunction)record_desc_get_pos, METH_O, NULL},
     {NULL, NULL}
 };
@@ -278,8 +307,11 @@ EdgeRecordDesc_Lookup(PyObject *ob, PyObject *key, Py_ssize_t *pos)
     if (d->posbits[res_long] & EDGE_POINTER_IS_LINKPROP) {
         return L_LINKPROP;
     }
+    else if (d->posbits[res_long] & EDGE_POINTER_IS_LINK) {
+        return L_LINK;
+    }
     else {
-        return L_ATTR;
+        return L_PROPERTY;
     }
 }
 
@@ -316,6 +348,18 @@ EdgeRecordDesc_PointerIsLinkProp(PyObject *ob, Py_ssize_t pos)
         return -1;
     }
     return o->posbits[pos] & EDGE_POINTER_IS_LINKPROP;
+}
+
+int
+EdgeRecordDesc_PointerIsLink(PyObject *ob, Py_ssize_t pos)
+{
+    assert(EdgeRecordDesc_Check(ob));
+    EdgeRecordDescObject *o = (EdgeRecordDescObject *)ob;
+    if (pos < 0 || pos >= o->size) {
+        PyErr_SetNone(PyExc_IndexError);
+        return -1;
+    }
+    return o->posbits[pos] & EDGE_POINTER_IS_LINK;
 }
 
 int
