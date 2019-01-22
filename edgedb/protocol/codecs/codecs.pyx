@@ -55,7 +55,7 @@ cdef class CodecsRegistry:
 
     cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list):
         cdef:
-            char t = frb_read(spec, 1)[0]
+            uint8_t t = <uint8_t>(frb_read(spec, 1)[0])
             bytes tid = frb_read(spec, 16)[:16]
             uint16_t els
             uint16_t i
@@ -80,6 +80,7 @@ cdef class CodecsRegistry:
                 for i in range(els):
                     frb_read(spec, 1)
                     str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                    # read the <str> (`str_len` bytes) and <pos> (2 bytes)
                     frb_read(spec, str_len + 2)
 
             elif t == CTYPE_BASE_SCALAR:
@@ -102,6 +103,11 @@ cdef class CodecsRegistry:
 
             elif t == CTYPE_ARRAY:
                 frb_read(spec, 2)
+
+            elif (t >= 0xf0 and t <= 0xff):
+                # Ignore all type annotations.
+                str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                frb_read(spec, str_len)
 
             else:
                 raise NotImplementedError
@@ -181,6 +187,12 @@ cdef class CodecsRegistry:
             sub_codec = <BaseCodec>codecs_list[pos]
             res = ArrayCodec.new(tid, sub_codec)
 
+        elif (t >= 0xf0 and t <= 0xff):
+            # Ignore all type annotations.
+            str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            frb_read(spec, str_len)
+            return
+
         else:
             raise NotImplementedError
 
@@ -221,6 +233,8 @@ cdef class CodecsRegistry:
         codecs_list = []
         while frb_get_len(&buf):
             res = self._build_codec(&buf, codecs_list)
+            if res is None:
+                continue
             codecs_list.append(res)
             self.codecs[res.tid] = res
 
