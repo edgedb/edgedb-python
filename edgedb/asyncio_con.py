@@ -39,7 +39,7 @@ class AsyncIOConnection(base_con.BaseConnection):
             False, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    async def fetchval(self, query, *args, **kwargs):
+    async def fetch_value(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
             True, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)

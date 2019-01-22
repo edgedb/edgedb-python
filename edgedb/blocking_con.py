@@ -33,7 +33,7 @@ class BlockingIOConnection(base_con.BaseConnection):
             False, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    def fetchval(self, query, *args, **kwargs):
+    def fetch_value(self, query, *args, **kwargs):
         return self._protocol.sync_execute_anonymous(
             True, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
