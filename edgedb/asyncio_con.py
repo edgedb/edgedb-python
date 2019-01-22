@@ -31,6 +31,7 @@ class AsyncIOConnection(base_con.BaseConnection):
 
     def __init__(self, transport, protocol, loop, addr, config, params):
         super().__init__(protocol, addr, config, params)
+        self._transport = transport
         self._loop = loop
 
     async def fetch(self, query, *args, **kwargs):
