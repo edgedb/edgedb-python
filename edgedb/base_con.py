@@ -51,6 +51,9 @@ class BaseConnection:
         """
         return self._protocol.is_in_transaction()
 
+    def get_settings(self):
+        return self._protocol.get_settings()
+
 
 # Thread-safe "+= 1" counter.
 _uid_counter = itertools.count(1).__next__

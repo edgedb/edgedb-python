@@ -24,6 +24,7 @@ import asyncio
 import collections
 import json
 import time
+import types
 
 from edgedb.pgproto.pgproto cimport (
     WriteBuffer,
@@ -82,6 +83,11 @@ cdef class SansIOProtocol:
         self.backend_secret = None
 
         self.xact_status = TRANS_UNKNOWN
+
+        self.server_settings = {}
+
+    def get_settings(self):
+        return types.MappingProxyType(self.server_settings)
 
     def is_in_transaction(self):
         return self.xact_status in (TRANS_INTRANS, TRANS_INERROR)
@@ -550,6 +556,13 @@ cdef class SansIOProtocol:
     cdef fallthrough(self):
         cdef:
             char mtype = self.buffer.get_message_type()
+
+        if mtype == b'S':
+            name = self.buffer.read_utf8()
+            val = self.buffer.read_utf8()
+            self.buffer.finish_message()
+            self.server_settings[name] = val
+            return
 
         # TODO:
         # * handle Notice and ServerStatus messages here

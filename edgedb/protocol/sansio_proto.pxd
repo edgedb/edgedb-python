@@ -77,6 +77,8 @@ cdef class SansIOProtocol:
 
         TransactionStatus xact_status
 
+        object server_settings
+
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
 
     cdef parse_data_messages(self, BaseCodec out_dc, result)
