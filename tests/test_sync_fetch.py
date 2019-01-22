@@ -133,7 +133,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-        r = self.con.fetchval('''
+        r = self.con.fetch_value('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
@@ -141,7 +141,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         ''')
         self.assertIsNone(r)
 
-        r = self.con.fetchval('''
+        r = self.con.fetch_value('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertIsNone(r)
@@ -171,12 +171,12 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-        r = self.con.fetchval('''
+        r = self.con.fetch_value('''
             SET MODULE default;
         ''')
         self.assertIsNone(r)
 
-        r = self.con.fetchval('''
+        r = self.con.fetch_value('''
             SET ALIAS foo AS MODULE default,
                 ALIAS bar AS MODULE std;
         ''')
@@ -214,7 +214,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
                 self.assertEqual(r, '[]')
 
         for q in qs:
-            r = self.con.fetchval(q)
+            r = self.con.fetch_value(q)
             self.assertIsNone(r)
 
     def test_sync_fetch_single_command_04(self):
@@ -227,7 +227,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            self.con.fetchval('''
+            self.con.fetch_value('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
@@ -242,7 +242,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
     def test_sync_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
-                self.con.fetchval(
+                self.con.fetch_value(
                     'select ()'),
                 ())
 
@@ -252,7 +252,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
                 edgedb.Set([(1,)]))
 
             self.assertEqual(
-                self.con.fetchval(
+                self.con.fetch_value(
                     'select <array<int64>>[]'),
                 [])
 
@@ -273,10 +273,10 @@ class TestSyncFetch(tb.SyncQueryTestCase):
 
             with self.assertRaisesRegex(edgedb.InterfaceError,
                                         'the result set can be a multiset'):
-                self.con.fetchval('SELECT {1, 2}')
+                self.con.fetch_value('SELECT {1, 2}')
 
             self.assertIsNone(
-                self.con.fetchval('SELECT <int64>{}'))
+                self.con.fetch_value('SELECT <int64>{}'))
 
     def test_sync_basic_datatypes_02(self):
         self.assertEqual(

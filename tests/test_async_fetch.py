@@ -136,7 +136,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchval('''
+        r = await self.con.fetch_value('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
@@ -144,7 +144,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         ''')
         self.assertIsNone(r)
 
-        r = await self.con.fetchval('''
+        r = await self.con.fetch_value('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertIsNone(r)
@@ -174,12 +174,12 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchval('''
+        r = await self.con.fetch_value('''
             SET MODULE default;
         ''')
         self.assertIsNone(r)
 
-        r = await self.con.fetchval('''
+        r = await self.con.fetch_value('''
             SET ALIAS foo AS MODULE default,
                 ALIAS bar AS MODULE std;
         ''')
@@ -217,7 +217,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 self.assertEqual(r, '[]')
 
         for q in qs:
-            r = await self.con.fetchval(q)
+            r = await self.con.fetch_value(q)
             self.assertIsNone(r)
 
     async def test_async_fetch_single_command_04(self):
@@ -230,7 +230,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            await self.con.fetchval('''
+            await self.con.fetch_value('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
@@ -245,7 +245,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
     async def test_async_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
-                await self.con.fetchval(
+                await self.con.fetch_value(
                     'select ()'),
                 ())
 
@@ -255,7 +255,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 edgedb.Set([(1,)]))
 
             self.assertEqual(
-                await self.con.fetchval(
+                await self.con.fetch_value(
                     'select <array<int64>>[]'),
                 [])
 
@@ -276,10 +276,10 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
             with self.assertRaisesRegex(edgedb.InterfaceError,
                                         'the result set can be a multiset'):
-                await self.con.fetchval('SELECT {1, 2}')
+                await self.con.fetch_value('SELECT {1, 2}')
 
             self.assertIsNone(
-                await self.con.fetchval('SELECT <int64>{}'))
+                await self.con.fetch_value('SELECT <int64>{}'))
 
     async def test_async_basic_datatypes_02(self):
         self.assertEqual(
