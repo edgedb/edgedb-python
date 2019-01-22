@@ -212,10 +212,13 @@ object_getitem(EdgeObject *o, PyObject *name)
             PyObject *val = EdgeObject_GET_ITEM(o, pos);
 
             if (EdgeSet_Check(val)) {
-                return EdgeLinkSet_New((PyObject *)o, val);
+                return EdgeLinkSet_New(name, (PyObject *)o, val);
+            }
+            else if (val == Py_None) {
+                Py_RETURN_NONE;
             }
             else {
-                return EdgeLink_New((PyObject *)o, val);
+                return EdgeLink_New(name, (PyObject *)o, val);
             }
         }
 

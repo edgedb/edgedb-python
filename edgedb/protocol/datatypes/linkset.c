@@ -27,7 +27,7 @@ static Py_hash_t base_hash = -1;
 
 
 PyObject *
-EdgeLinkSet_New(PyObject *source, PyObject *targets)
+EdgeLinkSet_New(PyObject *name, PyObject *source, PyObject *targets)
 {
     assert(init_type_called);
 
@@ -52,6 +52,9 @@ EdgeLinkSet_New(PyObject *source, PyObject *targets)
     if (o == NULL) {
         return NULL;
     }
+
+    Py_INCREF(name);
+    o->name = name;
 
     Py_INCREF(source);
     o->source = source;
@@ -93,6 +96,7 @@ linkset_hash(EdgeLinkSetObject *o)
 static int
 linkset_clear(EdgeLinkSetObject *o)
 {
+    Py_CLEAR(o->name);
     Py_CLEAR(o->source);
     Py_CLEAR(o->targets);
     return 0;
@@ -102,6 +106,7 @@ linkset_clear(EdgeLinkSetObject *o)
 static int
 linkset_traverse(EdgeLinkSetObject *self, visitproc visit, void *arg)
 {
+    Py_VISIT(self->name);
     Py_VISIT(self->source);
     Py_VISIT(self->targets);
     return 0;
@@ -124,9 +129,22 @@ linkset_repr(EdgeLinkSetObject *o)
     _PyUnicodeWriter_Init(&writer);
     writer.overallocate = 1;
 
-    if (_PyUnicodeWriter_WriteASCIIString(
-            &writer, "LinkSet(source_id=", 18) < 0)
+    if (_PyUnicodeWriter_WriteASCIIString(&writer, "LinkSet(name=", 13) < 0)
     {
+        goto error;
+    }
+
+    PyObject *sub_repr = _EdgeGeneric_RenderObject(o->name);
+    if (sub_repr == NULL) {
+        goto error;
+    }
+    if (_PyUnicodeWriter_WriteStr(&writer, sub_repr) < 0) {
+        Py_DECREF(sub_repr);
+        goto error;
+    }
+    Py_DECREF(sub_repr);
+
+    if (_PyUnicodeWriter_WriteASCIIString(&writer, ", source_id=", 12) < 0) {
         goto error;
     }
 
@@ -134,7 +152,7 @@ linkset_repr(EdgeLinkSetObject *o)
     if (source_id == NULL) {
         goto error;
     }
-    PyObject *sub_repr = _EdgeGeneric_RenderObject(source_id);
+    sub_repr = _EdgeGeneric_RenderObject(source_id);
     Py_CLEAR(source_id);
     if (sub_repr == NULL) {
         goto error;
@@ -211,6 +229,14 @@ linkset_richcompare(EdgeLinkSetObject *v, EdgeLinkSetObject *w, int op)
     int res;
     int is_eq = 1;
 
+    is_eq = PyObject_RichCompareBool(v->name, w->name, Py_EQ);
+    if (is_eq == -1) {
+        goto error;
+    }
+    if (is_eq == 0) {
+        goto done;
+    }
+
     is_eq = PyObject_RichCompareBool(v->source, w->source, Py_EQ);
     if (is_eq == -1) {
         goto error;
@@ -261,7 +287,7 @@ linkset_getitem(EdgeLinkSetObject *o, Py_ssize_t i)
         return NULL;
     }
 
-    PyObject *link = EdgeLink_New(o->source, target);
+    PyObject *link = EdgeLink_New(o->name, o->source, target);
     Py_DECREF(target);
     return link;
 }

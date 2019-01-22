@@ -420,13 +420,16 @@ class TestObject(unittest.TestCase):
         self.assertEqual(len(linkset), 2)
         self.assertEqual(linkset, o1['o2s'])
         self.assertEqual(hash(linkset), hash(o1['o2s']))
-        self.assertEqual(repr(linkset),
-                         "LinkSet(source_id=2, target_ids={1, 4})")
+        self.assertEqual(
+            repr(linkset),
+            "LinkSet(name='o2s', source_id=2, target_ids={1, 4})")
 
         link1 = linkset[0]
         self.assertIs(link1.source, o1)
         self.assertIs(link1.target, o2_1)
-        self.assertEqual(repr(link1), 'Link(source_id=2, target_id=1)')
+        self.assertEqual(
+            repr(link1),
+            "Link(name='o2s', source_id=2, target_id=1)")
 
         link2 = linkset[1]
         self.assertIs(link2.source, o1)
@@ -444,6 +447,45 @@ class TestObject(unittest.TestCase):
 
         with self.assertRaises(AttributeError):
             link2.aaaa
+
+    def test_object_links_2(self):
+        User = private.create_object_factory(
+            id='property',
+            friends='link',
+            enemies='link',
+        )
+
+        u1 = User(1, edgedb.Set([]), edgedb.Set([]))
+        u2 = User(2, edgedb.Set([]), edgedb.Set([]))
+        u3 = User(3, edgedb.Set([]), edgedb.Set([]))
+        u4 = User(4, edgedb.Set([u1, u2]), edgedb.Set([u1, u2]))
+        u5 = User(5, edgedb.Set([u1, u3]), edgedb.Set([u1, u2]))
+
+        self.assertNotEqual(u4['friends'], u4['enemies'])
+        self.assertNotEqual(u4['enemies'], u5['enemies'])
+
+    def test_object_links_3(self):
+        User = private.create_object_factory(
+            id='property',
+            friend='link',
+        )
+
+        u1 = User(1, None)
+        u2 = User(2, u1)
+        u3 = User(3, edgedb.Set([]))
+
+        self.assertIs(u2['friend'].target, u1)
+
+        self.assertIsNone(u1['friend'])
+
+        self.assertEqual(len(u3['friend']), 0)
+        self.assertEqual(
+            repr(u3['friend']),
+            "LinkSet(name='friend', source_id=3, target_ids={})")
+
+        self.assertEqual(
+            repr(u2['friend']),
+            "Link(name='friend', source_id=2, target_id=1)")
 
 
 class TestSet(unittest.TestCase):

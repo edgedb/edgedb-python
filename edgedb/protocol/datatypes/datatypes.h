@@ -181,12 +181,13 @@ extern PyTypeObject EdgeLink_Type;
 
 typedef struct {
     PyObject_VAR_HEAD
+    PyObject *name;
     PyObject *source;
     PyObject *target;
 } EdgeLinkObject;
 
 PyObject * EdgeLink_InitType(void);
-PyObject * EdgeLink_New(PyObject *source, PyObject *target);
+PyObject * EdgeLink_New(PyObject *, PyObject *, PyObject *);
 
 
 /* === edgedb.LinkSet ======================================= */
@@ -197,11 +198,12 @@ extern PyTypeObject EdgeLinkSet_Type;
 
 typedef struct {
     PyObject_VAR_HEAD
+    PyObject *name;
     PyObject *source;
     PyObject *targets;
 } EdgeLinkSetObject;
 
 PyObject * EdgeLinkSet_InitType(void);
-PyObject * EdgeLinkSet_New(PyObject *source, PyObject *targets);
+PyObject * EdgeLinkSet_New(PyObject *, PyObject *, PyObject *);
 
 #endif

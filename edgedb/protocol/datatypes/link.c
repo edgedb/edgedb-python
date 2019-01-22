@@ -27,7 +27,7 @@ static Py_hash_t base_hash = -1;
 
 
 PyObject *
-EdgeLink_New(PyObject *source, PyObject *target)
+EdgeLink_New(PyObject *name, PyObject *source, PyObject *target)
 {
     assert(init_type_called);
 
@@ -52,6 +52,9 @@ EdgeLink_New(PyObject *source, PyObject *target)
         return NULL;
     }
 
+    Py_INCREF(name);
+    o->name = name;
+
     Py_INCREF(source);
     o->source = source;
 
@@ -66,6 +69,7 @@ EdgeLink_New(PyObject *source, PyObject *target)
 static int
 link_clear(EdgeLinkObject *o)
 {
+    Py_CLEAR(o->name);
     Py_CLEAR(o->source);
     Py_CLEAR(o->target);
     return 0;
@@ -75,6 +79,7 @@ link_clear(EdgeLinkObject *o)
 static int
 link_traverse(EdgeLinkObject *self, visitproc visit, void *arg)
 {
+    Py_VISIT(self->name);
     Py_VISIT(self->source);
     Py_VISIT(self->target);
     return 0;
@@ -123,8 +128,22 @@ link_repr(EdgeLinkObject *o)
     _PyUnicodeWriter_Init(&writer);
     writer.overallocate = 1;
 
-    if (_PyUnicodeWriter_WriteASCIIString(
-            &writer, "Link(source_id=", 15) < 0)
+    if (_PyUnicodeWriter_WriteASCIIString(&writer, "Link(name=", 10) < 0)
+    {
+        goto error;
+    }
+
+    PyObject *sub_repr = _EdgeGeneric_RenderObject(o->name);
+    if (sub_repr == NULL) {
+        goto error;
+    }
+    if (_PyUnicodeWriter_WriteStr(&writer, sub_repr) < 0) {
+        Py_DECREF(sub_repr);
+        goto error;
+    }
+    Py_DECREF(sub_repr);
+
+    if (_PyUnicodeWriter_WriteASCIIString(&writer, ", source_id=", 12) < 0)
     {
         goto error;
     }
@@ -133,7 +152,7 @@ link_repr(EdgeLinkObject *o)
     if (source_id == NULL) {
         goto error;
     }
-    PyObject *sub_repr = _EdgeGeneric_RenderObject(source_id);
+    sub_repr = _EdgeGeneric_RenderObject(source_id);
     Py_CLEAR(source_id);
     if (sub_repr == NULL) {
         goto error;
@@ -189,6 +208,14 @@ link_richcompare(EdgeLinkObject *v, EdgeLinkObject *w, int op)
 
     int res;
     int is_eq = 1;
+
+    is_eq = PyObject_RichCompareBool(v->name, w->name, Py_EQ);
+    if (is_eq == -1) {
+        goto error;
+    }
+    if (is_eq == 0) {
+        goto done;
+    }
 
     is_eq = PyObject_RichCompareBool(v->source, w->source, Py_EQ);
     if (is_eq == -1) {
