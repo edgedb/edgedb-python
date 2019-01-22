@@ -739,6 +739,8 @@ NamedTuple = datatypes.EdgeNamedTuple_InitType()
 Object = datatypes.EdgeObject_InitType()
 Set = datatypes.EdgeSet_InitType()
 Array = datatypes.EdgeArray_InitType()
+Link = datatypes.EdgeLink_InitType()
+LinkSet = datatypes.EdgeLinkSet_InitType()
 
 
 _EDGE_POINTER_IS_IMPLICIT = datatypes.EDGE_POINTER_IS_IMPLICIT

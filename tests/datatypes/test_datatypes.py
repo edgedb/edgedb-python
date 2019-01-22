@@ -344,8 +344,11 @@ class TestObject(unittest.TestCase):
         with self.assertRaises(TypeError):
             len(o)
 
-        with self.assertRaises(TypeError):
+        with self.assertRaises(KeyError):
             o[0]
+
+        with self.assertRaises(KeyError):
+            o['id']
 
     def test_object_2(self):
         f = private.create_object_factory(
@@ -396,6 +399,51 @@ class TestObject(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "without 'id' field"):
             f(1, 2, 3)
+
+    def test_object_links_1(self):
+        O2 = private.create_object_factory(
+            id='property',
+            lb='link-property',
+            c='property'
+        )
+
+        O1 = private.create_object_factory(
+            id='property',
+            o2s='link'
+        )
+
+        o2_1 = O2(1, 'linkprop o2 1', 3)
+        o2_2 = O2(4, 'linkprop o2 2', 6)
+        o1 = O1(2, edgedb.Set((o2_1, o2_2)))
+
+        linkset = o1['o2s']
+        self.assertEqual(len(linkset), 2)
+        self.assertEqual(linkset, o1['o2s'])
+        self.assertEqual(hash(linkset), hash(o1['o2s']))
+        self.assertEqual(repr(linkset),
+                         "LinkSet(source_id=2, target_ids={1, 4})")
+
+        link1 = linkset[0]
+        self.assertIs(link1.source, o1)
+        self.assertIs(link1.target, o2_1)
+        self.assertEqual(repr(link1), 'Link(source_id=2, target_id=1)')
+
+        link2 = linkset[1]
+        self.assertIs(link2.source, o1)
+        self.assertIs(link2.target, o2_2)
+
+        self.assertNotEqual(link1, link2)
+
+        self.assertEqual(list(linkset), [link1, link2])
+        self.assertEqual([l for l in linkset], [link1, link2])
+
+        self.assertNotEqual(link1, link2)
+
+        self.assertEqual(link1.lb, 'linkprop o2 1')
+        self.assertEqual(link2.lb, 'linkprop o2 2')
+
+        with self.assertRaises(AttributeError):
+            link2.aaaa
 
 
 class TestSet(unittest.TestCase):

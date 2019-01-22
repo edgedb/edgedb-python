@@ -59,12 +59,31 @@ EdgeSet_SetItem(PyObject *ob, Py_ssize_t pos, PyObject *el)
 }
 
 
+PyObject *
+EdgeSet_GetItem(PyObject *ob, Py_ssize_t pos)
+{
+    assert(EdgeSet_Check(ob));
+    EdgeSetObject *o = (EdgeSetObject *)ob;
+    PyObject *el = PyList_GetItem(o->els, pos);
+    Py_XINCREF(el);
+    return el;
+}
+
+
 int
 EdgeSet_AppendItem(PyObject *ob, PyObject *el)
 {
     assert(EdgeSet_Check(ob));
     EdgeSetObject *o = (EdgeSetObject *)ob;
     return PyList_Append(o->els, el);
+}
+
+Py_ssize_t
+EdgeSet_Len(PyObject *ob)
+{
+    assert(EdgeSet_Check(ob));
+    EdgeSetObject *o = (EdgeSetObject *)ob;
+    return PyList_GET_SIZE(o->els);
 }
 
 

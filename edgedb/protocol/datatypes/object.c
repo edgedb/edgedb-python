@@ -96,6 +96,37 @@ EdgeObject_SetItem(PyObject *ob, Py_ssize_t i, PyObject *el)
 }
 
 
+PyObject *
+EdgeObject_GetItem(PyObject *ob, Py_ssize_t i)
+{
+    assert(EdgeObject_Check(ob));
+    EdgeObject *o = (EdgeObject *)ob;
+    if (i < 0 || i >= Py_SIZE(o)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+    PyObject *el = EdgeObject_GET_ITEM(o, i);
+    Py_INCREF(el);
+    return el;
+}
+
+
+PyObject *
+EdgeObject_GetID(PyObject *ob)
+{
+    assert(EdgeObject_Check(ob));
+    EdgeObject *o = (EdgeObject *)ob;
+    Py_ssize_t i = EdgeRecordDesc_IDPos(o->desc);
+    if (i < 0 || i >= Py_SIZE(o)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+    PyObject *el = EdgeObject_GET_ITEM(o, i);
+    Py_INCREF(el);
+    return el;
+}
+
+
 static void
 object_dealloc(EdgeObject *o)
 {
@@ -162,6 +193,40 @@ object_getattr(EdgeObject *o, PyObject *name)
 }
 
 static PyObject *
+object_getitem(EdgeObject *o, PyObject *name)
+{
+    Py_ssize_t pos;
+    edge_attr_lookup_t ret = EdgeRecordDesc_Lookup(
+        (PyObject *)o->desc, name, &pos);
+    switch (ret) {
+        case L_ERROR:
+            return NULL;
+
+        case L_LINKPROP:
+        case L_PROPERTY:
+        case L_NOT_FOUND:
+            PyErr_SetObject(PyExc_KeyError, name);
+            return NULL;
+
+        case L_LINK: {
+            PyObject *val = EdgeObject_GET_ITEM(o, pos);
+
+            if (EdgeSet_Check(val)) {
+                return EdgeLinkSet_New((PyObject *)o, val);
+            }
+            else {
+                return EdgeLink_New((PyObject *)o, val);
+            }
+        }
+
+        default:
+            abort();
+    }
+
+}
+
+
+static PyObject *
 object_richcompare(EdgeObject *v, EdgeObject *w, int op)
 {
     if (!EdgeObject_Check(v) || !EdgeObject_Check(w)) {
@@ -221,6 +286,11 @@ error:
 }
 
 
+static PyMappingMethods object_as_mapping = {
+    .mp_subscript = (binaryfunc)object_getitem,
+};
+
+
 PyTypeObject EdgeObject_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "edgedb.Object",
@@ -228,6 +298,7 @@ PyTypeObject EdgeObject_Type = {
     .tp_itemsize = sizeof(PyObject *),
     .tp_dealloc = (destructor)object_dealloc,
     .tp_hash = (hashfunc)object_hash,
+    .tp_as_mapping = &object_as_mapping,
     .tp_getattro = (getattrofunc)object_getattr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_richcompare = (richcmpfunc)object_richcompare,

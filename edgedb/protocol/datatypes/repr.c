@@ -20,8 +20,8 @@
 #include "internal.h"
 
 
-static PyObject *
-render_object(PyObject *obj)
+PyObject *
+_EdgeGeneric_RenderObject(PyObject *obj)
 {
     if (Py_EnterRecursiveCall(" while getting a repr of an EdgeDB object")) {
         return NULL;
@@ -50,7 +50,7 @@ _EdgeGeneric_RenderValues(_PyUnicodeWriter *writer,
     }
 
     for (Py_ssize_t i = 0; i < len; i++) {
-        PyObject *item_repr = render_object(items[i]);
+        PyObject *item_repr = _EdgeGeneric_RenderObject(items[i]);
         if (item_repr == NULL) {
             goto error;
         }
@@ -128,7 +128,7 @@ _EdgeGeneric_RenderItems(_PyUnicodeWriter *writer,
             }
         }
 
-        item_repr = render_object(items[i]);
+        item_repr = _EdgeGeneric_RenderObject(items[i]);
         if (item_repr == NULL) {
             goto error;
         }

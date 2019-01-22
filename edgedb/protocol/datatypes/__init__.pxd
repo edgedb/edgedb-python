@@ -51,3 +51,7 @@ cdef extern from "datatypes/datatypes.h":
     object EdgeArray_InitType()
     object EdgeArray_New(Py_ssize_t);
     int EdgeArray_SetItem(object, Py_ssize_t, object) except -1
+
+    object EdgeLink_InitType()
+
+    object EdgeLinkSet_InitType()

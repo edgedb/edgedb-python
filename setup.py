@@ -177,6 +177,8 @@ setuptools.setup(
              "edgedb/protocol/datatypes/set.c",
              "edgedb/protocol/datatypes/hash.c",
              "edgedb/protocol/datatypes/array.c",
+             "edgedb/protocol/datatypes/link.c",
+             "edgedb/protocol/datatypes/linkset.c",
              "edgedb/protocol/datatypes/repr.c",
              "edgedb/protocol/datatypes/comp.c",
              "edgedb/protocol/sansio_proto.pyx"],

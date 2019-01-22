@@ -22,7 +22,7 @@
 from .errors import *
 
 from edgedb.protocol.sansio_proto import Tuple, NamedTuple
-from edgedb.protocol.sansio_proto import Set, Object, Array
+from edgedb.protocol.sansio_proto import Set, Object, Array, Link, LinkSet
 
 from .asyncio_con import async_connect
 from .blocking_con import connect
@@ -30,5 +30,5 @@ from .blocking_con import connect
 
 __all__ = (
     'async_connect', 'connect', 'async_connect',
-    'Tuple', 'NamedTuple', 'Set', 'Object', 'Array'
+    'Tuple', 'NamedTuple', 'Set', 'Object', 'Array', 'Link', 'LinkSet',
 ) + errors.__all__
