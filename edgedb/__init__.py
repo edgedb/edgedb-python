@@ -17,16 +17,18 @@
 #
 
 
-from .errors import *  # NoQA
+# flake8: noqa
 
-from edgedb.protocol.sansio_proto import Tuple, NamedTuple  # NoQA
-from edgedb.protocol.sansio_proto import Set, Object, Array  # NoQA
+from .errors import *
 
-from .asyncio_con import async_connect  # NoQA
-from .blocking_con import connect  # NoQA
+from edgedb.protocol.sansio_proto import Tuple, NamedTuple
+from edgedb.protocol.sansio_proto import Set, Object, Array
+
+from .asyncio_con import async_connect
+from .blocking_con import connect
 
 
 __all__ = (
     'async_connect', 'connect', 'async_connect',
     'Tuple', 'NamedTuple', 'Set', 'Object', 'Array'
-) + errors.__all__  # NoQA
+) + errors.__all__
