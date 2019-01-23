@@ -35,7 +35,7 @@ from distutils.command import build_ext as distutils_build_ext
 import setuptools
 
 
-CYTHON_DEPENDENCY = 'Cython==0.29.0'
+CYTHON_DEPENDENCY = 'Cython==0.29.3'
 
 # Minimal dependencies required to test edgedb.
 TEST_DEPENDENCIES = [
