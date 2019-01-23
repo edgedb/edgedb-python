@@ -182,8 +182,7 @@ object_getattr(EdgeObject *o, PyObject *name)
 
         case L_LINKPROP:
         case L_NOT_FOUND:
-            PyErr_SetObject(PyExc_AttributeError, name);
-            return NULL;
+            return PyObject_GenericGetAttr((PyObject *)o, name);
 
         case L_LINK:
         case L_PROPERTY: {

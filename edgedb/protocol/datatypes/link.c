@@ -294,8 +294,7 @@ link_getattr(EdgeLinkObject *o, PyObject *name)
     }
 
 not_found:
-    PyErr_SetObject(PyExc_AttributeError, name);
-    return NULL;
+    return PyObject_GenericGetAttr((PyObject *)o, name);
 }
 
 

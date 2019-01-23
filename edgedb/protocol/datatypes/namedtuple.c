@@ -230,8 +230,7 @@ namedtuple_getattr(EdgeNamedTupleObject *o, PyObject *name)
             return NULL;
 
         case L_NOT_FOUND:
-            PyErr_SetObject(PyExc_AttributeError, name);
-            return NULL;
+            return PyObject_GenericGetAttr((PyObject *)o, name);
 
         case L_LINK:
         case L_LINKPROP:
