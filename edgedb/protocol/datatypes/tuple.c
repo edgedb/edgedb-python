@@ -59,6 +59,8 @@ EdgeTuple_New(Py_ssize_t size)
     assert(EdgeTuple_Check(obj));
     assert(Py_SIZE(obj) == size);
 
+    obj->weakreflist = NULL;
+
     PyObject_GC_Track(obj);
     return (PyObject *)obj;
 }
@@ -81,6 +83,9 @@ static void
 tuple_dealloc(EdgeTupleObject *o)
 {
     PyObject_GC_UnTrack(o);
+    if (o->weakreflist != NULL) {
+        PyObject_ClearWeakRefs((PyObject*)o);
+    }
     Py_TRASHCAN_SAFE_BEGIN(o)
     EDGE_DEALLOC_WITH_FREELIST(EDGE_TUPLE, EdgeTupleObject, o);
     Py_TRASHCAN_SAFE_END(o)
@@ -239,6 +244,7 @@ PyTypeObject EdgeTuple_Type = {
     .tp_richcompare = (richcmpfunc)tuple_richcompare,
     .tp_free = PyObject_GC_Del,
     .tp_repr = (reprfunc)tuple_repr,
+    .tp_weaklistoffset = offsetof(EdgeTupleObject, weakreflist),
 };
 
 

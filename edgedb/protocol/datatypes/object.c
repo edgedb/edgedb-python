@@ -73,6 +73,8 @@ EdgeObject_New(PyObject *desc)
     assert(Py_SIZE(o) == size);
     assert(EdgeObject_Check(o));
 
+    o->weakreflist = NULL;
+
     Py_INCREF(desc);
     o->desc = desc;
 
@@ -131,6 +133,9 @@ static void
 object_dealloc(EdgeObject *o)
 {
     PyObject_GC_UnTrack(o);
+    if (o->weakreflist != NULL) {
+        PyObject_ClearWeakRefs((PyObject*)o);
+    }
     Py_CLEAR(o->desc);
     o->cached_hash = -1;
     Py_TRASHCAN_SAFE_BEGIN(o)
@@ -325,6 +330,7 @@ PyTypeObject EdgeObject_Type = {
     .tp_traverse = (traverseproc)object_traverse,
     .tp_free = PyObject_GC_Del,
     .tp_repr = (reprfunc)object_repr,
+    .tp_weaklistoffset = offsetof(EdgeObject, weakreflist),
 };
 
 

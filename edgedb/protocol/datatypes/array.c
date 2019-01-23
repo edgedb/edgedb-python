@@ -53,6 +53,7 @@ EdgeArray_New(Py_ssize_t size)
     assert(Py_SIZE(obj) == size);
 
     obj->cached_hash = -1;
+    obj->weakreflist = NULL;
 
     PyObject_GC_Track(obj);
     return (PyObject *)obj;
@@ -77,6 +78,9 @@ array_dealloc(EdgeArrayObject *o)
 {
     o->cached_hash = -1;
     PyObject_GC_UnTrack(o);
+    if (o->weakreflist != NULL) {
+        PyObject_ClearWeakRefs((PyObject*)o);
+    }
     Py_TRASHCAN_SAFE_BEGIN(o)
     EDGE_DEALLOC_WITH_FREELIST(EDGE_ARRAY, EdgeArrayObject, o);
     Py_TRASHCAN_SAFE_END(o)
@@ -239,6 +243,7 @@ PyTypeObject EdgeArray_Type = {
     .tp_richcompare = (richcmpfunc)array_richcompare,
     .tp_free = PyObject_GC_Del,
     .tp_repr = (reprfunc)array_repr,
+    .tp_weaklistoffset = offsetof(EdgeArrayObject, weakreflist),
 };
 
 

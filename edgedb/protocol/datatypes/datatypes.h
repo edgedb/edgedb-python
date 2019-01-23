@@ -81,6 +81,7 @@ extern PyTypeObject EdgeTuple_Type;
 
 typedef struct {
     PyObject_VAR_HEAD
+    PyObject *weakreflist;
     PyObject *ob_item[1];
 } EdgeTupleObject;
 
@@ -102,6 +103,7 @@ extern PyTypeObject EdgeNamedTuple_Type;
 typedef struct {
     PyObject_VAR_HEAD
     PyObject *desc;
+    PyObject *weakreflist;
     PyObject *ob_item[1];
 } EdgeNamedTupleObject;
 
@@ -121,6 +123,7 @@ extern PyTypeObject EdgeObject_Type;
 
 typedef struct {
     PyObject_VAR_HEAD
+    PyObject *weakreflist;
     PyObject *desc;
     Py_hash_t cached_hash;
     PyObject *ob_item[1];
@@ -144,6 +147,7 @@ extern PyTypeObject EdgeSet_Type;
 typedef struct {
     PyObject_HEAD
     Py_hash_t cached_hash;
+    PyObject *weakreflist;
     PyObject *els;
 } EdgeSetObject;
 
@@ -168,6 +172,7 @@ extern PyTypeObject EdgeArray_Type;
 
 typedef struct {
     PyObject_VAR_HEAD
+    PyObject *weakreflist;
     Py_hash_t cached_hash;
     PyObject *ob_item[1];
 } EdgeArrayObject;
@@ -185,6 +190,7 @@ extern PyTypeObject EdgeLink_Type;
 
 typedef struct {
     PyObject_VAR_HEAD
+    PyObject *weakreflist;
     PyObject *name;
     PyObject *source;
     PyObject *target;
@@ -202,6 +208,7 @@ extern PyTypeObject EdgeLinkSet_Type;
 
 typedef struct {
     PyObject_VAR_HEAD
+    PyObject *weakreflist;
     PyObject *name;
     PyObject *source;
     PyObject *targets;

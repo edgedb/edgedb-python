@@ -65,6 +65,8 @@ EdgeNamedTuple_New(PyObject *desc)
     assert(EdgeNamedTuple_Check(nt));
     assert(Py_SIZE(nt) == size);
 
+    nt->weakreflist = NULL;
+
     Py_INCREF(desc);
     nt->desc = desc;
 
@@ -90,6 +92,9 @@ static void
 namedtuple_dealloc(EdgeNamedTupleObject *o)
 {
     PyObject_GC_UnTrack(o);
+    if (o->weakreflist != NULL) {
+        PyObject_ClearWeakRefs((PyObject*)o);
+    }
     Py_CLEAR(o->desc);
     Py_TRASHCAN_SAFE_BEGIN(o)
     EDGE_DEALLOC_WITH_FREELIST(EDGE_NAMED_TUPLE, EdgeNamedTupleObject, o);
@@ -356,6 +361,7 @@ PyTypeObject EdgeNamedTuple_Type = {
     .tp_new = namedtuple_new,
     .tp_free = PyObject_GC_Del,
     .tp_repr = (reprfunc)namedtuple_repr,
+    .tp_weaklistoffset = offsetof(EdgeNamedTupleObject, weakreflist),
 };
 
 

@@ -21,6 +21,8 @@
 #define EDGE_INTERNAL_H
 
 
+#include <stddef.h> /* For offsetof */
+
 #include "datatypes.h"
 
 

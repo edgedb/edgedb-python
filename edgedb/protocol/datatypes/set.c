@@ -43,6 +43,7 @@ EdgeSet_New(Py_ssize_t size)
 
     o->els = l;
     o->cached_hash = -1;
+    o->weakreflist = NULL;
 
     PyObject_GC_Track(o);
     return (PyObject *)o;
@@ -129,6 +130,9 @@ static void
 set_dealloc(EdgeSetObject *o)
 {
     PyObject_GC_UnTrack(o);
+    if (o->weakreflist != NULL) {
+        PyObject_ClearWeakRefs((PyObject*)o);
+    }
     Py_TRASHCAN_SAFE_BEGIN(o)
     o->cached_hash = -1;
     Py_CLEAR(o->els);
@@ -307,6 +311,7 @@ PyTypeObject EdgeSet_Type = {
     .tp_richcompare = (richcmpfunc)set_richcompare,
     .tp_repr = (reprfunc)set_repr,
     .tp_free = PyObject_GC_Del,
+    .tp_weaklistoffset = offsetof(EdgeSetObject, weakreflist),
 };
 
 

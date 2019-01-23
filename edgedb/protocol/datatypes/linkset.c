@@ -53,6 +53,8 @@ EdgeLinkSet_New(PyObject *name, PyObject *source, PyObject *targets)
         return NULL;
     }
 
+    o->weakreflist = NULL;
+
     Py_INCREF(name);
     o->name = name;
 
@@ -117,6 +119,9 @@ static void
 linkset_dealloc(EdgeLinkSetObject *o)
 {
     PyObject_GC_UnTrack(o);
+    if (o->weakreflist != NULL) {
+        PyObject_ClearWeakRefs((PyObject*)o);
+    }
     (void)linkset_clear(o);
     Py_TYPE(o)->tp_free(o);
 }
@@ -313,6 +318,7 @@ PyTypeObject EdgeLinkSet_Type = {
     .tp_traverse = (traverseproc)linkset_traverse,
     .tp_free = PyObject_GC_Del,
     .tp_repr = (reprfunc)linkset_repr,
+    .tp_weaklistoffset = offsetof(EdgeLinkSetObject, weakreflist),
 };
 
 
