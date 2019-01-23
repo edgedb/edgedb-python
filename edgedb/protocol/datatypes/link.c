@@ -288,17 +288,66 @@ link_getattr(EdgeLinkObject *o, PyObject *name)
             abort();
     }
 
-
 not_found:
     PyErr_SetObject(PyExc_AttributeError, name);
     return NULL;
 }
 
 
+static PyObject *
+link_dir(EdgeLinkObject *o, PyObject *args)
+{
+    EdgeObject *target = (EdgeObject *)(o->target);
+    assert(EdgeObject_Check(target));
+
+    PyObject *ret = EdgeRecordDesc_List(
+        target->desc,
+        EDGE_POINTER_IS_LINKPROP,
+        0);
+
+    if (ret == NULL) {
+        return NULL;
+    }
+
+    PyObject *str = PyUnicode_FromString("source");
+    if (str == NULL) {
+        Py_DECREF(ret);
+        return NULL;
+    }
+    if (PyList_Append(ret, str)) {
+        Py_DECREF(str);
+        Py_DECREF(ret);
+        return NULL;
+    }
+    Py_DECREF(str);
+
+    str = PyUnicode_FromString("target");
+    if (str == NULL) {
+        Py_DECREF(ret);
+        return NULL;
+    }
+    if (PyList_Append(ret, str)) {
+        Py_DECREF(str);
+        Py_DECREF(ret);
+        return NULL;
+    }
+    Py_DECREF(str);
+
+    return ret;
+}
+
+
+static PyMethodDef link_methods[] = {
+    {"__dir__", (PyCFunction)link_dir, METH_NOARGS, NULL},
+    {NULL, NULL}
+};
+
+
 PyTypeObject EdgeLink_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "edgedb.Link",
     sizeof(EdgeLinkObject),
+    .tp_methods = link_methods,
     .tp_dealloc = (destructor)link_dealloc,
     .tp_hash = (hashfunc)link_hash,
     .tp_getattro = (getattrofunc)link_getattr,

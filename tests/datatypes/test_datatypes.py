@@ -235,6 +235,8 @@ class TestNamedTuple(unittest.TestCase):
 
         t = edgedb.NamedTuple(a=1, b='a')
 
+        self.assertEqual(set(dir(t)), {'a', 'b'})
+
         self.assertEqual(repr(t), "(a := 1, b := 'a')")
 
         self.assertEqual(t[0], 1)
@@ -350,6 +352,8 @@ class TestObject(unittest.TestCase):
         with self.assertRaises(KeyError):
             o['id']
 
+        self.assertEqual(set(dir(o)), {'id', 'c'})
+
     def test_object_2(self):
         f = private.create_object_factory(
             id={'property', 'implicit'},
@@ -364,6 +368,8 @@ class TestObject(unittest.TestCase):
         self.assertEqual(hash(o), hash(f(1, 2, 3)))
         self.assertNotEqual(hash(o), hash(f(1, 2, 'aaaa')))
         self.assertNotEqual(hash(o), hash((1, 2, 3)))
+
+        self.assertEqual(set(dir(o)), {'id', 'c'})
 
     def test_object_3(self):
         f = private.create_object_factory(id='property', c='link')
@@ -430,6 +436,7 @@ class TestObject(unittest.TestCase):
         self.assertEqual(
             repr(link1),
             "Link(name='o2s', source_id=2, target_id=1)")
+        self.assertEqual(set(dir(link1)), {'target', 'source', 'lb'})
 
         link2 = linkset[1]
         self.assertIs(link2.source, o1)
@@ -464,6 +471,8 @@ class TestObject(unittest.TestCase):
         self.assertNotEqual(u4['friends'], u4['enemies'])
         self.assertNotEqual(u4['enemies'], u5['enemies'])
 
+        self.assertEqual(set(dir(u1)), {'id', 'friends', 'enemies'})
+
     def test_object_links_3(self):
         User = private.create_object_factory(
             id='property',
@@ -473,6 +482,8 @@ class TestObject(unittest.TestCase):
         u1 = User(1, None)
         u2 = User(2, u1)
         u3 = User(3, edgedb.Set([]))
+
+        self.assertEqual(set(dir(u2['friend'])), {'source', 'target'})
 
         self.assertIs(u2['friend'].target, u1)
 

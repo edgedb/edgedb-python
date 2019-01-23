@@ -282,7 +282,11 @@ fail:
 edge_attr_lookup_t
 EdgeRecordDesc_Lookup(PyObject *ob, PyObject *key, Py_ssize_t *pos)
 {
-    assert(EdgeRecordDesc_Check(ob));
+    if (!EdgeRecordDesc_Check(ob)) {
+        PyErr_BadInternalCall();
+        return L_ERROR;
+    }
+
     EdgeRecordDescObject *d = (EdgeRecordDescObject *)ob;
 
     PyObject *res = PyDict_GetItem(d->index, key);  /* borrowed */
@@ -319,7 +323,10 @@ EdgeRecordDesc_Lookup(PyObject *ob, PyObject *key, Py_ssize_t *pos)
 PyObject *
 EdgeRecordDesc_PointerName(PyObject *ob, Py_ssize_t pos)
 {
-    assert(EdgeRecordDesc_Check(ob));
+    if (!EdgeRecordDesc_Check(ob)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
     EdgeRecordDescObject *o = (EdgeRecordDescObject *)ob;
     PyObject * key = PyTuple_GetItem(o->names, pos);
     if (key == NULL) {
@@ -333,7 +340,10 @@ EdgeRecordDesc_PointerName(PyObject *ob, Py_ssize_t pos)
 Py_ssize_t
 EdgeRecordDesc_IDPos(PyObject *ob)
 {
-    assert(EdgeRecordDesc_Check(ob));
+    if (!EdgeRecordDesc_Check(ob)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
     return ((EdgeRecordDescObject *)ob)->idpos;
 }
 
@@ -341,7 +351,10 @@ EdgeRecordDesc_IDPos(PyObject *ob)
 int
 EdgeRecordDesc_PointerIsLinkProp(PyObject *ob, Py_ssize_t pos)
 {
-    assert(EdgeRecordDesc_Check(ob));
+    if (!EdgeRecordDesc_Check(ob)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
     EdgeRecordDescObject *o = (EdgeRecordDescObject *)ob;
     if (pos < 0 || pos >= o->size) {
         PyErr_SetNone(PyExc_IndexError);
@@ -353,7 +366,10 @@ EdgeRecordDesc_PointerIsLinkProp(PyObject *ob, Py_ssize_t pos)
 int
 EdgeRecordDesc_PointerIsLink(PyObject *ob, Py_ssize_t pos)
 {
-    assert(EdgeRecordDesc_Check(ob));
+    if (!EdgeRecordDesc_Check(ob)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
     EdgeRecordDescObject *o = (EdgeRecordDescObject *)ob;
     if (pos < 0 || pos >= o->size) {
         PyErr_SetNone(PyExc_IndexError);
@@ -365,7 +381,10 @@ EdgeRecordDesc_PointerIsLink(PyObject *ob, Py_ssize_t pos)
 int
 EdgeRecordDesc_PointerIsImplicit(PyObject *ob, Py_ssize_t pos)
 {
-    assert(EdgeRecordDesc_Check(ob));
+    if (!EdgeRecordDesc_Check(ob)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
     EdgeRecordDescObject *o = (EdgeRecordDescObject *)ob;
     if (pos < 0 || pos >= o->size) {
         PyErr_SetNone(PyExc_IndexError);
@@ -378,9 +397,47 @@ Py_ssize_t
 EdgeRecordDesc_GetSize(PyObject *ob)
 {
     assert(ob != NULL);
-    assert(EdgeRecordDesc_Check(ob));
+    if (!EdgeRecordDesc_Check(ob)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
     EdgeRecordDescObject *o = (EdgeRecordDescObject *)ob;
     return o->size;
+}
+
+
+PyObject *
+EdgeRecordDesc_List(PyObject *ob, uint8_t include_mask, uint8_t exclude_mask)
+{
+    if (!EdgeRecordDesc_Check(ob)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+
+    EdgeRecordDescObject *o = (EdgeRecordDescObject *)ob;
+
+    PyObject *ret = PyList_New(0);
+    if (ret == NULL) {
+        return NULL;
+    }
+
+    for (Py_ssize_t i = 0; i < o->size; i++) {
+        if ((include_mask == 0xFF || (o->posbits[i] & include_mask)) &&
+                (exclude_mask == 0 || !(o->posbits[i] & exclude_mask)))
+        {
+            PyObject *name = PyTuple_GetItem(o->names, i);
+            if (name == NULL) {
+                Py_DECREF(ret);
+                return NULL;
+            }
+            if (PyList_Append(ret, name)) {
+                Py_DECREF(ret);
+                return NULL;
+            }
+        }
+    }
+
+    return ret;
 }
 
 

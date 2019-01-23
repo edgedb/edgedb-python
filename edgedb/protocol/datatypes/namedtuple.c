@@ -318,6 +318,22 @@ error:
 }
 
 
+static PyObject *
+namedtuple_dir(EdgeNamedTupleObject *o, PyObject *args)
+{
+    return EdgeRecordDesc_List(
+        o->desc,
+        0xFF,
+        0xFF);
+}
+
+
+static PyMethodDef namedtuple_methods[] = {
+    {"__dir__", (PyCFunction)namedtuple_dir, METH_NOARGS, NULL},
+    {NULL, NULL}
+};
+
+
 static PySequenceMethods namedtuple_as_sequence = {
     .sq_length = (lenfunc)namedtuple_length,
     .sq_item = (ssizeargfunc)namedtuple_getitem,
@@ -329,6 +345,7 @@ PyTypeObject EdgeNamedTuple_Type = {
     "edgedb.NamedTuple",
     .tp_basicsize = sizeof(EdgeNamedTupleObject) - sizeof(PyObject *),
     .tp_itemsize = sizeof(PyObject *),
+    .tp_methods = namedtuple_methods,
     .tp_dealloc = (destructor)namedtuple_dealloc,
     .tp_as_sequence = &namedtuple_as_sequence,
     .tp_hash = (hashfunc)namedtuple_hash,

@@ -59,11 +59,15 @@ PyObject * EdgeRecordDesc_InitType(void);
 PyObject * EdgeRecordDesc_New(PyObject *, PyObject *);
 PyObject * EdgeRecordDesc_PointerName(PyObject *, Py_ssize_t);
 Py_ssize_t EdgeRecordDesc_IDPos(PyObject *ob);
+
 int EdgeRecordDesc_PointerIsLinkProp(PyObject *, Py_ssize_t);
 int EdgeRecordDesc_PointerIsLink(PyObject *, Py_ssize_t);
 int EdgeRecordDesc_PointerIsImplicit(PyObject *, Py_ssize_t);
+
 Py_ssize_t EdgeRecordDesc_GetSize(PyObject *);
 edge_attr_lookup_t EdgeRecordDesc_Lookup(PyObject *, PyObject *, Py_ssize_t *);
+PyObject * EdgeRecordDesc_List(PyObject *, uint8_t, uint8_t);
+
 
 
 /* === edgedb.Tuple ========================================= */

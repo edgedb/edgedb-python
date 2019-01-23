@@ -289,6 +289,22 @@ error:
 }
 
 
+static PyObject *
+object_dir(EdgeObject *o, PyObject *args)
+{
+    return EdgeRecordDesc_List(
+        o->desc,
+        0xFF,
+        EDGE_POINTER_IS_LINKPROP);
+}
+
+
+static PyMethodDef object_methods[] = {
+    {"__dir__", (PyCFunction)object_dir, METH_NOARGS, NULL},
+    {NULL, NULL}
+};
+
+
 static PyMappingMethods object_as_mapping = {
     .mp_subscript = (binaryfunc)object_getitem,
 };
@@ -301,6 +317,7 @@ PyTypeObject EdgeObject_Type = {
     .tp_itemsize = sizeof(PyObject *),
     .tp_dealloc = (destructor)object_dealloc,
     .tp_hash = (hashfunc)object_hash,
+    .tp_methods = object_methods,
     .tp_as_mapping = &object_as_mapping,
     .tp_getattro = (getattrofunc)object_getattr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
