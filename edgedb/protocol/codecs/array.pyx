@@ -78,13 +78,16 @@ cdef class BaseArrayCodec(BaseCodec):
         buf.write_buffer(elem_data)
 
     cdef decode(self, FRBuffer *buf):
+        return self._decode_array(buf)
+
+    cdef inline _decode_array(self, FRBuffer *buf):
         cdef:
-            object result
             Py_ssize_t elem_count
+            int32_t ndims = hton.unpack_int32(frb_read(buf, 4))
+            object result
             Py_ssize_t i
             int32_t elem_len
             FRBuffer elem_buf
-            int32_t ndims = hton.unpack_int32(frb_read(buf, 4))
 
         frb_read(buf, 4)  # ignore flags
 

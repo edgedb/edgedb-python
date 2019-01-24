@@ -330,6 +330,33 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 await self.con.fetch_json('SELECT <int64>{}'),
                 '[]')
 
+    async def test_async_basic_datatypes_04(self):
+        val = await self.con.fetch_value(
+            '''
+                SELECT schema::ObjectType {
+                    foo := {
+                        [(a := 1, b := 2), (a := 3, b := 4)],
+                        [(a := 5, b := 6)],
+                        <array <tuple<a: int64, b: int64>>>[],
+                    }
+                } LIMIT 1
+            '''
+        )
+
+        self.assertEqual(
+            val.foo,
+            edgedb.Set([
+                edgedb.Array([
+                    edgedb.NamedTuple(a=1, b=2),
+                    edgedb.NamedTuple(a=3, b=4),
+                ]),
+                edgedb.Array([
+                    edgedb.NamedTuple(a=5, b=6),
+                ]),
+                edgedb.Array([]),
+            ]),
+        )
+
     async def test_async_args_01(self):
         self.assertEqual(
             await self.con.fetch(

@@ -39,3 +39,57 @@ cdef class SetCodec(BaseArrayCodec):
         codec.sub_codec = sub_codec
 
         return codec
+
+    cdef decode(self, FRBuffer *buf):
+        if isinstance(self.sub_codec, ArrayCodec):
+            # This is a set of arrays encoded as a two-dimensional
+            # array.
+            return self._decode_array_set(buf)
+        else:
+            # Set of non-arrays.
+            return self._decode_array(buf)
+
+    cdef _decode_array_set(self, FRBuffer *buf):
+        cdef:
+            object result
+            object elem
+            Py_ssize_t elem_count
+            Py_ssize_t recsize
+            Py_ssize_t i
+            int32_t elem_len
+            int32_t ndims = hton.unpack_int32(frb_read(buf, 4))
+            BaseCodec sub_codec = <BaseCodec>self.sub_codec
+            FRBuffer elem_buf
+
+        if ndims == 0:
+            # Special case for an empty set.
+            return self._new_collection(0)
+        elif ndims > 1:
+            raise RuntimeError('expected a two-dimensional array for a '
+                               'set of arrays')
+
+        frb_read(buf, 4)  # ignore flags
+
+        elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
+        frb_read(buf, 4)  # Ignore the lower bound information
+
+        result = self._new_collection(elem_count)
+        for i in range(elem_count):
+            frb_read(buf, 4)  # ignore array element size
+
+            recsize = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
+            if recsize != 1:
+                raise RuntimeError(
+                    'expected a record with a single element as an array set '
+                    'element envelope')
+
+            elem_len = hton.unpack_int32(frb_read(buf, 4))
+            if elem_len == -1:
+                raise RuntimeError(
+                    'unexpected NULL value in array set element ')
+
+            frb_slice_from(&elem_buf, buf, elem_len)
+            elem = sub_codec.decode(&elem_buf)
+            self._set_collection_item(result, i, elem)
+
+        return result

@@ -27,6 +27,8 @@ cdef class BaseArrayCodec(BaseCodec):
     cdef _set_collection_item(self, object collection, Py_ssize_t i,
                               object element)
 
+    cdef _decode_array(self, FRBuffer *buf)
+
 
 @cython.final
 cdef class ArrayCodec(BaseArrayCodec):
