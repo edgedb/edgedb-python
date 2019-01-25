@@ -156,8 +156,7 @@ setuptools.setup(
     author_email='hello@magic.io',
     url='https://github.com/edgedb/edgedb-python',
     license='Apache License, Version 2.0',
-    packages=['edgedb'],
-    provides=['edgedb'],
+    packages=setuptools.find_namespace_packages(include=['edgedb*']),
     zip_safe=False,
     include_package_data=True,
     ext_modules=[
