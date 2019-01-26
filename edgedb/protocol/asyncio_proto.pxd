@@ -17,12 +17,12 @@
 #
 
 
-from . cimport sansio_proto
+from . cimport protocol
 
 from edgedb.pgproto.debug cimport PG_DEBUG
 
 
-cdef class AsyncIOProtocol(sansio_proto.SansIOProtocol):
+cdef class AsyncIOProtocol(protocol.SansIOProtocol):
 
     cdef:
         object transport

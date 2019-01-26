@@ -19,8 +19,8 @@
 
 import itertools
 
-from .protocol.sansio_proto import CodecsRegistry as _CodecsRegistry
-from .protocol.sansio_proto import QueryCache as _QueryCache
+from .protocol.protocol import CodecsRegistry as _CodecsRegistry
+from .protocol.protocol import QueryCache as _QueryCache
 
 
 class BaseConnection:

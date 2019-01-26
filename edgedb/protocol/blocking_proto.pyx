@@ -23,16 +23,16 @@ from edgedb.pgproto.pgproto cimport (
 )
 
 
-from . cimport sansio_proto
+from . cimport protocol
 
 
 DEF RECV_BUF = 65536
 
 
-cdef class BlockingIOProtocol(sansio_proto.SansIOProtocol):
+cdef class BlockingIOProtocol(protocol.SansIOProtocol):
 
     def __init__(self, con_params, sock):
-        sansio_proto.SansIOProtocol.__init__(self, con_params)
+        protocol.SansIOProtocol.__init__(self, con_params)
         self.sock = sock
 
     cpdef abort(self):

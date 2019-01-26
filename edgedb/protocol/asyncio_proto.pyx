@@ -22,13 +22,13 @@ from edgedb.pgproto.pgproto cimport (
     ReadBuffer,
 )
 
-from . cimport sansio_proto
+from . cimport protocol
 
 
-cdef class AsyncIOProtocol(sansio_proto.SansIOProtocol):
+cdef class AsyncIOProtocol(protocol.SansIOProtocol):
 
     def __init__(self, con_params, loop):
-        sansio_proto.SansIOProtocol.__init__(self, con_params)
+        protocol.SansIOProtocol.__init__(self, con_params)
 
         self.loop = loop
         self.transport = None

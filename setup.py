@@ -167,7 +167,7 @@ setuptools.setup(
             extra_link_args=LDFLAGS),
 
         distutils_extension.Extension(
-            "edgedb.protocol.sansio_proto",
+            "edgedb.protocol.protocol",
             ["edgedb/protocol/datatypes/args.c",
              "edgedb/protocol/datatypes/record_desc.c",
              "edgedb/protocol/datatypes/tuple.c",
@@ -180,7 +180,7 @@ setuptools.setup(
              "edgedb/protocol/datatypes/linkset.c",
              "edgedb/protocol/datatypes/repr.c",
              "edgedb/protocol/datatypes/comp.c",
-             "edgedb/protocol/sansio_proto.pyx"],
+             "edgedb/protocol/protocol.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS),
 

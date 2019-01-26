@@ -17,12 +17,12 @@
 #
 
 
-from . cimport sansio_proto
+from . cimport protocol
 
 from edgedb.pgproto.debug cimport PG_DEBUG
 
 
-cdef class BlockingIOProtocol(sansio_proto.SansIOProtocol):
+cdef class BlockingIOProtocol(protocol.SansIOProtocol):
 
     cdef:
         object sock

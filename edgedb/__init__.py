@@ -21,8 +21,8 @@
 
 from .errors import *
 
-from edgedb.protocol.sansio_proto import Tuple, NamedTuple
-from edgedb.protocol.sansio_proto import Set, Object, Array, Link, LinkSet
+from edgedb.protocol.protocol import Tuple, NamedTuple
+from edgedb.protocol.protocol import Set, Object, Array, Link, LinkSet
 
 from .asyncio_con import async_connect
 from .blocking_con import connect
