@@ -131,6 +131,7 @@ typedef struct {
 
 PyObject * EdgeObject_InitType(void);
 PyObject * EdgeObject_New(PyObject *);
+PyObject * EdgeObject_GetRecordDesc(PyObject *);
 
 int EdgeObject_SetItem(PyObject *, Py_ssize_t, PyObject *);
 PyObject * EdgeObject_GetItem(PyObject *, Py_ssize_t);

@@ -41,6 +41,7 @@ cdef extern from "datatypes/datatypes.h":
     object EdgeObject_InitType()
     object EdgeObject_New(object);
     int EdgeObject_SetItem(object, Py_ssize_t, object) except -1
+    object EdgeObject_GetRecordDesc(object)
 
     bint EdgeSet_Check(object)
     object EdgeSet_InitType()

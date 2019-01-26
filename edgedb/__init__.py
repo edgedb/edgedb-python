@@ -29,6 +29,6 @@ from .blocking_con import connect
 
 
 __all__ = (
-    'async_connect', 'connect', 'async_connect',
+    'async_connect', 'connect',
     'Tuple', 'NamedTuple', 'Set', 'Object', 'Array', 'Link', 'LinkSet',
 ) + errors.__all__

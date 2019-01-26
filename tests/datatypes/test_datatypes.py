@@ -21,7 +21,8 @@ import unittest
 
 
 import edgedb
-from edgedb.protocol import sansio_proto as private
+from edgedb.protocol import protocol as private
+from edgedb import introspect
 
 
 class TestRecordDesc(unittest.TestCase):
@@ -72,6 +73,62 @@ class TestRecordDesc(unittest.TestCase):
 
         with self.assertRaises(LookupError):
             rd.is_linkprop('z')
+
+    def test_recorddesc_3(self):
+        f = private.create_object_factory(
+            id={'property', 'implicit'},
+            lb='link-property',
+            c='property',
+            d='link',
+        )
+
+        o = f(1, 2, 3, 4)
+
+        desc = private.get_object_descriptor(o)
+        self.assertEqual(set(dir(desc)), set(('id', 'lb', 'c', 'd')))
+
+        self.assertTrue(desc.is_linkprop('lb'))
+        self.assertFalse(desc.is_linkprop('id'))
+        self.assertFalse(desc.is_linkprop('c'))
+        self.assertFalse(desc.is_linkprop('d'))
+
+        self.assertFalse(desc.is_link('lb'))
+        self.assertFalse(desc.is_link('id'))
+        self.assertFalse(desc.is_link('c'))
+        self.assertTrue(desc.is_link('d'))
+
+        self.assertFalse(desc.is_implicit('lb'))
+        self.assertTrue(desc.is_implicit('id'))
+        self.assertFalse(desc.is_implicit('c'))
+        self.assertFalse(desc.is_implicit('d'))
+
+        self.assertEqual(desc.get_pos('lb'), 1)
+        self.assertEqual(desc.get_pos('id'), 0)
+        self.assertEqual(desc.get_pos('c'), 2)
+        self.assertEqual(desc.get_pos('d'), 3)
+
+    def test_recorddesc_4(self):
+        f = private.create_object_factory(
+            id={'property', 'implicit'},
+            lb='link-property',
+            c='property',
+            d='link',
+        )
+
+        o = f(1, 2, 3, 4)
+        intro = introspect.introspect_object(o)
+
+        self.assertEqual(
+            intro.pointers,
+            (
+                ('id', introspect.PointerKind.PROPERTY, True),
+                ('c', introspect.PointerKind.PROPERTY, False),
+                ('d', introspect.PointerKind.LINK, False),
+            )
+        )
+
+        # clear cache so that tests in refcount mode don't freak out.
+        introspect._introspect_object_desc.cache_clear()
 
 
 class TestTuple(unittest.TestCase):

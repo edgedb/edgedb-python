@@ -748,6 +748,10 @@ _EDGE_POINTER_IS_LINKPROP = datatypes.EDGE_POINTER_IS_LINKPROP
 _EDGE_POINTER_IS_LINK = datatypes.EDGE_POINTER_IS_LINK
 
 
+def get_object_descriptor(obj):
+    return datatypes.EdgeObject_GetRecordDesc(obj)
+
+
 def create_object_factory(**pointers):
     flags = ()
     names = ()

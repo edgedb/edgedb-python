@@ -138,10 +138,49 @@ record_desc_get_pos(EdgeRecordDescObject *o, PyObject *arg) {
 }
 
 
+static PyObject *
+record_desc_is_implicit(EdgeRecordDescObject *o, PyObject *arg) {
+    Py_ssize_t pos;
+    edge_attr_lookup_t ret = EdgeRecordDesc_Lookup((PyObject *)o, arg, &pos);
+    switch (ret) {
+        case L_ERROR:
+            return NULL;
+
+        case L_NOT_FOUND:
+            PyErr_SetObject(PyExc_LookupError, arg);
+            return NULL;
+
+        case L_LINK:
+        case L_LINKPROP:
+        case L_PROPERTY:
+            if (o->posbits[pos] & EDGE_POINTER_IS_IMPLICIT) {
+                Py_RETURN_TRUE;
+            }
+            else {
+                Py_RETURN_FALSE;
+            }
+
+        default:
+            abort();
+    }
+}
+
+
+static PyObject *
+record_desc_dir(EdgeRecordDescObject *o, PyObject *args)
+{
+    PyObject *names = o->names;
+    Py_INCREF(names);
+    return names;
+}
+
+
 static PyMethodDef record_desc_methods[] = {
     {"is_linkprop", (PyCFunction)record_desc_is_linkprop, METH_O, NULL},
     {"is_link", (PyCFunction)record_desc_is_link, METH_O, NULL},
+    {"is_implicit", (PyCFunction)record_desc_is_implicit, METH_O, NULL},
     {"get_pos", (PyCFunction)record_desc_get_pos, METH_O, NULL},
+    {"__dir__", (PyCFunction)record_desc_dir, METH_NOARGS, NULL},
     {NULL, NULL}
 };
 

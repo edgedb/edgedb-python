@@ -85,6 +85,22 @@ EdgeObject_New(PyObject *desc)
 }
 
 
+PyObject *
+EdgeObject_GetRecordDesc(PyObject *o)
+{
+    if (!EdgeObject_Check(o)) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "an instance of edgedb.Object expected");
+        return NULL;
+    }
+
+    PyObject *desc = ((EdgeObject *)o)->desc;
+    Py_INCREF(desc);
+    return desc;
+}
+
+
 int
 EdgeObject_SetItem(PyObject *ob, Py_ssize_t i, PyObject *el)
 {
