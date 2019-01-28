@@ -25,6 +25,6 @@ from edgedb.pgproto.debug cimport PG_DEBUG
 cdef class BlockingIOProtocol(protocol.SansIOProtocol):
 
     cdef:
-        object sock
+        readonly object sock
 
     cdef _iter_coroutine(self, coro)

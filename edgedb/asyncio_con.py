@@ -63,6 +63,9 @@ class AsyncIOConnection(base_con.BaseConnection):
     async def close(self):
         self._protocol.abort()
 
+    def is_closed(self):
+        return self._transport.is_closing()
+
 
 async def _connect_addr(*, addr, loop, timeout, params, config,
                         connection_class):
