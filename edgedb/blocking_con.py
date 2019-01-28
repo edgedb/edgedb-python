@@ -47,6 +47,9 @@ class BlockingIOConnection(base_con.BaseConnection):
     def execute(self, query):
         self._protocol.sync_simple_query(query)
 
+    def _execute_graphql(self, query):
+        return self._protocol.sync_legacy(query)
+
     def transaction(self, *, isolation='read_committed', readonly=False,
                     deferrable=False):
         return transaction.Transaction(

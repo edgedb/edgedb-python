@@ -52,8 +52,8 @@ class AsyncIOConnection(base_con.BaseConnection):
     async def execute(self, query):
         await self._protocol.simple_query(query)
 
-    async def _legacy_execute(self, query, *, graphql=False):
-        return await self._protocol.legacy(query, graphql)
+    async def _execute_graphql(self, query):
+        return await self._protocol.legacy(query)
 
     def transaction(self, *, isolation='read_committed', readonly=False,
                     deferrable=False):

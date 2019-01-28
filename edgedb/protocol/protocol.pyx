@@ -339,7 +339,7 @@ cdef class SansIOProtocol:
         else:
             return result
 
-    async def legacy(self, str query, bint graphql):
+    async def legacy(self, str query):
         cdef:
             WriteBuffer buf
             char mtype
@@ -348,10 +348,7 @@ cdef class SansIOProtocol:
             raise RuntimeError('not connected')
 
         buf = WriteBuffer.new_message(b'L')
-        if graphql:
-            buf.write_byte(b'g')
-        else:
-            buf.write_byte(b'e')
+        buf.write_byte(b'g')
         buf.write_utf8(query)
         self.write(buf.end_message())
 
