@@ -18,6 +18,7 @@
 
 
 import socket
+import time
 
 from . import base_con
 from . import con_utils
@@ -55,27 +56,46 @@ class BlockingIOConnection(base_con.BaseConnection):
         self._protocol.abort()
 
 
-def _connect_addr(*, addr, params, config, connection_class):
+def _connect_addr(*, addr, timeout, params, config, connection_class):
+    if timeout <= 0:
+        raise TimeoutError
+
     if isinstance(addr, str):
         # UNIX socket
         sock = socket.socket(socket.AF_UNIX)
-        sock.connect(addr)
     else:
         sock = socket.socket(socket.AF_INET)
+
+    try:
+        before = time.monotonic()
+        sock.settimeout(timeout)
         sock.connect(addr)
-        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        timeout -= time.monotonic() - before
 
-    proto = blocking_proto.BlockingIOProtocol(params, sock)
-    proto.sync_connect()
+        if timeout <= 0:
+            raise TimeoutError
 
-    con = connection_class(proto, addr, config, params)
-    return con
+        if not isinstance(addr, str):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+        proto = blocking_proto.BlockingIOProtocol(params, sock)
+
+        sock.settimeout(timeout)
+        proto.sync_connect()
+        sock.settimeout(None)
+
+        return connection_class(proto, addr, config, params)
+
+    except Exception:
+        sock.close()
+        raise
 
 
 def connect(dsn=None, *,
             host=None, port=None,
             user=None, password=None,
-            database=None):
+            database=None,
+            timeout=60):
 
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
@@ -89,14 +109,17 @@ def connect(dsn=None, *,
     last_error = None
     addr = None
     for addr in addrs:
+        before = time.monotonic()
         try:
             con = _connect_addr(
-                addr=addr,
+                addr=addr, timeout=timeout,
                 params=params, config=config,
                 connection_class=BlockingIOConnection)
-        except (OSError, TimeoutError, ConnectionError) as ex:
+        except (OSError, TimeoutError, ConnectionError, socket.error) as ex:
             last_error = ex
         else:
             return con
+        finally:
+            timeout -= time.monotonic() - before
 
     raise last_error
