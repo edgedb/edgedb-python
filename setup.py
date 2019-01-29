@@ -65,7 +65,8 @@ CFLAGS = ['-O2']
 LDFLAGS = []
 
 if platform.uname().system != 'Windows':
-    CFLAGS.extend(['-fsigned-char', '-Wall', '-Wsign-compare', '-Wconversion'])
+    CFLAGS.extend(['-std=gnu99', '-fsigned-char', '-Wall',
+                   '-Wsign-compare', '-Wconversion'])
 
 
 class build_ext(distutils_build_ext.build_ext):
