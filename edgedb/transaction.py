@@ -113,9 +113,9 @@ class BaseTransaction:
             if self._isolation == 'read_committed':
                 query = 'START TRANSACTION;'
             elif self._isolation == 'repeatable_read':
-                query = 'START TRANSACTION ISOLATION LEVEL REPEATABLE READ;'
+                query = 'START TRANSACTION ISOLATION REPEATABLE READ;'
             else:
-                query = 'START TRANSACTION ISOLATION LEVEL SERIALIZABLE'
+                query = 'START TRANSACTION ISOLATION SERIALIZABLE'
                 if self._readonly:
                     query += ' READ ONLY'
                 if self._deferrable:

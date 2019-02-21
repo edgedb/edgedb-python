@@ -254,10 +254,11 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                     'select (1,)'),
                 edgedb.Set([(1,)]))
 
-            self.assertEqual(
-                await self.con.fetch_value(
-                    'select <array<int64>>[]'),
-                [])
+            async with self.con.transaction(isolation='repeatable_read'):
+                self.assertEqual(
+                    await self.con.fetch_value(
+                        'select <array<int64>>[]'),
+                    [])
 
             self.assertEqual(
                 await self.con.fetch(
