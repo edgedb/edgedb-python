@@ -85,7 +85,9 @@ cdef class SansIOProtocol:
         self.xact_status = TRANS_UNKNOWN
 
         self.server_settings = {}
+        self.reset_status()
 
+    cdef reset_status(self):
         self.last_status = None
         self.last_details = None
 
@@ -207,6 +209,7 @@ cdef class SansIOProtocol:
 
         if not self.connected:
             raise RuntimeError('not connected')
+        self.reset_status()
 
         packet = WriteBuffer.new()
 
@@ -349,6 +352,7 @@ cdef class SansIOProtocol:
 
         if not self.connected:
             raise RuntimeError('not connected')
+        self.reset_status()
 
         buf = WriteBuffer.new_message(b'Q')
         buf.write_utf8(query)
@@ -395,6 +399,7 @@ cdef class SansIOProtocol:
 
         if not self.connected:
             raise RuntimeError('not connected')
+        self.reset_status()
 
         cached = True
         codecs = qc.get(query, json_mode)

@@ -93,4 +93,6 @@ cdef class SansIOProtocol:
     cdef write(self, WriteBuffer buf)
     cpdef abort(self)
 
+    cdef reset_status(self)
+
     cdef fallthrough(self)
