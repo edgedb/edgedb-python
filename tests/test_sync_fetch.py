@@ -57,6 +57,8 @@ class TestSyncFetch(tb.SyncQueryTestCase):
                     self.con.fetch('select 1;'),
                     edgedb.Set((1,)))
 
+            self.assertFalse(self.con.is_closed())
+
     def test_sync_parse_error_recover_02(self):
         for _ in range(2):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
@@ -166,8 +168,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         self.assertEqual(r, [])
 
         r = self.con.fetch('''
-            SET ALIAS foo AS MODULE default,
-                ALIAS bar AS MODULE std;
+            SET ALIAS foo AS MODULE default;
         ''')
         self.assertEqual(r, [])
 
@@ -177,8 +178,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         self.assertIsNone(r)
 
         r = self.con.fetch_value('''
-            SET ALIAS foo AS MODULE default,
-                ALIAS bar AS MODULE std;
+            SET ALIAS bar AS MODULE std;
         ''')
         self.assertIsNone(r)
 
@@ -188,8 +188,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         self.assertEqual(r, '[]')
 
         r = self.con.fetch_json('''
-            SET ALIAS foo AS MODULE default,
-                ALIAS bar AS MODULE std;
+            SET ALIAS bar AS MODULE std;
         ''')
         self.assertEqual(r, '[]')
 

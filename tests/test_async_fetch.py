@@ -60,6 +60,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                     await self.con.fetch('select 1;'),
                     edgedb.Set((1,)))
 
+            self.assertFalse(self.con.is_closed())
+
     async def test_async_parse_error_recover_02(self):
         for _ in range(2):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
@@ -169,8 +171,12 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         self.assertEqual(r, [])
 
         r = await self.con.fetch('''
-            SET ALIAS foo AS MODULE default,
-                ALIAS bar AS MODULE std;
+            RESET ALIAS *;
+        ''')
+        self.assertEqual(r, [])
+
+        r = await self.con.fetch('''
+            SET ALIAS bar AS MODULE std;
         ''')
         self.assertEqual(r, [])
 
@@ -180,8 +186,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         self.assertIsNone(r)
 
         r = await self.con.fetch_value('''
-            SET ALIAS foo AS MODULE default,
-                ALIAS bar AS MODULE std;
+            SET ALIAS bar AS MODULE std;
         ''')
         self.assertIsNone(r)
 
@@ -191,8 +196,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         self.assertEqual(r, '[]')
 
         r = await self.con.fetch_json('''
-            SET ALIAS foo AS MODULE default,
-                ALIAS bar AS MODULE std;
+            SET ALIAS foo AS MODULE default;
         ''')
         self.assertEqual(r, '[]')
 

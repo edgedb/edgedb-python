@@ -57,7 +57,8 @@ class BlockingIOConnection(base_con.BaseConnection):
 
     def is_closed(self):
         return (self._protocol.sock is None or
-                self._protocol.sock.fileno() < 0)
+                self._protocol.sock.fileno() < 0 or
+                not self._protocol.connected)
 
 
 def _connect_addr(*, addr, timeout, params, config, connection_class):

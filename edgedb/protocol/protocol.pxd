@@ -69,7 +69,7 @@ cdef class SansIOProtocol:
     cdef:
         ReadBuffer buffer
 
-        bint connected
+        readonly bint connected
 
         readonly object con_params
 
