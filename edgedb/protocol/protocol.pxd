@@ -79,10 +79,14 @@ cdef class SansIOProtocol:
 
         object server_settings
 
+        readonly bytes last_status
+        readonly bytes last_details
+
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
 
     cdef parse_data_messages(self, BaseCodec out_dc, result)
     cdef parse_sync_message(self)
+    cdef parse_command_complete_message(self)
     cdef parse_describe_type_message(self, CodecsRegistry reg)
     cdef parse_error_message(self)
 

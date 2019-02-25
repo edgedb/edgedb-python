@@ -40,6 +40,12 @@ class BaseConnection:
     def _get_unique_id(self, prefix):
         return f'_edgedb_{prefix}_{_uid_counter():x}_'
 
+    def _get_last_status(self):
+        status = self._protocol.last_status
+        if status is not None:
+            status = status.decode()
+        return status
+
     @property
     def dbname(self):
         return self._params.database

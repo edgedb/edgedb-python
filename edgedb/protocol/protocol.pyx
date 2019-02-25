@@ -86,6 +86,9 @@ cdef class SansIOProtocol:
 
         self.server_settings = {}
 
+        self.last_status = None
+        self.last_details = None
+
     def get_settings(self):
         return types.MappingProxyType(self.server_settings)
 
@@ -246,7 +249,7 @@ cdef class SansIOProtocol:
                         self.buffer.discard_message()
 
                 elif mtype == b'C':  # CommandComplete
-                    self.buffer.discard_message()
+                    self.parse_command_complete_message()
 
                 elif mtype == b'E':
                     # ErrorResponse
@@ -315,7 +318,7 @@ cdef class SansIOProtocol:
                     self.parse_data_messages(out_dc, result)
 
                 elif mtype == b'C':  # CommandComplete
-                    self.buffer.discard_message()
+                    self.parse_command_complete_message()
 
                 elif mtype == b'E':
                     # ErrorResponse
@@ -361,7 +364,7 @@ cdef class SansIOProtocol:
             try:
                 if mtype == b'C':
                     # CommandComplete
-                    self.buffer.discard_message()
+                    self.parse_command_complete_message()
 
                 elif mtype == b'E':
                     # ErrorResponse
@@ -637,6 +640,12 @@ cdef class SansIOProtocol:
 
             row = decoder(out_dc, rbuf)
             datatypes.EdgeSet_AppendItem(result, row)
+
+    cdef parse_command_complete_message(self):
+        assert self.buffer.get_message_type() == b'C'
+        self.last_status = self.buffer.read_null_str()
+        self.last_details = self.buffer.read_null_str()
+        self.buffer.finish_message()
 
     cdef parse_sync_message(self):
         cdef char status
