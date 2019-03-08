@@ -17,6 +17,8 @@
 #
 
 
+import asyncio
+
 from edgedb.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
@@ -48,8 +50,18 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
     async def wait_for_message(self):
         if self.buffer.take_message():
             return
-        self.msg_waiter = self.loop.create_future()
-        await self.msg_waiter
+
+        while True:
+            try:
+                self.msg_waiter = self.loop.create_future()
+                await self.msg_waiter
+                return
+            except asyncio.CancelledError:
+                # TODO: A proper cancellation requires server/protocol
+                # support, which isn't yet available.  Therefore,
+                # we're disabling asyncio cancellation completely
+                # until we can implement it properly.
+                pass
 
     async def wait_for_connect(self):
         if self.connected_fut is not None:
