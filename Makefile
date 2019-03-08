@@ -1,4 +1,4 @@
-.PHONY: compile debug test quicktest clean all gen-errors gen-types
+.PHONY: compile debug test quicktest clean all gen-errors gen-types _touch
 
 
 PYTHON ?= python
@@ -23,9 +23,12 @@ clean:
 	find . -name '__pycache__' | xargs rm -rf
 
 
-compile:
+_touch:
 	find $(ROOT)/edgedb/protocol -name '*.pyx' | xargs touch
 	find $(ROOT)/edgedb/protocol/datatypes -name '*.c' | xargs touch
+
+
+compile: _touch
 	$(PYTHON) setup.py build_ext --inplace
 
 
@@ -39,7 +42,7 @@ gen-types:
 	edb gen-types --stdout > $(ROOT)/edgedb/protocol/codecs/edb_types.pxi
 
 
-debug:
+debug: _touch
 	EDGEDB_DEBUG=1 $(PYTHON) setup.py build_ext --inplace
 
 
