@@ -18,6 +18,8 @@
 
 
 import asyncio
+import uuid
+
 import edgedb
 
 from edb.common import taskgroup as tg
@@ -386,6 +388,35 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'combine positional and named parameters'):
             await self.con.fetch('select <int64>$0 + <int64>$bar;')
+
+    async def test_async_args_uuid_pack(self):
+        obj = await self.con.fetch_value(
+            'select schema::Object {id, name} limit 1')
+
+        # Test that the custom UUID that our driver uses can be
+        # passed back as a parameter.
+        ot = await self.con.fetch_value(
+            'select schema::Object {name} filter .id=<uuid>$id',
+            id=obj.id)
+        self.assertEqual(obj, ot)
+
+        # Test that a string UUID is acceptable.
+        ot = await self.con.fetch_value(
+            'select schema::Object {name} filter .id=<uuid>$id',
+            id=str(obj.id))
+        self.assertEqual(obj, ot)
+
+        # Test that a standard uuid.UUID is acceptable.
+        ot = await self.con.fetch_value(
+            'select schema::Object {name} filter .id=<uuid>$id',
+            id=uuid.UUID(bytes=obj.id.bytes))
+        self.assertEqual(obj, ot)
+
+        with self.assertRaisesRegex(ValueError,
+                                    'invalid UUID.*length must be'):
+            await self.con.fetch(
+                'select schema::Object {name} filter .id=<uuid>$id',
+                id='asdasas')
 
     async def test_async_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
