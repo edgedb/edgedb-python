@@ -28,7 +28,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
     SETUP = '''
         CREATE TYPE test::TransactionTest EXTENDING std::Object {
-            CREATE PROPERTY test::name -> std::str;
+            CREATE PROPERTY name -> std::str;
         };
     '''
 
