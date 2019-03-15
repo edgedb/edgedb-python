@@ -41,7 +41,7 @@ cdef class SetCodec(BaseArrayCodec):
         return codec
 
     cdef decode(self, FRBuffer *buf):
-        if isinstance(self.sub_codec, ArrayCodec):
+        if type(self.sub_codec) is ArrayCodec:
             # This is a set of arrays encoded as a two-dimensional
             # array.
             return self._decode_array_set(buf)
@@ -49,7 +49,7 @@ cdef class SetCodec(BaseArrayCodec):
             # Set of non-arrays.
             return self._decode_array(buf)
 
-    cdef _decode_array_set(self, FRBuffer *buf):
+    cdef inline _decode_array_set(self, FRBuffer *buf):
         cdef:
             object result
             object elem
