@@ -18,6 +18,7 @@
 
 
 import pickle
+import random
 import unittest
 
 import uuid
@@ -35,7 +36,7 @@ special_uuids = frozenset({
     std_UUID('F0F0F0F0-F0F0-F0F0-F0F0-F0F0F0F0F0F0'),
 })
 
-test_uuids = (
+test_uuids = tuple(
     special_uuids |
     frozenset({uuid.uuid4() for _ in range(100)})
 )
@@ -110,3 +111,28 @@ class TestUuid(unittest.TestCase):
         self.assertEqual(u, u2)
         self.assertEqual(str(u), str(u2))
         self.assertEqual(u.bytes, u2.bytes)
+
+    def test_uuid_instance(self):
+        u = c_UUID('de197476-4763-11e9-91bf-7311c6dc588e')
+        self.assertTrue(isinstance(u, uuid.UUID))
+        self.assertTrue(issubclass(c_UUID, uuid.UUID))
+
+    def test_uuid_comp(self):
+        for _ in range(100):
+            ll = random.choice(test_uuids)
+            rr = random.choice(test_uuids)
+
+            if ll > rr:
+                self.assertTrue(c_UUID(ll.bytes) > rr)
+
+            if ll < rr:
+                self.assertTrue(c_UUID(ll.bytes) < rr)
+
+            if ll != rr:
+                self.assertTrue(c_UUID(ll.bytes) != rr)
+
+            self.assertTrue(c_UUID(ll.bytes) >= ll)
+            self.assertTrue(c_UUID(ll.bytes) <= ll)
+
+            self.assertTrue(c_UUID(ll.bytes) == ll)
+            self.assertTrue(c_UUID(ll.bytes) == ll)
