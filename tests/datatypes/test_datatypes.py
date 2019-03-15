@@ -663,6 +663,11 @@ class TestSet(unittest.TestCase):
             edgedb.Set([1, 2, 3]),
             1)
 
+    def test_set_8(self):
+        s = edgedb.Set([1, 2, 3])
+        si = iter(s)
+        self.assertEqual(list(si), [1, 2, 3])
+
 
 class TestArray(unittest.TestCase):
 

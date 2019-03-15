@@ -261,6 +261,13 @@ done:
 
 
 static PyObject *
+set_iter(EdgeSetObject *o)
+{
+    return Py_TYPE(o->els)->tp_iter(o->els);
+}
+
+
+static PyObject *
 set_repr(EdgeSetObject *o)
 {
     _PyUnicodeWriter writer;
@@ -309,6 +316,7 @@ PyTypeObject EdgeSet_Type = {
     .tp_hash = (hashfunc)set_hash,
     .tp_as_sequence = &set_as_sequence,
     .tp_richcompare = (richcmpfunc)set_richcompare,
+    .tp_iter = (getiterfunc)set_iter,
     .tp_repr = (reprfunc)set_repr,
     .tp_free = PyObject_GC_Del,
     .tp_weaklistoffset = offsetof(EdgeSetObject, weakreflist),
