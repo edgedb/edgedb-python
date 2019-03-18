@@ -189,8 +189,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
         if _system == 'Windows':
             host = ['localhost']
         else:
-            host = ['/run/edgedb', '/var/run/edgedb',
-                    '/tmp', '/private/tmp', 'localhost']
+            host = ['/run/edgedb', '/var/run/edgedb', 'localhost']
 
     if not isinstance(host, list):
         host = [host]
