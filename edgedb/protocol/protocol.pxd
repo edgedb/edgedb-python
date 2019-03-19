@@ -53,15 +53,14 @@ cdef enum EdgeParseFlags:
     PARSE_SINGLETON_RESULT = 1 << 1
 
 
-cdef class QueryCache:
+cdef class QueryCodecsCache:
 
     cdef:
         LRUMapping queries
 
     cdef get(self, str query, bint json_mode)
     cdef set(self, str query, bint json_mode,
-             int32_t parse_flags,
-             BaseCodec in_type, BaseCodec out_type)
+             bint has_na_cardinality, BaseCodec in_type, BaseCodec out_type)
 
 
 cdef class SansIOProtocol:
@@ -88,6 +87,7 @@ cdef class SansIOProtocol:
     cdef parse_sync_message(self)
     cdef parse_command_complete_message(self)
     cdef parse_describe_type_message(self, CodecsRegistry reg)
+    cdef amend_parse_error(self, exc, bint json_mode, bint expect_one)
     cdef parse_error_message(self)
 
     cdef write(self, WriteBuffer buf)

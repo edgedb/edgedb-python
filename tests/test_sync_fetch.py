@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import json
 
 import edgedb
 
@@ -39,22 +40,22 @@ class TestSyncFetch(tb.SyncQueryTestCase):
     def test_sync_parse_error_recover_01(self):
         for _ in range(2):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
-                self.con.fetch('select syntax error')
+                self.con.fetchall('select syntax error')
 
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
-                self.con.fetch('select syntax error')
+                self.con.fetchall('select syntax error')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
                                         'Unexpected end of line'):
-                self.con.fetch('select (')
+                self.con.fetchall('select (')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
                                         'Unexpected end of line'):
-                self.con.fetch_json('select (')
+                self.con.fetchall_json('select (')
 
             for _ in range(10):
                 self.assertEqual(
-                    self.con.fetch('select 1;'),
+                    self.con.fetchall('select 1;'),
                     edgedb.Set((1,)))
 
             self.assertFalse(self.con.is_closed())
@@ -73,14 +74,14 @@ class TestSyncFetch(tb.SyncQueryTestCase):
     def test_sync_exec_error_recover_01(self):
         for _ in range(2):
             with self.assertRaises(edgedb.DivisionByZeroError):
-                self.con.fetch('select 1 / 0;')
+                self.con.fetchall('select 1 / 0;')
 
             with self.assertRaises(edgedb.DivisionByZeroError):
-                self.con.fetch('select 1 / 0;')
+                self.con.fetchall('select 1 / 0;')
 
             for _ in range(10):
                 self.assertEqual(
-                    self.con.fetch('select 1;'),
+                    self.con.fetchall('select 1;'),
                     edgedb.Set((1,)))
 
     def test_sync_exec_error_recover_02(self):
@@ -99,11 +100,11 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         for i in [1, 2, 0, 3, 1, 0, 1]:
             if i:
                 self.assertEqual(
-                    self.con.fetch(query, i),
+                    self.con.fetchall(query, i),
                     edgedb.Set([10 // i]))
             else:
                 with self.assertRaises(edgedb.DivisionByZeroError):
-                    self.con.fetch(query, i)
+                    self.con.fetchall(query, i)
 
     def test_sync_exec_error_recover_04(self):
         for i in [1, 2, 0, 3, 1, 0, 1]:
@@ -111,18 +112,18 @@ class TestSyncFetch(tb.SyncQueryTestCase):
                 self.con.execute(f'select 10 // {i};')
             else:
                 with self.assertRaises(edgedb.DivisionByZeroError):
-                    self.con.fetch(f'select 10 // {i};')
+                    self.con.fetchall(f'select 10 // {i};')
 
     def test_sync_exec_error_recover_05(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'cannot accept parameters'):
             self.con.execute(f'select <int64>$0')
         self.assertEqual(
-            self.con.fetch('SELECT "HELLO"'),
+            self.con.fetchall('SELECT "HELLO"'),
             ["HELLO"])
 
     def test_sync_fetch_single_command_01(self):
-        r = self.con.fetch('''
+        r = self.con.fetchall('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
@@ -130,25 +131,25 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-        r = self.con.fetch('''
+        r = self.con.fetchall('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertEqual(r, [])
 
-        r = self.con.fetch_value('''
+        r = self.con.fetchall('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
             };
         ''')
-        self.assertIsNone(r)
+        self.assertEqual(r, [])
 
-        r = self.con.fetch_value('''
+        r = self.con.fetchall('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
-        self.assertIsNone(r)
+        self.assertEqual(r, [])
 
-        r = self.con.fetch_json('''
+        r = self.con.fetchall_json('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
@@ -156,38 +157,43 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         ''')
         self.assertEqual(r, '[]')
 
-        r = self.con.fetch_json('''
+        r = self.con.fetchall_json('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertEqual(r, '[]')
 
     def test_sync_fetch_single_command_02(self):
-        r = self.con.fetch('''
+        r = self.con.fetchall('''
             SET MODULE default;
         ''')
         self.assertEqual(r, [])
 
-        r = self.con.fetch('''
+        r = self.con.fetchall('''
             SET ALIAS foo AS MODULE default;
         ''')
         self.assertEqual(r, [])
 
-        r = self.con.fetch_value('''
+        r = self.con.fetchall('''
             SET MODULE default;
         ''')
-        self.assertIsNone(r)
+        self.assertEqual(r, [])
 
-        r = self.con.fetch_value('''
+        with self.assertRaisesRegex(edgedb.InterfaceError, r'fetchone\(\)'):
+            self.con.fetchone('''
+                SET ALIAS bar AS MODULE std;
+            ''')
+
+        self.con.fetchall('''
             SET ALIAS bar AS MODULE std;
         ''')
-        self.assertIsNone(r)
+        self.assertEqual(r, [])
 
-        r = self.con.fetch_json('''
+        r = self.con.fetchall_json('''
             SET MODULE default;
         ''')
         self.assertEqual(r, '[]')
 
-        r = self.con.fetch_json('''
+        r = self.con.fetchall_json('''
             SET ALIAS bar AS MODULE std;
         ''')
         self.assertEqual(r, '[]')
@@ -204,36 +210,58 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         ]
 
         for _ in range(3):
+            with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    r'cannot be executed with fetchone\(\).*'
+                    r'not return'):
+                self.con.fetchone('START TRANSACTION')
+
+            with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    r'cannot be executed with fetchone_json\(\).*'
+                    r'not return'):
+                self.con.fetchone_json('START TRANSACTION')
+
+        for _ in range(3):
             for q in qs:
-                r = self.con.fetch(q)
+                r = self.con.fetchall(q)
                 self.assertEqual(r, [])
 
             for q in qs:
-                r = self.con.fetch_json(q)
+                r = self.con.fetchall_json(q)
                 self.assertEqual(r, '[]')
 
         for q in qs:
-            r = self.con.fetch_value(q)
-            self.assertIsNone(r)
+            with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    r'cannot be executed with fetchone\(\).*'
+                    r'not return'):
+                self.con.fetchone(q)
+
+            with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    r'cannot be executed with fetchone_json\(\).*'
+                    r'not return'):
+                self.con.fetchone_json(q)
 
     def test_sync_fetch_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            self.con.fetch('''
+            self.con.fetchall('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            self.con.fetch_value('''
+            self.con.fetchone('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            self.con.fetch_json('''
+            self.con.fetchall_json('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
@@ -241,27 +269,27 @@ class TestSyncFetch(tb.SyncQueryTestCase):
     def test_sync_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
-                self.con.fetch_value(
+                self.con.fetchone(
                     'select ()'),
                 ())
 
             self.assertEqual(
-                self.con.fetch(
+                self.con.fetchall(
                     'select (1,)'),
                 edgedb.Set([(1,)]))
 
             self.assertEqual(
-                self.con.fetch_value(
+                self.con.fetchone(
                     'select <array<int64>>[]'),
                 [])
 
             self.assertEqual(
-                self.con.fetch(
+                self.con.fetchall(
                     'select ["a", "b"]'),
                 edgedb.Set([["a", "b"]]))
 
             self.assertEqual(
-                self.con.fetch('''
+                self.con.fetchall('''
                     SELECT {(a := 1 + 1 + 40, world := ("hello", 32)),
                             (a:=1, world := ("yo", 10))};
                 '''),
@@ -270,83 +298,99 @@ class TestSyncFetch(tb.SyncQueryTestCase):
                     edgedb.NamedTuple(a=1, world=("yo", 10)),
                 ]))
 
-            with self.assertRaisesRegex(edgedb.InterfaceError,
-                                        'the result set can be a multiset'):
-                self.con.fetch_value('SELECT {1, 2}')
+            with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    r'query cannot be executed with fetchone\('):
+                self.con.fetchone('SELECT {1, 2}')
 
-            self.assertIsNone(
-                self.con.fetch_value('SELECT <int64>{}'))
+            with self.assertRaisesRegex(edgedb.NoDataError,
+                                        r'\bfetchone_json\('):
+                self.con.fetchone_json('SELECT <int64>{}')
 
     def test_sync_basic_datatypes_02(self):
         self.assertEqual(
-            self.con.fetch(
+            self.con.fetchall(
                 r'''select [b"\x00a", b"b", b'', b'\na']'''),
             edgedb.Set([[b"\x00a", b"b", b'', b'\na']]))
 
         self.assertEqual(
-            self.con.fetch(
+            self.con.fetchall(
                 r'select <bytes>$0', b'he\x00llo'),
             edgedb.Set([b'he\x00llo']))
 
     def test_sync_basic_datatypes_03(self):
         for _ in range(10):
             self.assertEqual(
-                self.con.fetch_json(
+                self.con.fetchall_json(
                     'select ()'),
                 '[[]]')
 
             self.assertEqual(
-                self.con.fetch_json(
+                self.con.fetchall_json(
                     'select (1,)'),
                 '[[1]]')
 
             self.assertEqual(
-                self.con.fetch_json(
+                self.con.fetchall_json(
                     'select <array<int64>>[]'),
                 '[[]]')
 
             self.assertEqual(
-                self.con.fetch_json(
-                    'select ["a", "b"]'),
-                '[["a", "b"]]')
+                json.loads(
+                    self.con.fetchall_json(
+                        'select ["a", "b"]')),
+                [["a", "b"]])
 
             self.assertEqual(
-                self.con.fetch_json('''
-                    SELECT {(a := 1 + 1 + 40, world := ("hello", 32)),
-                            (a:=1, world := ("yo", 10))};
-                '''),
-                '[{"a": 42, "world": ["hello", 32]}, '
-                '{"a": 1, "world": ["yo", 10]}]')
+                json.loads(
+                    self.con.fetchone_json(
+                        'select ["a", "b"]')),
+                ["a", "b"])
 
             self.assertEqual(
-                self.con.fetch_json('SELECT {1, 2}'),
-                '[1, 2]')
+                json.loads(
+                    self.con.fetchall_json('''
+                        SELECT {(a := 1 + 1 + 40, world := ("hello", 32)),
+                                (a:=1, world := ("yo", 10))};
+                    ''')),
+                [
+                    {"a": 42, "world": ["hello", 32]},
+                    {"a": 1, "world": ["yo", 10]}
+                ])
 
             self.assertEqual(
-                self.con.fetch_json('SELECT <int64>{}'),
-                '[]')
+                json.loads(
+                    self.con.fetchall_json('SELECT {1, 2}')),
+                [1, 2])
+
+            self.assertEqual(
+                json.loads(self.con.fetchall_json('SELECT <int64>{}')),
+                [])
+
+            with self.assertRaises(edgedb.NoDataError):
+                self.con.fetchone_json('SELECT <int64>{}')
 
     def test_sync_args_01(self):
         self.assertEqual(
-            self.con.fetch(
+            self.con.fetchall(
                 'select (<array<str>>$foo)[0] ++ (<array<str>>$bar)[0];',
                 foo=['aaa'], bar=['bbb']),
             edgedb.Set(('aaabbb',)))
 
     def test_sync_args_02(self):
         self.assertEqual(
-            self.con.fetch(
+            self.con.fetchall(
                 'select (<array<str>>$0)[0] ++ (<array<str>>$1)[0];',
                 ['aaa'], ['bbb']),
             edgedb.Set(('aaabbb',)))
 
     def test_sync_args_03(self):
         with self.assertRaisesRegex(edgedb.QueryError, r'missing \$0'):
-            self.con.fetch('select <int64>$1;')
+            self.con.fetchall('select <int64>$1;')
 
         with self.assertRaisesRegex(edgedb.QueryError, r'missing \$1'):
-            self.con.fetch('select <int64>$0 + <int64>$2;')
+            self.con.fetchall('select <int64>$0 + <int64>$2;')
 
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'combine positional and named parameters'):
-            self.con.fetch('select <int64>$0 + <int64>$bar;')
+            self.con.fetchall('select <int64>$0 + <int64>$bar;')

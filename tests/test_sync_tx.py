@@ -60,7 +60,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
         self.assertIsNone(self.con._top_xact)
 
-        result = self.con.fetch('''
+        result = self.con.fetchall('''
             SELECT
                 test::TransactionTest
             FILTER
@@ -95,7 +95,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
                         self.assertIs(self.con._top_xact, tr)
 
-                        self.con.fetch('''
+                        self.con.fetchall('''
                             INSERT test::TransactionTest {
                                 name := 'TXTEST 2'
                             };
@@ -103,7 +103,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
                         1 / 0
 
-                recs = self.con.fetch('''
+                recs = self.con.fetchall('''
                     SELECT
                         test::TransactionTest {
                             name
@@ -120,7 +120,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
         self.assertIs(self.con._top_xact, None)
 
-        recs = self.con.fetch('''
+        recs = self.con.fetchall('''
             SELECT
                 test::TransactionTest {
                     name

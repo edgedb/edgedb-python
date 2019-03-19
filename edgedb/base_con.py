@@ -20,7 +20,7 @@
 import itertools
 
 from .protocol.protocol import CodecsRegistry as _CodecsRegistry
-from .protocol.protocol import QueryCache as _QueryCache
+from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
 
 class BaseConnection:
@@ -33,7 +33,7 @@ class BaseConnection:
         self._params = params
 
         self._codecs_registry = _CodecsRegistry()
-        self._query_cache = _QueryCache()
+        self._query_cache = _QueryCodecsCache()
 
         self._top_xact = None
 

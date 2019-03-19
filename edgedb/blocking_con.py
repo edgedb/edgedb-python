@@ -29,19 +29,24 @@ from .protocol import blocking_proto
 
 class BlockingIOConnection(base_con.BaseConnection):
 
-    def fetch(self, query, *args, **kwargs):
+    def fetchall(self, query, *args, **kwargs):
         return self._protocol.sync_execute_anonymous(
             False, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    def fetch_value(self, query, *args, **kwargs):
+    def fetchone(self, query, *args, **kwargs):
         return self._protocol.sync_execute_anonymous(
             True, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    def fetch_json(self, query, *args, **kwargs):
+    def fetchall_json(self, query, *args, **kwargs):
         return self._protocol.sync_execute_anonymous(
             False, True, self._codecs_registry, self._query_cache,
+            query, args, kwargs)
+
+    def fetchone_json(self, query, *args, **kwargs):
+        return self._protocol.sync_execute_anonymous(
+            True, True, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
     def execute(self, query):

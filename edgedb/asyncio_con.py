@@ -34,19 +34,24 @@ class AsyncIOConnection(base_con.BaseConnection):
         self._transport = transport
         self._loop = loop
 
-    async def fetch(self, query, *args, **kwargs):
+    async def fetchall(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
             False, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    async def fetch_value(self, query, *args, **kwargs):
+    async def fetchone(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
             True, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    async def fetch_json(self, query, *args, **kwargs):
+    async def fetchall_json(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
             False, True, self._codecs_registry, self._query_cache,
+            query, args, kwargs)
+
+    async def fetchone_json(self, query, *args, **kwargs):
+        return await self._protocol.execute_anonymous(
+            True, True, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
     async def execute(self, query):
