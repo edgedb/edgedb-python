@@ -255,14 +255,13 @@ cdef class SansIOProtocol:
                             # * save the exception to raise it once SYNC is
                             #   received;
                             # * ignore all 'D' messages for this query.
-                            exc = ex
+                            exc = errors.ClientError(
+                                'unable to decode data to Python objects')
+                            exc.__cause__ = ex
                             # Take care of a partially consumed 'D' message
-                            # (if any).
-                            if self.buffer.take_message():
-                                if self.buffer.get_message_type() == b'D':
-                                    self.buffer.discard_message()
-                                else:
-                                    self.buffer.put_message()
+                            # and the ones yet unparsed.
+                            while self.buffer.take_message_type(b'D'):
+                                self.buffer.discard_message()
                     else:
                         self.buffer.discard_message()
 
@@ -336,7 +335,24 @@ cdef class SansIOProtocol:
 
                 elif mtype == b'D':
                     assert not re_exec
-                    self.parse_data_messages(out_dc, result)
+                    if exc is None:
+                        try:
+                            self.parse_data_messages(out_dc, result)
+                        except Exception as ex:
+                            # An error during data decoding.  We need to
+                            # handle this as gracefully as possible:
+                            # * save the exception to raise it once SYNC is
+                            #   received;
+                            # * ignore all 'D' messages for this query.
+                            exc = errors.ClientError(
+                                'unable to decode data to Python objects')
+                            exc.__cause__ = ex
+                            # Take care of a partially consumed 'D' message
+                            # and the ones yet unparsed.
+                            while self.buffer.take_message_type(b'D'):
+                                self.buffer.discard_message()
+                    else:
+                        self.buffer.discard_message()
 
                 elif mtype == b'C':  # CommandComplete
                     self.parse_command_complete_message()
