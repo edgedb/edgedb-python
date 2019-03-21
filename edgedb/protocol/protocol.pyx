@@ -52,6 +52,8 @@ from . cimport datatypes
 from . cimport cpythonx
 
 from edgedb import errors
+from edgedb import scram
+
 
 include "./consts.pxi"
 include "./lru.pyx"
@@ -512,7 +514,6 @@ cdef class SansIOProtocol:
 
         msg_buf = WriteBuffer.new_message(b'0')
         msg_buf.write_utf8(self.con_params.user or '')
-        msg_buf.write_utf8(self.con_params.password or '')
         msg_buf.write_utf8(self.con_params.database or '')
         msg_buf.end_message()
 
@@ -532,7 +533,11 @@ cdef class SansIOProtocol:
             elif mtype == b'R':
                 # Authentication...
                 status = self.buffer.read_int32()
-                if status != 0:
+                if status == AuthenticationStatuses.AUTH_OK:
+                    pass
+                elif status == AuthenticationStatuses.AUTH_SASL:
+                    await self._auth_sasl()
+                else:
                     self.abort()
                     raise RuntimeError(
                         f'unsupported authentication method requested by the '
@@ -559,6 +564,101 @@ cdef class SansIOProtocol:
                 self.fallthrough()
 
             self.buffer.finish_message()
+
+    async def _auth_sasl(self):
+        num_methods = self.buffer.read_int32()
+        if num_methods <= 0:
+            raise RuntimeError(
+                'the server requested SASL authentication but did not '
+                'offer any methods')
+
+        methods = []
+        for i in range(num_methods):
+            method = self.buffer.read_utf8()
+            methods.append(method)
+
+        self.buffer.finish_message()
+
+        for method in methods:
+            if method == 'SCRAM-SHA-256':
+                break
+        else:
+            raise RuntimeError(
+                f'the server offered the following SASL authentication '
+                f'methods: {", ".join(methods)}, neither are supported.')
+
+        client_nonce = scram.generate_nonce()
+        client_first, client_first_bare = scram.build_client_first_message(
+            client_nonce, self.con_params.user)
+
+        msg_buf = WriteBuffer.new_message(b'p')
+        msg_buf.write_utf8('SCRAM-SHA-256')
+        msg_buf.write_int32(len(client_first))
+        msg_buf.write_bytes(client_first.encode('utf-8'))
+        msg_buf.end_message()
+        self.write(msg_buf)
+
+        if not self.buffer.take_message():
+            await self.wait_for_message()
+        mtype = self.buffer.get_message_type()
+
+        if mtype == b'E':
+            # ErrorResponse
+            exc = self.parse_error_message()
+            self.buffer.finish_message()
+            raise exc
+
+        elif mtype != b'R':
+            raise RuntimeError(
+                f'expected SASLContinue from the server, received {mtype}')
+
+        status = self.buffer.read_int32()
+        if status != AuthenticationStatuses.AUTH_SASL_CONTINUE:
+            raise RuntimeError(
+                f'expected SASLContinue from the server, received {status}')
+
+        server_first = self.buffer.consume_message()
+
+        server_nonce, salt, itercount = (
+            scram.parse_server_first_message(server_first))
+
+        client_final, expected_server_sig = scram.build_client_final_message(
+            self.con_params.password or '',
+            salt,
+            itercount,
+            client_first_bare.encode('utf-8'),
+            server_first,
+            server_nonce)
+
+        msg_buf = WriteBuffer.new_message(b'p')
+        msg_buf.write_utf8(client_final)
+        msg_buf.end_message()
+        self.write(msg_buf)
+
+        if not self.buffer.take_message():
+            await self.wait_for_message()
+        mtype = self.buffer.get_message_type()
+
+        if mtype == b'E':
+            # ErrorResponse
+            exc = self.parse_error_message()
+            self.buffer.finish_message()
+            raise exc
+        elif mtype != b'R':
+            raise RuntimeError(
+                f'expected SASLFinal from the server, received {mtype}')
+
+        status = self.buffer.read_int32()
+        if status != AuthenticationStatuses.AUTH_SASL_FINAL:
+            raise RuntimeError(
+                f'expected SASLFinal from the server, received {status}')
+
+        server_final = self.buffer.consume_message()
+        server_sig = scram.parse_server_final_message(server_final)
+
+        if server_sig != expected_server_sig:
+            raise RuntimeError(
+                f'server SCRAM proof does not match')
 
     cdef fallthrough(self):
         cdef:

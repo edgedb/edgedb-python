@@ -53,6 +53,13 @@ cdef enum EdgeParseFlags:
     PARSE_SINGLETON_RESULT = 1 << 1
 
 
+cdef enum AuthenticationStatuses:
+    AUTH_OK = 0
+    AUTH_SASL = 10
+    AUTH_SASL_CONTINUE = 11
+    AUTH_SASL_FINAL = 12
+
+
 cdef class QueryCodecsCache:
 
     cdef:

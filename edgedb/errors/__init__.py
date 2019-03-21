@@ -73,6 +73,8 @@ __all__ = _base.__all__ + (
     'MissingRequiredError',
     'TransactionError',
     'ConfigurationError',
+    'AccessError',
+    'AuthenticationError',
     'ClientError',
     'ClientConnectionError',
     'InterfaceError',
@@ -321,6 +323,14 @@ class TransactionError(ExecutionError):
 
 class ConfigurationError(EdgeDBError):
     _code = 0x_06_00_00_00
+
+
+class AccessError(EdgeDBError):
+    _code = 0x_07_00_00_00
+
+
+class AuthenticationError(AccessError):
+    _code = 0x_07_01_00_00
 
 
 class ClientError(EdgeDBError):
