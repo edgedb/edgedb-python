@@ -50,6 +50,26 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         self._attrs = {}
         super().__init__(*args, **kwargs)
 
+    @property
+    def _position(self):
+        # not a stable API method
+        return int(self._attrs.get('P', -1))
+
+    @property
+    def _line(self):
+        # not a stable API method
+        return int(self._attrs.get('L', -1))
+
+    @property
+    def _col(self):
+        # not a stable API method
+        return int(self._attrs.get('C', -1))
+
+    @property
+    def _hint(self):
+        # not a stable API method
+        return self._attrs.get('H')
+
     def get_code(self):
         return self._code
 
