@@ -53,21 +53,8 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def get_code(self):
         return self._code
 
-    @property
-    def position(self):
-        return int(self._attrs.get('P', -1))
-
-    @property
-    def line(self):
-        return int(self._attrs.get('L', -1))
-
-    @property
-    def col(self):
-        return int(self._attrs.get('C', -1))
-
-    @property
-    def hint(self):
-        return self._attrs.get('H')
+    def get_server_context(self):
+        return self._attrs.get('T')
 
     @staticmethod
     def _from_code(code, *args, **kwargs):
