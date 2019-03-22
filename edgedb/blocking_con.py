@@ -104,12 +104,13 @@ def _connect_addr(*, addr, timeout, params, config, connection_class):
 def connect(dsn=None, *,
             host=None, port=None,
             user=None, password=None,
+            admin=None,
             database=None,
             timeout=60):
 
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
-        database=database,
+        database=database, admin=admin,
 
         # ToDos
         timeout=None,

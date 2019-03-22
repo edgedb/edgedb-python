@@ -102,19 +102,19 @@ def _parse_hostlist(hostlist, port):
 
 
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,
-                                password, database,
+                                password, database, admin,
                                 connect_timeout, server_settings):
-    # `auth_hosts` is the version of host information for the purposes
-    # of reading the pgpass file.
-    auth_hosts = None
 
     if dsn:
         parsed = urllib.parse.urlparse(dsn)
 
-        if parsed.scheme != 'edgedb':
+        if parsed.scheme not in ('edgedb', 'edgedbadmin'):
             raise ValueError(
-                f'invalid DSN: scheme is expected to be "edgedb", '
-                f'got {parsed.scheme!r}')
+                f'invalid DSN: scheme is expected to be '
+                f'"edgedb" or "edgedbadmin", got {parsed.scheme!r}')
+
+        if admin is None:
+            admin = parsed.schema == 'edgedbadmin'
 
         if not host and parsed.netloc:
             if '@' in parsed.netloc:
@@ -184,8 +184,6 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
             host, port = _parse_hostlist(hostspec, port)
 
     if not host:
-        auth_hosts = ['localhost']
-
         if _system == 'Windows':
             host = ['localhost']
         else:
@@ -193,9 +191,6 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
 
     if not isinstance(host, list):
         host = [host]
-
-    if auth_hosts is None:
-        auth_hosts = host
 
     if not port:
         portspec = os.environ.get('EDGEDB_PORT')
@@ -237,16 +232,26 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
         raise errors.InterfaceError(
             'could not determine database name to connect to')
 
+    have_unix_sockets = False
     addrs = []
     for h, p in zip(host, port):
         if h.startswith('/'):
             # UNIX socket name
             if '.s.EDGEDB.' not in h:
-                h = os.path.join(h, '.s.EDGEDB.{}'.format(p))
+                if admin:
+                    sock_name = f'.s.EDGEDB.admin.{p}'
+                else:
+                    sock_name = f'.s.EDGEDB.{p}'
+                h = os.path.join(h, sock_name)
+                have_unix_sockets = True
             addrs.append(h)
         else:
             # TCP host/port
             addrs.append((h, p))
+
+    if admin and not have_unix_sockets:
+        raise ValueError(
+            'admin connections are only supported over UNIX sockets')
 
     if not addrs:
         raise ValueError(
@@ -271,7 +276,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
 
 
 def parse_connect_arguments(*, dsn, host, port, user, password,
-                            database, timeout, command_timeout,
+                            database, admin, timeout, command_timeout,
                             server_settings):
 
     if command_timeout is not None:
@@ -289,7 +294,7 @@ def parse_connect_arguments(*, dsn, host, port, user, password,
 
     addrs, params = _parse_connect_dsn_and_args(
         dsn=dsn, host=host, port=port, user=user,
-        password=password,
+        password=password, admin=admin,
         database=database, connect_timeout=timeout,
         server_settings=server_settings,
     )

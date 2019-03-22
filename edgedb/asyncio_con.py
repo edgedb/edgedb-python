@@ -105,6 +105,7 @@ async def _connect_addr(*, addr, loop, timeout, params, config,
 async def async_connect(dsn=None, *,
                         host=None, port=None,
                         user=None, password=None,
+                        admin=None,
                         database=None,
                         timeout=60):
 
@@ -112,7 +113,7 @@ async def async_connect(dsn=None, *,
 
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
-        database=database, timeout=timeout,
+        database=database, admin=admin, timeout=timeout,
 
         # ToDos
         command_timeout=None,
