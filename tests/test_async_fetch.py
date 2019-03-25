@@ -455,8 +455,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         # by closing.
         lock_key = tb.gen_lock_key()
 
-        con2 = await self.cluster.connect(user='edgedb',
-                                          database=self.con.dbname)
+        con2 = await self.connect(database=self.con.dbname)
 
         await self.con.fetchone(
             'select sys::advisory_lock(<int64>$0)',

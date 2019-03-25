@@ -185,9 +185,12 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
 
     if not host:
         if _system == 'Windows':
-            host = ['localhost']
+            host = []
         else:
-            host = ['/run/edgedb', '/var/run/edgedb', 'localhost']
+            host = ['/run/edgedb', '/var/run/edgedb']
+
+        if not admin:
+            host.append('localhost')
 
     if not isinstance(host, list):
         host = [host]
@@ -245,7 +248,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                 h = os.path.join(h, sock_name)
                 have_unix_sockets = True
             addrs.append(h)
-        else:
+        elif not admin:
             # TCP host/port
             addrs.append((h, p))
 

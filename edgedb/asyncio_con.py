@@ -22,6 +22,7 @@ import time
 
 from . import base_con
 from . import con_utils
+from . import errors
 from . import transaction
 
 from .protocol import asyncio_proto
@@ -86,8 +87,23 @@ async def _connect_addr(*, addr, loop, timeout, params, config,
         connector = loop.create_connection(protocol_factory, *addr)
 
     before = time.monotonic()
-    tr, pr = await asyncio.wait_for(
-        connector, timeout=timeout, loop=loop)
+
+    try:
+        tr, pr = await asyncio.wait_for(
+            connector, timeout=timeout, loop=loop)
+    except FileNotFoundError as e:
+        raise errors.ClientConnectionError(
+            f'{e}'
+            f'\n\tIs the server running locally and accepting '
+            f'\n\tconnections on Unix domain socket {addr!r}?'
+        ) from e
+    except ConnectionError as e:
+        raise errors.ClientConnectionError(
+            f'{e}'
+            f'\n\tIs the server running on host {addr[0]!r} and accepting '
+            f'\n\tTCP/IP connections on port {addr[1]}?'
+        ) from e
+
     timeout -= time.monotonic() - before
 
     try:
@@ -128,7 +144,8 @@ async def async_connect(dsn=None, *,
                 addr=addr, loop=loop, timeout=timeout,
                 params=params, config=config,
                 connection_class=AsyncIOConnection)
-        except (OSError, asyncio.TimeoutError, ConnectionError) as ex:
+        except (OSError, asyncio.TimeoutError, ConnectionError,
+                errors.ClientConnectionError) as ex:
             last_error = ex
         else:
             return con

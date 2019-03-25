@@ -34,8 +34,8 @@ class SyncQueryTestCase(tb.QueryTestCase):
         cls = type(self)
         cls.async_con = cls.con
 
-        conargs = cls.cluster.get_connect_args().copy()
-        conargs.update(dict(user='edgedb', database=cls.async_con.dbname))
+        conargs = cls.get_connect_args().copy()
+        conargs.update(dict(database=cls.async_con.dbname))
 
         cls.con = edgedb.connect(**conargs)
 

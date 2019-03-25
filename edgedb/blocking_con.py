@@ -22,6 +22,7 @@ import time
 
 from . import base_con
 from . import con_utils
+from . import errors
 from . import transaction
 
 from .protocol import blocking_proto
@@ -79,7 +80,22 @@ def _connect_addr(*, addr, timeout, params, config, connection_class):
     try:
         before = time.monotonic()
         sock.settimeout(timeout)
-        sock.connect(addr)
+
+        try:
+            sock.connect(addr)
+        except FileNotFoundError as e:
+            raise errors.ClientConnectionError(
+                f'{e}'
+                f'\n\tIs the server running locally and accepting '
+                f'\n\tconnections on Unix domain socket {addr!r}?'
+            ) from e
+        except ConnectionError as e:
+            raise errors.ClientConnectionError(
+                f'{e}'
+                f'\n\tIs the server running on host {addr[0]!r} and accepting '
+                f'\n\tTCP/IP connections on port {addr[1]}?'
+            ) from e
+
         timeout -= time.monotonic() - before
 
         if timeout <= 0:
@@ -126,7 +142,8 @@ def connect(dsn=None, *,
                 addr=addr, timeout=timeout,
                 params=params, config=config,
                 connection_class=BlockingIOConnection)
-        except (OSError, TimeoutError, ConnectionError, socket.error) as ex:
+        except (OSError, TimeoutError, ConnectionError, socket.error,
+                errors.ClientConnectionError) as ex:
             last_error = ex
         else:
             return con
