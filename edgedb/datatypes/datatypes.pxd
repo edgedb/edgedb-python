@@ -20,7 +20,10 @@
 cimport cpython
 
 
-cdef extern from "datatypes/datatypes.h":
+include "./enum.pxd"
+
+
+cdef extern from "datatypes.h":
 
     int EDGE_POINTER_IS_IMPLICIT
     int EDGE_POINTER_IS_LINKPROP

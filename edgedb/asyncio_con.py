@@ -97,7 +97,7 @@ async def _connect_addr(*, addr, loop, timeout, params, config,
             f'\n\tIs the server running locally and accepting '
             f'\n\tconnections on Unix domain socket {addr!r}?'
         ) from e
-    except ConnectionError as e:
+    except (ConnectionError, OSError) as e:
         raise errors.ClientConnectionError(
             f'{e}'
             f'\n\tIs the server running on host {addr[0]!r} and accepting '

@@ -17,6 +17,8 @@ clean:
 	rm -fr $(ROOT)/edgedb/protocol/*.c
 	rm -fr $(ROOT)/edgedb/protocol/*.html
 	rm -fr $(ROOT)/edgedb/protocol/*.so
+	rm -fr $(ROOT)/edgedb/datatypes/*.so
+	rm -fr $(ROOT)/edgedb/datatypes/datatypes.c
 	rm -fr $(ROOT)/build
 	rm -fr $(ROOT)/*.egg-info
 	rm -fr $(ROOT)/edgedb/protocol/codecs/*.html
@@ -25,7 +27,8 @@ clean:
 
 _touch:
 	find $(ROOT)/edgedb/protocol -name '*.pyx' | xargs touch
-	find $(ROOT)/edgedb/protocol/datatypes -name '*.c' | xargs touch
+	find $(ROOT)/edgedb/datatypes -name '*.pyx' | xargs touch
+	find $(ROOT)/edgedb/datatypes -name '*.c' | xargs touch
 
 
 compile: _touch

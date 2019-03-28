@@ -17,19 +17,23 @@
 #
 
 
-# flake8: noqa
+@cython.final
+cdef class EnumCodec(BaseCodec):
 
-from .errors import *
+    cdef decode(self, FRBuffer *buf):
+        label = pgproto.text_decode(DEFAULT_CODEC_CONTEXT, buf)
+        return datatypes.EnumValue(self.descriptor, label)
 
-from edgedb.datatypes.datatypes import Tuple, NamedTuple, EnumValue
-from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
+    @staticmethod
+    cdef BaseCodec new(bytes tid, tuple enum_labels):
+        cdef:
+            EnumCodec codec
 
-from .asyncio_con import async_connect
-from .blocking_con import connect
+        codec = EnumCodec.__new__(EnumCodec)
 
+        codec.tid = tid
+        codec.name = 'Enum'
+        codec.descriptor = datatypes.EnumDescriptor(
+            pgproto.UUID(tid), enum_labels)
 
-__all__ = (
-    'async_connect', 'connect',
-    'EnumValue', 'Tuple', 'NamedTuple', 'Set',
-    'Object', 'Array', 'Link', 'LinkSet',
-) + errors.__all__
+        return codec

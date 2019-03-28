@@ -149,6 +149,12 @@ class build_ext(distutils_build_ext.build_ext):
         super(build_ext, self).finalize_options()
 
 
+INCLUDE_DIRS = [
+    'edgedb/pgproto/',
+    'edgedb/datatypes',
+]
+
+
 setuptools.setup(
     name='edgedb',
     version='0.0.1',
@@ -170,34 +176,43 @@ setuptools.setup(
             extra_link_args=LDFLAGS),
 
         distutils_extension.Extension(
-            "edgedb.protocol.protocol",
-            ["edgedb/protocol/datatypes/args.c",
-             "edgedb/protocol/datatypes/record_desc.c",
-             "edgedb/protocol/datatypes/tuple.c",
-             "edgedb/protocol/datatypes/namedtuple.c",
-             "edgedb/protocol/datatypes/object.c",
-             "edgedb/protocol/datatypes/set.c",
-             "edgedb/protocol/datatypes/hash.c",
-             "edgedb/protocol/datatypes/array.c",
-             "edgedb/protocol/datatypes/link.c",
-             "edgedb/protocol/datatypes/linkset.c",
-             "edgedb/protocol/datatypes/repr.c",
-             "edgedb/protocol/datatypes/comp.c",
-             "edgedb/protocol/protocol.pyx"],
+            "edgedb.datatypes.datatypes",
+            ["edgedb/datatypes/args.c",
+             "edgedb/datatypes/record_desc.c",
+             "edgedb/datatypes/tuple.c",
+             "edgedb/datatypes/namedtuple.c",
+             "edgedb/datatypes/object.c",
+             "edgedb/datatypes/set.c",
+             "edgedb/datatypes/hash.c",
+             "edgedb/datatypes/array.c",
+             "edgedb/datatypes/link.c",
+             "edgedb/datatypes/linkset.c",
+             "edgedb/datatypes/repr.c",
+             "edgedb/datatypes/comp.c",
+             "edgedb/datatypes/datatypes.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS),
+
+        distutils_extension.Extension(
+            "edgedb.protocol.protocol",
+            ["edgedb/protocol/protocol.pyx"],
+            extra_compile_args=CFLAGS,
+            extra_link_args=LDFLAGS,
+            include_dirs=INCLUDE_DIRS),
 
         distutils_extension.Extension(
             "edgedb.protocol.asyncio_proto",
             ["edgedb/protocol/asyncio_proto.pyx"],
             extra_compile_args=CFLAGS,
-            extra_link_args=LDFLAGS),
+            extra_link_args=LDFLAGS,
+            include_dirs=INCLUDE_DIRS),
 
         distutils_extension.Extension(
             "edgedb.protocol.blocking_proto",
             ["edgedb/protocol/blocking_proto.pyx"],
             extra_compile_args=CFLAGS,
-            extra_link_args=LDFLAGS),
+            extra_link_args=LDFLAGS,
+            include_dirs=INCLUDE_DIRS),
     ],
     cmdclass={'build_ext': build_ext},
     test_suite='tests.suite',

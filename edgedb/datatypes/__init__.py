@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,21 +15,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-
-# flake8: noqa
-
-from .errors import *
-
-from edgedb.datatypes.datatypes import Tuple, NamedTuple, EnumValue
-from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
-
-from .asyncio_con import async_connect
-from .blocking_con import connect
-
-
-__all__ = (
-    'async_connect', 'connect',
-    'EnumValue', 'Tuple', 'NamedTuple', 'Set',
-    'Object', 'Array', 'Link', 'LinkSet',
-) + errors.__all__

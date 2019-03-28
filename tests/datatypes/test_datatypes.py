@@ -21,7 +21,7 @@ import unittest
 
 
 import edgedb
-from edgedb.protocol import protocol as private
+from edgedb.datatypes import datatypes as private
 from edgedb import introspect
 
 

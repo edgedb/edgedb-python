@@ -30,6 +30,7 @@ include "./namedtuple.pyx"
 include "./object.pyx"
 include "./array.pyx"
 include "./set.pyx"
+include "./enum.pyx"
 
 
 DEF CTYPE_SET = 0
@@ -39,6 +40,7 @@ DEF CTYPE_SCALAR = 3
 DEF CTYPE_TUPLE = 4
 DEF CTYPE_NAMEDTUPLE = 5
 DEF CTYPE_ARRAY = 6
+DEF CTYPE_ENUM = 7
 
 DEF _CODECS_BUILD_CACHE_SIZE = 200
 
@@ -104,13 +106,20 @@ cdef class CodecsRegistry:
             elif t == CTYPE_ARRAY:
                 frb_read(spec, 2)
 
+            elif t == CTYPE_ENUM:
+                els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                for i in range(els):
+                    str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                    frb_read(spec, str_len)
+
             elif (t >= 0xf0 and t <= 0xff):
                 # Ignore all type annotations.
                 str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
                 frb_read(spec, str_len)
 
             else:
-                raise NotImplementedError
+                raise NotImplementedError(
+                    f'no codec implementation for EdgeDB data class {t}')
 
             return res
 
@@ -182,6 +191,19 @@ cdef class CodecsRegistry:
 
             res = NamedTupleCodec.new(tid, names, codecs)
 
+        elif t == CTYPE_ENUM:
+            els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            names = cpython.PyTuple_New(els)
+            for i in range(els):
+                str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+
+                cpython.Py_INCREF(name)
+                cpython.PyTuple_SetItem(names, i, name)
+
+            res = EnumCodec.new(tid, names)
+
         elif t == CTYPE_ARRAY:
             pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             sub_codec = <BaseCodec>codecs_list[pos]
@@ -194,7 +216,8 @@ cdef class CodecsRegistry:
             return
 
         else:
-            raise NotImplementedError
+            raise NotImplementedError(
+                f'no codec implementation for EdgeDB data class {t}')
 
         self.codecs_build_cache[tid] = res
         return res

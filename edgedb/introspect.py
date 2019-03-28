@@ -24,7 +24,7 @@ import enum
 import functools
 import typing
 
-from edgedb.protocol import protocol as dt
+from edgedb.datatypes import datatypes as dt
 
 
 class PointerKind(enum.Enum):

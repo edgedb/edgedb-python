@@ -40,6 +40,7 @@ from edgedb.pgproto.pgproto cimport (
     frb_get_len,
 )
 
+from edgedb.pgproto import pgproto
 from edgedb.pgproto cimport pgproto
 from edgedb.pgproto cimport hton
 from edgedb.pgproto.pgproto import UUID
@@ -48,7 +49,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          int32_t, uint32_t, int64_t, uint64_t, \
                          UINT32_MAX
 
-from . cimport datatypes
+from edgedb.datatypes cimport datatypes
 from . cimport cpythonx
 
 from edgedb import errors
@@ -856,64 +857,3 @@ cdef result_cardinality_mismatch_code = \
 
 cdef bytes SYNC_MESSAGE = bytes(WriteBuffer.new_message(b'S').end_message())
 cdef bytes FLUSH_MESSAGE = bytes(WriteBuffer.new_message(b'H').end_message())
-
-
-## Other exports
-
-_RecordDescriptor = datatypes.EdgeRecordDesc_InitType()
-Tuple = datatypes.EdgeTuple_InitType()
-NamedTuple = datatypes.EdgeNamedTuple_InitType()
-Object = datatypes.EdgeObject_InitType()
-Set = datatypes.EdgeSet_InitType()
-Array = datatypes.EdgeArray_InitType()
-Link = datatypes.EdgeLink_InitType()
-LinkSet = datatypes.EdgeLinkSet_InitType()
-
-
-_EDGE_POINTER_IS_IMPLICIT = datatypes.EDGE_POINTER_IS_IMPLICIT
-_EDGE_POINTER_IS_LINKPROP = datatypes.EDGE_POINTER_IS_LINKPROP
-_EDGE_POINTER_IS_LINK = datatypes.EDGE_POINTER_IS_LINK
-
-
-def get_object_descriptor(obj):
-    return datatypes.EdgeObject_GetRecordDesc(obj)
-
-
-def create_object_factory(**pointers):
-    flags = ()
-    names = ()
-    for pname, ptype in pointers.items():
-        names += (pname,)
-
-        if not isinstance(ptype, set):
-            ptype = {ptype}
-
-        flag = 0
-        for pt in ptype:
-            if pt == 'link':
-                flag |= datatypes.EDGE_POINTER_IS_LINK
-            elif pt == 'property':
-                pass
-            elif pt == 'link-property':
-                flag |= datatypes.EDGE_POINTER_IS_LINKPROP
-            elif pt == 'implicit':
-                flag |= datatypes.EDGE_POINTER_IS_IMPLICIT
-            else:
-                raise ValueError(f'unknown pointer type {pt}')
-
-        flags += (flag,)
-
-    desc = datatypes.EdgeRecordDesc_New(names, flags)
-    size = len(pointers)
-
-    def factory(*items):
-        if len(items) != size:
-            raise ValueError
-
-        o = datatypes.EdgeObject_New(desc)
-        for i in range(size):
-            datatypes.EdgeObject_SetItem(o, i, items[i])
-
-        return o
-
-    return factory
