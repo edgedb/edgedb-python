@@ -36,7 +36,7 @@ cdef class TupleCodec(BaseRecordCodec):
                 f'cannot decode Tuple: expected {len(self.fields_codecs)} '
                 f'elements, got {elem_count}')
 
-        result = datatypes.EdgeTuple_New(elem_count)
+        result = datatypes.tuple_new(elem_count)
 
         for i in range(elem_count):
             elem_len = hton.unpack_int32(frb_read(buf, 4))
@@ -48,7 +48,7 @@ cdef class TupleCodec(BaseRecordCodec):
                 elem = elem_codec.decode(
                     frb_slice_from(&elem_buf, buf, elem_len))
 
-            datatypes.EdgeTuple_SetItem(result, i, elem)
+            datatypes.tuple_set(result, i, elem)
 
         return result
 

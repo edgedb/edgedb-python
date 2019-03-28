@@ -239,7 +239,7 @@ cdef class SansIOProtocol:
         packet.write_bytes(SYNC_MESSAGE)
         self.write(packet)
 
-        result = datatypes.EdgeSet_New(0)
+        result = datatypes.set_new(0)
 
         exc = None
         while True:
@@ -318,7 +318,7 @@ cdef class SansIOProtocol:
         packet.write_bytes(SYNC_MESSAGE)
         self.write(packet)
 
-        result = datatypes.EdgeSet_New(0)
+        result = datatypes.set_new(0)
         re_exec = False
         exc = None
         while True:
@@ -760,7 +760,7 @@ cdef class SansIOProtocol:
             if buf.get_message_type() != b'D':
                 raise RuntimeError('first message is not "D"')
 
-            if not datatypes.EdgeSet_Check(result):
+            if not datatypes.set_check(result):
                 raise RuntimeError(
                     f'result is not an edgedb.Set, but {result!r}')
 
@@ -791,7 +791,7 @@ cdef class SansIOProtocol:
                 frb_init(rbuf, cbuf + 6, cbuf_len - 6)
 
             row = decoder(out_dc, rbuf)
-            datatypes.EdgeSet_AppendItem(result, row)
+            datatypes.set_append(result, row)
 
     cdef parse_command_complete_message(self):
         assert self.buffer.get_message_type() == b'C'

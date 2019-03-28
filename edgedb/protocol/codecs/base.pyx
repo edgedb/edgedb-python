@@ -73,7 +73,7 @@ cdef class EmptyTupleCodec(BaseCodec):
                 f'got {elem_count}')
 
         if self.empty_tup is None:
-            self.empty_tup = datatypes.EdgeTuple_New(0)
+            self.empty_tup = datatypes.tuple_new(0)
         return self.empty_tup
 
 
@@ -156,7 +156,7 @@ cdef class BaseNamedRecordCodec(BaseRecordCodec):
     cdef dump(self, int level = 0):
         buf = [f'{level * " "}{self.name}']
         for pos, codec in enumerate(self.fields_codecs):
-            name = datatypes.EdgeRecordDesc_PointerName(self.descriptor, pos)
+            name = datatypes.record_desc_pointer_name(self.descriptor, pos)
             buf.append('{}{} := {}'.format(
                 (level + 1) * " ",
                 name,
