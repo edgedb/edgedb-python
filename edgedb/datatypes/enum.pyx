@@ -55,14 +55,14 @@ cdef class EnumValue:
             return NotImplemented
         if self.desc.tid != (<EnumValue>other).desc.tid:
             return NotImplemented
-        return self.get_index() == (<EnumValue>other).get_index()
+        return self.label == (<EnumValue>other).label
 
     def __ne__(self, other):
         if not isinstance(other, EnumValue):
             return NotImplemented
         if self.desc.tid != (<EnumValue>other).desc.tid:
             return NotImplemented
-        return self.get_index() != (<EnumValue>other).get_index()
+        return self.label != (<EnumValue>other).label
 
     def __lt__(self, other):
         if not isinstance(other, EnumValue):
