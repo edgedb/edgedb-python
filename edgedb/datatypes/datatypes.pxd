@@ -59,3 +59,19 @@ cdef extern from "datatypes.h":
     object EdgeLink_InitType()
 
     object EdgeLinkSet_InitType()
+
+
+cdef record_desc_new(object names, object flags)
+cdef record_desc_pointer_name(object desc, Py_ssize_t pos)
+cdef tuple_new(Py_ssize_t size)
+cdef tuple_set(object tuple, Py_ssize_t pos, object elem)
+cdef namedtuple_new(object desc)
+cdef namedtuple_set(object tuple, Py_ssize_t pos, object elem)
+cdef object_new(object desc)
+cdef object_set(object tuple, Py_ssize_t pos, object elem)
+cdef bint set_check(object set)
+cdef set_new(Py_ssize_t size)
+cdef set_set(object set, Py_ssize_t pos, object elem)
+cdef set_append(object set, object elem)
+cdef array_new(Py_ssize_t size)
+cdef array_set(object array, Py_ssize_t pos, object elem)

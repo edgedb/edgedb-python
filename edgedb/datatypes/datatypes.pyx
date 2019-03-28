@@ -77,3 +77,59 @@ def create_object_factory(**pointers):
         return o
 
     return factory
+
+
+cdef record_desc_new(object names, object flags):
+    return EdgeRecordDesc_New(names, flags)
+
+
+cdef record_desc_pointer_name(object desc, Py_ssize_t pos):
+    return EdgeRecordDesc_PointerName(desc, pos)
+
+
+cdef tuple_new(Py_ssize_t size):
+    return EdgeTuple_New(size)
+
+
+cdef tuple_set(object tuple, Py_ssize_t pos, object elem):
+    EdgeTuple_SetItem(tuple, pos, elem)
+
+
+cdef namedtuple_new(object desc):
+    return EdgeNamedTuple_New(desc)
+
+
+cdef namedtuple_set(object tuple, Py_ssize_t pos, object elem):
+    EdgeNamedTuple_SetItem(tuple, pos, elem)
+
+
+cdef object_new(object desc):
+    return EdgeObject_New(desc)
+
+
+cdef object_set(object tuple, Py_ssize_t pos, object elem):
+    EdgeObject_SetItem(tuple, pos, elem)
+
+
+cdef bint set_check(object set):
+    return EdgeSet_Check(set)
+
+
+cdef set_new(Py_ssize_t size):
+    return EdgeSet_New(size)
+
+
+cdef set_set(object set, Py_ssize_t pos, object elem):
+    EdgeSet_SetItem(set, pos, elem)
+
+
+cdef set_append(object set, object elem):
+    EdgeSet_AppendItem(set, elem)
+
+
+cdef array_new(Py_ssize_t size):
+    return EdgeArray_New(size)
+
+
+cdef array_set(object array, Py_ssize_t pos, object elem):
+    EdgeArray_SetItem(array, pos, elem)

@@ -39,7 +39,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
                 f'cannot decode Object: expected {len(self.fields_codecs)} '
                 f'elements, got {elem_count}')
 
-        result = datatypes.EdgeObject_New(self.descriptor)
+        result = datatypes.object_new(self.descriptor)
 
         for i in range(elem_count):
             elem_len = hton.unpack_int32(frb_read(buf, 4))
@@ -51,7 +51,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
                 elem = elem_codec.decode(
                     frb_slice_from(&elem_buf, buf, elem_len))
 
-            datatypes.EdgeObject_SetItem(result, i, elem)
+            datatypes.object_set(result, i, elem)
 
         return result
 
@@ -64,7 +64,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
 
         codec.tid = tid
         codec.name = 'Object'
-        codec.descriptor = datatypes.EdgeRecordDesc_New(names, flags)
+        codec.descriptor = datatypes.record_desc_new(names, flags)
         codec.fields_codecs = codecs
 
         return codec

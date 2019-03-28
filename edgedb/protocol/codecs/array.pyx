@@ -123,11 +123,11 @@ cdef class BaseArrayCodec(BaseCodec):
 cdef class ArrayCodec(BaseArrayCodec):
 
     cdef _new_collection(self, Py_ssize_t size):
-        return datatypes.EdgeArray_New(size)
+        return datatypes.array_new(size)
 
     cdef _set_collection_item(self, object collection, Py_ssize_t i,
                               object element):
-        datatypes.EdgeArray_SetItem(collection, i, element)
+        datatypes.array_set(collection, i, element)
 
     @staticmethod
     cdef BaseCodec new(bytes tid, BaseCodec sub_codec):

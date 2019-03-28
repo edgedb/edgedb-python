@@ -36,7 +36,7 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
                 f'cannot decode NamedTuple: expected {len(self.fields_codecs)} '
                 f'elements, got {elem_count}')
 
-        result = datatypes.EdgeNamedTuple_New(self.descriptor)
+        result = datatypes.namedtuple_new(self.descriptor)
 
         for i in range(elem_count):
             elem_len = hton.unpack_int32(frb_read(buf, 4))
@@ -48,7 +48,7 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
                 elem = elem_codec.decode(
                     frb_slice_from(&elem_buf, buf, elem_len))
 
-            datatypes.EdgeNamedTuple_SetItem(result, i, elem)
+            datatypes.namedtuple_set(result, i, elem)
 
         return result
 
@@ -69,7 +69,7 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
 
         elem_data = WriteBuffer.new()
         for i in range(objlen):
-            name = datatypes.EdgeRecordDesc_PointerName(self.descriptor, i)
+            name = datatypes.record_desc_pointer_name(self.descriptor, i)
             arg = obj[name]
 
             if arg is None:
@@ -95,7 +95,7 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
 
         codec.tid = tid
         codec.name = 'NamedTuple'
-        codec.descriptor = datatypes.EdgeRecordDesc_New(
+        codec.descriptor = datatypes.record_desc_new(
             fields_names, <object>NULL)
         codec.fields_codecs = fields_codecs
 
