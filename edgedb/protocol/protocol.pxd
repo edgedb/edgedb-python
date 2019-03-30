@@ -96,7 +96,9 @@ cdef class SansIOProtocol:
     cdef parse_describe_type_message(self, CodecsRegistry reg)
     cdef amend_parse_error(self, exc, bint json_mode, bint expect_one)
 
+    cdef inline reject_headers(self)
     cdef dict parse_headers(self)
+
     cdef parse_error_message(self)
 
     cdef write(self, WriteBuffer buf)

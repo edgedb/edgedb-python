@@ -115,6 +115,13 @@ cdef class SansIOProtocol:
     async def wait_for_connect(self):
         raise NotImplementedError
 
+    cdef inline reject_headers(self):
+        # We don't send any headers and thus we don't expect any
+        # headers from the server.
+        cdef int16_t nheaders = self.buffer.read_int16()
+        if nheaders != 0:
+            raise errors.BinaryProtocolError('unexpected headers')
+
     async def _parse(self, CodecsRegistry reg, str query, bint json_mode,
                      bint expect_one):
         cdef:
@@ -131,6 +138,7 @@ cdef class SansIOProtocol:
             raise RuntimeError('not connected')
 
         buf = WriteBuffer.new_message(b'P')
+        buf.write_int16(0)  # no headers
         buf.write_byte(b'j' if json_mode else b'b')
         buf.write_byte(b'o' if expect_one else b'm')
         buf.write_len_prefixed_bytes(b'')  # stmt_name
@@ -147,6 +155,7 @@ cdef class SansIOProtocol:
 
             try:
                 if mtype == b'1':
+                    self.reject_headers()
                     cardinality = self.buffer.read_byte()
                     in_type_id = self.buffer.read_bytes(16)
                     out_type_id = self.buffer.read_bytes(16)
@@ -176,6 +185,7 @@ cdef class SansIOProtocol:
 
         if in_dc is None or out_dc is None:
             buf = WriteBuffer.new_message(b'D')
+            buf.write_int16(0)  # no headers
             buf.write_byte(b'T')
             buf.write_len_prefixed_bytes(b'')  # stmt_name
             buf.end_message()
@@ -232,6 +242,7 @@ cdef class SansIOProtocol:
         packet = WriteBuffer.new()
 
         buf = WriteBuffer.new_message(b'E')
+        buf.write_int16(0)  # no headers
         buf.write_len_prefixed_bytes(b'')  # stmt_name
         self.encode_args(in_dc, buf, args, kwargs)
         packet.write_buffer(buf.end_message())
@@ -305,6 +316,7 @@ cdef class SansIOProtocol:
             bytes new_cardinality = None
 
         buf = WriteBuffer.new_message(b'O')
+        buf.write_int16(0)  # no headers
         buf.write_byte(b'j' if json_mode else b'b')
         buf.write_byte(b'o' if expect_one else b'm')
         buf.write_len_prefixed_utf8(query)
@@ -400,6 +412,7 @@ cdef class SansIOProtocol:
         self.reset_status()
 
         buf = WriteBuffer.new_message(b'Q')
+        buf.write_int16(0)  # no headers
         buf.write_len_prefixed_utf8(query)
         self.write(buf.end_message())
 
@@ -716,6 +729,8 @@ cdef class SansIOProtocol:
             bytes type_id
             bytes cardinality
 
+        self.reject_headers()
+
         try:
             cardinality = self.buffer.read_byte()
 
@@ -795,6 +810,7 @@ cdef class SansIOProtocol:
 
     cdef parse_command_complete_message(self):
         assert self.buffer.get_message_type() == b'C'
+        self.reject_headers()
         self.last_status = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
@@ -802,6 +818,8 @@ cdef class SansIOProtocol:
         cdef char status
 
         assert self.buffer.get_message_type() == b'Z'
+
+        self.reject_headers()
 
         status = self.buffer.read_byte()
 
