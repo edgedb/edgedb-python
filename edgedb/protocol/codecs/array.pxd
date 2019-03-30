@@ -21,6 +21,7 @@ cdef class BaseArrayCodec(BaseCodec):
 
     cdef:
         BaseCodec sub_codec
+        int32_t cardinality
 
     cdef _new_collection(self, Py_ssize_t size)
 
@@ -34,4 +35,4 @@ cdef class BaseArrayCodec(BaseCodec):
 cdef class ArrayCodec(BaseArrayCodec):
 
     @staticmethod
-    cdef BaseCodec new(bytes tid, BaseCodec sub_codec)
+    cdef BaseCodec new(bytes tid, BaseCodec sub_codec, int32_t cardinality)

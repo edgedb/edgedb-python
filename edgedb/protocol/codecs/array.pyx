@@ -28,6 +28,7 @@ cdef class BaseArrayCodec(BaseCodec):
 
     def __cinit__(self):
         self.sub_codec = None
+        self.cardinality = -1
 
     cdef _new_collection(self, Py_ssize_t size):
         raise NotImplementedError
@@ -100,6 +101,12 @@ cdef class BaseArrayCodec(BaseCodec):
         assert ndims == 1
 
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
+        if self.cardinality != -1 and elem_count != self.cardinality:
+            raise ValueError(
+                f'invalid array size: received {elem_count}, '
+                f'expected {self.cardinality}'
+            )
+
         frb_read(buf, 4)  # Ignore the lower bound information
 
         result = self._new_collection(elem_count)
@@ -130,7 +137,7 @@ cdef class ArrayCodec(BaseArrayCodec):
         datatypes.array_set(collection, i, element)
 
     @staticmethod
-    cdef BaseCodec new(bytes tid, BaseCodec sub_codec):
+    cdef BaseCodec new(bytes tid, BaseCodec sub_codec, int32_t cardinality):
         cdef:
             ArrayCodec codec
 
@@ -139,6 +146,7 @@ cdef class ArrayCodec(BaseArrayCodec):
         codec.tid = tid
         codec.name = 'Array'
         codec.sub_codec = sub_codec
+        codec.cardinality = cardinality
 
         return codec
 

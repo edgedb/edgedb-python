@@ -63,6 +63,7 @@ cdef class CodecsRegistry:
             uint16_t i
             uint16_t str_len
             uint16_t pos
+            int32_t dim_len
             BaseCodec res
             BaseCodec sub_codec
 
@@ -105,6 +106,12 @@ cdef class CodecsRegistry:
 
             elif t == CTYPE_ARRAY:
                 frb_read(spec, 2)
+                els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                if els != 1:
+                    raise NotImplementedError(
+                        'cannot handle arrays with more than one dimension')
+                # First dimension length.
+                frb_read(spec, 4)
 
             elif t == CTYPE_ENUM:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
@@ -206,8 +213,14 @@ cdef class CodecsRegistry:
 
         elif t == CTYPE_ARRAY:
             pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            if els != 1:
+                raise NotImplementedError(
+                    'cannot handle arrays with more than one dimension')
+            # First dimension length.
+            dim_len = hton.unpack_int32(frb_read(spec, 4))
             sub_codec = <BaseCodec>codecs_list[pos]
-            res = ArrayCodec.new(tid, sub_codec)
+            res = ArrayCodec.new(tid, sub_codec, dim_len)
 
         elif (t >= 0xf0 and t <= 0xff):
             # Ignore all type annotations.
