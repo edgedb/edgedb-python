@@ -144,7 +144,7 @@ cdef class BaseRecordCodec(BaseCodec):
                             e.args[0])) from None
 
         buf.write_int32(4 + elem_data.len())  # buffer length
-        buf.write_int32(objlen)
+        buf.write_int32(<int32_t><uint32_t>objlen)
         buf.write_buffer(elem_data)
 
 

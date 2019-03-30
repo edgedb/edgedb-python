@@ -133,8 +133,8 @@ cdef class SansIOProtocol:
         buf = WriteBuffer.new_message(b'P')
         buf.write_byte(b'j' if json_mode else b'b')
         buf.write_byte(b'o' if expect_one else b'm')
-        buf.write_utf8('')  # stmt_name
-        buf.write_utf8(query)
+        buf.write_len_prefixed_bytes(b'')  # stmt_name
+        buf.write_len_prefixed_utf8(query)
         buf.end_message()
         buf.write_bytes(SYNC_MESSAGE)
         self.write(buf)
@@ -177,7 +177,7 @@ cdef class SansIOProtocol:
         if in_dc is None or out_dc is None:
             buf = WriteBuffer.new_message(b'D')
             buf.write_byte(b'T')
-            buf.write_utf8('')  # stmt_name
+            buf.write_len_prefixed_bytes(b'')  # stmt_name
             buf.end_message()
             buf.write_bytes(SYNC_MESSAGE)
             self.write(buf)
@@ -232,7 +232,7 @@ cdef class SansIOProtocol:
         packet = WriteBuffer.new()
 
         buf = WriteBuffer.new_message(b'E')
-        buf.write_utf8('')  # stmt_name
+        buf.write_len_prefixed_bytes(b'')  # stmt_name
         self.encode_args(in_dc, buf, args, kwargs)
         packet.write_buffer(buf.end_message())
 
@@ -307,7 +307,7 @@ cdef class SansIOProtocol:
         buf = WriteBuffer.new_message(b'O')
         buf.write_byte(b'j' if json_mode else b'b')
         buf.write_byte(b'o' if expect_one else b'm')
-        buf.write_utf8(query)
+        buf.write_len_prefixed_utf8(query)
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
         self.encode_args(in_dc, buf, args, kwargs)
@@ -400,7 +400,7 @@ cdef class SansIOProtocol:
         self.reset_status()
 
         buf = WriteBuffer.new_message(b'Q')
-        buf.write_utf8(query)
+        buf.write_len_prefixed_utf8(query)
         self.write(buf.end_message())
 
         exc = None
@@ -514,8 +514,8 @@ cdef class SansIOProtocol:
         ver_buf.write_int16(0)
 
         msg_buf = WriteBuffer.new_message(b'0')
-        msg_buf.write_utf8(self.con_params.user or '')
-        msg_buf.write_utf8(self.con_params.database or '')
+        msg_buf.write_len_prefixed_utf8(self.con_params.user or '')
+        msg_buf.write_len_prefixed_utf8(self.con_params.database or '')
         msg_buf.end_message()
 
         buf = WriteBuffer()
@@ -575,13 +575,13 @@ cdef class SansIOProtocol:
 
         methods = []
         for i in range(num_methods):
-            method = self.buffer.read_utf8()
+            method = self.buffer.read_len_prefixed_bytes()
             methods.append(method)
 
         self.buffer.finish_message()
 
         for method in methods:
-            if method == 'SCRAM-SHA-256':
+            if method == b'SCRAM-SHA-256':
                 break
         else:
             raise RuntimeError(
@@ -593,9 +593,8 @@ cdef class SansIOProtocol:
             client_nonce, self.con_params.user)
 
         msg_buf = WriteBuffer.new_message(b'p')
-        msg_buf.write_utf8('SCRAM-SHA-256')
-        msg_buf.write_int32(len(client_first))
-        msg_buf.write_bytes(client_first.encode('utf-8'))
+        msg_buf.write_len_prefixed_bytes(b'SCRAM-SHA-256')
+        msg_buf.write_len_prefixed_utf8(client_first)
         msg_buf.end_message()
         self.write(msg_buf)
 
@@ -618,7 +617,8 @@ cdef class SansIOProtocol:
             raise RuntimeError(
                 f'expected SASLContinue from the server, received {status}')
 
-        server_first = self.buffer.consume_message()
+        server_first = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
 
         server_nonce, salt, itercount = (
             scram.parse_server_first_message(server_first))
@@ -632,7 +632,7 @@ cdef class SansIOProtocol:
             server_nonce)
 
         msg_buf = WriteBuffer.new_message(b'p')
-        msg_buf.write_utf8(client_final)
+        msg_buf.write_len_prefixed_utf8(client_final)
         msg_buf.end_message()
         self.write(msg_buf)
 
@@ -654,7 +654,8 @@ cdef class SansIOProtocol:
             raise RuntimeError(
                 f'expected SASLFinal from the server, received {status}')
 
-        server_final = self.buffer.consume_message()
+        server_final = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
         server_sig = scram.parse_server_final_message(server_final)
 
         if server_sig != expected_server_sig:
@@ -666,8 +667,8 @@ cdef class SansIOProtocol:
             char mtype = self.buffer.get_message_type()
 
         if mtype == b'S':
-            name = self.buffer.read_utf8()
-            val = self.buffer.read_utf8()
+            name = self.buffer.read_len_prefixed_utf8()
+            val = self.buffer.read_len_prefixed_utf8()
             self.buffer.finish_message()
             self.server_settings[name] = val
             return
@@ -679,6 +680,9 @@ cdef class SansIOProtocol:
             f'unexpected message type {chr(mtype)!r}')
 
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs):
+        cdef:
+             WriteBuffer tmp = WriteBuffer.new()
+
         if args and kwargs:
             raise RuntimeError(
                 'either positional or named arguments are supported; '
@@ -710,16 +714,13 @@ cdef class SansIOProtocol:
 
         cdef:
             bytes type_id
-            int16_t type_size
-            bytes type_data
             bytes cardinality
 
         try:
             cardinality = self.buffer.read_byte()
 
             type_id = self.buffer.read_bytes(16)
-            type_size = self.buffer.read_int16()
-            type_data = self.buffer.read_bytes(type_size)
+            type_data = self.buffer.read_len_prefixed_bytes()
 
             if reg.has_codec(type_id):
                 in_dc = reg.get_codec(type_id)
@@ -727,8 +728,7 @@ cdef class SansIOProtocol:
                 in_dc = reg.build_codec(type_data)
 
             type_id = self.buffer.read_bytes(16)
-            type_size = self.buffer.read_int16()
-            type_data = self.buffer.read_bytes(type_size)
+            type_data = self.buffer.read_len_prefixed_bytes()
 
             if reg.has_codec(type_id):
                 out_dc = reg.get_codec(type_id)
@@ -795,8 +795,7 @@ cdef class SansIOProtocol:
 
     cdef parse_command_complete_message(self):
         assert self.buffer.get_message_type() == b'C'
-        self.last_status = self.buffer.read_null_str()
-        self.last_details = self.buffer.read_null_str()
+        self.last_status = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
     cdef parse_sync_message(self):
@@ -828,22 +827,33 @@ cdef class SansIOProtocol:
 
         return exc
 
+    cdef dict parse_headers(self):
+        cdef:
+            dict attrs
+            uint16_t num_fields
+            uint16_t key
+            bytes value
+
+        attrs = {}
+        num_fields = <uint16_t>self.buffer.read_int16()
+        while num_fields:
+            key = <uint16_t>self.buffer.read_int16()
+            value = self.buffer.read_len_prefixed_bytes()
+            attrs[key] = value
+            num_fields -= 1
+        return attrs
+
     cdef parse_error_message(self):
         cdef:
             uint32_t code
+            int16_t num_fields
             str msg
 
         assert self.buffer.get_message_type() == b'E'
 
         code = <uint32_t>self.buffer.read_int32()
-        msg = self.buffer.read_utf8()
-        attrs = {}
-
-        k = self.buffer.read_byte()
-        while k != 0:
-            v = self.buffer.read_utf8()
-            attrs[chr(k)] = v
-            k = self.buffer.read_byte()
+        msg = self.buffer.read_len_prefixed_utf8()
+        attrs = self.parse_headers()
 
         exc = errors.EdgeDBError._from_code(code, msg)
         exc._attrs = attrs

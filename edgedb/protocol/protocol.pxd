@@ -83,7 +83,7 @@ cdef class SansIOProtocol:
 
         TransactionStatus xact_status
 
-        object server_settings
+        dict server_settings
 
         readonly bytes last_status
         readonly bytes last_details
@@ -95,6 +95,8 @@ cdef class SansIOProtocol:
     cdef parse_command_complete_message(self)
     cdef parse_describe_type_message(self, CodecsRegistry reg)
     cdef amend_parse_error(self, exc, bint json_mode, bint expect_one)
+
+    cdef dict parse_headers(self)
     cdef parse_error_message(self)
 
     cdef write(self, WriteBuffer buf)
