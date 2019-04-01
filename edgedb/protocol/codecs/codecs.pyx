@@ -357,17 +357,17 @@ cdef register_base_scalar_codecs():
         pgproto.timestamptz_decode)
 
     register_base_scalar_codec(
-        'std::naive_datetime',
+        'std::local_datetime',
         pgproto.timestamp_encode,
         pgproto.timestamp_decode)
 
     register_base_scalar_codec(
-        'std::naive_date',
+        'std::local_date',
         pgproto.date_encode,
         pgproto.date_decode)
 
     register_base_scalar_codec(
-        'std::naive_time',
+        'std::local_time',
         pgproto.time_encode,
         pgproto.time_decode)
 
