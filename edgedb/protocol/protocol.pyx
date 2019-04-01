@@ -522,9 +522,13 @@ cdef class SansIOProtocol:
             raise RuntimeError('already connected')
 
         # protocol version
-        ver_buf = WriteBuffer()
+        ver_buf = WriteBuffer.new_message(b'V')
         ver_buf.write_int16(1)
         ver_buf.write_int16(0)
+
+        # no extensions requested
+        ver_buf.write_int16(0)
+        ver_buf.end_message()
 
         msg_buf = WriteBuffer.new_message(b'0')
         msg_buf.write_len_prefixed_utf8(self.con_params.user or '')
@@ -541,7 +545,20 @@ cdef class SansIOProtocol:
                 await self.wait_for_message()
             mtype = self.buffer.get_message_type()
 
-            if mtype == b'Y':
+            if mtype == b'v':
+                # Server responded with NegotiateProtocolVersion
+                hi = self.buffer.read_int16()
+                lo = self.buffer.read_int16()
+                self.parse_headers()
+                self.buffer.finish_message()
+
+                if hi != 1 or lo != 0:
+                    raise errors.ClientConnectionError(
+                        f'the server requested an unsupported version of '
+                        f'the protocol: {hi}.{lo}'
+                    )
+
+            elif mtype == b'Y':
                 self.buffer.discard_message()
 
             elif mtype == b'R':
