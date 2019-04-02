@@ -18,10 +18,13 @@
 
 
 cimport cython
+
 cimport cpython
+cimport cpython.datetime
 
 import asyncio
 import collections
+import datetime
 import json
 import time
 import types
@@ -59,6 +62,9 @@ from edgedb import scram
 include "./consts.pxi"
 include "./lru.pyx"
 include "./codecs/codecs.pyx"
+
+
+cpython.datetime.import_datetime()
 
 
 cdef class QueryCodecsCache:

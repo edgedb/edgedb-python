@@ -300,6 +300,41 @@ cdef register_base_scalar_codec(
     BASE_SCALAR_CODECS[tid] = codec
 
 
+cdef time_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    if getattr(obj, 'tzinfo', None) is not None:
+        raise TypeError(
+            f'a naive time object (tzinfo is None) was expected, '
+            f'got {obj!r}')
+
+    pgproto.time_encode(settings, buf, obj)
+
+
+cdef timestamp_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    if not cpython.datetime.PyDateTime_Check(obj):
+        raise TypeError(
+            f'a datetime.datetime object was expected, got {obj!r}')
+
+    if getattr(obj, 'tzinfo', None) is not None:
+        raise TypeError(
+            f'a naive datetime object (tzinfo is None) was expected, '
+            f'got {obj!r}')
+
+    pgproto.timestamp_encode(settings, buf, obj)
+
+
+cdef timestamptz_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    if not cpython.datetime.PyDateTime_Check(obj):
+        raise TypeError(
+            f'a datetime.datetime object was expected, got {obj!r}')
+
+    if getattr(obj, 'tzinfo', None) is None:
+        raise TypeError(
+            f'a timezone-aware datetime object (tzinfo is not None) '
+            f'was expected, got {obj!r}')
+
+    pgproto.timestamptz_encode(settings, buf, obj)
+
+
 cdef register_base_scalar_codecs():
     register_base_scalar_codec(
         'std::uuid',
@@ -353,12 +388,12 @@ cdef register_base_scalar_codecs():
 
     register_base_scalar_codec(
         'std::datetime',
-        pgproto.timestamptz_encode,
+        timestamptz_encode,
         pgproto.timestamptz_decode)
 
     register_base_scalar_codec(
         'std::local_datetime',
-        pgproto.timestamp_encode,
+        timestamp_encode,
         pgproto.timestamp_decode)
 
     register_base_scalar_codec(
@@ -368,7 +403,7 @@ cdef register_base_scalar_codecs():
 
     register_base_scalar_codec(
         'std::local_time',
-        pgproto.time_encode,
+        time_encode,
         pgproto.time_decode)
 
     register_base_scalar_codec(
