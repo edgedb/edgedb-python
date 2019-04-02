@@ -18,6 +18,7 @@
 
 
 import asyncio
+import datetime
 import json
 import uuid
 
@@ -420,6 +421,68 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'combine positional and named parameters'):
             await self.con.fetchall('select <int64>$0 + <int64>$bar;')
+
+    async def test_async_args_04(self):
+        aware_datetime = datetime.datetime.now(datetime.timezone.utc)
+        naive_datetime = datetime.datetime.now()
+
+        date = datetime.date.today()
+        naive_time = datetime.time(hour=11)
+        aware_time = datetime.time(hour=11, tzinfo=datetime.timezone.utc)
+
+        self.assertEqual(
+            await self.con.fetchone(
+                'select <datetime>$0;',
+                aware_datetime),
+            aware_datetime)
+
+        self.assertEqual(
+            await self.con.fetchone(
+                'select <local_datetime>$0;',
+                naive_datetime),
+            naive_datetime)
+
+        self.assertEqual(
+            await self.con.fetchone(
+                'select <local_date>$0;',
+                date),
+            date)
+
+        self.assertEqual(
+            await self.con.fetchone(
+                'select <local_time>$0;',
+                naive_time),
+            naive_time)
+
+        with self.assertRaisesRegex(ValueError,
+                                    r'a timezone-aware.*expected'):
+            await self.con.fetchone(
+                'select <datetime>$0;',
+                naive_datetime)
+
+        with self.assertRaisesRegex(ValueError,
+                                    r'a naive time object.*expected'):
+            await self.con.fetchone(
+                'select <local_time>$0;',
+                aware_time)
+
+        with self.assertRaisesRegex(ValueError,
+                                    r'a naive datetime object.*expected'):
+            await self.con.fetchone(
+                'select <local_datetime>$0;',
+                aware_datetime)
+
+        with self.assertRaisesRegex(ValueError,
+                                    r'datetime.datetime object was expected'):
+            await self.con.fetchone(
+                'select <local_datetime>$0;',
+                date)
+
+        with self.assertRaisesRegex(ValueError,
+                                    r'datetime.datetime object was expected'):
+            await self.con.fetchone(
+                'select <datetime>$0;',
+                date)
 
     async def test_async_args_uuid_pack(self):
         obj = await self.con.fetchone(

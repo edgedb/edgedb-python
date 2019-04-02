@@ -31,7 +31,9 @@ class TestProto(tb.SyncQueryTestCase):
             with self.assertRaises(edgedb.ClientError):
                 # Python dattime.Date object can't represent this date, so
                 # we know that the codec will fail.
-                self.con.fetchall("SELECT <naive_date>'0001-01-01 BC';")
+                # The test will be rewritten once it's possible to override
+                # default codecs.
+                self.con.fetchall("SELECT <local_date>'0001-01-01 BC';")
 
             # The protocol, though, shouldn't be in some inconsistent
             # state; it should allow new queries to execute successfully.
@@ -44,8 +46,10 @@ class TestProto(tb.SyncQueryTestCase):
             with self.assertRaises(edgedb.ClientError):
                 # Python dattime.Date object can't represent this date, so
                 # we know that the codec will fail.
+                # The test will be rewritten once it's possible to override
+                # default codecs.
                 self.con.fetchall("""
-                    SELECT <naive_date>{
+                    SELECT <local_date>{
                         '2010-01-01',
                         '2010-01-02',
                         '2010-01-03',
