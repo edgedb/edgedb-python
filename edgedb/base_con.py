@@ -27,7 +27,8 @@ from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
 class BaseConnection:
 
-    def __init__(self, protocol, addr, config, params):
+    def __init__(self, protocol, addr, config, params, *,
+                 codecs_registry=None, query_cache=None):
         self._protocol = protocol
         self._protocol.set_connection(self)
 
@@ -37,8 +38,15 @@ class BaseConnection:
         self._config = config
         self._params = params
 
-        self._codecs_registry = _CodecsRegistry()
-        self._query_cache = _QueryCodecsCache()
+        if codecs_registry is not None:
+            self._codecs_registry = codecs_registry
+        else:
+            self._codecs_registry = _CodecsRegistry()
+
+        if query_cache is not None:
+            self._query_cache = query_cache
+        else:
+            self._query_cache = _QueryCodecsCache()
 
         self._top_xact = None
 
@@ -57,6 +65,9 @@ class BaseConnection:
         if status is not None:
             status = status.decode()
         return status
+
+    def _cleanup(self):
+        self._log_listeners.clear()
 
     def add_log_listener(self, callback):
         """Add a listener for EdgeDB log messages.

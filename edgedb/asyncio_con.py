@@ -28,16 +28,37 @@ from . import transaction
 from .protocol import asyncio_proto
 
 
-class AsyncIOConnection(base_con.BaseConnection):
+class _ConnectionProxy:
+    # Base class to enable `isinstance(AsyncIOConnection)` check.
+    __slots__ = ()
 
-    def __init__(self, transport, protocol, loop, addr, config, params):
-        super().__init__(protocol, addr, config, params)
+
+class AsyncIOConnectionMeta(type):
+
+    def __instancecheck__(cls, instance):
+        mro = type(instance).__mro__
+        return AsyncIOConnection in mro or _ConnectionProxy in mro
+
+
+class AsyncIOConnection(base_con.BaseConnection,
+                        metaclass=AsyncIOConnectionMeta):
+
+    def __init__(self, transport, protocol, loop, addr, config, params, *,
+                 codecs_registry=None, query_cache=None):
+        super().__init__(protocol, addr, config, params,
+                         codecs_registry=codecs_registry,
+                         query_cache=query_cache)
         self._transport = transport
         self._loop = loop
+        self._proxy = None
+        # Incremented every time the connection is released back to a pool.
+        # Used to catch invalid references to connection-related resources
+        # post-release.
+        self._pool_release_ctr = 0
 
     def _dispatch_log_message(self, msg):
         for cb in self._log_listeners:
-            self._loop.call_soon(cb, self, msg)
+            self._loop.call_soon(cb, self._ensure_proxied(), msg)
 
     async def fetchall(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
@@ -60,6 +81,17 @@ class AsyncIOConnection(base_con.BaseConnection):
             query, args, kwargs)
 
     async def execute(self, query):
+        """Execute an EdgeQL command (or commands).
+
+        Example:
+
+        .. code-block:: pycon
+
+            >>> await con.execute('''
+            ...     CREATE TYPE MyType { CREATE PROPERTY a -> int64 };
+            ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
+            ... ''')
+        """
         await self._protocol.simple_query(query)
 
     def transaction(self, *, isolation=None, readonly=None, deferrable=None):
@@ -67,14 +99,54 @@ class AsyncIOConnection(base_con.BaseConnection):
             self, isolation, readonly, deferrable)
 
     async def close(self):
-        self._protocol.abort()
+        self.terminate()
+
+    def terminate(self):
+        if not self.is_closed():
+            self._protocol.abort()
+        self._cleanup()
+
+    def _set_proxy(self, proxy):
+        if self._proxy is not None and proxy is not None:
+            # Should not happen unless there is a bug in `Pool`.
+            raise errors.InterfaceError(
+                'internal client error: connection is already proxied')
+
+        self._proxy = proxy
+
+    def _ensure_proxied(self):
+        if self._proxy is None:
+            con_ref = self
+        else:
+            # `_proxy` is not None when the connection is a member
+            # of a connection pool.  Which means that the user is working
+            # with a `PoolConnectionProxy` instance, and expects to see it
+            # (and not the actual Connection) in their event callbacks.
+            con_ref = self._proxy
+        return con_ref
+
+    def _on_release(self, stacklevel=1):
+        # Invalidate external references to the connection.
+        self._pool_release_ctr += 1
+
+    def _cleanup(self):
+        # Free the resources associated with this connection.
+        # This must be called when a connection is terminated.
+
+        if self._proxy is not None:
+            # Connection is a member of a pool, so let the pool
+            # know that this connection is dead.
+            self._proxy._holder._release_on_close()
+
+        super()._cleanup()
 
     def is_closed(self):
         return self._transport.is_closing() or not self._protocol.connected
 
 
 async def _connect_addr(*, addr, loop, timeout, params, config,
-                        connection_class):
+                        connection_class, codecs_registry=None,
+                        query_cache=None):
     assert loop is not None
 
     if timeout <= 0:
@@ -117,7 +189,9 @@ async def _connect_addr(*, addr, loop, timeout, params, config,
         tr.close()
         raise
 
-    con = connection_class(tr, pr, loop, addr, config, params)
+    con = connection_class(tr, pr, loop, addr, config, params,
+                           codecs_registry=codecs_registry,
+                           query_cache=query_cache)
     return con
 
 
@@ -126,9 +200,13 @@ async def async_connect(dsn=None, *,
                         user=None, password=None,
                         admin=None,
                         database=None,
+                        connection_class=None,
                         timeout=60):
 
     loop = asyncio.get_event_loop()
+
+    if connection_class is None:
+        connection_class = AsyncIOConnection
 
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
@@ -146,7 +224,7 @@ async def async_connect(dsn=None, *,
             con = await _connect_addr(
                 addr=addr, loop=loop, timeout=timeout,
                 params=params, config=config,
-                connection_class=AsyncIOConnection)
+                connection_class=connection_class)
         except (OSError, asyncio.TimeoutError, ConnectionError,
                 errors.ClientConnectionError) as ex:
             last_error = ex

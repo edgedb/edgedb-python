@@ -26,11 +26,12 @@ from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
 from edgedb.datatypes.datatypes import Duration
 
 from .asyncio_con import async_connect
+from .asyncio_pool import create_async_pool
 from .blocking_con import connect
 
 
 __all__ = (
-    'async_connect', 'connect',
+    'async_connect', 'connect', 'create_async_pool',
     'EnumValue', 'Tuple', 'NamedTuple', 'Set',
     'Object', 'Array', 'Link', 'LinkSet',
 ) + errors.__all__

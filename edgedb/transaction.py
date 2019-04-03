@@ -19,6 +19,7 @@
 
 import enum
 
+from . import connresource
 from . import errors
 
 
@@ -187,7 +188,11 @@ class BaseTransaction:
             mod, self.__class__.__name__, ' '.join(attrs), id(self))
 
 
-class AsyncTransaction(BaseTransaction):
+class AsyncTransaction(BaseTransaction, connresource.ConnectionResource):
+
+    def __init__(self, connection, isolation, readonly, deferrable):
+        super().__init__(connection, isolation, readonly, deferrable)
+        connresource.ConnectionResource.__init__(self, connection)
 
     async def __aenter__(self):
         if self._managed:
@@ -205,6 +210,7 @@ class AsyncTransaction(BaseTransaction):
         finally:
             self._managed = False
 
+    @connresource.guarded
     async def start(self):
         """Enter the transaction or savepoint block."""
         query = self._make_start_query()
@@ -236,6 +242,7 @@ class AsyncTransaction(BaseTransaction):
         else:
             self._state = TransactionState.ROLLEDBACK
 
+    @connresource.guarded
     async def commit(self):
         """Exit the transaction or savepoint block and commit changes."""
         if self._managed:
@@ -243,6 +250,7 @@ class AsyncTransaction(BaseTransaction):
                 'cannot manually commit from within an `async with` block')
         await self.__commit()
 
+    @connresource.guarded
     async def rollback(self):
         """Exit the transaction or savepoint block and rollback changes."""
         if self._managed:

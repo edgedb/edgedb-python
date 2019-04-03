@@ -17,9 +17,26 @@
 #
 
 
+import contextlib
+import logging
+
 import edgedb
 
 from edb.testbase import server as tb
+
+
+@contextlib.contextmanager
+def silence_asyncio_long_exec_warning():
+    def flt(log_record):
+        msg = log_record.getMessage()
+        return not msg.startswith('Executing ')
+
+    logger = logging.getLogger('asyncio')
+    logger.addFilter(flt)
+    try:
+        yield
+    finally:
+        logger.removeFilter(flt)
 
 
 class AsyncQueryTestCase(tb.QueryTestCase):
