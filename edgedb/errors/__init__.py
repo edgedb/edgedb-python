@@ -75,6 +75,8 @@ __all__ = _base.__all__ + (
     'ConfigurationError',
     'AccessError',
     'AuthenticationError',
+    'LogMessage',
+    'WarningMessage',
     'ClientError',
     'ClientConnectionError',
     'InterfaceError',
@@ -331,6 +333,14 @@ class AccessError(EdgeDBError):
 
 class AuthenticationError(AccessError):
     _code = 0x_07_01_00_00
+
+
+class LogMessage(EdgeDBMessage):
+    _code = 0x_F0_00_00_00
+
+
+class WarningMessage(LogMessage):
+    _code = 0x_F0_01_00_00
 
 
 class ClientError(EdgeDBError):

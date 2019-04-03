@@ -18,28 +18,62 @@
 
 
 __all__ = (
-    'EdgeDBError',
+    'EdgeDBError', 'EdgeDBMessage',
 )
 
 
-class EdgeDBErrorMeta(type):
-
-    _base_class_index = {}
-    _index = {}
+class Meta(type):
 
     def __new__(mcls, name, bases, dct):
         cls = super().__new__(mcls, name, bases, dct)
 
         code = dct.get('_code')
         if code is not None:
-            EdgeDBErrorMeta._index[code] = cls
+            mcls._index[code] = cls
 
             # If it's a base class add it to the base class index
             b1, b2, b3, b4 = _decode(code)
             if b1 == 0 or b2 == 0 or b3 == 0 or b4 == 0:
-                EdgeDBErrorMeta._base_class_index[(b1, b2, b3, b4)] = cls
+                mcls._base_class_index[(b1, b2, b3, b4)] = cls
 
         return cls
+
+
+class EdgeDBMessageMeta(Meta):
+
+    _base_class_index = {}
+    _index = {}
+
+
+class EdgeDBMessage(Warning, metaclass=EdgeDBMessageMeta):
+
+    _code = None
+
+    def __init__(self, severity, message):
+        super().__init__(message)
+        self._severity = severity
+
+    def get_severity(self):
+        return self._severity
+
+    def get_severity_name(self):
+        return _severity_name(self._severity)
+
+    def get_code(self):
+        return self._code
+
+    @staticmethod
+    def _from_code(code, severity, message, *args, **kwargs):
+        cls = _lookup_message_cls(code)
+        exc = cls(severity, message, *args, **kwargs)
+        exc._code = code
+        return exc
+
+
+class EdgeDBErrorMeta(Meta):
+
+    _base_class_index = {}
+    _index = {}
 
 
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
@@ -90,32 +124,56 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         return exc
 
 
-def _lookup_error_cls(code: int):
+def _lookup_cls(code: int, *, meta: type, default: type):
     try:
-        return EdgeDBErrorMeta._index[code]
+        return meta._index[code]
     except KeyError:
         pass
 
     b1, b2, b3, _ = _decode(code)
 
     try:
-        return EdgeDBErrorMeta._base_class_index[(b1, b2, b3, 0)]
+        return meta._base_class_index[(b1, b2, b3, 0)]
     except KeyError:
         pass
     try:
-        return EdgeDBErrorMeta._base_class_index[(b1, b2, 0, 0)]
+        return meta._base_class_index[(b1, b2, 0, 0)]
     except KeyError:
         pass
     try:
-        return EdgeDBErrorMeta._base_class_index[(b1, 0, 0, 0)]
+        return meta._base_class_index[(b1, 0, 0, 0)]
     except KeyError:
         pass
 
-    return EdgeDBError
+    return default
+
+
+def _lookup_error_cls(code: int):
+    return _lookup_cls(code, meta=EdgeDBErrorMeta, default=EdgeDBError)
+
+
+def _lookup_message_cls(code: int):
+    return _lookup_cls(code, meta=EdgeDBMessageMeta, default=EdgeDBMessage)
 
 
 def _decode(code: int):
     return tuple(code.to_bytes(4, 'big'))
+
+
+def _severity_name(severity):
+    if severity <= EDGE_SEVERITY_DEBUG:
+        return 'DEBUG'
+    if severity <= EDGE_SEVERITY_INFO:
+        return 'INFO'
+    if severity <= EDGE_SEVERITY_NOTICE:
+        return 'NOTICE'
+    if severity <= EDGE_SEVERITY_WARNING:
+        return 'WARNING'
+    if severity <= EDGE_SEVERITY_ERROR:
+        return 'ERROR'
+    if severity <= EDGE_SEVERITY_FATAL:
+        return 'FATAL'
+    return 'PANIC'
 
 
 FIELD_HINT = 0x_00_01
@@ -127,3 +185,12 @@ FIELD_POSITION_START = 0x_FF_F1
 FIELD_POSITION_END = 0x_FF_F2
 FIELD_LINE = 0x_FF_F3
 FIELD_COLUMN = 0x_FF_F4
+
+
+EDGE_SEVERITY_DEBUG = 20
+EDGE_SEVERITY_INFO = 40
+EDGE_SEVERITY_NOTICE = 60
+EDGE_SEVERITY_WARNING = 80
+EDGE_SEVERITY_ERROR = 120
+EDGE_SEVERITY_FATAL = 200
+EDGE_SEVERITY_PANIC = 255

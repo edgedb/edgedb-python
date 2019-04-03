@@ -77,6 +77,7 @@ cdef class SansIOProtocol:
 
         readonly bint connected
 
+        object con
         readonly object con_params
 
         object backend_secret

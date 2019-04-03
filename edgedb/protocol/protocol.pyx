@@ -28,6 +28,7 @@ import datetime
 import json
 import time
 import types
+import weakref
 
 from edgedb.pgproto.pgproto cimport (
     WriteBuffer,
@@ -108,6 +109,9 @@ cdef class SansIOProtocol:
 
     def is_in_transaction(self):
         return self.xact_status in (TRANS_INTRANS, TRANS_INERROR)
+
+    def set_connection(self, con):
+        self.con = weakref.ref(con)
 
     cpdef abort(self):
         raise NotImplementedError
@@ -707,13 +711,25 @@ cdef class SansIOProtocol:
             val = self.buffer.read_len_prefixed_utf8()
             self.buffer.finish_message()
             self.server_settings[name] = val
-            return
 
-        # TODO:
-        # * handle Notice and ServerStatus messages here
+        elif mtype == b'L':
+            severity = <uint8_t>self.buffer.read_byte()
+            code = <uint32_t>self.buffer.read_int32()
+            message = self.buffer.read_len_prefixed_utf8()
+            # Ignore any headers: not yet specified for log messages.
+            self.parse_headers()
+            self.buffer.finish_message()
 
-        raise RuntimeError(
-            f'unexpected message type {chr(mtype)!r}')
+            msg = errors.EdgeDBMessage._from_code(code, severity, message)
+            con = self.con()
+            if con is not None:
+                con._on_log_message(msg)
+
+        else:
+            self.abort()
+
+            raise errors.ProtocolError(
+                f'unexpected message type {chr(mtype)!r}')
 
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs):
         cdef:
@@ -888,10 +904,12 @@ cdef class SansIOProtocol:
         cdef:
             uint32_t code
             int16_t num_fields
+            uint8_t severity
             str msg
 
         assert self.buffer.get_message_type() == b'E'
 
+        severity = <uint8_t>self.buffer.read_byte()
         code = <uint32_t>self.buffer.read_int32()
         msg = self.buffer.read_len_prefixed_utf8()
         attrs = self.parse_headers()

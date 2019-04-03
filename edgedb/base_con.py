@@ -19,6 +19,8 @@
 
 import itertools
 
+from . import errors
+
 from .protocol.protocol import CodecsRegistry as _CodecsRegistry
 from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
@@ -27,6 +29,9 @@ class BaseConnection:
 
     def __init__(self, protocol, addr, config, params):
         self._protocol = protocol
+        self._protocol.set_connection(self)
+
+        self._log_listeners = set()
 
         self._addr = addr
         self._config = config
@@ -37,6 +42,13 @@ class BaseConnection:
 
         self._top_xact = None
 
+    def _dispatch_log_message(self, msg):
+        raise NotImplementedError
+
+    def _on_log_message(self, msg):
+        if self._log_listeners:
+            self._dispatch_log_message(msg)
+
     def _get_unique_id(self, prefix):
         return f'_edgedb_{prefix}_{_uid_counter():x}_'
 
@@ -46,9 +58,28 @@ class BaseConnection:
             status = status.decode()
         return status
 
+    def add_log_listener(self, callback):
+        """Add a listener for EdgeDB log messages.
+
+        :param callable callback:
+            A callable receiving the following arguments:
+            **connection**: a Connection the callback is registered with;
+            **message**: the `edgedb.EdgeDBMessage` message.
+        """
+        if self.is_closed():
+            raise errors.InterfaceError('connection is closed')
+        self._log_listeners.add(callback)
+
+    def remove_log_listener(self, callback):
+        """Remove a listening callback for log messages."""
+        self._log_listeners.discard(callback)
+
     @property
     def dbname(self):
         return self._params.database
+
+    def is_closed(self):
+        raise NotImplementedError
 
     def is_in_transaction(self):
         """Return True if Connection is currently inside a transaction.

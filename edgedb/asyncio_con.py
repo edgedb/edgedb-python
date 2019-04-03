@@ -35,6 +35,10 @@ class AsyncIOConnection(base_con.BaseConnection):
         self._transport = transport
         self._loop = loop
 
+    def _dispatch_log_message(self, msg):
+        for cb in self._log_listeners:
+            self._loop.call_soon(cb, self, msg)
+
     async def fetchall(self, query, *args, **kwargs):
         return await self._protocol.execute_anonymous(
             False, False, self._codecs_registry, self._query_cache,

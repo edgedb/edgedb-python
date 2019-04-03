@@ -30,6 +30,10 @@ from .protocol import blocking_proto
 
 class BlockingIOConnection(base_con.BaseConnection):
 
+    def _dispatch_log_message(self, msg):
+        for cb in self._log_listeners:
+            cb(self, msg)
+
     def fetchall(self, query, *args, **kwargs):
         return self._protocol.sync_execute_anonymous(
             False, False, self._codecs_registry, self._query_cache,
