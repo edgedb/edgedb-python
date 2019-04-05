@@ -17,6 +17,10 @@
 #
 
 
+cimport cython
+cimport cpython
+
+include "./duration.pyx"
 include "./enum.pyx"
 
 

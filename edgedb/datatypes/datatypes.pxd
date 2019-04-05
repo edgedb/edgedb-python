@@ -17,9 +17,11 @@
 #
 
 
+cimport cython
 cimport cpython
 
 
+include "./duration.pxd"
 include "./enum.pxd"
 
 

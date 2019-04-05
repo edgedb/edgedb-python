@@ -335,6 +335,35 @@ cdef timestamptz_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
     pgproto.timestamptz_encode(settings, buf, obj)
 
 
+cdef duration_encode(pgproto.CodecContext settings, WriteBuffer buf,
+                     object obj):
+
+    cdef datatypes.Duration dur
+
+    if type(obj) is not datatypes.Duration:
+        raise TypeError(
+            f'an edgedb.Duration object was expected, got {obj!r}')
+
+    dur = <datatypes.Duration>obj
+    buf.write_int32(16)
+    buf.write_int64(dur.microseconds)
+    buf.write_int32(dur.days)
+    buf.write_int32(dur.months)
+
+
+cdef duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        int32_t days
+        int32_t months
+        int64_t microseconds
+
+    microseconds = hton.unpack_int64(frb_read(buf, 8))
+    days = hton.unpack_int32(frb_read(buf, 4))
+    months = hton.unpack_int32(frb_read(buf, 4))
+
+    return datatypes.new_duration(microseconds, days, months)
+
+
 cdef register_base_scalar_codecs():
     register_base_scalar_codec(
         'std::uuid',
@@ -407,9 +436,9 @@ cdef register_base_scalar_codecs():
         pgproto.time_decode)
 
     register_base_scalar_codec(
-        'std::timedelta',
-        pgproto.interval_encode,
-        pgproto.interval_decode)
+        'std::duration',
+        duration_encode,
+        duration_decode)
 
     register_base_scalar_codec(
         'std::json',
