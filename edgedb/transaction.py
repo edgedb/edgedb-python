@@ -30,7 +30,7 @@ class TransactionState(enum.Enum):
     FAILED = 4
 
 
-ISOLATION_LEVELS = {'read_committed', 'serializable', 'repeatable_read'}
+ISOLATION_LEVELS = {'serializable', 'repeatable_read'}
 
 
 class BaseTransaction:
@@ -39,21 +39,10 @@ class BaseTransaction:
                  '_state', '_nested', '_id', '_managed')
 
     def __init__(self, connection, isolation, readonly, deferrable):
-        if isolation not in ISOLATION_LEVELS:
+        if isolation is not None and isolation not in ISOLATION_LEVELS:
             raise ValueError(
                 'isolation is expected to be either of {}, '
                 'got {!r}'.format(ISOLATION_LEVELS, isolation))
-
-        if isolation != 'serializable':
-            if readonly:
-                raise ValueError(
-                    '"readonly" is only supported for '
-                    'serializable transactions')
-
-            if deferrable and not readonly:
-                raise ValueError(
-                    '"deferrable" is only supported for '
-                    'serializable readonly transactions')
 
         self._connection = connection
         self._isolation = isolation
@@ -63,6 +52,9 @@ class BaseTransaction:
         self._nested = False
         self._id = None
         self._managed = False
+
+    def is_active(self):
+        return self._state is TransactionState.STARTED
 
     def __check_state_base(self, opname):
         if self._state is TransactionState.COMMITTED:
@@ -99,28 +91,53 @@ class BaseTransaction:
         else:
             # Nested transaction block
             top_xact = con._top_xact
+            if self._isolation is None:
+                self._isolation = top_xact._isolation
+            if self._readonly is None:
+                self._readonly = top_xact._readonly
+            if self._deferrable is None:
+                self._deferrable = top_xact._deferrable
+
             if self._isolation != top_xact._isolation:
                 raise errors.InterfaceError(
                     'nested transaction has a different isolation level: '
                     'current {!r} != outer {!r}'.format(
                         self._isolation, top_xact._isolation))
+
+            if self._readonly != top_xact._readonly:
+                raise errors.InterfaceError(
+                    'nested transaction has a different read-write spec: '
+                    'current {!r} != outer {!r}'.format(
+                        self._readonly, top_xact._readonly))
+
+            if self._deferrable != top_xact._deferrable:
+                raise errors.InterfaceError(
+                    'nested transaction has a different deferrable spec: '
+                    'current {!r} != outer {!r}'.format(
+                        self._deferrable, top_xact._deferrable))
+
             self._nested = True
 
         if self._nested:
             self._id = con._get_unique_id('savepoint')
             query = f'DECLARE SAVEPOINT {self._id};'
         else:
-            if self._isolation == 'read_committed':
-                query = 'START TRANSACTION;'
-            elif self._isolation == 'repeatable_read':
-                query = 'START TRANSACTION ISOLATION REPEATABLE READ;'
-            else:
+            query = 'START TRANSACTION'
+
+            if self._isolation == 'repeatable_read':
+                query = 'START TRANSACTION ISOLATION REPEATABLE READ'
+            elif self._isolation == 'serializable':
                 query = 'START TRANSACTION ISOLATION SERIALIZABLE'
-                if self._readonly:
-                    query += ' READ ONLY'
-                if self._deferrable:
-                    query += ' DEFERRABLE'
-                query += ';'
+
+            if self._readonly:
+                query += ' READ ONLY'
+            elif self._readonly is not None:
+                query += ' READ WRITE'
+            if self._deferrable:
+                query += ' DEFERRABLE'
+            elif self._deferrable is not None:
+                query += ' NOT DEFERRABLE'
+            query += ';'
 
         return query
 
@@ -154,7 +171,8 @@ class BaseTransaction:
         attrs = []
         attrs.append('state:{}'.format(self._state.name.lower()))
 
-        attrs.append(self._isolation)
+        if self._isolation:
+            attrs.append(self._isolation)
         if self._readonly:
             attrs.append('readonly')
         if self._deferrable:

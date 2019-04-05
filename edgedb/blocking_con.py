@@ -57,8 +57,7 @@ class BlockingIOConnection(base_con.BaseConnection):
     def execute(self, query):
         self._protocol.sync_simple_query(query)
 
-    def transaction(self, *, isolation='read_committed', readonly=False,
-                    deferrable=False):
+    def transaction(self, *, isolation=None, readonly=None, deferrable=None):
         return transaction.Transaction(
             self, isolation, readonly, deferrable)
 

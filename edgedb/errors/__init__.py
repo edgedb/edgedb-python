@@ -72,6 +72,8 @@ __all__ = _base.__all__ + (
     'CardinalityViolationError',
     'MissingRequiredError',
     'TransactionError',
+    'TransactionSerializationError',
+    'TransactionDeadlockError',
     'ConfigurationError',
     'AccessError',
     'AuthenticationError',
@@ -321,6 +323,14 @@ class MissingRequiredError(IntegrityError):
 
 class TransactionError(ExecutionError):
     _code = 0x_05_03_00_00
+
+
+class TransactionSerializationError(TransactionError):
+    _code = 0x_05_03_00_01
+
+
+class TransactionDeadlockError(TransactionError):
+    _code = 0x_05_03_00_02
 
 
 class ConfigurationError(EdgeDBError):

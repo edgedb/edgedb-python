@@ -62,8 +62,7 @@ class AsyncIOConnection(base_con.BaseConnection):
     async def execute(self, query):
         await self._protocol.simple_query(query)
 
-    def transaction(self, *, isolation='read_committed', readonly=False,
-                    deferrable=False):
+    def transaction(self, *, isolation=None, readonly=None, deferrable=None):
         return transaction.AsyncTransaction(
             self, isolation, readonly, deferrable)
 

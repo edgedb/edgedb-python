@@ -130,6 +130,29 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
         self.assertEqual(len(recs), 0)
 
+    async def test_async_transaction_nested_02(self):
+        async with self.con.transaction(isolation='repeatable_read'):
+            async with self.con.transaction():  # no explicit isolation, OK
+                pass
+
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'different isolation'):
+            async with self.con.transaction(isolation='repeatable_read'):
+                async with self.con.transaction(isolation='serializable'):
+                    pass
+
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'different read-write'):
+            async with self.con.transaction():
+                async with self.con.transaction(readonly=True):
+                    pass
+
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'different deferrable'):
+            async with self.con.transaction(deferrable=True):
+                async with self.con.transaction(deferrable=False):
+                    pass
+
     async def test_async_transaction_interface_errors(self):
         self.assertIsNone(self.con._top_xact)
 

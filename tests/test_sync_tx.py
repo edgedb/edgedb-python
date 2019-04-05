@@ -131,6 +131,29 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
         self.assertEqual(len(recs), 0)
 
+    def test_sync_transaction_nested_02(self):
+        with self.con.transaction(isolation='repeatable_read'):
+            with self.con.transaction():  # no explicit isolation, OK
+                pass
+
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'different isolation'):
+            with self.con.transaction(isolation='repeatable_read'):
+                with self.con.transaction(isolation='serializable'):
+                    pass
+
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'different read-write'):
+            with self.con.transaction():
+                with self.con.transaction(readonly=True):
+                    pass
+
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'different deferrable'):
+            with self.con.transaction(deferrable=True):
+                with self.con.transaction(deferrable=False):
+                    pass
+
     def test_sync_transaction_interface_errors(self):
         self.assertIsNone(self.con._top_xact)
 
