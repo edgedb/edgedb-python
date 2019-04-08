@@ -21,7 +21,6 @@ import asyncio
 import inspect
 import random
 import textwrap
-import time
 
 import edgedb
 

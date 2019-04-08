@@ -21,7 +21,6 @@ import asyncio
 import functools
 import inspect
 import logging
-import time
 
 from . import asyncio_con
 from . import errors
