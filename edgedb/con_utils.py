@@ -78,7 +78,7 @@ def _parse_hostlist(hostlist, port):
             else:
                 default_port = int(portspec)
         else:
-            default_port = 5432
+            default_port = EDGEDB_PORT
 
         default_port = _validate_port_spec(hostspecs, default_port)
 
@@ -114,7 +114,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                 f'"edgedb" or "edgedbadmin", got {parsed.scheme!r}')
 
         if admin is None:
-            admin = parsed.schema == 'edgedbadmin'
+            admin = parsed.scheme == 'edgedbadmin'
 
         if not host and parsed.netloc:
             if '@' in parsed.netloc:

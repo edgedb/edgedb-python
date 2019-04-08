@@ -25,7 +25,10 @@ if sys.version_info < (3, 6):
 
 import os
 import os.path
+import pathlib
 import platform
+import re
+import subprocess
 
 # We use vanilla build_ext, to avoid importing Cython via
 # the setuptools version.
@@ -33,6 +36,8 @@ from distutils import extension as distutils_extension
 from distutils.command import build_ext as distutils_build_ext
 
 import setuptools
+from setuptools.command import build_py as setuptools_build_py
+from setuptools.command import sdist as setuptools_sdist
 
 
 CYTHON_DEPENDENCY = 'Cython==0.29.6'
@@ -45,9 +50,9 @@ TEST_DEPENDENCIES = [
 
 # Dependencies required to build documentation.
 DOC_DEPENDENCIES = [
-    'Sphinx~=1.7.3',
+    'Sphinx~=2.0.0',
     'sphinxcontrib-asyncio~=0.2.0',
-    'sphinx_rtd_theme~=0.2.4',
+    'sphinx_rtd_theme~=0.4.3',
 ]
 
 EXTRA_DEPENDENCIES = {
@@ -69,9 +74,85 @@ if platform.uname().system != 'Windows':
                    '-Wsign-compare', '-Wconversion'])
 
 
+_ROOT = pathlib.Path(__file__).parent
+
+
+with open(str(_ROOT / 'README.rst')) as f:
+    readme = f.read()
+
+
+with open(str(_ROOT / 'edgedb' / '__init__.py')) as f:
+    for line in f:
+        if line.startswith('__version__ ='):
+            _, _, version = line.partition('=')
+            VERSION = version.strip(" \n'\"")
+            break
+    else:
+        raise RuntimeError(
+            'unable to read the version from edgedb/__init__.py')
+
+
+if (_ROOT / '.git').is_dir() and 'dev' in VERSION:
+    # This is a git checkout, use git to
+    # generate a precise version.
+    def git_commitish():
+        env = {}
+        v = os.environ.get('PATH')
+        if v is not None:
+            env['PATH'] = v
+
+        git = subprocess.run(['git', 'rev-parse', 'HEAD'], env=env,
+                             cwd=str(_ROOT), stdout=subprocess.PIPE)
+        if git.returncode == 0:
+            commitish = git.stdout.strip().decode('ascii')
+        else:
+            commitish = 'unknown'
+
+        return commitish
+
+    VERSION += '+' + git_commitish()[:7]
+
+
+class VersionMixin:
+
+    def _fix_version(self, filename):
+        # Replace edgedb.__version__ with the actual version
+        # of the distribution (possibly inferred from git).
+
+        with open(str(filename)) as f:
+            content = f.read()
+
+        version_re = r"(.*__version__\s*=\s*)'[^']+'(.*)"
+        repl = r"\1'{}'\2".format(self.distribution.metadata.version)
+        content = re.sub(version_re, repl, content)
+
+        with open(str(filename), 'w') as f:
+            f.write(content)
+
+
+class sdist(setuptools_sdist.sdist, VersionMixin):
+
+    def make_release_tree(self, base_dir, files):
+        super().make_release_tree(base_dir, files)
+        self._fix_version(pathlib.Path(base_dir) / 'edgedb' / '__init__.py')
+
+
+class build_py(setuptools_build_py.build_py, VersionMixin):
+
+    def build_module(self, module, module_file, package):
+        outfile, copied = super().build_module(module, module_file, package)
+
+        if module == '__init__' and package == 'edgedb':
+            self._fix_version(outfile)
+
+        return outfile, copied
+
+
 class build_ext(distutils_build_ext.build_ext):
 
     user_options = distutils_build_ext.build_ext.user_options + [
+        ('cython-always', None,
+            'run cythonize() even if .c files are present'),
         ('cython-annotate', None,
             'Produce a colorized HTML version of the Cython source.'),
         ('cython-directives=', None,
@@ -155,9 +236,17 @@ INCLUDE_DIRS = [
 ]
 
 
+setup_requires = []
+
+if (not (_ROOT / 'edgedb' / 'protocol' / 'protocol.c').exists() or
+        '--cython-always' in sys.argv):
+    # No Cython output, require Cython to build.
+    setup_requires.append(CYTHON_DEPENDENCY)
+
+
 setuptools.setup(
     name='edgedb',
-    version='0.0.1',
+    version=VERSION,
     description='EdgeDB Python driver',
     platforms=['macOS', 'POSIX', 'Windows'],
     author='MagicStack Inc',
@@ -216,5 +305,6 @@ setuptools.setup(
     ],
     cmdclass={'build_ext': build_ext},
     test_suite='tests.suite',
-    setup_requires=EXTRA_DEPENDENCIES['dev'],
+    extras_require=EXTRA_DEPENDENCIES,
+    setup_requires=setup_requires,
 )
