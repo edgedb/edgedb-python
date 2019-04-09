@@ -18,10 +18,4 @@ done
 
 ${PIP} install ${PYMODULE}[test] -f "file:///io/dist"
 
-# Grab docker host, where Postgres should be running.
-export PGHOST=$(ip route | awk '/default/ { print $3 }' | uniq)
-export PGUSER="postgres"
-
-rm -rf /io/tests/__pycache__
-make -C /io PYTHON="${PYTHON}" testinstalled
 rm -rf /io/tests/__pycache__

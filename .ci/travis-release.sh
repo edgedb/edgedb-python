@@ -22,8 +22,6 @@ release_platforms=(
     "macosx_10_??_x86_64"
     "manylinux1_i686"
     "manylinux1_x86_64"
-    "win32"
-    "win_amd64"
 )
 
 P="${PYMODULE}-${PACKAGE_VERSION}"

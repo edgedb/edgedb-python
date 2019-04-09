@@ -9,7 +9,7 @@ fi
 
 if [ "${TRAVIS_OS_NAME}" == "osx" ]; then
     PYENV_ROOT="$HOME/.pyenv"
-    PATH="$PYENV_ROOT/bin:$PATH"
+    PATH="$PYENV_ROOT/bin:/Library/Frameworks/EdgeDB.framework/bin:$PATH"
     eval "$(pyenv init -)"
 fi
 

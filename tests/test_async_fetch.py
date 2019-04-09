@@ -24,8 +24,7 @@ import uuid
 
 import edgedb
 
-from edb.common import taskgroup as tg
-
+from edgedb import _taskgroup as tg
 from edgedb import _testbase as tb
 
 

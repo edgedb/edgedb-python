@@ -19,8 +19,7 @@
 
 import edgedb
 
-from edb.server import cluster
-
+from edgedb import _cluster
 from edgedb import _testbase as tb
 
 
@@ -29,7 +28,7 @@ class TestConnect(tb.AsyncQueryTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.port = cluster.find_available_port()
+        cls.port = _cluster.find_available_port()
 
     async def test_connect_async_01(self):
         orig_conn_args = self.get_connect_args()
