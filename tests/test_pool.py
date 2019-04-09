@@ -144,9 +144,14 @@ class TestPool(tb.AsyncQueryTestCase):
     async def test_pool_08(self):
         pool = await self.create_pool(min_size=1, max_size=1)
 
-        con = await pool.acquire()
-        with self.assertRaisesRegex(edgedb.InterfaceError, "is not a member"):
-            await pool.release(con._con)
+        try:
+            con = await pool.acquire()
+            with self.assertRaisesRegex(
+                    edgedb.InterfaceError, "is not a member"):
+                await pool.release(con._con)
+        finally:
+            await pool.release(con)
+            await pool.close()
 
     async def test_pool_09(self):
         pool1 = await self.create_pool(min_size=1, max_size=1)
@@ -232,6 +237,7 @@ class TestPool(tb.AsyncQueryTestCase):
         pool_init = self.create_pool()
         pool = self.loop.run_until_complete(pool_init)
         self.assertIsInstance(pool, asyncio_pool.AsyncIOPool)
+        self.loop.run_until_complete(pool.close())
 
     async def test_pool_exception_in_on_acquire_and_on_connect(self):
         class Error(Exception):
@@ -386,6 +392,8 @@ class TestPool(tb.AsyncQueryTestCase):
                 async for _ in iterate(con):  # noqa
                     raise MyException()
 
+        await pool.close()
+
     async def test_pool_handles_transaction_exit_in_asyncgen_2(self):
         pool = await self.create_pool(min_size=1, max_size=1)
 
@@ -415,6 +423,8 @@ class TestPool(tb.AsyncQueryTestCase):
 
             del iterator
 
+        await pool.close()
+
     async def test_pool_handles_asyncgen_finalization(self):
         pool = await self.create_pool(min_size=1, max_size=1)
 
@@ -440,6 +450,8 @@ class TestPool(tb.AsyncQueryTestCase):
                 async with con.transaction():
                     async for _ in iterate(con):  # noqa
                         raise MyException()
+
+        await pool.close()
 
     async def test_pool_close_waits_for_release(self):
         pool = await self.create_pool(min_size=1, max_size=1)
@@ -491,6 +503,7 @@ class TestPool(tb.AsyncQueryTestCase):
             await pool.release(con)
 
         self.assertIsNone(pool._holders[0]._con)
+        await pool.close()
 
     async def test_pool_init_race(self):
         pool = self.create_pool(min_size=1, max_size=1)
