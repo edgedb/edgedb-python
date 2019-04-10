@@ -1,8 +1,8 @@
 .. _edgedb-python-asyncio-api-reference:
 
-=====================
-AsyncIO API Reference
-=====================
+===========
+AsyncIO API
+===========
 
 .. py:module:: edgedb
 .. py:currentmodule:: edgedb
@@ -126,34 +126,30 @@ Connection
         :param args: Positional query arguments.
         :param kwargs: Named query arguments.
 
-        .. note::
-
-            Positional and named query arguments cannot be mixed.
-
         :return:
             An instance of :py:class:`edgedb.Set <edgedb.Set>` containing
             the query result.
+
+        Note, that positional and named query arguments cannot be mixed.
 
 
     .. py:coroutinemethod:: fetchone(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element.
 
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            Query result.
+
         The *query* must return exactly one element.  If the query returns
         more than one element, an ``edgedb.ResultCardinalityMismatchError``
         is raised, if it returns an empty set, an ``edgedb.NoDataError``
         is raised.
 
-        :param str query: Query text.
-        :param args: Positional query arguments.
-        :param kwargs: Named query arguments.
-
-        .. note::
-
-            Positional and named query arguments cannot be mixed.
-
-        :return:
-            Query result.
+        Note, that positional and named query arguments cannot be mixed.
 
 
     .. py:coroutinemethod:: fetchall_json(query, *args, **kwargs)
@@ -164,38 +160,36 @@ Connection
         :param args: Positional query arguments.
         :param kwargs: Named query arguments.
 
-        .. note::
-
-            Positional and named query arguments cannot be mixed.
-
         :return:
             A JSON string containing an array of query results.
+
+        Note, that positional and named query arguments cannot be mixed.
 
 
     .. py:coroutinemethod:: fetchone_json(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element in JSON.
 
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            Query result encoded in JSON.
+
         The *query* must return exactly one element.  If the query returns
         more than one element, an ``edgedb.ResultCardinalityMismatchError``
         is raised, if it returns an empty set, an ``edgedb.NoDataError``
         is raised.
 
-        :param str query: Query text.
-        :param args: Positional query arguments.
-        :param kwargs: Named query arguments.
-
-        .. note::
-
-            Positional and named query arguments cannot be mixed.
-
-        :return:
-            Query result encoded in JSON.
+        Note, that positional and named query arguments cannot be mixed.
 
 
     .. py:coroutinemethod:: execute(query)
 
         Execute an EdgeQL command (or commands).
+
+        :param str query: Query text.
 
         The commands must take no arguments.
 
@@ -210,8 +204,6 @@ Connection
             ...     FOR x IN {100, 200, 300}
             ...     UNION INSERT MyType { a := x };
             ... ''')
-
-        :param str query: Query text.
 
 
     .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
@@ -334,25 +326,6 @@ Connection Pools
 
     Create an asynchronous connection pool.
 
-    Can be used either with an ``async with`` block:
-
-    .. code-block:: python
-
-        async with edgedb.create_pool(user='edgedb') as pool:
-            async with pool.acquire() as con:
-                await con.fetchall('SELECT {1, 2, 3}')
-
-    Or directly with ``await``:
-
-    .. code-block:: python
-
-        pool = await edgedb.create_pool(user='edgedb')
-        con = await pool.acquire()
-        try:
-            await con.fetchall('SELECT {1, 2, 3}')
-        finally:
-            await pool.release(con)
-
     :param str dsn:
         Connection arguments specified using as a single string in
         the following format:
@@ -384,6 +357,25 @@ Connection Pools
         A coroutine to initialize a connection when it is created.
 
     :return: An instance of :py:class:`AsyncIOPool`.
+
+    Can be used either with an ``async with`` block:
+
+    .. code-block:: python
+
+        async with edgedb.create_pool(user='edgedb') as pool:
+            async with pool.acquire() as con:
+                await con.fetchall('SELECT {1, 2, 3}')
+
+    Or directly with ``await``:
+
+    .. code-block:: python
+
+        pool = await edgedb.create_pool(user='edgedb')
+        con = await pool.acquire()
+        try:
+            await con.fetchall('SELECT {1, 2, 3}')
+        finally:
+            await pool.release(con)
 
 
 .. py:class:: AsyncIOPool()
@@ -456,12 +448,6 @@ Connection Pools
 
         Set the new connection arguments for this pool.
 
-        The new connection arguments will be used for all subsequent
-        new connection attempts.  Existing connections will remain until
-        they expire. Use :py:meth:`Pool.expire_connections()
-        <edgedb.AsyncIOPool.expire_connections>` to expedite
-        the connection expiry.
-
         :param str dsn:
             Connection arguments specified using as a single string in
             the following format:
@@ -470,3 +456,9 @@ Connection Pools
         :param \*\*connect_kwargs:
             Keyword arguments for the :py:func:`~async_connect`
             function.
+
+        The new connection arguments will be used for all subsequent
+        new connection attempts.  Existing connections will remain until
+        they expire. Use :py:meth:`Pool.expire_connections()
+        <edgedb.AsyncIOPool.expire_connections>` to expedite
+        the connection expiry.

@@ -1,11 +1,12 @@
 .. _edgedb-python-blocking-api-reference:
 
-======================
-Blocking API Reference
-======================
+============
+Blocking API
+============
 
 .. py:module:: edgedb
 .. py:currentmodule:: edgedb
+
 
 .. _edgedb-blocking-api-connection:
 
@@ -20,13 +21,6 @@ Connection
             timeout=60)
 
     Establish a connection to an EdgeDB server.
-
-    The connection parameters may be specified either as a connection
-    URI in *dsn*, or as specific keyword arguments, or both.
-    If both *dsn* and keyword arguments are specified, the latter
-    override the corresponding values parsed from the connection URI.
-
-    Returns a new :py:class:`~edgedb.BlockingIOConnection` object.
 
     :param dsn:
         Connection arguments specified using as a single string in the
@@ -95,6 +89,13 @@ Connection
 
     :return: A :py:class:`~edgedb.BlockingIOConnection` instance.
 
+    The connection parameters may be specified either as a connection
+    URI in *dsn*, or as specific keyword arguments, or both.
+    If both *dsn* and keyword arguments are specified, the latter
+    override the corresponding values parsed from the connection URI.
+
+    Returns a new :py:class:`~edgedb.BlockingIOConnection` object.
+
     Example:
 
     .. code-block:: pycon
@@ -121,34 +122,30 @@ Connection
         :param args: Positional query arguments.
         :param kwargs: Named query arguments.
 
-        .. note::
-
-            Positional and named query arguments cannot be mixed.
-
         :return:
             An instance of :py:class:`edgedb.Set <edgedb.Set>` containing
             the query result.
+
+        Note, that positional and named query arguments cannot be mixed.
 
 
     .. py:method:: fetchone(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element.
 
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            Query result.
+
         The *query* must return exactly one element.  If the query returns
         more than one element, an ``edgedb.ResultCardinalityMismatchError``
         is raised, if it returns an empty set, an ``edgedb.NoDataError``
         is raised.
 
-        :param str query: Query text.
-        :param args: Positional query arguments.
-        :param kwargs: Named query arguments.
-
-        .. note::
-
-            Positional and named query arguments cannot be mixed.
-
-        :return:
-            Query result.
+        Note, that positional and named query arguments cannot be mixed.
 
 
     .. py:method:: fetchall_json(query, *args, **kwargs)
@@ -159,38 +156,36 @@ Connection
         :param args: Positional query arguments.
         :param kwargs: Named query arguments.
 
-        .. note::
-
-            Positional and named query arguments cannot be mixed.
-
         :return:
             A JSON string containing an array of query results.
+
+        Note, that positional and named query arguments cannot be mixed.
 
 
     .. py:method:: fetchone_json(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element in JSON.
 
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            Query result encoded in JSON.
+
         The *query* must return exactly one element.  If the query returns
         more than one element, an ``edgedb.ResultCardinalityMismatchError``
         is raised, if it returns an empty set, an ``edgedb.NoDataError``
         is raised.
 
-        :param str query: Query text.
-        :param args: Positional query arguments.
-        :param kwargs: Named query arguments.
-
-        .. note::
-
-            Positional and named query arguments cannot be mixed.
-
-        :return:
-            Query result encoded in JSON.
+        Note, that positional and named query arguments cannot be mixed.
 
 
     .. py:method:: execute(query)
 
         Execute an EdgeQL command (or commands).
+
+        :param str query: Query text.
 
         The commands must take no arguments.
 
@@ -205,8 +200,6 @@ Connection
             ...     FOR x IN {100, 200, 300}
             ...     UNION INSERT MyType { a := x };
             ... ''')
-
-        :param str query: Query text.
 
 
     .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
