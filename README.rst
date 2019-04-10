@@ -1,16 +1,16 @@
-EdgeDB-Python -- The Python driver for EdgeDB
-=============================================
+The Python driver for EdgeDB
+============================
 
-**Edgedb-Python** is the official EdgeDB driver for Python.  It supports
-both blocking and asyncio programming paradigms.
+**edgedb-python** is the official EdgeDB driver for Python.
+It provides both blocking IO and asyncio implementations.
 
-EdgeDB-Python requires Python 3.6 or later.
+The library requires Python 3.6 or later.
 
 
 Installation
 ------------
 
-EdgeDB-Python is available on PyPI.  Use pip to install::
+The library is available on PyPI.  Use ``pip`` to install it::
 
     $ pip install edgedb
 
@@ -19,8 +19,6 @@ Basic Usage
 -----------
 
 .. code-block:: python
-
-    import edgedb
 
     import datetime
     import edgedb
@@ -61,4 +59,4 @@ Basic Usage
 License
 -------
 
-EdgeDB-Python is developed and distributed under the Apache 2.0 license.
+edgedb-python is developed and distributed under the Apache 2.0 license.
