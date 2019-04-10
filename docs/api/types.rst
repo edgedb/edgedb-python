@@ -1,14 +1,14 @@
 .. _edgedb-python-datatypes:
 
-=======================
-EdgeDB Python Datatypes
-=======================
+=========
+Datatypes
+=========
 
 .. py:module:: edgedb
 .. py:currentmodule:: edgedb
 
 
-EdgeDB-Python automatically converts EdgeDB types to the corresponding Python
+edgedb-python automatically converts EdgeDB types to the corresponding Python
 types and vice versa.
 
 The table below shows the correspondence between EdgeDB and Python types.
@@ -44,7 +44,7 @@ The table below shows the correspondence between EdgeDB and Python types.
 +----------------------+-----------------------------------------------------+
 | ``duration``         | :py:class:`edgedb.Duration`                         |
 +----------------------+-----------------------------------------------------+
-| ``float32``,         | :py:class:`float <python:float>` [#f1]_             |
+| ``float32``,         | :py:class:`float <python:float>`                    |
 | ``float64``          |                                                     |
 +----------------------+-----------------------------------------------------+
 | ``int16``,           | :py:class:`int <python:int>`                        |
@@ -58,11 +58,13 @@ The table below shows the correspondence between EdgeDB and Python types.
 | ``uuid``             | :py:class:`uuid.UUID <python:uuid.UUID>`            |
 +----------------------+-----------------------------------------------------+
 
-.. [#f1] Inexact single-precision ``float`` values may have a different
-         representation when decoded into a Python float.  This is inherent
-         to the implementation of limited-precision floating point types.
-         If you need the decimal representation to match, cast the expression
-         to ``float64`` or ``decimal`` in your query.
+.. note::
+
+    Inexact single-precision ``float`` values may have a different
+    representation when decoded into a Python float.  This is inherent
+    to the implementation of limited-precision floating point types.
+    If you need the decimal representation to match, cast the expression
+    to ``float64`` or ``decimal`` in your query.
 
 
 .. _edgedb-python-types-set:

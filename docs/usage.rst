@@ -1,10 +1,10 @@
 .. _edgedb-python-examples:
 
 
-Basic EdgeDB-Python Usage
-=========================
+Basic Usage
+===========
 
-**EdgeDB-Python** has two APIs: blocking and asynchronous.  Both are
+**edgedb-python** has two APIs: blocking and asynchronous.  Both are
 almost entirely equivalent, with the exception of pool functionality, which
 is currently only supported in asynchronous mode.
 
@@ -102,7 +102,7 @@ An equivalent example using the asyncio API:
 Type Conversion
 ---------------
 
-EdgeDB-Python automatically converts EdgeDB types to the corresponding Python
+edgedb-python automatically converts EdgeDB types to the corresponding Python
 types and vice versa.  See :ref:`edgedb-python-datatypes` for details.
 
 
@@ -143,7 +143,7 @@ Connection Pools
 
 For server-type type applications, that handle frequent requests and need
 the database connection for a short period time while handling a request,
-the use of a connection pool is recommended.  The EdgeDB-Python asyncio API
+the use of a connection pool is recommended.  The edgedb-python asyncio API
 provides an implementation of such a pool.
 
 To create a connection pool, use the
