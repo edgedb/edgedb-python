@@ -4,6 +4,10 @@
 EdgeDB Python Datatypes
 =======================
 
+.. py:module:: edgedb
+.. py:currentmodule:: edgedb
+
+
 EdgeDB-Python automatically converts EdgeDB types to the corresponding Python
 types and vice versa.
 
@@ -12,46 +16,46 @@ The table below shows the correspondence between EdgeDB and Python types.
 +----------------------+-----------------------------------------------------+
 | EdgeDB Type          |  Python Type                                        |
 +======================+=====================================================+
-| ``array<anytype>``   | :class:`edgedb.Array`                               |
+| ``array<anytype>``   | :py:class:`edgedb.Array`                            |
 +----------------------+-----------------------------------------------------+
-| ``anytuple``         | :class:`edgedb.Tuple` or                            |
-|                      | :class:`edgedb.NamedTuple`                          |
+| ``anytuple``         | :py:class:`edgedb.Tuple` or                         |
+|                      | :py:class:`edgedb.NamedTuple`                       |
 +----------------------+-----------------------------------------------------+
-| ``anyenum``          | :class:`str <python:str>`                           |
+| ``anyenum``          | :py:class:`str <python:str>`                        |
 +----------------------+-----------------------------------------------------+
-| ``Object``           | :class:`edgedb.Object`                              |
+| ``Object``           | :py:class:`edgedb.Object`                           |
 +----------------------+-----------------------------------------------------+
-| ``bool``             | :class:`bool <python:bool>`                         |
+| ``bool``             | :py:class:`bool <python:bool>`                      |
 +----------------------+-----------------------------------------------------+
-| ``bytes``            | :class:`bytes <python:bytes>`                       |
+| ``bytes``            | :py:class:`bytes <python:bytes>`                    |
 +----------------------+-----------------------------------------------------+
-| ``str``              | :class:`str <python:str>`                           |
+| ``str``              | :py:class:`str <python:str>`                        |
 +----------------------+-----------------------------------------------------+
-| ``local_date``       | :class:`datetime.date <python:datetime.date>`       |
+| ``local_date``       | :py:class:`datetime.date <python:datetime.date>`    |
 +----------------------+-----------------------------------------------------+
-| ``local_time``       | offset-naïve :class:`datetime.time \                |
+| ``local_time``       | offset-naïve :py:class:`datetime.time \             |
 |                      | <python:datetime.time>`                             |
 +----------------------+-----------------------------------------------------+
-| ``local_datetime``   | offset-naïve :class:`datetime.datetime \            |
+| ``local_datetime``   | offset-naïve :py:class:`datetime.datetime \         |
 |                      | <python:datetime.datetime>`                         |
 +----------------------+-----------------------------------------------------+
-| ``datetime``         | offset-aware :class:`datetime.datetime \            |
+| ``datetime``         | offset-aware :py:class:`datetime.datetime \         |
 |                      | <python:datetime.datetime>`                         |
 +----------------------+-----------------------------------------------------+
-| ``duration``         | :class:`edgedb.Duration`                            |
+| ``duration``         | :py:class:`edgedb.Duration`                         |
 +----------------------+-----------------------------------------------------+
-| ``float32``,         | :class:`float <python:float>` [#f1]_                |
+| ``float32``,         | :py:class:`float <python:float>` [#f1]_             |
 | ``float64``          |                                                     |
 +----------------------+-----------------------------------------------------+
-| ``int16``,           | :class:`int <python:int>`                           |
+| ``int16``,           | :py:class:`int <python:int>`                        |
 | ``int32``,           |                                                     |
 | ``int64``            |                                                     |
 +----------------------+-----------------------------------------------------+
-| ``decimal``          | :class:`Decimal <python:decimal.Decimal>`           |
+| ``decimal``          | :py:class:`Decimal <python:decimal.Decimal>`        |
 +----------------------+-----------------------------------------------------+
-| ``json``             | :class:`str <python:str>`                           |
+| ``json``             | :py:class:`str <python:str>`                        |
 +----------------------+-----------------------------------------------------+
-| ``uuid``             | :class:`uuid.UUID <python:uuid.UUID>`               |
+| ``uuid``             | :py:class:`uuid.UUID <python:uuid.UUID>`            |
 +----------------------+-----------------------------------------------------+
 
 .. [#f1] Inexact single-precision ``float`` values may have a different
@@ -66,14 +70,14 @@ The table below shows the correspondence between EdgeDB and Python types.
 Sets
 ====
 
-.. class:: edgedb.Set()
+.. py:class:: Set()
 
     A representation of an immutable set of values returned by a query.
 
-    The :meth:`BlockingIOConnection.fetchall()
-    <edgedb.blocking_con.BlockingIOConnection.fetchall>` and
-    :meth:`AsyncIOConnection.fetchall()
-    <edgedb.asyncio_con.AsyncIOConnection.fetchall>` methods return
+    The :py:meth:`BlockingIOConnection.fetchall()
+    <edgedb.BlockingIOConnection.fetchall>` and
+    :py:meth:`AsyncIOConnection.fetchall()
+    <edgedb.AsyncIOConnection.fetchall>` methods return
     an instance of this type.  Nested sets in the result are also
     returned as ``Set`` objects.
 
@@ -91,7 +95,7 @@ Sets
 Objects
 =======
 
-.. class:: edgedb.Object()
+.. py:class:: Object()
 
     An immutable representation of an object instance returned from a query.
 
@@ -113,7 +117,7 @@ Objects
 
     .. describe:: obj[linkname]
 
-       Return a :class:`edgedb.Link` or a :class:`edgedb.LinkSet` instance
+       Return a :py:class:`edgedb.Link` or a :py:class:`edgedb.LinkSet` instance
        representing the instance(s) of link *linkname* associated with
        *obj*.
 
@@ -145,10 +149,30 @@ Objects
           'true'
 
 
+Links
+=====
+
+.. py:class:: Link
+
+    An immutable representation of an object link.
+
+    Links are created when :py:class:`edgedb.Object` is accessed via
+    a ``[]`` operator.  Using Links objects explicitly is useful for
+    accessing link properties.
+
+
+.. py:class:: LinkSet
+
+    An immutable representation of a set of Links.
+
+    LinkSets are created when a multi link on :py:class:`edgedb.Object`
+    is accessed via a ``[]`` operator.
+
+
 Tuples
 ======
 
-.. class:: edgedb.Tuple()
+.. py:class:: Tuple()
 
     An immutable value representing an EdgeDB tuple value.
 
@@ -173,12 +197,12 @@ Tuples
 Named Tuples
 ============
 
-.. class:: edgedb.NamedTuple()
+.. py:class:: NamedTuple()
 
     An immutable value representing an EdgeDB named tuple value.
 
     Instances of ``edgedb.NamedTuple`` generally behave similarly to
-    :func:`namedtuple <python:collections.namedtuple>`:
+    :py:func:`namedtuple <python:collections.namedtuple>`:
 
     .. code-block:: pycon
 
@@ -198,7 +222,7 @@ Named Tuples
 Arrays
 ======
 
-.. class:: edgedb.Array()
+.. py:class:: Array()
 
     An immutable value representing an EdgeDB array value.
 
@@ -220,18 +244,18 @@ Arrays
 Duration
 ========
 
-.. class:: edgedb.Duration(*, months, days, microseconds)
+.. py:class:: Duration(*, months, days, microseconds)
 
     A Python representation of an EdgeDB ``duration`` value.
 
-    .. attribute:: months
+    .. py:attribute:: months
 
         The number of months in the duration.
 
-    .. attribute:: days
+    .. py:attribute:: days
 
         The number of days in the duration.
 
-    .. attribute:: microseconds
+    .. py:attribute:: microseconds
 
         The number of microseconds in the duration.

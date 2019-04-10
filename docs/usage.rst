@@ -9,11 +9,11 @@ almost entirely equivalent, with the exception of pool functionality, which
 is currently only supported in asynchronous mode.
 
 The interaction with the database normally starts with a call to
-:func:`connect() <edgedb.blocking_con.connect>`, or
-:func:`connect_async() <edgedb.asyncio_con.connect_async>`,
+:py:func:`connect() <edgedb.connect>`, or
+:py:func:`async_connect() <edgedb.async_connect>`,
 which establishes a new database session and returns a new
-:class:`BlockingIOConnection <edgedb.blocking_con.BlockingIOConnection>`
-or :class:`AsyncIOConnection <edgedb.asyncio_con.AsyncIOConnection>` instance
+:py:class:`BlockingIOConnection <edgedb.BlockingIOConnection>`
+or :py:class:`AsyncIOConnection <edgedb.AsyncIOConnection>` instance
 correspondingly.  The connection instance provides methods to run queries
 and manage transactions.
 
@@ -21,8 +21,6 @@ Blocking connection example:
 
 
 .. code-block:: python
-
-    import edgedb
 
     import datetime
     import edgedb
@@ -112,10 +110,10 @@ Transactions
 ------------
 
 To create transactions, the
-:meth:`BlockingIOConnection.transaction()
-<edgedb.blocking_con.BlockingIOConnection.transaction>` method or
-its asyncio equivalent :meth:`AsyncIOConnection.transaction()
-<edgedb.asyncio_con.AsyncIOConnection.transaction>`
+:py:meth:`BlockingIOConnection.transaction()
+<edgedb.BlockingIOConnection.transaction>` method or
+its asyncio equivalent :py:meth:`AsyncIOConnection.transaction()
+<edgedb.AsyncIOConnection.transaction>`
 should be used.
 
 The most common way to use transactions is through a context manager:
@@ -149,8 +147,8 @@ the use of a connection pool is recommended.  The EdgeDB-Python asyncio API
 provides an implementation of such a pool.
 
 To create a connection pool, use the
-:func:`edgedb.create_async_pool() <edgedb.asyncio_pool.create_async_pool>`
-function.  The resulting :class:`AsyncIOPool <edgedb.asyncio_pool.AsyncIOPool>`
+:py:func:`edgedb.create_async_pool() <edgedb.create_async_pool>`
+function.  The resulting :py:class:`AsyncIOPool <edgedb.AsyncIOPool>`
 object can then be used to borrow connections from the pool.
 
 Below is an example of a connection pool usage:

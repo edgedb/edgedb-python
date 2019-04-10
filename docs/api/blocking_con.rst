@@ -4,17 +4,15 @@
 Blocking API Reference
 ======================
 
-.. module:: edgedb.blocking_con
-
-.. currentmodule:: edgedb.blocking_con
-
+.. py:module:: edgedb
+.. py:currentmodule:: edgedb
 
 .. _edgedb-blocking-api-connection:
 
 Connection
 ==========
 
-.. function:: connect(dsn=None, *, \
+.. py:function:: connect(dsn=None, *, \
             host=None, port=None, \
             admin=None, \
             user=None, password=None, \
@@ -28,7 +26,7 @@ Connection
     If both *dsn* and keyword arguments are specified, the latter
     override the corresponding values parsed from the connection URI.
 
-    Returns a new :class:`~edgedb.blocking_con.BlockingIOConnection` object.
+    Returns a new :py:class:`~edgedb.BlockingIOConnection` object.
 
     :param dsn:
         Connection arguments specified using as a single string in the
@@ -95,7 +93,7 @@ Connection
     :param float timeout:
         Connection timeout in seconds.
 
-    :return: A :class:`~edgedb.blocking_con.BlockingIOConnection` instance.
+    :return: A :py:class:`~edgedb.BlockingIOConnection` instance.
 
     Example:
 
@@ -107,17 +105,17 @@ Connection
         {2}
 
 
-.. class:: BlockingIOConnection
+.. py:class:: BlockingIOConnection
 
     A representation of a database session.
 
-    Connections are created by calling :func:`~edgedb.blocking_con.connect`.
+    Connections are created by calling :py:func:`~edgedb.connect`.
 
 
-    .. method:: fetchall(query, *args, **kwargs)
+    .. py:method:: fetchall(query, *args, **kwargs)
 
         Run a query and return the results as a
-        :class:`edgedb.Set <edgedb.types.Set>` instance.
+        :py:class:`edgedb.Set <edgedb.Set>` instance.
 
         :param str query: Query text.
         :param args: Positional query arguments.
@@ -128,17 +126,17 @@ Connection
             Positional and named query arguments cannot be mixed.
 
         :return:
-            An instance of :class:`edgedb.Set <edgedb.types.Set>` containing
+            An instance of :py:class:`edgedb.Set <edgedb.Set>` containing
             the query result.
 
 
-    .. method:: fetchone(query, *args, **kwargs)
+    .. py:method:: fetchone(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element.
 
         The *query* must return exactly one element.  If the query returns
-        more than one element, a :exc:`edgedb.ResultCardinalityMismatchError`
-        is raised, if it returns an empty set, a :exc:`edgedb.NoDataError`
+        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, an ``edgedb.NoDataError``
         is raised.
 
         :param str query: Query text.
@@ -153,7 +151,7 @@ Connection
             Query result.
 
 
-    .. method:: fetchall_json(query, *args, **kwargs)
+    .. py:method:: fetchall_json(query, *args, **kwargs)
 
         Run a query and return the results as JSON.
 
@@ -169,13 +167,13 @@ Connection
             A JSON string containing an array of query results.
 
 
-    .. method:: fetchone_json(query, *args, **kwargs)
+    .. py:method:: fetchone_json(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element in JSON.
 
         The *query* must return exactly one element.  If the query returns
-        more than one element, a :exc:`edgedb.ResultCardinalityMismatchError`
-        is raised, if it returns an empty set, a :exc:`edgedb.NoDataError`
+        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, an ``edgedb.NoDataError``
         is raised.
 
         :param str query: Query text.
@@ -190,7 +188,7 @@ Connection
             Query result encoded in JSON.
 
 
-    .. method:: execute(query)
+    .. py:method:: execute(query)
 
         Execute an EdgeQL command (or commands).
 
@@ -208,13 +206,13 @@ Connection
         :param str query: Query text.
 
 
-    .. method:: transaction(isolation=None, readonly=None, deferrable=None)
+    .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
 
-        Create a :class:`~transaction.Transaction` object.
+        Create a :py:class:`Transaction` object.
 
         :param isolation:
             Transaction isolation mode, can be one of:
-            `'serializable'`, `'repeatable_read'`.  If not specified,
+            ``'serializable'``, ``'repeatable_read'``.  If not specified,
             the server-side default is used.
 
         :param readonly:
@@ -226,12 +224,12 @@ Connection
             specified, the server-side default is used.
 
 
-    .. method:: close()
+    .. py:method:: close()
 
         Close the connection gracefully.
 
 
-    .. method:: is_closed()
+    .. py:method:: is_closed()
 
         Return ``True`` if the connection is closed.
 
@@ -286,26 +284,26 @@ Alternatively, transactions can be used without a ``with`` block:
 
 
 See also the
-:meth:`BlockingIOConnection.transaction()` function.
+:py:meth:`BlockingIOConnection.transaction()` function.
 
 
-.. class:: edgedb.transaction.Transaction()
+.. py:class:: Transaction()
 
     Represents a transaction or savepoint block.
 
     Transactions are created by calling the
-    :meth:`BlockingIOConnection.transaction()` method.
+    :py:meth:`BlockingIOConnection.transaction()` method.
 
 
-    .. method:: start()
+    .. py:method:: start()
 
         Enter the trasnaction or savepoint block.
 
-    .. method:: commit()
+    .. py:method:: commit()
 
         Exit the transaction or savepoint block and commit changes.
 
-    .. method:: rollback()
+    .. py:method:: rollback()
 
         Exit the transaction or savepoint block and discard changes.
 

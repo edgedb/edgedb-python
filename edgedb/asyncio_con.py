@@ -95,7 +95,7 @@ class AsyncIOConnection(base_con.BaseConnection,
         await self._protocol.simple_query(query)
 
     def transaction(self, *, isolation=None, readonly=None, deferrable=None):
-        return transaction.AsyncTransaction(
+        return transaction.AsyncIOTransaction(
             self, isolation, readonly, deferrable)
 
     async def close(self):

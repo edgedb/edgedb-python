@@ -4,9 +4,8 @@
 AsyncIO API Reference
 =====================
 
-.. module:: edgedb.asyncio_con
-
-.. currentmodule:: edgedb.asyncio_con
+.. py:module:: edgedb
+.. py:currentmodule:: edgedb
 
 
 .. _edgedb-asyncio-api-connection:
@@ -14,7 +13,7 @@ AsyncIO API Reference
 Connection
 ==========
 
-.. coroutinefunction:: async_connect(dsn=None, *, \
+.. py:coroutinefunction:: async_connect(dsn=None, *, \
             host=None, port=None, \
             admin=None, \
             user=None, password=None, \
@@ -28,7 +27,7 @@ Connection
     If both *dsn* and keyword arguments are specified, the latter
     override the corresponding values parsed from the connection URI.
 
-    Returns a new :class:`~AsyncIOConnection` object.
+    Returns a new :py:class:`AsyncIOConnection` object.
 
     :param dsn:
         Connection arguments specified using as a single string in the
@@ -95,7 +94,7 @@ Connection
     :param float timeout:
         Connection timeout in seconds.
 
-    :return: A :class:`~edgedb.asyncio_con.AsyncIOConnection` instance.
+    :return: A :py:class:`AsyncIOConnection` instance.
 
     Example:
 
@@ -111,17 +110,17 @@ Connection
         {2}
 
 
-.. class:: AsyncIOConnection
+.. py:class:: AsyncIOConnection
 
     A representation of a database session.
 
-    Connections are created by calling :func:`~edgedb.asyncio_con.connect`.
+    Connections are created by calling :py:func:`~edgedb.async_connect`.
 
 
-    .. coroutinemethod:: fetchall(query, *args, **kwargs)
+    .. py:coroutinemethod:: fetchall(query, *args, **kwargs)
 
         Run a query and return the results as a
-        :class:`edgedb.Set <edgedb.types.Set>` instance.
+        :py:class:`edgedb.Set <edgedb.Set>` instance.
 
         :param str query: Query text.
         :param args: Positional query arguments.
@@ -132,17 +131,17 @@ Connection
             Positional and named query arguments cannot be mixed.
 
         :return:
-            An instance of :class:`edgedb.Set <edgedb.types.Set>` containing
+            An instance of :py:class:`edgedb.Set <edgedb.Set>` containing
             the query result.
 
 
-    .. coroutinemethod:: fetchone(query, *args, **kwargs)
+    .. py:coroutinemethod:: fetchone(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element.
 
         The *query* must return exactly one element.  If the query returns
-        more than one element, a :exc:`edgedb.ResultCardinalityMismatchError`
-        is raised, if it returns an empty set, a :exc:`edgedb.NoDataError`
+        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, an ``edgedb.NoDataError``
         is raised.
 
         :param str query: Query text.
@@ -157,7 +156,7 @@ Connection
             Query result.
 
 
-    .. coroutinemethod:: fetchall_json(query, *args, **kwargs)
+    .. py:coroutinemethod:: fetchall_json(query, *args, **kwargs)
 
         Run a query and return the results as JSON.
 
@@ -173,13 +172,13 @@ Connection
             A JSON string containing an array of query results.
 
 
-    .. coroutinemethod:: fetchone_json(query, *args, **kwargs)
+    .. py:coroutinemethod:: fetchone_json(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element in JSON.
 
         The *query* must return exactly one element.  If the query returns
-        more than one element, a :exc:`edgedb.ResultCardinalityMismatchError`
-        is raised, if it returns an empty set, a :exc:`edgedb.NoDataError`
+        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, an ``edgedb.NoDataError``
         is raised.
 
         :param str query: Query text.
@@ -194,7 +193,7 @@ Connection
             Query result encoded in JSON.
 
 
-    .. coroutinemethod:: execute(query)
+    .. py:coroutinemethod:: execute(query)
 
         Execute an EdgeQL command (or commands).
 
@@ -212,13 +211,13 @@ Connection
         :param str query: Query text.
 
 
-    .. method:: transaction(isolation=None, readonly=None, deferrable=None)
+    .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
 
-        Create a :class:`~transaction.Transaction` object.
+        Create a :py:class:`AsyncIOTransaction` object.
 
         :param isolation:
             Transaction isolation mode, can be one of:
-            `'serializable'`, `'repeatable_read'`.  If not specified,
+            ``'serializable'``, ``'repeatable_read'``.  If not specified,
             the server-side default is used.
 
         :param readonly:
@@ -230,12 +229,12 @@ Connection
             specified, the server-side default is used.
 
 
-    .. coroutinemethod:: close()
+    .. py:coroutinemethod:: close()
 
         Close the connection gracefully.
 
 
-    .. method:: is_closed()
+    .. py:method:: is_closed()
 
         Return ``True`` if the connection is closed.
 
@@ -291,26 +290,26 @@ Alternatively, transactions can be used without an ``async with`` block:
 
 
 See also the
-:meth:`AsyncIOConnection.transaction()` function.
+:py:meth:`AsyncIOConnection.transaction()` function.
 
 
-.. class:: edgedb.transaction.Transaction()
+.. py:class:: AsyncIOTransaction
 
     Represents a transaction or savepoint block.
 
     Transactions are created by calling the
-    :meth:`AsyncIOConnection.transaction()` method.
+    :py:meth:`AsyncIOConnection.transaction()` method.
 
 
-    .. coroutinemethod:: start()
+    .. py:coroutinemethod:: start()
 
         Enter the trasnaction or savepoint block.
 
-    .. coroutinemethod:: commit()
+    .. py:coroutinemethod:: commit()
 
         Exit the transaction or savepoint block and commit changes.
 
-    .. coroutinemethod:: rollback()
+    .. py:coroutinemethod:: rollback()
 
         Exit the transaction or savepoint block and discard changes.
 
@@ -326,7 +325,7 @@ See also the
 Connection Pools
 ================
 
-.. function:: edgedb.asyncio_pool.create_async_pool
+.. py:function:: create_async_pool
 
     Create an asynchronous connection pool.
 
@@ -355,12 +354,12 @@ Connection Pools
         ``edgedb://user:pass@host:port/database?option=value``.
 
     :param \*\*connect_kwargs:
-        Keyword arguments for the :func:`~edgedb.async_connect`
+        Keyword arguments for the :py:func:`~edgedb.async_connect`
         function.
 
-    :param Connection connection_class:
+    :param AsyncIOConnection connection_class:
         The class to use for connections.  Must be a subclass of
-        :class:`~edgedb.asyncio_con.AsyncIOConnection`.
+        :py:class:`AsyncIOConnection`.
 
     :param int min_size:
         Number of connection the pool will be initialized with.
@@ -368,21 +367,21 @@ Connection Pools
     :param int max_size:
         Max number of connections in the pool.
 
-    :param coroutine on_acquire:
+    :param on_acquire:
         A coroutine to prepare a connection right before it is returned
-        from :meth:`Pool.acquire() <pool.Pool.acquire>`.
+        from :py:meth:`Pool.acquire() <edgedb.AsyncIOPool.acquire>`.
 
-    :param coroutine on_release:
+    :param on_release:
         A coroutine called when a connection is about to be released
         to the pool.
 
-    :param coroutine on_connect:
+    :param on_connect:
         A coroutine to initialize a connection when it is created.
 
-    :return: An instance of :class:`~edgedb.asyncio_pool.Pool`.
+    :return: An instance of :py:class:`AsyncIOPool`.
 
 
-.. class:: edgedb.asyncio_pool.Pool()
+.. py:class:: AsyncIOPool()
 
     A connection pool.
 
@@ -392,13 +391,13 @@ Connection Pools
     open cursors and other resources *except* prepared statements.
 
     Pools are created by calling
-    :func:`~edgedb.asyncio_pool.create_async_pool`.
+    :py:func:`~edgedb.create_async_pool`.
 
-    .. coroutinemethod:: acquire()
+    .. py:coroutinemethod:: acquire()
 
         Acquire a database connection from the pool.
 
-        :return: An instance of :class:`~edgedb.asyncio_con.AsyncIOConnection`.
+        :return: An instance of :py:class:`AsyncIOConnection`.
 
         Can be used in an ``await`` expression or with an ``async with`` block.
 
@@ -417,45 +416,45 @@ Connection Pools
             finally:
                 await pool.release(con)
 
-    .. coroutinemethod:: release(connection)
+    .. py:coroutinemethod:: release(connection)
 
         Release a database connection back to the pool.
 
         :param AsyncIOConnection connection:
-            A :class:`~edgedb.asyncio_con.AsyncIOConnection` object
+            A :py:class:`AsyncIOConnection` object
             to release.
 
-    .. coroutinemethod:: close()
+    .. py:coroutinemethod:: close()
 
         Attempt to gracefully close all connections in the pool.
 
         Wait until all pool connections are released, close them and
         shut down the pool.  If any error (including cancellation) occurs
         in ``close()`` the pool will terminate by calling
-        :meth:`Pool.terminate() <edgedb.asyncio_pool.Pool.terminate>`.
+        :py:meth:`Pool.terminate() <edgedb.AsyncIOPool.terminate>`.
 
-        It is advisable to use :func:`python:asyncio.wait_for` to set
+        It is advisable to use :py:func:`python:asyncio.wait_for` to set
         a timeout.
 
-    .. method:: terminate()
+    .. py:method:: terminate()
 
         Terminate all connections in the pool.
 
-    .. coroutinemethod:: expire_connections()
+    .. py:coroutinemethod:: expire_connections()
 
         Expire all currently open connections.
 
         Cause all currently open connections to get replaced on the
-        next :meth:`~edgedb.asyncio_pool.Pool.acquire()` call.
+        next :py:meth:`~edgedb.AsyncIOPool.acquire()` call.
 
-    .. method:: set_connect_args(dsn=None, **connect_kwargs)
+    .. py:method:: set_connect_args(dsn=None, **connect_kwargs)
 
         Set the new connection arguments for this pool.
 
         The new connection arguments will be used for all subsequent
         new connection attempts.  Existing connections will remain until
-        they expire. Use :meth:`Pool.expire_connections()
-        <edgedb.asyncio_pool.Pool.expire_connections>` to expedite
+        they expire. Use :py:meth:`Pool.expire_connections()
+        <edgedb.AsyncIOPool.expire_connections>` to expedite
         the connection expiry.
 
         :param str dsn:
@@ -464,5 +463,5 @@ Connection Pools
             ``edgedb://user:pass@host:port/database?option=value``.
 
         :param \*\*connect_kwargs:
-            Keyword arguments for the :func:`~async_connect`
+            Keyword arguments for the :py:func:`~async_connect`
             function.

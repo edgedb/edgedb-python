@@ -67,4 +67,4 @@ quicktest:
 
 htmldocs:
 	$(PYTHON) setup.py build_ext --inplace
-	$(MAKE) -C docs html
+	$(MAKE) -C docs html SPHINXOPTS="-W -n"

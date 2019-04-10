@@ -25,6 +25,8 @@ import logging
 from . import asyncio_con
 from . import errors
 
+__all__ = ('create_async_pool', 'AsyncIOPool')
+
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +182,7 @@ class PoolConnectionHolder:
 
         if self._generation != self._pool._generation:
             # The connection has expired because it belongs to
-            # an older generation (Pool.expire_connections() has
+            # an older generation (AsyncIOPool.expire_connections() has
             # been called.)
             await self._con.close()
             return
@@ -248,7 +250,7 @@ class PoolConnectionHolder:
         self._pool._queue.put_nowait(self)
 
 
-class Pool:
+class AsyncIOPool:
     """A connection pool.
 
     Connection pool can be used to manage a set of connections to the database.
@@ -367,8 +369,7 @@ class Pool:
 
         The new connection arguments will be used for all subsequent
         new connection attempts.  Existing connections will remain until
-        they expire. Use :meth:`Pool.expire_connections()
-        <edgedb.asyncio_pool.Pool.expire_connections>` to expedite
+        they expire. Use AsyncIOPool.expire_connections() to expedite
         the connection expiry.
 
         :param str dsn:
@@ -513,7 +514,7 @@ class Pool:
         if (type(connection) is not PoolConnectionProxy or
                 connection._holder._pool is not self):
             raise errors.InterfaceError(
-                'Pool.release() received invalid connection: '
+                'AsyncIOPool.release() received invalid connection: '
                 '{connection!r} is not a member of this pool'.format(
                     connection=connection))
 
@@ -540,7 +541,7 @@ class Pool:
         Wait until all pool connections are released, close them and
         shut down the pool.  If any error (including cancellation) occurs
         in ``close()`` the pool will terminate by calling
-        :meth:`Pool.terminate() <pool.Pool.terminate>`.
+        AsyncIOPool.terminate() .
 
         It is advisable to use :func:`python:asyncio.wait_for` to set
         a timeout.
@@ -573,10 +574,11 @@ class Pool:
             self._closing = False
 
     def _warn_on_long_close(self):
-        logger.warning('Pool.close() is taking over 60 seconds to complete. '
-                       'Check if you have any unreleased connections left. '
-                       'Use asyncio.wait_for() to set a timeout for '
-                       'Pool.close().')
+        logger.warning(
+            'AsyncIOPool.close() is taking over 60 seconds to complete. '
+            'Check if you have any unreleased connections left. '
+            'Use asyncio.wait_for() to set a timeout for '
+            'AsyncIOPool.close().')
 
     def terminate(self):
         """Terminate all connections in the pool."""
@@ -591,7 +593,7 @@ class Pool:
         """Expire all currently open connections.
 
         Cause all currently open connections to get replaced on the
-        next :meth:`~edgedb.asyncio_pool.Pool.acquire()` call.
+        next AsyncIOPool.acquire() call.
         """
         self._generation += 1
 
@@ -691,8 +693,7 @@ def create_async_pool(dsn=None, *,
         ``edgedb://user:pass@host:port/database?option=value``.
 
     :param \*\*connect_kwargs:
-        Keyword arguments for the :func:`~edgedb.async_connect`
-        function.
+        Keyword arguments for the async_connect() function.
 
     :param Connection connection_class:
         The class to use for connections.  Must be a subclass of
@@ -706,7 +707,7 @@ def create_async_pool(dsn=None, *,
 
     :param coroutine on_acquire:
         A coroutine to prepare a connection right before it is returned
-        from :meth:`Pool.acquire() <pool.Pool.acquire>`.
+        from AsyncIOPool.acquire().
 
     :param coroutine on_release:
         A coroutine called when a connection is about to be released
@@ -715,9 +716,9 @@ def create_async_pool(dsn=None, *,
     :param coroutine on_connect:
         A coroutine to initialize a connection when it is created.
 
-    :return: An instance of :class:`~edgedb.asyncio_pool.Pool`.
+    :return: An instance of :class:`~edgedb.AsyncIOPool`.
     """
-    return Pool(
+    return AsyncIOPool(
         dsn,
         connection_class=connection_class,
         min_size=min_size,

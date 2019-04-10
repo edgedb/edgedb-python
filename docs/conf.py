@@ -30,6 +30,12 @@ extensions = [
     'sphinxcontrib.asyncio',
 ]
 
+# This is done on purpose: multiple different documentations with
+# different primary domains are linked with EdgeDB main docs.
+# To avoid conflicts, we always have to be explicit with directives
+# and roles, i.e. we cannot write ":module:", it has to be ":py:module:".
+primary_domain = None
+
 add_module_names = False
 
 templates_path = ['_templates']

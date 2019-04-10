@@ -23,6 +23,9 @@ from . import connresource
 from . import errors
 
 
+__all__ = ('Transaction', 'AsyncIOTransaction')
+
+
 class TransactionState(enum.Enum):
     NEW = 0
     STARTED = 1
@@ -188,7 +191,7 @@ class BaseTransaction:
             mod, self.__class__.__name__, ' '.join(attrs), id(self))
 
 
-class AsyncTransaction(BaseTransaction, connresource.ConnectionResource):
+class AsyncIOTransaction(BaseTransaction, connresource.ConnectionResource):
 
     def __init__(self, connection, isolation, readonly, deferrable):
         super().__init__(connection, isolation, readonly, deferrable)

@@ -163,7 +163,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
                 await tr.start()
 
         self.assertTrue(repr(tr).startswith(
-            '<edgedb.AsyncTransaction state:rolledback'))
+            '<edgedb.AsyncIOTransaction state:rolledback'))
 
         self.assertIsNone(self.con._top_xact)
 

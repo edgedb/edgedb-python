@@ -231,7 +231,7 @@ class TestPool(tb.AsyncQueryTestCase):
     def test_pool_init_run_until_complete(self):
         pool_init = self.create_pool()
         pool = self.loop.run_until_complete(pool_init)
-        self.assertIsInstance(pool, asyncio_pool.Pool)
+        self.assertIsInstance(pool, asyncio_pool.AsyncIOPool)
 
     async def test_pool_exception_in_on_acquire_and_on_connect(self):
         class Error(Exception):
