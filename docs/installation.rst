@@ -1,4 +1,4 @@
-.. _asyncpg-installation:
+.. _edgedb-python-installation:
 
 
 Installation

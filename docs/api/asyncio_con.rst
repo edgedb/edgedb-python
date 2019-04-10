@@ -204,8 +204,11 @@ Connection
         .. code-block:: pycon
 
             >>> await con.execute('''
-            ...     CREATE TYPE MyType { CREATE PROPERTY a -> int64 };
-            ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
+            ...     CREATE TYPE MyType {
+            ...         CREATE PROPERTY a -> int64
+            ...     };
+            ...     FOR x IN {100, 200, 300}
+            ...     UNION INSERT MyType { a := x };
             ... ''')
 
         :param str query: Query text.
@@ -263,8 +266,10 @@ a savepoint):
        try:
            # Create a savepoint:
            async with connection.transaction():
-               await connection.execute("INSERT User { name := 'Don' }")
-               # This nested savepoint will be automatically rolled back:
+               await connection.execute(
+                   "INSERT User { name := 'Don' }")
+               # This nested savepoint will be
+               # automatically rolled back:
                raise Exception
        except:
            # Ignore exception

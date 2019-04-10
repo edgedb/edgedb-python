@@ -26,9 +26,11 @@ Blocking connection example:
     import edgedb
 
     def main():
-        # Establish a connection to an existing database named "test"
-        # as an "edgedb" user.
-        conn = edgedb.connect('edgedb://edgedb@localhost/test')
+        # Establish a connection to an existing database
+        # named "test" as an "edgedb" user.
+        conn = edgedb.connect(
+            'edgedb://edgedb@localhost/test')
+
         # Create a User object type
         conn.execute('''
             CREATE TYPE User {
@@ -47,9 +49,13 @@ Blocking connection example:
 
         # Select User objects.
         user_set = conn.fetchall(
-            'SELECT User {name, dob} FILTER .name = <str>$name', name='Bob')
+            'SELECT User {name, dob} FILTER .name = <str>$name',
+            name='Bob')
+
         # *user_set* now contains
-        # Set{Object{name := 'Bob', dob := datetime.date(1984, 3, 1)}}
+        # Set{Object{name := 'Bob',
+        #            dob := datetime.date(1984, 3, 1)}}
+        print(user_set)
 
         # Close the connection.
         conn.close()
@@ -58,7 +64,7 @@ Blocking connection example:
         main()
 
 
-An equivalent example using the asyncio API:
+An equivalent example using the **asyncio** API:
 
 .. code-block:: python
 
@@ -67,9 +73,11 @@ An equivalent example using the asyncio API:
     import edgedb
 
     async def main():
-        # Establish a connection to an existing database named "test"
-        # as an "edgedb" user.
-        conn = await edgedb.async_connect('edgedb://edgedb@localhost/test')
+        # Establish a connection to an existing database
+        # named "test" as an "edgedb" user.
+        conn = await edgedb.async_connect(
+            'edgedb://edgedb@localhost/test')
+
         # Create a User object type
         await conn.execute('''
             CREATE TYPE User {
@@ -87,16 +95,21 @@ An equivalent example using the asyncio API:
         ''', name='Bob', dob=datetime.date(1984, 3, 1))
 
         # Select User objects.
-        user_set = await conn.fetchall(
-            'SELECT User {name, dob} FILTER .name = <str>$name', name='Bob')
+        user_set = await conn.fetchall('''
+            SELECT User {name, dob}
+            FILTER .name = <str>$name
+        ''', name='Bob')
+
         # *user_set* now contains
-        # Set{Object{name := 'Bob', dob := datetime.date(1984, 3, 1)}}
+        # Set{Object{name := 'Bob',
+        #            dob := datetime.date(1984, 3, 1)}}
+        print(user_set)
 
         # Close the connection.
         await conn.close()
 
     if __name__ == '__main__':
-        asyncio.get_event_loop().run_until_complete(main())
+        asyncio.run(main())
 
 
 Type Conversion
@@ -174,7 +187,9 @@ Below is an example of a connection pool usage:
                     SELECT User {first_name, email, bio}
                     FILTER .name = <str>$username
                 ''', username=username)
-            return web.Response(text=result, content_type='application/json')
+            return web.Response(
+                text=result,
+                content_type='application/json')
 
 
     async def init_app():
