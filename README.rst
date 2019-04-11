@@ -7,6 +7,13 @@ It provides both blocking IO and asyncio implementations.
 The library requires Python 3.6 or later.
 
 
+Documentation
+-------------
+
+The project documentation can be found
+`here <https://edgedb.com/docs/clients/00_python/index>`_.
+
+
 Installation
 ------------
 
