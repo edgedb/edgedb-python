@@ -263,10 +263,15 @@ if (not (_ROOT / 'edgedb' / 'protocol' / 'protocol.c').exists() or
     setup_requires.append(CYTHON_DEPENDENCY)
 
 
+with open(str(_ROOT / 'README.rst')) as f:
+    readme = f.read()
+
+
 setuptools.setup(
     name='edgedb',
     version=VERSION,
     description='EdgeDB Python driver',
+    long_description=readme,
     platforms=['macOS', 'POSIX', 'Windows'],
     author='MagicStack Inc',
     author_email='hello@magic.io',
