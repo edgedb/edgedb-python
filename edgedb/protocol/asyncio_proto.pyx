@@ -39,6 +39,7 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
         self.msg_waiter = None
 
     cpdef abort(self):
+        self.terminate()
         self.connected = False
         if self.transport is not None:
             self.transport.close()

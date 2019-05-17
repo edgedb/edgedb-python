@@ -62,7 +62,8 @@ class BlockingIOConnection(base_con.BaseConnection):
             self, isolation, readonly, deferrable)
 
     def close(self):
-        self._protocol.abort()
+        if not self.is_closed():
+            self._protocol.abort()
 
     def is_closed(self):
         return (self._protocol.sock is None or

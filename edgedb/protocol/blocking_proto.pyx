@@ -36,6 +36,7 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
         self.sock = sock
 
     cpdef abort(self):
+        self.terminate()
         self.connected = False
         if self.sock is not None:
             self.sock.close()

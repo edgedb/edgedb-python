@@ -515,6 +515,12 @@ cdef class SansIOProtocol:
                 else:
                     return ret
 
+    def terminate(self):
+        try:
+            self.write(WriteBuffer.new_message(TERMINATE_MSG).end_message())
+        except ConnectionError:
+            pass
+
     async def connect(self):
         cdef:
             WriteBuffer ver_buf
