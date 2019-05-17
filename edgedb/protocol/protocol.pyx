@@ -147,10 +147,10 @@ cdef class SansIOProtocol:
         if not self.connected:
             raise RuntimeError('not connected')
 
-        buf = WriteBuffer.new_message(b'P')
+        buf = WriteBuffer.new_message(PREPARE_MSG)
         buf.write_int16(0)  # no headers
-        buf.write_byte(b'j' if json_mode else b'b')
-        buf.write_byte(b'o' if expect_one else b'm')
+        buf.write_byte(IO_FORMAT_JSON if json_mode else IO_FORMAT_BINARY)
+        buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_bytes(b'')  # stmt_name
         buf.write_len_prefixed_utf8(query)
         buf.end_message()
@@ -164,19 +164,18 @@ cdef class SansIOProtocol:
             mtype = self.buffer.get_message_type()
 
             try:
-                if mtype == b'1':
+                if mtype == PREPARE_COMPLETE_MSG:
                     self.reject_headers()
                     cardinality = self.buffer.read_byte()
                     in_type_id = self.buffer.read_bytes(16)
                     out_type_id = self.buffer.read_bytes(16)
 
-                elif mtype == b'E':
-                    # ErrorResponse
+                elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
                     exc = self.amend_parse_error(
                         exc, json_mode, expect_one)
 
-                elif mtype == b'Z':
+                elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
                     break
 
@@ -194,9 +193,9 @@ cdef class SansIOProtocol:
             out_dc = reg.get_codec(out_type_id)
 
         if in_dc is None or out_dc is None:
-            buf = WriteBuffer.new_message(b'D')
+            buf = WriteBuffer.new_message(DESCRIBE_STMT_MSG)
             buf.write_int16(0)  # no headers
-            buf.write_byte(b'T')
+            buf.write_byte(DESCRIBE_ASPECT_DATA)
             buf.write_len_prefixed_bytes(b'')  # stmt_name
             buf.end_message()
             buf.write_bytes(SYNC_MESSAGE)
@@ -208,17 +207,16 @@ cdef class SansIOProtocol:
                 mtype = self.buffer.get_message_type()
 
                 try:
-                    if mtype == b'T':
+                    if mtype == STMT_DATA_DESC_MSG:
                         cardinality, in_dc, out_dc = \
                             self.parse_describe_type_message(reg)
 
-                    elif mtype == b'E':
-                        # ErrorResponse
+                    elif mtype == ERROR_RESPONSE_MSG:
                         exc = self.parse_error_message()
                         exc = self.amend_parse_error(
                             exc, json_mode, expect_one)
 
-                    elif mtype == b'Z':
+                    elif mtype == READY_FOR_COMMAND_MSG:
                         self.parse_sync_message()
                         break
 
@@ -231,7 +229,7 @@ cdef class SansIOProtocol:
         if exc is not None:
             raise exc
 
-        if expect_one and cardinality == b'n':  # cardinality==N/A
+        if expect_one and cardinality == CARDINALITY_NOT_APPLICABLE:
             methname = 'fetchone_json' if json_mode else 'fetchone'
             raise errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
@@ -251,7 +249,7 @@ cdef class SansIOProtocol:
 
         packet = WriteBuffer.new()
 
-        buf = WriteBuffer.new_message(b'E')
+        buf = WriteBuffer.new_message(EXECUTE_MSG)
         buf.write_int16(0)  # no headers
         buf.write_len_prefixed_bytes(b'')  # stmt_name
         self.encode_args(in_dc, buf, args, kwargs)
@@ -269,7 +267,7 @@ cdef class SansIOProtocol:
             mtype = self.buffer.get_message_type()
 
             try:
-                if mtype == b'D':
+                if mtype == DATA_MSG:
                     if exc is None:
                         try:
                             self.parse_data_messages(out_dc, result)
@@ -284,19 +282,18 @@ cdef class SansIOProtocol:
                             exc.__cause__ = ex
                             # Take care of a partially consumed 'D' message
                             # and the ones yet unparsed.
-                            while self.buffer.take_message_type(b'D'):
+                            while self.buffer.take_message_type(DATA_MSG):
                                 self.buffer.discard_message()
                     else:
                         self.buffer.discard_message()
 
-                elif mtype == b'C':  # CommandComplete
+                elif mtype == COMMAND_COMPLETE_MSG:
                     self.parse_command_complete_message()
 
-                elif mtype == b'E':
-                    # ErrorResponse
+                elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
 
-                elif mtype == b'Z':
+                elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
                     break
 
@@ -325,10 +322,10 @@ cdef class SansIOProtocol:
             object result
             bytes new_cardinality = None
 
-        buf = WriteBuffer.new_message(b'O')
+        buf = WriteBuffer.new_message(OPTIMISTIC_EXECUTE_MSG)
         buf.write_int16(0)  # no headers
-        buf.write_byte(b'j' if json_mode else b'b')
-        buf.write_byte(b'o' if expect_one else b'm')
+        buf.write_byte(IO_FORMAT_JSON if json_mode else IO_FORMAT_BINARY)
+        buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
@@ -349,16 +346,17 @@ cdef class SansIOProtocol:
             mtype = self.buffer.get_message_type()
 
             try:
-                if mtype == b'T':
+                if mtype == STMT_DATA_DESC_MSG:
                     # our in/out type spec is out-dated
                     new_cardinality, in_dc, out_dc = \
                         self.parse_describe_type_message(reg)
                     qc.set(
                         query, json_mode,
-                        new_cardinality == b'n', in_dc, out_dc)
+                        new_cardinality == CARDINALITY_NOT_APPLICABLE,
+                        in_dc, out_dc)
                     re_exec = True
 
-                elif mtype == b'D':
+                elif mtype == DATA_MSG:
                     assert not re_exec
                     if exc is None:
                         try:
@@ -374,21 +372,20 @@ cdef class SansIOProtocol:
                             exc.__cause__ = ex
                             # Take care of a partially consumed 'D' message
                             # and the ones yet unparsed.
-                            while self.buffer.take_message_type(b'D'):
+                            while self.buffer.take_message_type(DATA_MSG):
                                 self.buffer.discard_message()
                     else:
                         self.buffer.discard_message()
 
-                elif mtype == b'C':  # CommandComplete
+                elif mtype == COMMAND_COMPLETE_MSG:
                     self.parse_command_complete_message()
 
-                elif mtype == b'E':
-                    # ErrorResponse
+                elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
                     exc = self.amend_parse_error(
                         exc, json_mode, expect_one)
 
-                elif mtype == b'Z':
+                elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
                     break
 
@@ -403,7 +400,7 @@ cdef class SansIOProtocol:
 
         if re_exec:
             assert new_cardinality is not None
-            if expect_one and new_cardinality == b'n':  # cardinality==N/A
+            if expect_one and new_cardinality == CARDINALITY_NOT_APPLICABLE:
                 methname = 'fetchone_json' if json_mode else 'fetchone'
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
@@ -421,7 +418,7 @@ cdef class SansIOProtocol:
             raise RuntimeError('not connected')
         self.reset_status()
 
-        buf = WriteBuffer.new_message(b'Q')
+        buf = WriteBuffer.new_message(EXECUTE_SCRIPT_MSG)
         buf.write_int16(0)  # no headers
         buf.write_len_prefixed_utf8(query)
         self.write(buf.end_message())
@@ -434,15 +431,14 @@ cdef class SansIOProtocol:
             mtype = self.buffer.get_message_type()
 
             try:
-                if mtype == b'C':
-                    # CommandComplete
+                if mtype == COMMAND_COMPLETE_MSG:
                     self.parse_command_complete_message()
 
-                elif mtype == b'E':
+                elif mtype == ERROR_RESPONSE_MSG:
                     # ErrorResponse
                     exc = self.parse_error_message()
 
-                elif mtype == b'Z':
+                elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
                     break
 
@@ -480,7 +476,8 @@ cdef class SansIOProtocol:
             out_dc = <BaseCodec>codecs[2]
 
             if not cached:
-                qc.set(query, json_mode, cardinality == b'n', in_dc, out_dc)
+                qc.set(query, json_mode,
+                cardinality == CARDINALITY_NOT_APPLICABLE, in_dc, out_dc)
 
             ret = await self._execute(in_dc, out_dc, args, kwargs)
 
@@ -532,31 +529,34 @@ cdef class SansIOProtocol:
             raise RuntimeError('already connected')
 
         # protocol version
-        ver_buf = WriteBuffer.new_message(b'V')
-        ver_buf.write_int16(1)
-        ver_buf.write_int16(0)
+        handshake_buf = WriteBuffer.new_message(CLIENT_HANDSHAKE_MSG)
+        handshake_buf.write_int16(1)
+        handshake_buf.write_int16(0)
+
+        # params
+        params = {
+            'user': self.con_params.user,
+            'database': self.con_params.database,
+        }
+        handshake_buf.write_int16(len(params))
+        for k, v in params.items():
+            handshake_buf.write_len_prefixed_utf8(k)
+            handshake_buf.write_len_prefixed_utf8(v)
 
         # no extensions requested
-        ver_buf.write_int16(0)
-        ver_buf.end_message()
+        handshake_buf.write_int16(0)
+        handshake_buf.end_message()
 
-        msg_buf = WriteBuffer.new_message(b'0')
-        msg_buf.write_len_prefixed_utf8(self.con_params.user or '')
-        msg_buf.write_len_prefixed_utf8(self.con_params.database or '')
-        msg_buf.end_message()
-
-        buf = WriteBuffer()
-        buf.write_buffer(ver_buf)
-        buf.write_buffer(msg_buf)
-        self.write(buf)
+        self.write(handshake_buf)
 
         while True:
             if not self.buffer.take_message():
                 await self.wait_for_message()
             mtype = self.buffer.get_message_type()
 
-            if mtype == b'v':
-                # Server responded with NegotiateProtocolVersion
+            if mtype == SERVER_HANDSHAKE_MSG:
+                # Server responded with ServerHandshake, this
+                # means protocol negotiation.
                 hi = self.buffer.read_int16()
                 lo = self.buffer.read_int16()
                 self.parse_headers()
@@ -568,10 +568,7 @@ cdef class SansIOProtocol:
                         f'the protocol: {hi}.{lo}'
                     )
 
-            elif mtype == b'Y':
-                self.buffer.discard_message()
-
-            elif mtype == b'R':
+            elif mtype == AUTH_REQUEST_MSG:
                 # Authentication...
                 status = self.buffer.read_int32()
                 if status == AuthenticationStatuses.AUTH_OK:
@@ -584,15 +581,13 @@ cdef class SansIOProtocol:
                         f'unsupported authentication method requested by the '
                         f'server: {status}')
 
-            elif mtype == b'K':
-                # BackendKeyData
-                self.backend_secret = self.buffer.read_int32()
+            elif mtype == SERVER_KEY_DATA_MSG:
+                self.backend_secret = self.buffer.read_bytes(32)
 
-            elif mtype == b'E':
-                # ErrorResponse
+            elif mtype == ERROR_RESPONSE_MSG:
                 raise self.parse_error_message()
 
-            elif mtype == b'Z':
+            elif mtype == READY_FOR_COMMAND_MSG:
                 # ReadyForQuery
                 self.parse_sync_message()
                 if self.xact_status == TRANS_IDLE:
@@ -632,7 +627,7 @@ cdef class SansIOProtocol:
         client_first, client_first_bare = scram.build_client_first_message(
             client_nonce, self.con_params.user)
 
-        msg_buf = WriteBuffer.new_message(b'p')
+        msg_buf = WriteBuffer.new_message(AUTH_RESPONSE_MSG)
         msg_buf.write_len_prefixed_bytes(b'SCRAM-SHA-256')
         msg_buf.write_len_prefixed_utf8(client_first)
         msg_buf.end_message()
@@ -642,13 +637,13 @@ cdef class SansIOProtocol:
             await self.wait_for_message()
         mtype = self.buffer.get_message_type()
 
-        if mtype == b'E':
+        if mtype == ERROR_RESPONSE_MSG:
             # ErrorResponse
             exc = self.parse_error_message()
             self.buffer.finish_message()
             raise exc
 
-        elif mtype != b'R':
+        elif mtype != AUTH_REQUEST_MSG:
             raise RuntimeError(
                 f'expected SASLContinue from the server, received {mtype}')
 
@@ -671,7 +666,7 @@ cdef class SansIOProtocol:
             server_first,
             server_nonce)
 
-        msg_buf = WriteBuffer.new_message(b'p')
+        msg_buf = WriteBuffer.new_message(AUTH_RESPONSE_MSG)
         msg_buf.write_len_prefixed_utf8(client_final)
         msg_buf.end_message()
         self.write(msg_buf)
@@ -680,12 +675,11 @@ cdef class SansIOProtocol:
             await self.wait_for_message()
         mtype = self.buffer.get_message_type()
 
-        if mtype == b'E':
-            # ErrorResponse
+        if mtype == ERROR_RESPONSE_MSG:
             exc = self.parse_error_message()
             self.buffer.finish_message()
             raise exc
-        elif mtype != b'R':
+        elif mtype != AUTH_REQUEST_MSG:
             raise RuntimeError(
                 f'expected SASLFinal from the server, received {mtype}')
 
@@ -706,13 +700,13 @@ cdef class SansIOProtocol:
         cdef:
             char mtype = self.buffer.get_message_type()
 
-        if mtype == b'S':
+        if mtype == PARAMETER_STATUS_MSG:
             name = self.buffer.read_len_prefixed_utf8()
             val = self.buffer.read_len_prefixed_utf8()
             self.buffer.finish_message()
             self.server_settings[name] = val
 
-        elif mtype == b'L':
+        elif mtype == LOG_MSG:
             severity = <uint8_t>self.buffer.read_byte()
             code = <uint32_t>self.buffer.read_int32()
             message = self.buffer.read_len_prefixed_utf8()
@@ -762,7 +756,7 @@ cdef class SansIOProtocol:
             in_dc.encode(buf, args)
 
     cdef parse_describe_type_message(self, CodecsRegistry reg):
-        assert self.buffer.get_message_type() == b'T'
+        assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG
 
         cdef:
             bytes type_id
@@ -811,14 +805,14 @@ cdef class SansIOProtocol:
             FRBuffer *rbuf = &_rbuf
 
         if PG_DEBUG:
-            if buf.get_message_type() != b'D':
-                raise RuntimeError('first message is not "D"')
+            if buf.get_message_type() != DATA_MSG:
+                raise RuntimeError('first message is not "DataMsg"')
 
             if not datatypes.set_check(result):
                 raise RuntimeError(
                     f'result is not an edgedb.Set, but {result!r}')
 
-        while take_message_type(buf, b'D'):
+        while take_message_type(buf, DATA_MSG):
             cbuf = try_consume_message(buf, &cbuf_len)
             if cbuf == NULL:
                 mem = buf.consume_message()
@@ -848,7 +842,7 @@ cdef class SansIOProtocol:
             datatypes.set_append(result, row)
 
     cdef parse_command_complete_message(self):
-        assert self.buffer.get_message_type() == b'C'
+        assert self.buffer.get_message_type() == COMMAND_COMPLETE_MSG
         self.reject_headers()
         self.last_status = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
@@ -856,17 +850,17 @@ cdef class SansIOProtocol:
     cdef parse_sync_message(self):
         cdef char status
 
-        assert self.buffer.get_message_type() == b'Z'
+        assert self.buffer.get_message_type() == READY_FOR_COMMAND_MSG
 
         self.reject_headers()
 
         status = self.buffer.read_byte()
 
-        if status == b'I':
+        if status == TRANS_STATUS_IDLE:
             self.xact_status = TRANS_IDLE
-        elif status == b'T':
+        elif status == TRANS_STATUS_INTRANS:
             self.xact_status = TRANS_INTRANS
-        elif status == b'E':
+        elif status == TRANS_STATUS_ERROR:
             self.xact_status = TRANS_INERROR
         else:
             self.xact_status = TRANS_UNKNOWN
@@ -907,7 +901,7 @@ cdef class SansIOProtocol:
             uint8_t severity
             str msg
 
-        assert self.buffer.get_message_type() == b'E'
+        assert self.buffer.get_message_type() == ERROR_RESPONSE_MSG
 
         severity = <uint8_t>self.buffer.read_byte()
         code = <uint32_t>self.buffer.read_int32()
@@ -924,5 +918,7 @@ cdef class SansIOProtocol:
 cdef result_cardinality_mismatch_code = \
     errors.ResultCardinalityMismatchError._code
 
-cdef bytes SYNC_MESSAGE = bytes(WriteBuffer.new_message(b'S').end_message())
-cdef bytes FLUSH_MESSAGE = bytes(WriteBuffer.new_message(b'H').end_message())
+cdef bytes SYNC_MESSAGE = bytes(
+    WriteBuffer.new_message(SYNC_MSG).end_message())
+cdef bytes FLUSH_MESSAGE = bytes(
+    WriteBuffer.new_message(FLUSH_MSG).end_message())

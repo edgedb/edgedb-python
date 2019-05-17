@@ -30,7 +30,8 @@ DEF MAX_INTERVAL_PRECISION  = 6
 @cython.final
 cdef class Duration:
 
-    def __init__(self, *, int microseconds=0, int days=0, int months=0):
+    def __init__(self, *, int64_t microseconds=0,
+                 int32_t days=0, int32_t months=0):
         self.microseconds = microseconds
         self.days = days
         self.months = months
