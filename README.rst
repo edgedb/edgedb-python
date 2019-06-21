@@ -69,6 +69,12 @@ Basic Usage
     if __name__ == '__main__':
         main()
 
+Development
+-----------
+
+Instructions for installing EdgeDB and edgedb-python locally can be found `here <https://edgedb.com/docs/internals/dev/>`_.
+
+To run the test suite, run ``$ python setup.py test``.
 
 License
 -------
