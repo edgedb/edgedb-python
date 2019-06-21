@@ -42,7 +42,8 @@ class BaseTransaction:
     __slots__ = ('_connection', '_isolation', '_readonly', '_deferrable',
                  '_state', '_nested', '_id', '_managed')
 
-    def __init__(self, connection, isolation, readonly, deferrable):
+    def __init__(self, connection, isolation: str,
+                 readonly: bool, deferrable: bool):
         if isolation is not None and isolation not in ISOLATION_LEVELS:
             raise ValueError(
                 'isolation is expected to be either of {}, '
@@ -57,7 +58,7 @@ class BaseTransaction:
         self._id = None
         self._managed = False
 
-    def is_active(self):
+    def is_active(self) -> bool:
         return self._state is TransactionState.STARTED
 
     def __check_state_base(self, opname):
@@ -214,7 +215,7 @@ class AsyncIOTransaction(BaseTransaction, connresource.ConnectionResource):
             self._managed = False
 
     @connresource.guarded
-    async def start(self):
+    async def start(self) -> None:
         """Enter the transaction or savepoint block."""
         query = self._make_start_query()
         try:
@@ -246,7 +247,7 @@ class AsyncIOTransaction(BaseTransaction, connresource.ConnectionResource):
             self._state = TransactionState.ROLLEDBACK
 
     @connresource.guarded
-    async def commit(self):
+    async def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
         if self._managed:
             raise errors.InterfaceError(
@@ -254,7 +255,7 @@ class AsyncIOTransaction(BaseTransaction, connresource.ConnectionResource):
         await self.__commit()
 
     @connresource.guarded
-    async def rollback(self):
+    async def rollback(self) -> None:
         """Exit the transaction or savepoint block and rollback changes."""
         if self._managed:
             raise errors.InterfaceError(
@@ -280,7 +281,7 @@ class Transaction(BaseTransaction):
         finally:
             self._managed = False
 
-    def start(self):
+    def start(self) -> None:
         """Enter the transaction or savepoint block."""
         query = self._make_start_query()
         try:
@@ -311,14 +312,14 @@ class Transaction(BaseTransaction):
         else:
             self._state = TransactionState.ROLLEDBACK
 
-    def commit(self):
+    def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
         if self._managed:
             raise errors.InterfaceError(
                 'cannot manually commit from within a `with` block')
         self.__commit()
 
-    def rollback(self):
+    def rollback(self) -> None:
         """Exit the transaction or savepoint block and rollback changes."""
         if self._managed:
             raise errors.InterfaceError(

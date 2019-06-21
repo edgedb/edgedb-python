@@ -19,12 +19,14 @@
 
 import asyncio
 import time
+import typing
 
 from . import base_con
 from . import con_utils
 from . import errors
 from . import transaction
 
+from .datatypes import datatypes
 from .protocol import asyncio_proto
 
 
@@ -60,27 +62,27 @@ class AsyncIOConnection(base_con.BaseConnection,
         for cb in self._log_listeners:
             self._loop.call_soon(cb, self._ensure_proxied(), msg)
 
-    async def fetchall(self, query, *args, **kwargs):
+    async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
         return await self._protocol.execute_anonymous(
             False, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    async def fetchone(self, query, *args, **kwargs):
+    async def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
         return await self._protocol.execute_anonymous(
             True, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    async def fetchall_json(self, query, *args, **kwargs):
+    async def fetchall_json(self, query: str, *args, **kwargs) -> str:
         return await self._protocol.execute_anonymous(
             False, True, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    async def fetchone_json(self, query, *args, **kwargs):
+    async def fetchone_json(self, query: str, *args, **kwargs) -> str:
         return await self._protocol.execute_anonymous(
             True, True, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    async def execute(self, query):
+    async def execute(self, query: str) -> None:
         """Execute an EdgeQL command (or commands).
 
         Example:
@@ -94,14 +96,15 @@ class AsyncIOConnection(base_con.BaseConnection,
         """
         await self._protocol.simple_query(query)
 
-    def transaction(self, *, isolation=None, readonly=None, deferrable=None):
+    def transaction(self, *, isolation: str = None, readonly: bool = None,
+                    deferrable: bool = None) -> transaction.AsyncIOTransaction:
         return transaction.AsyncIOTransaction(
             self, isolation, readonly, deferrable)
 
-    async def close(self):
+    async def close(self) -> None:
         self.terminate()
 
-    def terminate(self):
+    def terminate(self) -> None:
         if not self.is_closed():
             self._protocol.abort()
         self._cleanup()
@@ -140,7 +143,7 @@ class AsyncIOConnection(base_con.BaseConnection,
 
         super()._cleanup()
 
-    def is_closed(self):
+    def is_closed(self) -> bool:
         return self._transport.is_closing() or not self._protocol.connected
 
 
@@ -195,13 +198,13 @@ async def _connect_addr(*, addr, loop, timeout, params, config,
     return con
 
 
-async def async_connect(dsn=None, *,
-                        host=None, port=None,
-                        user=None, password=None,
-                        admin=None,
-                        database=None,
+async def async_connect(dsn: str = None, *,
+                        host: str = None, port: int = None,
+                        user: str = None, password: str = None,
+                        admin: str = None,
+                        database: str = None,
                         connection_class=None,
-                        timeout=60):
+                        timeout: int = 60) -> AsyncIOConnection:
 
     loop = asyncio.get_event_loop()
 

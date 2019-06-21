@@ -281,6 +281,7 @@ setuptools.setup(
     provides=['edgedb'],
     zip_safe=False,
     include_package_data=True,
+    package_data={'edgedb': ['py.typed']},
     ext_modules=[
         distutils_extension.Extension(
             "edgedb.pgproto.pgproto",
