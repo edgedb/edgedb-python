@@ -25,14 +25,15 @@ from edgedb.datatypes.datatypes import Tuple, NamedTuple, EnumValue
 from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
 from edgedb.datatypes.datatypes import Duration
 
-from .asyncio_con import async_connect
+from .asyncio_con import async_connect, AsyncIOConnection
 from .asyncio_pool import create_async_pool, AsyncIOPool
-from .blocking_con import connect
+from .blocking_con import connect, BlockingIOConnection
 from .transaction import Transaction, AsyncIOTransaction
 
-
 __all__ = (
-    'async_connect', 'connect', 'create_async_pool', 'AsyncIOPool',
+    'async_connect', 'AsyncIOConnection',
+    'connect', 'BlockingIOConnection',
+    'create_async_pool', 'AsyncIOPool',
     'EnumValue', 'Tuple', 'NamedTuple', 'Set',
     'Object', 'Array', 'Link', 'LinkSet',
     'Transaction', 'AsyncIOTransaction',

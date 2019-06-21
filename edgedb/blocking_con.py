@@ -19,12 +19,14 @@
 
 import socket
 import time
+import typing
 
 from . import base_con
 from . import con_utils
 from . import errors
 from . import transaction
 
+from .datatypes import datatypes
 from .protocol import blocking_proto
 
 
@@ -34,37 +36,38 @@ class BlockingIOConnection(base_con.BaseConnection):
         for cb in self._log_listeners:
             cb(self, msg)
 
-    def fetchall(self, query, *args, **kwargs):
+    def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
         return self._protocol.sync_execute_anonymous(
             False, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    def fetchone(self, query, *args, **kwargs):
+    def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
         return self._protocol.sync_execute_anonymous(
             True, False, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    def fetchall_json(self, query, *args, **kwargs):
+    def fetchall_json(self, query: str, *args, **kwargs) -> str:
         return self._protocol.sync_execute_anonymous(
             False, True, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    def fetchone_json(self, query, *args, **kwargs):
+    def fetchone_json(self, query: str, *args, **kwargs) -> str:
         return self._protocol.sync_execute_anonymous(
             True, True, self._codecs_registry, self._query_cache,
             query, args, kwargs)
 
-    def execute(self, query):
+    def execute(self, query: str) -> None:
         self._protocol.sync_simple_query(query)
 
-    def transaction(self, *, isolation=None, readonly=None, deferrable=None):
+    def transaction(self, *, isolation: str = None, readonly: bool = None,
+                    deferrable: bool = None) -> transaction.Transaction:
         return transaction.Transaction(
             self, isolation, readonly, deferrable)
 
-    def close(self):
+    def close(self) -> None:
         self._protocol.abort()
 
-    def is_closed(self):
+    def is_closed(self) -> bool:
         return (self._protocol.sock is None or
                 self._protocol.sock.fileno() < 0 or
                 not self._protocol.connected)
@@ -120,12 +123,12 @@ def _connect_addr(*, addr, timeout, params, config, connection_class):
         raise
 
 
-def connect(dsn=None, *,
-            host=None, port=None,
-            user=None, password=None,
-            admin=None,
-            database=None,
-            timeout=60):
+def connect(dsn: str = None, *,
+            host: str = None, port: int = None,
+            user: str = None, password: str = None,
+            admin: str = None,
+            database: str = None,
+            timeout: int = 60) -> BlockingIOConnection:
 
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
