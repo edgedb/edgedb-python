@@ -110,8 +110,8 @@ Objects
         >>> conn = edgedb.connect()
         >>> r = conn.fetchone('''
         ...     SELECT schema::ObjectType {name}
-        ...     FILTER .name = 'std::Object';
-        ...     LIMIT 1'''))
+        ...     FILTER .name = 'std::Object'
+        ...     LIMIT 1''')
         >>> r
         Object{name := 'std::Object'}
         >>> r.name
@@ -132,8 +132,8 @@ Objects
           >>> r = conn.fetchone('''
           ...     SELECT schema::Property {name, annotations: {name, @value}}
           ...     FILTER .name = 'listen_port'
-          ...            AND .source.name = 'cfg::Config';
-          ...     LIMIT 1'''))
+          ...            AND .source.name = 'cfg::Config'
+          ...     LIMIT 1''')
           >>> r
           Object {
               name: 'listen_port',
