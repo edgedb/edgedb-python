@@ -25,3 +25,4 @@ docs/_build
 /.vscode
 /.pytest_cache
 /reflog.txt
+/edgedb/**/*.html
