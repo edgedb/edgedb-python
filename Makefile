@@ -27,6 +27,7 @@ clean:
 
 _touch:
 	rm -fr $(ROOT)/edgedb/datatypes/datatypes.c
+	rm -fr $(ROOT)/edgedb/protocol/protocol.c
 	find $(ROOT)/edgedb/protocol -name '*.pyx' | xargs touch
 	find $(ROOT)/edgedb/datatypes -name '*.pyx' | xargs touch
 	find $(ROOT)/edgedb/datatypes -name '*.c' | xargs touch
