@@ -847,6 +847,11 @@ cdef class SansIOProtocol:
             row = decoder(out_dc, rbuf)
             datatypes.set_append(result, row)
 
+            if frb_get_len(rbuf):
+                raise RuntimeError(
+                    f'unexpected trailing data in buffer after '
+                    f'data message decoding: {frb_get_len(rbuf)}')
+
     cdef parse_command_complete_message(self):
         assert self.buffer.get_message_type() == COMMAND_COMPLETE_MSG
         self.reject_headers()
