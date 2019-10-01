@@ -39,6 +39,7 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
         result = datatypes.namedtuple_new(self.descriptor)
 
         for i in range(elem_count):
+            frb_read(buf, 4)  # reserved
             elem_len = hton.unpack_int32(frb_read(buf, 4))
 
             if elem_len == -1:

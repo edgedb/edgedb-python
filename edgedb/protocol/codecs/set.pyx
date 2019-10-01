@@ -42,8 +42,8 @@ cdef class SetCodec(BaseArrayCodec):
 
     cdef decode(self, FRBuffer *buf):
         if type(self.sub_codec) is ArrayCodec:
-            # This is a set of arrays encoded as a two-dimensional
-            # array.
+            # This is a set of arrays encoded as an array
+            # of single-element records.
             return self._decode_array_set(buf)
         else:
             # Set of non-arrays.
@@ -69,6 +69,7 @@ cdef class SetCodec(BaseArrayCodec):
                                'set of arrays')
 
         frb_read(buf, 4)  # ignore flags
+        frb_read(buf, 4)  # ignore reserved
 
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
         frb_read(buf, 4)  # Ignore the lower bound information
@@ -82,6 +83,8 @@ cdef class SetCodec(BaseArrayCodec):
                 raise RuntimeError(
                     'expected a record with a single element as an array set '
                     'element envelope')
+
+            frb_read(buf, 4)  # reserved
 
             elem_len = hton.unpack_int32(frb_read(buf, 4))
             if elem_len == -1:
