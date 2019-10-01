@@ -69,9 +69,10 @@ cdef class BaseArrayCodec(BaseCodec):
                         'invalid array element: {}'.format(
                             e.args[0])) from None
 
-        buf.write_int32(8 + 8 * ndims + elem_data.len())  # buffer length
+        buf.write_int32(12 + 8 * ndims + elem_data.len())  # buffer length
         buf.write_int32(ndims)  # number of dimensions
         buf.write_int32(0)  # flags
+        buf.write_int32(0)  # reserved
 
         buf.write_int32(<int32_t>objlen)
         buf.write_int32(1)
@@ -91,6 +92,7 @@ cdef class BaseArrayCodec(BaseCodec):
             FRBuffer elem_buf
 
         frb_read(buf, 4)  # ignore flags
+        frb_read(buf, 4)  # reserved
 
         if ndims > 1:
             raise RuntimeError('only 1-dimensional arrays are supported')
