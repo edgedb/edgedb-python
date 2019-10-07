@@ -30,6 +30,9 @@ cdef class ScalarCodec(BaseCodec):
     cdef decode(self, FRBuffer *buf):
         return self.c_decoder(DEFAULT_CODEC_CONTEXT, buf)
 
+    cdef derive(self, bytes tid):
+        return ScalarCodec.new(tid, self.name, self.c_encoder, self.c_decoder)
+
     @staticmethod
     cdef BaseCodec new(bytes tid, str name,
                        pgproto.encode_func encoder,

@@ -24,6 +24,8 @@ cdef class ScalarCodec(BaseCodec):
         pgproto.encode_func     c_encoder
         pgproto.decode_func     c_decoder
 
+    cdef derive(self, bytes tid)
+
     @staticmethod
     cdef BaseCodec new(bytes tid, str name,
                        pgproto.encode_func encoder,
