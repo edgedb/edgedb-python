@@ -165,7 +165,12 @@ cdef class CodecsRegistry:
 
         elif t == CTYPE_SCALAR:
             pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
-            res = <BaseCodec>codecs_list[pos]
+            codec = codecs_list[pos]
+            if type(codec) is not ScalarCodec:
+                raise RuntimeError(
+                    f'a scalar codec expected for base scalar type, '
+                    f'got {type(codec).__name__}')
+            res = (<ScalarCodec>codecs_list[pos]).derive(tid)
 
         elif t == CTYPE_TUPLE:
             els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
