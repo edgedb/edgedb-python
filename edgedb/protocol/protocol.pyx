@@ -308,12 +308,12 @@ cdef class SansIOProtocol:
 
         return result
 
-    async def _opportunistic_execute(self, CodecsRegistry reg,
-                                     QueryCodecsCache qc,
-                                     bint json_mode,
-                                     bint expect_one,
-                                     BaseCodec in_dc, BaseCodec out_dc,
-                                     str query, args, kwargs):
+    async def _optimistic_execute(self, CodecsRegistry reg,
+                                  QueryCodecsCache qc,
+                                  bint json_mode,
+                                  bint expect_one,
+                                  BaseCodec in_dc, BaseCodec out_dc,
+                                  str query, args, kwargs):
         cdef:
             WriteBuffer packet
             WriteBuffer buf
@@ -492,7 +492,7 @@ cdef class SansIOProtocol:
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
 
-            ret = await self._opportunistic_execute(
+            ret = await self._optimistic_execute(
                 reg, qc, json_mode, expect_one,
                 in_dc, out_dc, query, args, kwargs)
 
