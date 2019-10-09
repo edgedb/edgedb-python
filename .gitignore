@@ -24,5 +24,6 @@ docs/_build
 !/.coveragerc
 /.vscode
 /.pytest_cache
+/.mypy_cache
 /reflog.txt
 /edgedb/**/*.html

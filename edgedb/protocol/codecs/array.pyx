@@ -119,6 +119,10 @@ cdef class BaseArrayCodec(BaseCodec):
             else:
                 frb_slice_from(&elem_buf, buf, elem_len)
                 elem = self.sub_codec.decode(&elem_buf)
+                if frb_get_len(&elem_buf):
+                    raise RuntimeError(
+                        f'unexpected trailing data in buffer after '
+                        f'array element decoding: {frb_get_len(&elem_buf)}')
 
             self._set_collection_item(result, i, elem)
 

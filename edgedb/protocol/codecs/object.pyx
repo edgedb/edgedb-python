@@ -51,6 +51,10 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
                 elem_codec = <BaseCodec>self.fields_codecs[i]
                 elem = elem_codec.decode(
                     frb_slice_from(&elem_buf, buf, elem_len))
+                if frb_get_len(&elem_buf):
+                    raise RuntimeError(
+                        f'unexpected trailing data in buffer after '
+                        f'object element decoding: {frb_get_len(&elem_buf)}')
 
             datatypes.object_set(result, i, elem)
 
