@@ -61,15 +61,15 @@ cdef class SetCodec(BaseArrayCodec):
             BaseCodec sub_codec = <BaseCodec>self.sub_codec
             FRBuffer elem_buf
 
+        frb_read(buf, 4)  # ignore flags
+        frb_read(buf, 4)  # ignore reserved
+
         if ndims == 0:
             # Special case for an empty set.
             return self._new_collection(0)
         elif ndims > 1:
             raise RuntimeError('expected a two-dimensional array for a '
                                'set of arrays')
-
-        frb_read(buf, 4)  # ignore flags
-        frb_read(buf, 4)  # ignore reserved
 
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
         frb_read(buf, 4)  # Ignore the lower bound information

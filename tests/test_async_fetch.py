@@ -541,3 +541,16 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 await self.con.fetchall(
                     'select sys::advisory_unlock(<int64>$0)', lock_key),
                 [True])
+
+    async def test_empty_set_unpack(self):
+        await self.con.fetchone('''
+          select schema::Function {
+            name,
+            params: {
+              kind,
+            } limit 0,
+            multi setarr := <array<int32>>{}
+          }
+          filter .name = 'std::str_repeat'
+          limit 1
+        ''')
