@@ -102,11 +102,11 @@ Connection
 
         >>> import asyncio
         >>> import edgedb
-        >>> async def run():
+        >>> async def main():
         ...     con = await edgedb.async_connect(user='edgedeb')
         ...     print(await con.fetchone('SELECT 1 + 1'))
         ...
-        >>> asyncio.get_event_loop().run_until_complete(run())
+        >>> asyncio.run(main())
         {2}
 
 
