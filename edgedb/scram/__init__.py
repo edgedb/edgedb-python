@@ -399,6 +399,8 @@ def HMAC(key: bytes, msg: bytes) -> bytes:
 
 
 def XOR(a: bytes, b: bytes) -> bytes:
+    if len(a) != len(b):
+        raise ValueError('scram.XOR received operands of unequal length')
     xint = int.from_bytes(a, 'big') ^ int.from_bytes(b, 'big')
     return xint.to_bytes(len(a), 'big')
 
