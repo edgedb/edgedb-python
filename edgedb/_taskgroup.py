@@ -71,7 +71,11 @@ class TaskGroup:
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
 
-        self._parent_task = asyncio.current_task(self._loop)
+        if hasattr(asyncio, 'current_task'):
+            self._parent_task = asyncio.current_task(self._loop)
+        else:
+            self._parent_task = asyncio.Task.current_task(self._loop)
+
         if self._parent_task is None:
             raise RuntimeError(
                 f'TaskGroup {self!r} cannot determine the parent task')
