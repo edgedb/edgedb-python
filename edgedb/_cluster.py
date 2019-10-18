@@ -144,16 +144,18 @@ class Cluster:
                       for k, v in settings.items()]
         extra_args.append('--port={}'.format(self._effective_port))
 
+        env = os.environ.copy()
+        # Make sure the PYTHONPATH of _this_ process does
+        # not interfere with the server's.
+        env.pop('PYTHONPATH', None)
+
         if self._env:
-            env = os.environ.copy()
             env.update(self._env)
-        else:
-            env = None
 
         self._daemon_process = subprocess.Popen(
             self._edgedb_cmd + extra_args,
             stdout=sys.stdout, stderr=sys.stderr,
-            env=env)
+            env=env, cwd=str(self._data_dir))
 
         self._test_connection()
 
