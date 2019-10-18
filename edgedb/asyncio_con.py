@@ -206,7 +206,7 @@ async def async_connect(dsn: str = None, *,
                         connection_class=None,
                         timeout: int = 60) -> AsyncIOConnection:
 
-    loop = asyncio.get_running_loop()
+    loop = asyncio.get_event_loop()
 
     if connection_class is None:
         connection_class = AsyncIOConnection

@@ -69,7 +69,7 @@ class TaskGroup:
         self._entered = True
 
         if self._loop is None:
-            self._loop = asyncio.get_running_loop()
+            self._loop = asyncio.get_event_loop()
 
         self._parent_task = asyncio.current_task(self._loop)
         if self._parent_task is None:
