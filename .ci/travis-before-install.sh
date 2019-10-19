@@ -4,7 +4,7 @@ set -e -x
 
 if [ "${TRAVIS_OS_NAME}" == "osx" ]; then
     brew update >/dev/null
-    brew upgrade pyenv
+    brew upgrade pyenv || true
     eval "$(pyenv init -)"
 
     if ! (pyenv versions | grep "${PYTHON_VERSION}$"); then
@@ -13,7 +13,8 @@ if [ "${TRAVIS_OS_NAME}" == "osx" ]; then
     pyenv global ${PYTHON_VERSION}
     pyenv rehash
 
-    wget https://packages.edgedb.com/macos/edgedb-1-alpha1.pkg -O edgedb.pkg
+    wget https://packages.edgedb.com/macos/edgedb-1-alpha2-latest.pkg \
+        -O edgedb.pkg
     sudo env _EDGEDB_INSTALL_SKIP_BOOTSTRAP=1 installer -dumplog -verbose \
         -pkg "$(pwd)/edgedb.pkg" -target /
     rm edgedb.pkg
@@ -26,9 +27,9 @@ if [ "${TRAVIS_OS_NAME}" == "linux" ]; then
     dist=$(awk -F"=" '/VERSION_CODENAME=/ {print $2}' /etc/os-release)
     [ -n "${dist}" ] || \
         dist=$(awk -F"[)(]+" '/VERSION=/ {print $2}' /etc/os-release)
-    echo deb https://packages.edgedb.com/apt ${dist} main \
+    echo deb https://packages.edgedb.com/apt ${dist}.nightly main \
         | sudo tee /etc/apt/sources.list.d/edgedb.list
 
     sudo apt-get update
-    sudo env _EDGEDB_INSTALL_SKIP_BOOTSTRAP=1 apt-get install edgedb-1-alpha1
+    sudo env _EDGEDB_INSTALL_SKIP_BOOTSTRAP=1 apt-get install edgedb-1-alpha2
 fi

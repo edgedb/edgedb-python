@@ -26,7 +26,6 @@ if sys.version_info < (3, 6):
 import os
 import os.path
 import pathlib
-import platform
 import re
 import subprocess
 
@@ -68,11 +67,15 @@ EXTRA_DEPENDENCIES = {
 
 CFLAGS = ['-O2']
 LDFLAGS = []
+SYSTEM = sys.platform
 
-if platform.uname().system != 'Windows':
+if SYSTEM != 'win32':
     CFLAGS.extend(['-std=gnu99', '-fsigned-char', '-Wall',
                    '-Wsign-compare', '-Wconversion'])
 
+if SYSTEM == 'darwin':
+    # Lots of warnings from the standard library on macOS 10.14
+    CFLAGS.extend(['-Wno-nullability-completeness'])
 
 _ROOT = pathlib.Path(__file__).parent
 
