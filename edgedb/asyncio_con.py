@@ -169,18 +169,9 @@ async def _connect_addr(*, addr, loop, timeout, params, config,
     try:
         tr, pr = await asyncio.wait_for(
             connector, timeout=timeout, loop=loop)
-    except FileNotFoundError as e:
-        raise errors.ClientConnectionError(
-            f'{e}'
-            f'\n\tIs the server running locally and accepting '
-            f'\n\tconnections on Unix domain socket {addr!r}?'
-        ) from e
-    except (ConnectionError, OSError) as e:
-        raise errors.ClientConnectionError(
-            f'{e}'
-            f'\n\tIs the server running on host {addr[0]!r} and accepting '
-            f'\n\tTCP/IP connections on port {addr[1]}?'
-        ) from e
+    except (ConnectionError, FileNotFoundError, OSError) as e:
+        msg = con_utils.render_client_no_connection_error(e, addr)
+        raise errors.ClientConnectionError(msg) from e
 
     timeout -= time.monotonic() - before
 
