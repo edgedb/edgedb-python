@@ -84,7 +84,7 @@ with open(str(_ROOT / 'README.rst')) as f:
     readme = f.read()
 
 
-with open(str(_ROOT / 'edgedb' / '__init__.py')) as f:
+with open(str(_ROOT / 'edgedb' / '_version.py')) as f:
     for line in f:
         if line.startswith('__version__ ='):
             _, _, version = line.partition('=')
@@ -92,7 +92,7 @@ with open(str(_ROOT / 'edgedb' / '__init__.py')) as f:
             break
     else:
         raise RuntimeError(
-            'unable to read the version from edgedb/__init__.py')
+            'unable to read the version from edgedb/_version.py')
 
 
 if (_ROOT / '.git').is_dir() and 'dev' in VERSION:
@@ -137,7 +137,7 @@ class sdist(setuptools_sdist.sdist, VersionMixin):
 
     def make_release_tree(self, base_dir, files):
         super().make_release_tree(base_dir, files)
-        self._fix_version(pathlib.Path(base_dir) / 'edgedb' / '__init__.py')
+        self._fix_version(pathlib.Path(base_dir) / 'edgedb' / '_version.py')
 
 
 class build_py(setuptools_build_py.build_py, VersionMixin):
@@ -145,7 +145,7 @@ class build_py(setuptools_build_py.build_py, VersionMixin):
     def build_module(self, module, module_file, package):
         outfile, copied = super().build_module(module, module_file, package)
 
-        if module == '__init__' and package == 'edgedb':
+        if module == '_version' and package == 'edgedb':
             self._fix_version(outfile)
 
         return outfile, copied
