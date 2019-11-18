@@ -44,6 +44,26 @@ test_uuids = tuple(
 
 class TestUuid(unittest.TestCase):
 
+    def ensure_equal(self, uuid1, uuid2):
+        self.assertEqual(uuid1.bytes_le, uuid2.bytes_le)
+        self.assertEqual(uuid1.clock_seq, uuid2.clock_seq)
+        self.assertEqual(uuid1.fields, uuid2.fields)
+        self.assertEqual(uuid1.bytes, uuid2.bytes)
+        self.assertEqual(uuid1.int, uuid2.int)
+        self.assertEqual(uuid1.hex, uuid2.hex)
+        self.assertEqual(uuid1.variant, uuid2.variant)
+        self.assertEqual(uuid1.version, uuid2.version)
+        self.assertEqual(uuid1.urn, uuid2.urn)
+        self.assertEqual(uuid1, uuid2)
+        self.assertEqual(int(uuid1), int(uuid2))
+        self.assertEqual(str(uuid1), str(uuid2))
+        self.assertEqual(repr(uuid1), repr(uuid2))
+        self.assertEqual(hash(uuid1), hash(uuid2))
+        self.assertGreaterEqual(uuid1, uuid2)
+        self.assertGreaterEqual(uuid2, uuid1)
+        self.assertLessEqual(uuid1, uuid2)
+        self.assertLessEqual(uuid2, uuid1)
+
     def test_uuid_ctr_01(self):
         with self.assertRaisesRegex(ValueError, r'invalid UUID.*got 4'):
             c_UUID('test')
@@ -76,33 +96,11 @@ class TestUuid(unittest.TestCase):
     def test_uuid_ctr_02(self):
         for py_u in test_uuids:
             c_u = c_UUID(py_u.bytes)
-            self.assertEqual(c_u.bytes, py_u.bytes)
-            self.assertEqual(c_u.int, py_u.int)
-            self.assertEqual(str(c_u), str(py_u))
+            self.ensure_equal(py_u, c_u)
 
         for py_u in test_uuids:
             c_u = c_UUID(str(py_u))
-            self.assertEqual(c_u.bytes, py_u.bytes)
-            self.assertEqual(c_u.int, py_u.int)
-            self.assertEqual(str(c_u), str(py_u))
-
-    def test_uuid_props_methods(self):
-        for py_u in test_uuids:
-            c_u = c_UUID(py_u.bytes)
-
-            self.assertEqual(c_u, py_u)
-            self.assertNotEqual(c_u, uuid.uuid4())
-
-            self.assertEqual(hash(c_u), hash(py_u))
-            self.assertEqual(repr(c_u), repr(py_u))
-
-            for prop in {'bytes_le', 'fields', 'time_low', 'time_mid',
-                         'time_hi_version', 'clock_seq_hi_variant',
-                         'clock_seq_low', 'time', 'clock_seq',
-                         'node', 'urn', 'variant', 'version'}:
-                self.assertEqual(
-                    getattr(c_u, prop),
-                    getattr(py_u, prop))
+            self.ensure_equal(py_u, c_u)
 
     def test_uuid_pickle(self):
         u = c_UUID('de197476-4763-11e9-91bf-7311c6dc588e')
@@ -117,19 +115,64 @@ class TestUuid(unittest.TestCase):
         self.assertTrue(isinstance(u, uuid.UUID))
         self.assertTrue(issubclass(c_UUID, uuid.UUID))
 
+    def test_uuid_compare(self):
+        u = c_UUID('de197476-4763-11e9-91bf-7311c6dc588e')
+        us = uuid.UUID(bytes=u.bytes)
+
+        for us2 in test_uuids:
+            u2 = c_UUID(us2.bytes)
+
+            if us < us2:
+                self.assertLess(u, u2)
+                self.assertGreater(u2, u)
+            elif us > us2:
+                self.assertGreater(u, u2)
+                self.assertLess(u2, u)
+
+        u3 = c_UUID('de197476-4763-11e9-91bf-7311c6dc588e')
+        self.assertTrue(u == u3)
+        self.assertFalse(u != u3)
+        self.assertTrue(u >= u3)
+        self.assertTrue(u <= u3)
+
     def test_uuid_comp(self):
         for _ in range(100):
             ll = random.choice(test_uuids)
             rr = random.choice(test_uuids)
 
+            # Testing comparison operators.
+            # Explicitly use > and not assertGreater;
+            # we want all comparisons to be explicit in this test.
+
             if ll > rr:
                 self.assertTrue(c_UUID(ll.bytes) > rr)
+                self.assertTrue(c_UUID(ll.bytes) > c_UUID(rr.bytes))
+                self.assertTrue(ll > c_UUID(rr.bytes))
 
             if ll < rr:
                 self.assertTrue(c_UUID(ll.bytes) < rr)
+                self.assertTrue(c_UUID(ll.bytes) < c_UUID(rr.bytes))
+                self.assertTrue(ll < c_UUID(rr.bytes))
+
+            if ll >= rr:
+                self.assertTrue(c_UUID(ll.bytes) >= rr)
+                self.assertTrue(c_UUID(ll.bytes) >= c_UUID(rr.bytes))
+                self.assertTrue(ll >= c_UUID(rr.bytes))
+
+            if ll <= rr:
+                self.assertTrue(c_UUID(ll.bytes) <= rr)
+                self.assertTrue(c_UUID(ll.bytes) <= c_UUID(rr.bytes))
+                self.assertTrue(ll <= c_UUID(rr.bytes))
 
             if ll != rr:
                 self.assertTrue(c_UUID(ll.bytes) != rr)
+                self.assertTrue(c_UUID(ll.bytes) != c_UUID(rr.bytes))
+                self.assertTrue(ll != c_UUID(rr.bytes))
+
+            if ll == rr:
+                self.assertTrue(c_UUID(ll.bytes) == rr)
+                self.assertTrue(c_UUID(ll.bytes) == c_UUID(rr.bytes))
+                self.assertTrue(ll == c_UUID(rr.bytes))
 
             self.assertTrue(c_UUID(ll.bytes) >= ll)
             self.assertTrue(c_UUID(ll.bytes) <= ll)
