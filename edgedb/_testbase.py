@@ -49,7 +49,7 @@ def silence_asyncio_long_exec_warning():
 _default_cluster = None
 
 
-def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings={}):
+def _init_cluster(data_dir=None, *, cleanup_atexit=True):
     if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
             not os.environ.get('EDGEDB_LOG_LEVEL')):
         _env = {'EDGEDB_LOG_LEVEL': 'silent'}
@@ -64,7 +64,7 @@ def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings={}):
         destroy = False
 
     if cluster.get_status() == 'not-initialized':
-        cluster.init(server_settings=init_settings)
+        cluster.init()
 
     cluster.start(port='dynamic')
     cluster.set_superuser_password('test')

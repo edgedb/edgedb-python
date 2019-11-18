@@ -167,7 +167,7 @@ class TestTuple(unittest.TestCase):
 
     def test_tuple_freelist_1(self):
         lst = []
-        for i in range(5000):
+        for _ in range(5000):
             lst.append(edgedb.Tuple((1,)))
         for t in lst:
             self.assertEqual(t[0], 1)

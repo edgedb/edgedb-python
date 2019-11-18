@@ -123,7 +123,7 @@ class Cluster:
 
         return edgedb.connect(**connect_args)
 
-    def init(self, *, server_settings={}):
+    def init(self):
         cluster_status = self.get_status()
 
         if not cluster_status.startswith('not-initialized'):
