@@ -28,12 +28,14 @@ class TestProto(tb.SyncQueryTestCase):
 
     async def test_proto_codec_error_recovery_01(self):
         for _ in range(5):  # execute a few times for OE
-            with self.assertRaises(edgedb.ClientError):
+            with self.assertRaisesRegex(
+                    edgedb.ClientError,
+                    "unable to decode data to Python objects"):
                 # Python dattime.Date object can't represent this date, so
                 # we know that the codec will fail.
                 # The test will be rewritten once it's possible to override
                 # default codecs.
-                self.con.fetchall("SELECT <local_date>'0001-01-01 BC';")
+                self.con.fetchall("SELECT to_local_date('0001-01-01 BC');")
 
             # The protocol, though, shouldn't be in some inconsistent
             # state; it should allow new queries to execute successfully.
@@ -43,20 +45,22 @@ class TestProto(tb.SyncQueryTestCase):
 
     async def test_proto_codec_error_recovery_02(self):
         for _ in range(5):  # execute a few times for OE
-            with self.assertRaises(edgedb.ClientError):
+            with self.assertRaisesRegex(
+                    edgedb.ClientError,
+                    "unable to decode data to Python objects"):
                 # Python dattime.Date object can't represent this date, so
                 # we know that the codec will fail.
                 # The test will be rewritten once it's possible to override
                 # default codecs.
                 self.con.fetchall("""
-                    SELECT <local_date>{
+                    SELECT to_local_date({
                         '2010-01-01',
                         '2010-01-02',
                         '2010-01-03',
                         '0001-01-01 BC',
                         '2010-01-04',
                         '2010-01-05',
-                    };
+                    });
                 """)
 
             # The protocol, though, shouldn't be in some inconsistent
