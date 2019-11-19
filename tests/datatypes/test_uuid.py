@@ -38,7 +38,7 @@ special_uuids = frozenset({
 
 test_uuids = tuple(
     special_uuids |
-    frozenset({uuid.uuid4() for _ in range(100)})
+    frozenset({uuid.uuid4() for _ in range(1000)})
 )
 
 
@@ -135,8 +135,13 @@ class TestUuid(unittest.TestCase):
         self.assertTrue(u >= u3)
         self.assertTrue(u <= u3)
 
+        a = c_UUID('10000000-0000-0000-0000-000000000001')
+        b = c_UUID('10000000-0000-0000-0000-000000000000')
+        self.assertGreater(a, b)
+        self.assertLess(b, a)
+
     def test_uuid_comp(self):
-        for _ in range(100):
+        for _ in range(1000):
             ll = random.choice(test_uuids)
             rr = random.choice(test_uuids)
 
