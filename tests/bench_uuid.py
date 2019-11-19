@@ -160,6 +160,24 @@ for _ in range(N):
 c_total = time.monotonic() - st
 print(f'hash(c_UUID()):\t\t* {c_total:.4f} ({std_total / c_total:.2f}x)')
 
+print()
+
+dct = {_: _ for _ in range(1000)}
+
+u = std_UUID(bytes=ubytes)
+st = time.monotonic()
+for _ in range(N):
+    dct.get(u)
+std_total = time.monotonic() - st
+print(f'dct[std_UUID()]:\t  {std_total:.4f}')
+
+
+u = c_UUID(ubytes)
+st = time.monotonic()
+for _ in range(N):
+    dct.get(u)
+c_total = time.monotonic() - st
+print(f'dct[c_UUID()]:\t\t* {c_total:.4f} ({std_total / c_total:.2f}x)')
 
 print()
 
