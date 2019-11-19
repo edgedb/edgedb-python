@@ -19,9 +19,54 @@
 * See also https://github.com/python/cpython/blob/master/LICENSE.
 */
 
+#include "Python.h"
 
 #include "datatypes.h"
 
+
+#if PY_VERSION_HEX >= 0x03080000
+
+#if SIZEOF_PY_UHASH_T > 4
+#define _PyHASH_XXPRIME_1 ((Py_uhash_t)11400714785074694791ULL)
+#define _PyHASH_XXPRIME_2 ((Py_uhash_t)14029467366897019727ULL)
+#define _PyHASH_XXPRIME_5 ((Py_uhash_t)2870177450012600261ULL)
+#define _PyHASH_XXROTATE(x) ((x << 31) | (x >> 33))  /* Rotate left 31 bits */
+#else
+#define _PyHASH_XXPRIME_1 ((Py_uhash_t)2654435761UL)
+#define _PyHASH_XXPRIME_2 ((Py_uhash_t)2246822519UL)
+#define _PyHASH_XXPRIME_5 ((Py_uhash_t)374761393UL)
+#define _PyHASH_XXROTATE(x) ((x << 13) | (x >> 19))  /* Rotate left 13 bits */
+#endif
+
+Py_hash_t
+_EdgeGeneric_Hash(PyObject **els, Py_ssize_t len)
+{
+    /* Python's tuple hash algorithm.  Hashes of edgedb.Tuple and
+       edgedb.NamedTuple must be equal to hashes of Python't tuples
+       with the same elements */
+
+    Py_ssize_t i;
+    Py_uhash_t acc = _PyHASH_XXPRIME_5;
+    for (i = 0; i < len; i++) {
+        Py_uhash_t lane = PyObject_Hash(els[i]);
+        if (lane == (Py_uhash_t)-1) {
+            return -1;
+        }
+        acc += lane * _PyHASH_XXPRIME_2;
+        acc = _PyHASH_XXROTATE(acc);
+        acc *= _PyHASH_XXPRIME_1;
+    }
+
+    /* Add input length, mangled to keep the historical value of hash(()). */
+    acc += len ^ (_PyHASH_XXPRIME_5 ^ 3527539UL);
+
+    if (acc == (Py_uhash_t)-1) {
+        return 1546275796;
+    }
+    return (Py_hash_t)acc;
+}
+
+#else
 
 Py_hash_t
 _EdgeGeneric_Hash(PyObject **els, Py_ssize_t len)
@@ -52,6 +97,8 @@ _EdgeGeneric_Hash(PyObject **els, Py_ssize_t len)
     }
     return (Py_hash_t)x;
 }
+
+#endif
 
 
 Py_hash_t
