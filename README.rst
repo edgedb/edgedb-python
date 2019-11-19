@@ -1,8 +1,7 @@
 The Python driver for EdgeDB
 ============================
 
-.. image:: https://travis-ci.com/edgedb/edgedb-python.svg?branch=master
-    :target: https://travis-ci.com/edgedb/edgedb-python
+.. image:: https://github.com/edgedb/edgedb-python/workflows/Tests/badge.svg?event=push&branch=master
 
 .. image:: https://img.shields.io/pypi/v/edgedb.svg
     :target: https://pypi.python.org/pypi/edgedb
