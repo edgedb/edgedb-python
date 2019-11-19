@@ -149,7 +149,7 @@ class PoolConnectionHolder:
         if self._on_acquire is not None:
             try:
                 await self._on_acquire(proxy)
-            except Exception as ex:
+            except (Exception, asyncio.CancelledError) as ex:
                 # If a user-defined `on_acquire` function fails, we don't
                 # know if the connection is safe for re-use, hence
                 # we close it.  A new connection will be created
@@ -190,7 +190,7 @@ class PoolConnectionHolder:
         if self._on_release is not None:
             try:
                 await self._on_release(self._proxy)
-            except Exception as ex:
+            except (Exception, asyncio.CancelledError) as ex:
                 # If a user-defined `on_release` function fails, we don't
                 # know if the connection is safe for re-use, hence
                 # we close it.  A new connection will be created
@@ -420,7 +420,7 @@ class AsyncIOPool:
         if self._on_connect is not None:
             try:
                 await self._on_connect(con)
-            except Exception as ex:
+            except (Exception, asyncio.CancelledError) as ex:
                 # If a user-defined `connect` function fails, we don't
                 # know if the connection is safe for re-use, hence
                 # we close it.  A new connection will be created
@@ -485,7 +485,7 @@ class AsyncIOPool:
             ch = await self._queue.get()  # type: PoolConnectionHolder
             try:
                 proxy = await ch.acquire()  # type: PoolConnectionProxy
-            except Exception:
+            except (Exception, asyncio.CancelledError):
                 self._queue.put_nowait(ch)
                 raise
             else:
@@ -564,7 +564,7 @@ class AsyncIOPool:
                 ch.close() for ch in self._holders]
             await asyncio.gather(*close_coros, loop=self._loop)
 
-        except Exception:
+        except (Exception, asyncio.CancelledError):
             self.terminate()
             raise
 

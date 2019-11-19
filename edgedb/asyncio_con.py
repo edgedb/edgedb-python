@@ -179,7 +179,7 @@ async def _connect_addr(*, addr, loop, timeout, params, config,
         if timeout <= 0:
             raise asyncio.TimeoutError
         await asyncio.wait_for(pr.connect(), timeout=timeout)
-    except Exception:
+    except (Exception, asyncio.CancelledError):
         tr.close()
         raise
 
