@@ -20,7 +20,6 @@
 import asyncio
 import inspect
 import random
-import textwrap
 
 import edgedb
 
@@ -369,48 +368,32 @@ class TestPool(tb.AsyncQueryTestCase):
     async def test_pool_handles_transaction_exit_in_asyncgen_1(self):
         pool = await self.create_pool(min_size=1, max_size=1)
 
-        locals_ = {}
-        exec(
-            textwrap.dedent(
-                """\
-            async def iterate(con):
-                async with con.transaction():
-                    for record in await con.fetchall("SELECT {1, 2, 3}"):
-                        yield record
-        """
-            ),
-            globals(),
-            locals_,
-        )
-        iterate = locals_["iterate"]
+        async def iterate(con):
+            async with con.transaction():
+                for record in await con.fetchall("SELECT {1, 2, 3}"):
+                    yield record
 
         class MyException(Exception):
             pass
 
         with self.assertRaises(MyException):
             async with pool.acquire() as con:
-                async for _ in iterate(con):  # noqa
-                    raise MyException()
+                agen = iterate(con)
+                try:
+                    async for _ in agen:  # noqa
+                        raise MyException()
+                finally:
+                    await agen.aclose()
 
         await pool.close()
 
     async def test_pool_handles_transaction_exit_in_asyncgen_2(self):
         pool = await self.create_pool(min_size=1, max_size=1)
 
-        locals_ = {}
-        exec(
-            textwrap.dedent(
-                """\
-            async def iterate(con):
-                async with con.transaction():
-                    for record in await con.fetchall("SELECT {1, 2, 3}"):
-                        yield record
-        """
-            ),
-            globals(),
-            locals_,
-        )
-        iterate = locals_["iterate"]
+        async def iterate(con):
+            async with con.transaction():
+                for record in await con.fetchall("SELECT {1, 2, 3}"):
+                    yield record
 
         class MyException(Exception):
             pass
@@ -418,8 +401,11 @@ class TestPool(tb.AsyncQueryTestCase):
         with self.assertRaises(MyException):
             async with pool.acquire() as con:
                 iterator = iterate(con)
-                async for _ in iterator:  # noqa
-                    raise MyException()
+                try:
+                    async for _ in iterator:  # noqa
+                        raise MyException()
+                finally:
+                    await iterator.aclose()
 
             del iterator
 
@@ -428,19 +414,9 @@ class TestPool(tb.AsyncQueryTestCase):
     async def test_pool_handles_asyncgen_finalization(self):
         pool = await self.create_pool(min_size=1, max_size=1)
 
-        locals_ = {}
-        exec(
-            textwrap.dedent(
-                """\
-            async def iterate(con):
-                for record in await con.fetchall("SELECT {1, 2, 3}"):
-                    yield record
-        """
-            ),
-            globals(),
-            locals_,
-        )
-        iterate = locals_["iterate"]
+        async def iterate(con):
+            for record in await con.fetchall("SELECT {1, 2, 3}"):
+                yield record
 
         class MyException(Exception):
             pass
@@ -448,8 +424,12 @@ class TestPool(tb.AsyncQueryTestCase):
         with self.assertRaises(MyException):
             async with pool.acquire() as con:
                 async with con.transaction():
-                    async for _ in iterate(con):  # noqa
-                        raise MyException()
+                    agen = iterate(con)
+                    try:
+                        async for _ in agen:  # noqa
+                            raise MyException()
+                    finally:
+                        await agen.aclose()
 
         await pool.close()
 
