@@ -314,6 +314,18 @@ cdef time_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
     pgproto.time_encode(settings, buf, obj)
 
 
+cdef date_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    # Python `datetime.date` object does not have `tzinfo` attribute
+    # not is timezone-aware.  But since we're accepting duck types here
+    # let's ensure it doesn't have tzinfo anyways.
+    if getattr(obj, 'tzinfo', None) is not None:
+        raise TypeError(
+            f'a naive time object (tzinfo is None) was expected, '
+            f'got {obj!r}')
+
+    pgproto.date_encode(settings, buf, obj)
+
+
 cdef timestamp_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
     if not cpython.datetime.PyDateTime_Check(obj):
         raise TypeError(
@@ -432,7 +444,7 @@ cdef register_base_scalar_codecs():
 
     register_base_scalar_codec(
         'std::local_date',
-        pgproto.date_encode,
+        date_encode,
         pgproto.date_decode)
 
     register_base_scalar_codec(
