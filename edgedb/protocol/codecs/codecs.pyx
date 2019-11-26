@@ -315,12 +315,12 @@ cdef time_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
 
 
 cdef date_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
-    # Python `datetime.date` object does not have `tzinfo` attribute
-    # not is timezone-aware.  But since we're accepting duck types here
+    # Python `datetime.date` object does not have a `tzinfo` attribute
+    # nor it is timezone-aware.  But since we're accepting duck types
     # let's ensure it doesn't have tzinfo anyways.
     if getattr(obj, 'tzinfo', None) is not None:
         raise TypeError(
-            f'a naive time object (tzinfo is None) was expected, '
+            f'a naive date object (tzinfo is None) was expected, '
             f'got {obj!r}')
 
     pgproto.date_encode(settings, buf, obj)
