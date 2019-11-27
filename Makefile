@@ -20,7 +20,6 @@ clean:
 	rm -fr $(ROOT)/edgedb/datatypes/*.so
 	rm -fr $(ROOT)/edgedb/datatypes/datatypes.c
 	rm -fr $(ROOT)/build
-	rm -fr $(ROOT)/*.egg-info
 	rm -fr $(ROOT)/edgedb/protocol/codecs/*.html
 	find . -name '__pycache__' | xargs rm -rf
 
