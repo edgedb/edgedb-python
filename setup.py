@@ -48,7 +48,7 @@ TEST_DEPENDENCIES = [
     # (example breakage: https://gitlab.com/pycqa/flake8/issues/427)
     'pycodestyle~=2.5.0',
     'flake8~=3.7.9',
-    'uvloop>=0.12.0rc1;platform_system!="Windows"',
+    'uvloop>=0.14.0;platform_system!="Windows"',
 ]
 
 # Dependencies required to build documentation.
