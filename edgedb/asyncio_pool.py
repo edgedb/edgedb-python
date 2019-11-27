@@ -266,7 +266,8 @@ class AsyncIOPool:
                  '_working_addr', '_working_config', '_working_params',
                  '_codecs_registry', '_query_cache',
                  '_holders', '_initialized', '_initializing', '_closing',
-                 '_closed', '_connection_class', '_generation')
+                 '_closed', '_connection_class', '_generation',
+                 '_on_acquire', '_on_release')
 
     def __init__(self, *connect_args,
                  min_size,
@@ -298,10 +299,13 @@ class AsyncIOPool:
         self._minsize = min_size
         self._maxsize = max_size
 
+        self._on_acquire = on_acquire
+        self._on_release = on_release
+
         self._holders = []
         self._initialized = False
         self._initializing = False
-        self._queue = asyncio.LifoQueue(maxsize=self._maxsize, loop=self._loop)
+        self._queue = None
 
         self._working_addr = None
         self._working_config = None
@@ -316,15 +320,6 @@ class AsyncIOPool:
         self._connect_args = connect_args
         self._connect_kwargs = connect_kwargs
 
-        for _ in range(max_size):
-            ch = PoolConnectionHolder(
-                self,
-                on_acquire=on_acquire,
-                on_release=on_release)
-
-            self._holders.append(ch)
-            self._queue.put_nowait(ch)
-
     async def _async__init__(self):
         if self._initialized:
             return
@@ -333,7 +328,19 @@ class AsyncIOPool:
                 'pool is being initialized in another task')
         if self._closed:
             raise errors.InterfaceError('pool is closed')
+
         self._initializing = True
+
+        self._queue = asyncio.LifoQueue(maxsize=self._maxsize)
+        for _ in range(self._maxsize):
+            ch = PoolConnectionHolder(
+                self,
+                on_acquire=self._on_acquire,
+                on_release=self._on_release)
+
+            self._holders.append(ch)
+            self._queue.put_nowait(ch)
+
         try:
             await self._initialize()
             return self
@@ -362,7 +369,7 @@ class AsyncIOPool:
                         break
                     connect_tasks.append(ch.connect())
 
-                await asyncio.gather(*connect_tasks, loop=self._loop)
+                await asyncio.gather(*connect_tasks)
 
     def set_connect_args(self, dsn=None, **connect_kwargs):
         r"""Set the new connection arguments for this pool.
@@ -502,7 +509,7 @@ class AsyncIOPool:
             return await _acquire_impl()
         else:
             return await asyncio.wait_for(
-                _acquire_impl(), timeout=timeout, loop=self._loop)
+                _acquire_impl(), timeout=timeout)
 
     async def release(self, connection):
         """Release a database connection back to the pool.
@@ -533,7 +540,7 @@ class AsyncIOPool:
         # Use asyncio.shield() to guarantee that task cancellation
         # does not prevent the connection from being returned to the
         # pool properly.
-        return await asyncio.shield(ch.release(timeout), loop=self._loop)
+        return await asyncio.shield(ch.release(timeout))
 
     async def close(self):
         """Attempt to gracefully close all connections in the pool.
@@ -558,11 +565,11 @@ class AsyncIOPool:
 
             release_coros = [
                 ch.wait_until_released() for ch in self._holders]
-            await asyncio.gather(*release_coros, loop=self._loop)
+            await asyncio.gather(*release_coros)
 
             close_coros = [
                 ch.close() for ch in self._holders]
-            await asyncio.gather(*close_coros, loop=self._loop)
+            await asyncio.gather(*close_coros)
 
         except (Exception, asyncio.CancelledError):
             self.terminate()

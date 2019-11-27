@@ -168,7 +168,7 @@ async def _connect_addr(*, addr, loop, timeout, params, config,
 
     try:
         tr, pr = await asyncio.wait_for(
-            connector, timeout=timeout, loop=loop)
+            connector, timeout=timeout)
     except (ConnectionError, FileNotFoundError, OSError) as e:
         msg = con_utils.render_client_no_connection_error(e, addr)
         raise errors.ClientConnectionError(msg) from e
