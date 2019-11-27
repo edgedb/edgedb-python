@@ -18,11 +18,15 @@
 
 
 import itertools
+import typing
 
 from . import errors
 
 from .protocol.protocol import CodecsRegistry as _CodecsRegistry
 from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
+
+
+BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
 
 
 class BaseConnection:
@@ -60,7 +64,7 @@ class BaseConnection:
     def _get_unique_id(self, prefix):
         return f'_edgedb_{prefix}_{_uid_counter():x}_'
 
-    def _get_last_status(self):
+    def _get_last_status(self) -> typing.Optional[str]:
         status = self._protocol.last_status
         if status is not None:
             status = status.decode()
@@ -69,7 +73,11 @@ class BaseConnection:
     def _cleanup(self):
         self._log_listeners.clear()
 
-    def add_log_listener(self, callback):
+    def add_log_listener(
+        self: BaseConnection_T,
+        callback: typing.Callable[[BaseConnection_T, errors.EdgeDBMessage],
+                                  None]
+    ) -> None:
         """Add a listener for EdgeDB log messages.
 
         :param callable callback:
@@ -81,25 +89,29 @@ class BaseConnection:
             raise errors.InterfaceError('connection is closed')
         self._log_listeners.add(callback)
 
-    def remove_log_listener(self, callback):
+    def remove_log_listener(
+        self: BaseConnection_T,
+        callback: typing.Callable[[BaseConnection_T, errors.EdgeDBMessage],
+                                  None]
+    ) -> None:
         """Remove a listening callback for log messages."""
         self._log_listeners.discard(callback)
 
     @property
-    def dbname(self):
+    def dbname(self) -> str:
         return self._params.database
 
-    def is_closed(self):
+    def is_closed(self) -> bool:
         raise NotImplementedError
 
-    def is_in_transaction(self):
+    def is_in_transaction(self) -> bool:
         """Return True if Connection is currently inside a transaction.
 
         :return bool: True if inside transaction, False otherwise.
         """
         return self._protocol.is_in_transaction()
 
-    def get_settings(self):
+    def get_settings(self) -> typing.Dict[str, str]:
         return self._protocol.get_settings()
 
 
