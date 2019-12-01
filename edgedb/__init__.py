@@ -110,6 +110,7 @@ from .errors import (
     QueryArgumentError,
     MissingArgumentError,
     UnknownArgumentError,
+    InvalidArgumentError,
     NoDataError,
 )
 # </ERRORS-AUTOGEN>

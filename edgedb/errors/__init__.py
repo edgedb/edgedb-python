@@ -85,6 +85,7 @@ __all__ = _base.__all__ + (
     'QueryArgumentError',
     'MissingArgumentError',
     'UnknownArgumentError',
+    'InvalidArgumentError',
     'NoDataError',
 )
 
@@ -375,6 +376,10 @@ class MissingArgumentError(QueryArgumentError):
 
 class UnknownArgumentError(QueryArgumentError):
     _code = 0x_FF_02_01_02
+
+
+class InvalidArgumentError(QueryArgumentError):
+    _code = 0x_FF_02_01_03
 
 
 class NoDataError(ClientError):

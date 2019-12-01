@@ -17,6 +17,9 @@
 #
 
 
+from edgedb import errors
+
+
 @cython.final
 cdef class NamedTupleCodec(BaseNamedRecordCodec):
 
@@ -83,9 +86,14 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
                 sub_codec = <BaseCodec>(self.fields_codecs[i])
                 try:
                     sub_codec.encode(elem_data, arg)
-                except TypeError as e:
-                    raise ValueError(
-                        f'cannot encode {name!r} argument') from None
+                except (TypeError, ValueError) as e:
+                    value_repr = repr(arg)
+                    if len(value_repr) > 40:
+                        value_repr = value_repr[:40] + '...'
+                    raise errors.InvalidArgumentError(
+                        'invalid input for query argument'
+                        ' ${n}: {v} ({msg})'.format(
+                            n=name, v=value_repr, msg=e)) from e
 
         buf.write_int32(4 + elem_data.len())  # buffer length
         buf.write_int32(<int32_t><uint32_t>objlen)

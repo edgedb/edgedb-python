@@ -53,3 +53,4 @@ if __name__ == '__main__':
 
     with open(init_fn, 'w') as f:
         f.write('\n'.join(lines))
+        f.write('\n')

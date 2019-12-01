@@ -17,6 +17,7 @@
 #
 
 
+import decimal
 import uuid
 
 
@@ -308,8 +309,7 @@ cdef register_base_scalar_codec(
 cdef time_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
     if getattr(obj, 'tzinfo', None) is not None:
         raise TypeError(
-            f'a naive time object (tzinfo is None) was expected, '
-            f'got {obj!r}')
+            f'a naive time object (tzinfo is None) was expected')
 
     pgproto.time_encode(settings, buf, obj)
 
@@ -320,8 +320,7 @@ cdef date_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
     # let's ensure it doesn't have tzinfo anyways.
     if getattr(obj, 'tzinfo', None) is not None:
         raise TypeError(
-            f'a naive date object (tzinfo is None) was expected, '
-            f'got {obj!r}')
+            f'a naive date object (tzinfo is None) was expected')
 
     pgproto.date_encode(settings, buf, obj)
 
@@ -333,8 +332,7 @@ cdef timestamp_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
 
     if getattr(obj, 'tzinfo', None) is not None:
         raise TypeError(
-            f'a naive datetime object (tzinfo is None) was expected, '
-            f'got {obj!r}')
+            f'a naive datetime object (tzinfo is None) was expected')
 
     pgproto.timestamp_encode(settings, buf, obj)
 
@@ -342,12 +340,12 @@ cdef timestamp_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
 cdef timestamptz_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
     if not cpython.datetime.PyDateTime_Check(obj):
         raise TypeError(
-            f'a datetime.datetime object was expected, got {obj!r}')
+            f'a datetime.datetime object was expected')
 
     if getattr(obj, 'tzinfo', None) is None:
         raise TypeError(
             f'a timezone-aware datetime object (tzinfo is not None) '
-            f'was expected, got {obj!r}')
+            f'was expected')
 
     pgproto.timestamptz_encode(settings, buf, obj)
 
@@ -359,7 +357,7 @@ cdef duration_encode(pgproto.CodecContext settings, WriteBuffer buf,
 
     if type(obj) is not datatypes.Duration:
         raise TypeError(
-            f'an edgedb.Duration object was expected, got {obj!r}')
+            f'an edgedb.Duration object was expected')
 
     dur = <datatypes.Duration>obj
     buf.write_int32(16)
@@ -379,6 +377,24 @@ cdef duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
     months = hton.unpack_int32(frb_read(buf, 4))
 
     return datatypes.new_duration(microseconds, days, months)
+
+
+cdef decimal_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    return pgproto.numeric_decode_binary_ex(settings, buf, True)
+
+
+cdef bigint_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    if type(obj) is not int and not isinstance(obj, int):
+        raise TypeError(
+            f'expected an int'
+        )
+
+    pgproto.numeric_encode_binary(settings, buf, obj)
+
+
+cdef bigint_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    dec = pgproto.numeric_decode_binary(settings, buf)
+    return int(dec)
 
 
 cdef register_base_scalar_codecs():
@@ -425,7 +441,12 @@ cdef register_base_scalar_codecs():
     register_base_scalar_codec(
         'std::decimal',
         pgproto.numeric_encode_binary,
-        pgproto.numeric_decode_binary)
+        decimal_decode)
+
+    register_base_scalar_codec(
+        'std::bigint',
+        bigint_encode,
+        bigint_decode)
 
     register_base_scalar_codec(
         'std::bool',

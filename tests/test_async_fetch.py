@@ -19,6 +19,7 @@
 
 import asyncio
 import datetime
+import decimal
 import json
 import uuid
 
@@ -453,31 +454,31 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 naive_time),
             naive_time)
 
-        with self.assertRaisesRegex(ValueError,
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'a timezone-aware.*expected'):
             await self.con.fetchone(
                 'select <datetime>$0;',
                 naive_datetime)
 
-        with self.assertRaisesRegex(ValueError,
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'a naive time object.*expected'):
             await self.con.fetchone(
                 'select <local_time>$0;',
                 aware_time)
 
-        with self.assertRaisesRegex(ValueError,
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'a naive datetime object.*expected'):
             await self.con.fetchone(
                 'select <local_datetime>$0;',
                 aware_datetime)
 
-        with self.assertRaisesRegex(ValueError,
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'datetime.datetime object was expected'):
             await self.con.fetchone(
                 'select <local_datetime>$0;',
                 date)
 
-        with self.assertRaisesRegex(ValueError,
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'datetime.datetime object was expected'):
             await self.con.fetchone(
                 'select <datetime>$0;',
@@ -506,11 +507,63 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
             id=uuid.UUID(bytes=obj.id.bytes))
         self.assertEqual(obj, ot)
 
-        with self.assertRaisesRegex(ValueError,
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'invalid UUID.*length must be'):
             await self.con.fetchall(
                 'select schema::Object {name} filter .id=<uuid>$id',
                 id='asdasas')
+
+    async def test_async_args_bigint_pack(self):
+        val = await self.con.fetchone(
+            'select <bigint>$arg',
+            arg=10)
+        self.assertEqual(val, 10)
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected an int'):
+            await self.con.fetchall(
+                'select <bigint>$arg',
+                arg='bad int')
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected an int'):
+            await self.con.fetchall(
+                'select <bigint>$arg',
+                arg=10.11)
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected an int'):
+            await self.con.fetchall(
+                'select <bigint>$arg',
+                arg=decimal.Decimal('10.0'))
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected an int'):
+            await self.con.fetchall(
+                'select <bigint>$arg',
+                arg=decimal.Decimal('10.11'))
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected an int'):
+            await self.con.fetchall(
+                'select <bigint>$arg',
+                arg='10')
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected an int'):
+            await self.con.fetchone(
+                'select <bigint>$arg',
+                arg=decimal.Decimal('10'))
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected an int'):
+            class IntLike:
+                def __int__(self):
+                    return 10
+
+            await self.con.fetchone(
+                'select <bigint>$arg',
+                arg=IntLike())
 
     async def test_async_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
