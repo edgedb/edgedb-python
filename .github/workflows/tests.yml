@@ -8,6 +8,12 @@ on:
   pull_request:
     branches:
       - master
+    # Coordinate with the release workflow.
+    # If this is a release PR, we don't need to run the normal
+    # test workflow, as the tests would be run as part of the
+    # wheel build process.
+    paths:
+      - "!edgedb/_version.py"
 
 jobs:
   test:

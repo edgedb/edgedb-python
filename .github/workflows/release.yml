@@ -137,6 +137,7 @@ jobs:
 
     - name: Upload to PyPI
       uses: pypa/gh-action-pypi-publish@master
+      continue-on-error: true
       with:
         user: __token__
         password: ${{ secrets.PYPI_TOKEN }}
