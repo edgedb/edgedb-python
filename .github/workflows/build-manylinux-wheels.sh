@@ -5,7 +5,10 @@ set -e -x
 PY_MAJOR=${PYTHON_VERSION%%.*}
 PY_MINOR=${PYTHON_VERSION#*.}
 
-ML_PYTHON_VERSION="cp${PY_MAJOR}${PY_MINOR}-cp${PY_MAJOR}${PY_MINOR}m"
+ML_PYTHON_VERSION="cp${PY_MAJOR}${PY_MINOR}-cp${PY_MAJOR}${PY_MINOR}"
+if [ "${PY_MAJOR}" -lt "4" -a "${PY_MINOR}" -lt "8" ]; then
+    ML_PYTHON_VERSION+="m"
+fi
 
 # Compile wheels
 PYTHON="/opt/python/${ML_PYTHON_VERSION}/bin/python"
