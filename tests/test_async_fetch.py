@@ -21,6 +21,7 @@ import asyncio
 import datetime
 import decimal
 import json
+import unittest
 import uuid
 
 import edgedb
@@ -513,6 +514,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 'select schema::Object {name} filter .id=<uuid>$id',
                 id='asdasas')
 
+    @unittest.expectedFailure
     async def test_async_args_bigint_pack(self):
         val = await self.con.fetchone(
             'select <bigint>$arg',
