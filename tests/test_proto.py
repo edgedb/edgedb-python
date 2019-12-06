@@ -35,8 +35,10 @@ class TestProto(tb.SyncQueryTestCase):
                 # we know that the codec will fail.
                 # The test will be rewritten once it's possible to override
                 # default codecs.
-                self.con.fetchall(
-                    "SELECT to_local_date('0001-01-01 BC', 'YYYY-MM-DD AD');")
+                self.con.fetchall("""
+                    SELECT
+                        cal::to_local_date('0001-01-01 BC', 'YYYY-MM-DD AD');
+                """)
 
             # The protocol, though, shouldn't be in some inconsistent
             # state; it should allow new queries to execute successfully.
@@ -54,7 +56,7 @@ class TestProto(tb.SyncQueryTestCase):
                 # The test will be rewritten once it's possible to override
                 # default codecs.
                 self.con.fetchall(r"""
-                    SELECT to_local_date(
+                    SELECT cal::to_local_date(
                         {
                             '2010-01-01 AD',
                             '2010-01-02 AD',
