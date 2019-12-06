@@ -439,19 +439,19 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         self.assertEqual(
             await self.con.fetchone(
-                'select <local_datetime>$0;',
+                'select <cal::local_datetime>$0;',
                 naive_datetime),
             naive_datetime)
 
         self.assertEqual(
             await self.con.fetchone(
-                'select <local_date>$0;',
+                'select <cal::local_date>$0;',
                 date),
             date)
 
         self.assertEqual(
             await self.con.fetchone(
-                'select <local_time>$0;',
+                'select <cal::local_time>$0;',
                 naive_time),
             naive_time)
 
@@ -464,19 +464,19 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'a naive time object.*expected'):
             await self.con.fetchone(
-                'select <local_time>$0;',
+                'select <cal::local_time>$0;',
                 aware_time)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'a naive datetime object.*expected'):
             await self.con.fetchone(
-                'select <local_datetime>$0;',
+                'select <cal::local_datetime>$0;',
                 aware_datetime)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'datetime.datetime object was expected'):
             await self.con.fetchone(
-                'select <local_datetime>$0;',
+                'select <cal::local_datetime>$0;',
                 date)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
