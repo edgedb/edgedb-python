@@ -28,4 +28,4 @@
 # supported platforms, publish the packages on PyPI, merge the PR
 # to the target branch, create a Git tag pointing to the commit.
 
-__version__ = '0.7.0a2'
+__version__ = '0.7.0a3.dev0'
