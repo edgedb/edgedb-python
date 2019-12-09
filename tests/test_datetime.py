@@ -18,9 +18,11 @@
 
 
 import random
+import unittest
+from datetime import timedelta
 
-import edgedb
 from edgedb import _testbase as tb
+from edgedb.datatypes.datatypes import RelativeDelta
 
 
 class TestDatetimeTypes(tb.SyncQueryTestCase):
@@ -35,6 +37,40 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
             dict(microseconds=-1),
             dict(days=1),
             dict(days=-1),
+            dict(hours=1),
+            dict(seconds=-1),
+            dict(microseconds=1, days=1, hours=1),
+            dict(microseconds=-1, days=-1, hours=-1),
+        ]
+
+        # Fuzz it!
+        for _ in range(5000):
+            duration_kwargs.append(
+                dict(
+                    microseconds=random.randint(-1000000000, 1000000000),
+                    hours=random.randint(-50, 50),
+                    days=random.randint(-500, 500),
+                )
+            )
+
+        durs = [timedelta(**d) for d in duration_kwargs]
+
+        # Test encode/decode roundtrip
+        durs_from_db = self.con.fetchall('''
+            WITH args := array_unpack(<array<duration>>$0)
+            SELECT args;
+        ''', durs)
+        self.assertEqual(list(durs_from_db), durs)
+
+    @unittest.expectedFailure  # no relative delta in edgedb yet
+    async def test_relative_delta_01(self):
+
+        delta_kwargs = [
+            dict(),
+            dict(microseconds=1),
+            dict(microseconds=-1),
+            dict(days=1),
+            dict(days=-1),
             dict(months=1),
             dict(months=-1),
             dict(microseconds=1, days=1, months=1),
@@ -43,7 +79,7 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
 
         # Fuzz it!
         for _ in range(5000):
-            duration_kwargs.append(
+            delta_kwargs.append(
                 dict(
                     microseconds=random.randint(-1000000000, 1000000000),
                     days=random.randint(-500, 500),
@@ -51,27 +87,28 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
                 )
             )
 
-        durs = [edgedb.Duration(**d) for d in duration_kwargs]
+        durs = [RelativeDelta(**d) for d in delta_kwargs]
 
-        # Test that Duration.__str__ formats the same as <str><duration>
+        # Test that RelativeDelta.__str__ formats the
+        # same as <str><cal::relativedelta>
         durs_as_text = self.con.fetchall('''
-            WITH args := array_unpack(<array<duration>>$0)
+            WITH args := array_unpack(<array<cal::relativedelta>>$0)
             SELECT <str>args;
         ''', durs)
 
         # Test encode/decode roundtrip
         durs_from_db = self.con.fetchall('''
-            WITH args := array_unpack(<array<duration>>$0)
+            WITH args := array_unpack(<array<cal::relativedelta>>$0)
             SELECT args;
         ''', durs)
 
         self.assertEqual(durs_as_text, [str(d) for d in durs])
         self.assertEqual(list(durs_from_db), durs)
 
-    async def test_duration_02(self):
-        d1 = edgedb.Duration(microseconds=1)
-        d2 = edgedb.Duration(microseconds=2)
-        d3 = edgedb.Duration(microseconds=1)
+    async def test_relativedelta_02(self):
+        d1 = RelativeDelta(microseconds=1)
+        d2 = RelativeDelta(microseconds=2)
+        d3 = RelativeDelta(microseconds=1)
 
         self.assertNotEqual(d1, d2)
         self.assertEqual(d1, d3)
@@ -84,4 +121,4 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         self.assertEqual(d1.months, 0)
         self.assertEqual(d1.microseconds, 1)
 
-        self.assertEqual(repr(d1), '<edgedb.Duration "00:00:00.000001">')
+        self.assertEqual(repr(d1), '<edgedb.RelativeDelta "00:00:00.000001">')

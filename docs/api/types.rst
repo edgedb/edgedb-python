@@ -42,7 +42,8 @@ The table below shows the correspondence between EdgeDB and Python types.
 | ``datetime``         | offset-aware :py:class:`datetime.datetime \         |
 |                      | <python:datetime.datetime>`                         |
 +----------------------+-----------------------------------------------------+
-| ``duration``         | :py:class:`edgedb.Duration`                         |
+| ``duration``         | :py:class:`datetime.timedelta \                     |
+|                      | <python:datetime.timedelta>`                        |
 +----------------------+-----------------------------------------------------+
 | ``float32``,         | :py:class:`float <python:float>`                    |
 | ``float64``          |                                                     |
@@ -241,23 +242,3 @@ Arrays
         2
         >>> r == [1, 2, 3]
         True
-
-
-Duration
-========
-
-.. py:class:: Duration(*, months, days, microseconds)
-
-    A Python representation of an EdgeDB ``duration`` value.
-
-    .. py:attribute:: months
-
-        The number of months in the duration.
-
-    .. py:attribute:: days
-
-        The number of days in the duration.
-
-    .. py:attribute:: microseconds
-
-        The number of microseconds in the duration.
