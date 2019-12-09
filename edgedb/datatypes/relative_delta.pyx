@@ -28,7 +28,7 @@ DEF MAX_INTERVAL_PRECISION  = 6
 
 
 @cython.final
-cdef class Duration:
+cdef class RelativeDelta:
 
     def __init__(self, *, int64_t microseconds=0,
                  int32_t days=0, int32_t months=0):
@@ -37,20 +37,20 @@ cdef class Duration:
         self.months = months
 
     def __eq__(self, other):
-        if type(other) is not Duration:
+        if type(other) is not RelativeDelta:
             return NotImplemented
 
         return (
-            self.microseconds == (<Duration>other).microseconds and
-            self.days == (<Duration>other).days and
-            self.months == (<Duration>other).months
+            self.microseconds == (<RelativeDelta>other).microseconds and
+            self.days == (<RelativeDelta>other).days and
+            self.months == (<RelativeDelta>other).months
         )
 
     def __hash__(self):
-        return hash((Duration, self.microseconds, self.days, self.months))
+        return hash((RelativeDelta, self.microseconds, self.days, self.months))
 
     def __repr__(self):
-        return f'<edgedb.Duration "{self}">'
+        return f'<edgedb.RelativeDelta "{self}">'
 
     @cython.cdivision(True)
     def __str__(self):
@@ -127,7 +127,7 @@ cdef class Duration:
 
 
 cdef new_duration(int64_t microseconds, int32_t days, int32_t months):
-    cdef Duration dur = Duration.__new__(Duration)
+    cdef RelativeDelta dur = RelativeDelta.__new__(RelativeDelta)
 
     dur.microseconds = microseconds
     dur.days = days

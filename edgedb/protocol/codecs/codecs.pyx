@@ -19,6 +19,7 @@
 
 import decimal
 import uuid
+import datetime
 
 
 include "./edb_types.pxi"
@@ -353,17 +354,12 @@ cdef timestamptz_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
 cdef duration_encode(pgproto.CodecContext settings, WriteBuffer buf,
                      object obj):
 
-    cdef datatypes.Duration dur
+    cdef microseconds = obj / datetime.timedelta(microseconds=1)
 
-    if type(obj) is not datatypes.Duration:
-        raise TypeError(
-            f'an edgedb.Duration object was expected')
-
-    dur = <datatypes.Duration>obj
     buf.write_int32(16)
-    buf.write_int64(dur.microseconds)
-    buf.write_int32(dur.days)
-    buf.write_int32(dur.months)
+    buf.write_int64(microseconds)
+    buf.write_int32(0)
+    buf.write_int32(0)
 
 
 cdef duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
@@ -375,8 +371,10 @@ cdef duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
     microseconds = hton.unpack_int64(frb_read(buf, 8))
     days = hton.unpack_int32(frb_read(buf, 4))
     months = hton.unpack_int32(frb_read(buf, 4))
+    if days != 0 or months != 0:
+        raise RuntimeError(f'non-zero reserved bytes in duration')
 
-    return datatypes.new_duration(microseconds, days, months)
+    return datetime.timedelta(microseconds=microseconds)
 
 
 cdef decimal_decode(pgproto.CodecContext settings, FRBuffer *buf):

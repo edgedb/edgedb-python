@@ -21,7 +21,7 @@ from libc.stdint cimport int64_t, int32_t
 
 
 @cython.final
-cdef class Duration:
+cdef class RelativeDelta:
 
     cdef:
         readonly int64_t microseconds
