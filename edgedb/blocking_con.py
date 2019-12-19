@@ -28,9 +28,31 @@ from . import transaction
 
 from .datatypes import datatypes
 from .protocol import blocking_proto
+from .protocol import dstructs
 
 
 class BlockingIOConnection(base_con.BaseConnection):
+
+    def _dump(
+        self,
+        *,
+        on_data: typing.Callable[[dstructs.DumpDataBlock], None],
+    ) -> dstructs.DumpDesc:
+        # Private API: do not use.
+        return self._protocol.sync_dump(data_callback=on_data)
+
+    def _restore(
+        self,
+        *,
+        schema: bytes,
+        blocks: typing.Tuple[bytes, bytes],
+        data_gen: typing.Iterable[typing.Tuple[bytes, bytes]],
+    ) -> None:
+        self._protocol.sync_restore(
+            schema=schema,
+            blocks=blocks,
+            data_gen=data_gen
+        )
 
     def _dispatch_log_message(self, msg):
         for cb in self._log_listeners:

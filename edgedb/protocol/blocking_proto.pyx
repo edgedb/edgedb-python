@@ -75,3 +75,20 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
 
     def sync_simple_query(self, *args, **kwargs):
         return self._iter_coroutine(self.simple_query(*args, **kwargs))
+
+    def sync_dump(self, *, data_callback):
+        async def wrapper(data):
+            data_callback(data)
+        return self._iter_coroutine(self.dump(wrapper))
+
+    def sync_restore(self, *, schema, blocks, data_gen):
+        async def wrapper():
+            while True:
+                try:
+                    block = next(data_gen)
+                except StopIteration:
+                    return
+                yield block
+
+        return self._iter_coroutine(self.restore(
+            schema, blocks, wrapper()))

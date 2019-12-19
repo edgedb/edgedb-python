@@ -56,6 +56,8 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 from edgedb.datatypes cimport datatypes
 from . cimport cpythonx
 
+from . import dstructs
+
 from edgedb import errors
 from edgedb import scram
 
@@ -514,6 +516,203 @@ cdef class SansIOProtocol:
                     return '[]'
                 else:
                     return ret
+
+    async def dump(self, data_callback):
+        cdef:
+            WriteBuffer buf
+            char mtype
+
+        if not self.connected:
+            raise RuntimeError('not connected')
+
+        self.reset_status()
+
+        buf = WriteBuffer.new_message(DUMP_MSG)
+        buf.write_int16(0)  # no headers
+        buf.end_message()
+
+        packet = WriteBuffer.new()
+        packet.write_buffer(buf)
+        packet.write_bytes(SYNC_MESSAGE)
+        self.write(packet)
+
+        exc = None
+        result = None
+
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            try:
+                if mtype == DUMP_BLOCK_MSG:
+                    self.reject_headers()
+
+                    block_id = self.buffer.read_uuid()
+                    block_num = <uint64_t>self.buffer.read_int64()
+                    block_data = self.buffer.consume_message()
+
+                    await data_callback(
+                        dstructs.DumpDataBlock(
+                            schema_object_id=block_id,
+                            number=block_num,
+                            data=block_data,
+                        )
+                    )
+
+                elif mtype == DUMP_COMPLETE_MSG:
+                    self.reject_headers()
+
+                    server_version = self.buffer.read_len_prefixed_bytes()
+                    server_ts = self.buffer.read_int64()
+                    schema = self.buffer.read_len_prefixed_bytes()
+
+                    num_blocks = <uint32_t>self.buffer.read_int32()
+                    blocks = []
+                    for i in range(num_blocks):
+                        self.reject_headers()
+
+                        block_id = self.buffer.read_uuid()
+                        num_deps = <uint16_t>self.buffer.read_int16()
+                        block_deps = []
+                        for j in range(num_deps):
+                            block_deps.append(self.buffer.read_uuid())
+
+                        block_td = self.buffer.read_len_prefixed_bytes()
+                        block_count = <uint64_t>self.buffer.read_int64()
+                        block_size = <uint64_t>self.buffer.read_int64()
+
+                        blocks.append(
+                            dstructs.DumpBlock(
+                                schema_object_id=block_id,
+                                schema_deps=block_deps,
+                                type_desc=block_td,
+                                data_blocks_count=block_count,
+                                data_size=block_size,
+                            )
+                        )
+
+                    result = dstructs.DumpDesc(
+                        schema=schema,
+                        server_version=server_version,
+                        server_ts=server_ts,
+                        blocks=blocks,
+                    )
+
+                elif mtype == ERROR_RESPONSE_MSG:
+                    # ErrorResponse
+                    exc = self.parse_error_message()
+
+                elif mtype == READY_FOR_COMMAND_MSG:
+                    self.parse_sync_message()
+                    break
+
+                else:
+                    self.fallthrough()
+
+            finally:
+                self.buffer.finish_message()
+
+        if exc is not None:
+            raise exc
+
+        if result is None:
+            raise RuntimeError('DumpCompleteMessage was not received')
+
+        return result
+
+    async def _sync(self):
+        cdef char mtype
+        self.write(WriteBuffer.new_message(SYNC_MSG).end_message())
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            if mtype == READY_FOR_COMMAND_MSG:
+                self.parse_sync_message()
+                break
+            else:
+                self.fallthrough()
+
+    async def restore(self, schema, blocks, data_gen):
+        cdef:
+            WriteBuffer buf
+            char mtype
+
+        if not self.connected:
+            raise RuntimeError('not connected')
+
+        self.reset_status()
+
+        buf = WriteBuffer.new_message(RESTORE_MSG)
+        buf.write_int16(0)  # no headers
+        buf.write_len_prefixed_bytes(schema)
+        buf.write_int16(1)  # -j level
+
+        buf.write_int32(len(blocks))
+        for block_object_schema_id, block_typedesc in blocks:
+
+            buf.write_bytes(block_object_schema_id)
+            buf.write_len_prefixed_bytes(block_typedesc)
+
+        buf.end_message()
+        self.write(buf)
+
+        exc = None
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            try:
+                if mtype == RESTORE_READY_MSG:
+                    self.reject_headers()
+                    self.buffer.read_int16()  # discard -j level
+                    break
+                elif mtype == ERROR_RESPONSE_MSG:
+                    exc = self.parse_error_message()
+                    break
+                else:
+                    self.fallthrough()
+            finally:
+                self.buffer.finish_message()
+
+        if exc is not None:
+            await self._sync()
+            raise exc
+
+        async for (schema_object_id, data) in data_gen:
+            buf = WriteBuffer.new_message(DUMP_BLOCK_MSG)
+            buf.write_int16(0)  # no headers
+            buf.write_bytes(schema_object_id)
+            buf.write_bytes(data)
+            self.write(buf.end_message())
+
+        # TODO: flow-control is missing here. For now this is fine
+        # since this method is only called on a blocking connection.
+        self.write(WriteBuffer.new_message(RESTORE_EOF_MSG).end_message())
+
+        exc = None
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            try:
+                if mtype == COMMAND_COMPLETE_MSG:
+                    break
+                elif mtype == ERROR_RESPONSE_MSG:
+                    exc = self.parse_error_message()
+                    break
+                else:
+                    self.fallthrough()
+            finally:
+                self.buffer.finish_message()
+
+        if exc is not None:
+            await self._sync()
+            raise exc
 
     def terminate(self):
         try:
