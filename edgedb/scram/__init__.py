@@ -38,8 +38,8 @@ def generate_salt(length: int = DEFAULT_SALT_LENGTH) -> bytes:
     return os.urandom(length)
 
 
-def generate_nonce(length: int = RAW_NONCE_LENGTH) -> bytes:
-    return os.urandom(length)
+def generate_nonce(length: int = RAW_NONCE_LENGTH) -> str:
+    return B64(os.urandom(length))
 
 
 def build_verifier(password: str, *, salt: typing.Optional[bytes] = None,
@@ -187,8 +187,10 @@ def parse_client_first_message(resp: bytes):
     if nonce_attr[0:1] != b'r':
         raise ValueError('malformed SCRAM message')
 
-    _, _, nonce_b64 = nonce_attr.partition(b'=')
-    nonce = base64.b64decode(nonce_b64)
+    _, _, nonce_bin = nonce_attr.partition(b'=')
+    nonce = nonce_bin.decode('ascii')
+    if not nonce.isprintable():
+        raise ValueError('invalid characters in client nonce')
 
     # ["," extensions] are ignored
 
@@ -196,7 +198,7 @@ def parse_client_first_message(resp: bytes):
 
 
 def parse_client_final_message(
-        msg: bytes, client_nonce: bytes, server_nonce: bytes):
+        msg: bytes, client_nonce: str, server_nonce: str):
 
     # Relevant bits of RFC 5802:
     #
@@ -236,11 +238,12 @@ def parse_client_final_message(
     if nonce_attr[0:1] != b'r':
         raise ValueError('malformed SCRAM message')
 
-    _, _, nonce_b64 = nonce_attr.partition(b'=')
+    _, _, nonce_bin = nonce_attr.partition(b'=')
+    nonce = nonce_bin.decode('ascii')
 
-    expected_nonce = f'{B64(client_nonce)}{B64(server_nonce)}'
+    expected_nonce = f'{client_nonce}{server_nonce}'
 
-    if nonce_b64 != expected_nonce.encode('utf-8'):
+    if nonce != expected_nonce:
         raise ValueError(
             'invalid SCRAM client-final message: nonce does not match')
 
@@ -260,17 +263,17 @@ def parse_client_final_message(
     return cb_data, proof, proof_attr_len + 1
 
 
-def build_client_first_message(client_nonce: bytes, username: str) -> str:
+def build_client_first_message(client_nonce: str, username: str) -> str:
 
-    bare = f'n={saslprep(username)},r={B64(client_nonce)}'
+    bare = f'n={saslprep(username)},r={client_nonce}'
     return f'n,,{bare}', bare
 
 
-def build_server_first_message(server_nonce: bytes, client_nonce: bytes,
+def build_server_first_message(server_nonce: str, client_nonce: str,
                                salt: bytes, iterations: int) -> str:
 
     return (
-        f'r={B64(client_nonce)}{B64(server_nonce)},'
+        f'r={client_nonce}{server_nonce},'
         f's={B64(salt)},i={iterations}'
     )
 
@@ -288,9 +291,9 @@ def build_client_final_message(
         iterations: int,
         client_first_bare: bytes,
         server_first: bytes,
-        server_nonce: bytes) -> str:
+        server_nonce: str) -> str:
 
-    client_final = f'c=biws,r={B64(server_nonce)}'
+    client_final = f'c=biws,r={server_nonce}'
 
     AuthMessage = build_auth_message(
         client_first_bare, server_first, client_final.encode('utf-8'))
@@ -329,8 +332,10 @@ def parse_server_first_message(msg: bytes):
     if nonce_attr[0:1] != b'r':
         raise ValueError('malformed SCRAM message')
 
-    _, _, nonce_b64 = nonce_attr.partition(b'=')
-    nonce = base64.b64decode(nonce_b64)
+    _, _, nonce_bin = nonce_attr.partition(b'=')
+    nonce = nonce_bin.decode('ascii')
+    if not nonce.isprintable():
+        raise ValueError('malformed SCRAM message')
 
     salt_attr = attrs[1]
     if salt_attr[0:1] != b's':
