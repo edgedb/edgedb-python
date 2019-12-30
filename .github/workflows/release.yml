@@ -19,6 +19,8 @@ jobs:
       with:
         github_token: ${{ secrets.GITHUB_ALT_TOKEN }}
         version_file: edgedb/_version.py
+        version_line_pattern: |
+          __version__\s*=\s*(?:['"])([[:PEP440:]])(?:['"])
 
     - name: Stop if not approved
       if: steps.checkver.outputs.approved != 'true'
@@ -124,6 +126,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v1
+      with:
+        fetch-depth: 5
+        submodules: false
+
     - uses: actions/download-artifact@v1
       with:
         name: dist
@@ -135,11 +142,6 @@ jobs:
         set -e
         echo ::set-output name=version::$(cat dist/VERSION)
         rm dist/VERSION
-
-    - uses: actions/checkout@v1
-      with:
-        fetch-depth: 5
-        submodules: false
 
     - name: Merge and tag the PR
       uses: edgedb/action-release/merge@master
@@ -161,10 +163,13 @@ jobs:
         body: ${{ github.event.pull_request.body }}
         draft: true
 
+    - run: |
+        ls -al dist/
+
     - name: Upload to PyPI
       uses: pypa/gh-action-pypi-publish@master
       with:
         user: __token__
-        password: ${{ secrets.PYPI_TOKEN }}
-        # password: ${{ secrets.TEST_PYPI_TOKEN }}
-        # repository_url: https://test.pypi.org/legacy/
+        # password: ${{ secrets.PYPI_TOKEN }}
+        password: ${{ secrets.TEST_PYPI_TOKEN }}
+        repository_url: https://test.pypi.org/legacy/
