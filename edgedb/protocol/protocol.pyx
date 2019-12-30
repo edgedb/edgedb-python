@@ -832,7 +832,7 @@ cdef class SansIOProtocol:
         client_first, client_first_bare = scram.build_client_first_message(
             client_nonce, self.con_params.user)
 
-        msg_buf = WriteBuffer.new_message(AUTH_RESPONSE_MSG)
+        msg_buf = WriteBuffer.new_message(AUTH_INITIAL_RESPONSE_MSG)
         msg_buf.write_len_prefixed_bytes(b'SCRAM-SHA-256')
         msg_buf.write_len_prefixed_utf8(client_first)
         msg_buf.end_message()
