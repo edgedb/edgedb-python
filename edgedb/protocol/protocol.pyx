@@ -735,8 +735,8 @@ cdef class SansIOProtocol:
 
         # protocol version
         handshake_buf = WriteBuffer.new_message(CLIENT_HANDSHAKE_MSG)
-        handshake_buf.write_int16(1)
-        handshake_buf.write_int16(0)
+        handshake_buf.write_int16(PROTO_VER_MAJOR)
+        handshake_buf.write_int16(PROTO_VER_MINOR)
 
         # params
         params = {
@@ -762,15 +762,15 @@ cdef class SansIOProtocol:
             if mtype == SERVER_HANDSHAKE_MSG:
                 # Server responded with ServerHandshake, this
                 # means protocol negotiation.
-                hi = self.buffer.read_int16()
-                lo = self.buffer.read_int16()
+                major = self.buffer.read_int16()
+                minor = self.buffer.read_int16()
                 self.parse_headers()
                 self.buffer.finish_message()
 
-                if hi != 1 or lo != 0:
+                if major != PROTO_VER_MAJOR or minor != PROTO_VER_MINOR:
                     raise errors.ClientConnectionError(
                         f'the server requested an unsupported version of '
-                        f'the protocol: {hi}.{lo}'
+                        f'the protocol: {major}.{minor}'
                     )
 
             elif mtype == AUTH_REQUEST_MSG:
