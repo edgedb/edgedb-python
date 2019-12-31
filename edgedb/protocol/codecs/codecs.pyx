@@ -140,7 +140,7 @@ cdef class CodecsRegistry:
 
             elif (t >= 0xf0 and t <= 0xff):
                 # Ignore all type annotations.
-                str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                str_len = <uint32_t>hton.unpack_uint32(frb_read(spec, 4))
                 frb_read(spec, str_len)
 
             else:
@@ -162,7 +162,7 @@ cdef class CodecsRegistry:
             for i in range(els):
                 flag = <uint8_t>frb_read(spec, 1)[0]
 
-                str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                str_len = <uint32_t>hton.unpack_uint32(frb_read(spec, 4))
                 name = cpythonx.PyUnicode_FromStringAndSize(
                     frb_read(spec, str_len), str_len)
                 pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
@@ -211,7 +211,7 @@ cdef class CodecsRegistry:
             codecs = cpython.PyTuple_New(els)
             names = cpython.PyTuple_New(els)
             for i in range(els):
-                str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                str_len = <uint32_t>hton.unpack_uint32(frb_read(spec, 4))
                 name = cpythonx.PyUnicode_FromStringAndSize(
                     frb_read(spec, str_len), str_len)
                 pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
@@ -229,7 +229,7 @@ cdef class CodecsRegistry:
             els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             names = cpython.PyTuple_New(els)
             for i in range(els):
-                str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                str_len = <uint32_t>hton.unpack_uint32(frb_read(spec, 4))
                 name = cpythonx.PyUnicode_FromStringAndSize(
                     frb_read(spec, str_len), str_len)
 
@@ -251,7 +251,7 @@ cdef class CodecsRegistry:
 
         elif (t >= 0xf0 and t <= 0xff):
             # Ignore all type annotations.
-            str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            str_len = <uint32_t>hton.unpack_uint32(frb_read(spec, 4))
             frb_read(spec, str_len)
             return
 
