@@ -84,7 +84,7 @@ cdef class CodecsRegistry:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
                 for i in range(els):
                     frb_read(spec, 1)
-                    str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                    str_len = <uint32_t>hton.unpack_uint32(frb_read(spec, 4))
                     # read the <str> (`str_len` bytes) and <pos> (2 bytes)
                     frb_read(spec, str_len + 2)
 
@@ -103,7 +103,7 @@ cdef class CodecsRegistry:
             elif t == CTYPE_NAMEDTUPLE:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
                 for i in range(els):
-                    str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                    str_len = <uint32_t>hton.unpack_uint32(frb_read(spec, 4))
                     frb_read(spec, str_len + 2)
 
             elif t == CTYPE_ARRAY:
@@ -118,7 +118,7 @@ cdef class CodecsRegistry:
             elif t == CTYPE_ENUM:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
                 for i in range(els):
-                    str_len = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                    str_len = <uint32_t>hton.unpack_uint32(frb_read(spec, 4))
                     frb_read(spec, str_len)
 
             elif (t >= 0xf0 and t <= 0xff):
