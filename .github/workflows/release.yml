@@ -111,7 +111,9 @@ jobs:
         python setup.py bdist_wheel
 
     - name: Test Wheels
-      if: "!startsWith(matrix.os, 'windows')"
+      if: |
+        !startsWith(matrix.os, 'windows')
+        && !contains(github.event.pull_request.labels.*.name, 'skip wheel tests')
       run: |
         pip install --pre edgedb[test] -f "file:///${GITHUB_WORKSPACE}/dist"
         make -C "${GITHUB_WORKSPACE}" testinstalled
