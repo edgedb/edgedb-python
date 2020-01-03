@@ -80,7 +80,7 @@ cdef class CodecsRegistry:
             bytes tid = frb_read(spec, 16)[:16]
             uint16_t els
             uint16_t i
-            uint16_t str_len
+            uint32_t str_len
             uint16_t pos
             int32_t dim_len
             BaseCodec res
