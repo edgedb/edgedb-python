@@ -99,6 +99,7 @@ cdef class SansIOProtocol:
 
     cdef inline reject_headers(self)
     cdef dict parse_headers(self)
+    cdef write_headers(self, WriteBuffer buf, dict headers)
 
     cdef parse_error_message(self)
 
