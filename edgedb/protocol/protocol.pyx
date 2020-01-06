@@ -134,8 +134,21 @@ cdef class SansIOProtocol:
         if nheaders != 0:
             raise errors.BinaryProtocolError('unexpected headers')
 
-    async def _parse(self, CodecsRegistry reg, str query, bint json_mode,
-                     bint expect_one):
+    cdef write_headers(self, buf: WriteBuffer, headers: dict):
+        buf.write_int16(len(headers))
+        for k, v in headers.items():
+            buf.write_int16(<int16_t><uint16_t>k)
+            buf.write_len_prefixed_utf8(str(v))
+
+    async def _parse(
+        self,
+        query: str,
+        *,
+        reg: CodecsRegistry,
+        json_mode: bint=False,
+        expect_one: bint=False,
+        implicit_limit: int=0,
+    ):
         cdef:
             WriteBuffer buf
             char mtype
@@ -150,7 +163,13 @@ cdef class SansIOProtocol:
             raise RuntimeError('not connected')
 
         buf = WriteBuffer.new_message(PREPARE_MSG)
-        buf.write_int16(0)  # no headers
+        if implicit_limit:
+            self.write_headers(
+                buf,
+                {QUERY_OPT_IMPLICIT_LIMIT: implicit_limit},
+            )
+        else:
+            buf.write_int16(0)  # no headers
         buf.write_byte(IO_FORMAT_JSON if json_mode else IO_FORMAT_BINARY)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_bytes(b'')  # stmt_name
@@ -310,12 +329,20 @@ cdef class SansIOProtocol:
 
         return result
 
-    async def _optimistic_execute(self, CodecsRegistry reg,
-                                  QueryCodecsCache qc,
-                                  bint json_mode,
-                                  bint expect_one,
-                                  BaseCodec in_dc, BaseCodec out_dc,
-                                  str query, args, kwargs):
+    async def _optimistic_execute(
+        self,
+        *,
+        query: str,
+        args,
+        kwargs,
+        reg: CodecsRegistry,
+        qc: QueryCodecsCache,
+        json_mode: bint,
+        expect_one: bint,
+        implicit_limit: int,
+        in_dc: BaseCodec,
+        out_dc: BaseCodec,
+    ):
         cdef:
             WriteBuffer packet
             WriteBuffer buf
@@ -325,7 +352,13 @@ cdef class SansIOProtocol:
             bytes new_cardinality = None
 
         buf = WriteBuffer.new_message(OPTIMISTIC_EXECUTE_MSG)
-        buf.write_int16(0)  # no headers
+        if implicit_limit:
+            self.write_headers(
+                buf,
+                {QUERY_OPT_IMPLICIT_LIMIT: implicit_limit},
+            )
+        else:
+            buf.write_int16(0)  # no headers
         buf.write_byte(IO_FORMAT_JSON if json_mode else IO_FORMAT_BINARY)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
@@ -453,10 +486,18 @@ cdef class SansIOProtocol:
         if exc is not None:
             raise exc
 
-    async def execute_anonymous(self, bint expect_one,
-                                bint json_mode,
-                                CodecsRegistry reg, QueryCodecsCache qc,
-                                str query, args, kwargs):
+    async def execute_anonymous(
+        self,
+        *,
+        query: str,
+        args,
+        kwargs,
+        reg: CodecsRegistry,
+        qc: QueryCodecsCache,
+        expect_one: bint = False,
+        json_mode: bint = False,
+        implicit_limit: int = 0,
+    ):
         cdef:
             BaseCodec in_dc
             BaseCodec out_dc
@@ -471,7 +512,13 @@ cdef class SansIOProtocol:
         if codecs is None:
             cached = False
 
-            codecs = await self._parse(reg, query, json_mode, expect_one)
+            codecs = await self._parse(
+                query,
+                reg=reg,
+                json_mode=json_mode,
+                expect_one=expect_one,
+                implicit_limit=implicit_limit,
+            )
 
             cardinality = codecs[0]
             in_dc = <BaseCodec>codecs[1]
@@ -495,8 +542,17 @@ cdef class SansIOProtocol:
                     f'does not return any data')
 
             ret = await self._optimistic_execute(
-                reg, qc, json_mode, expect_one,
-                in_dc, out_dc, query, args, kwargs)
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                reg=reg,
+                qc=qc,
+                json_mode=json_mode,
+                expect_one=expect_one,
+                implicit_limit=implicit_limit,
+                in_dc=in_dc,
+                out_dc=out_dc,
+            )
 
         if expect_one:
             if ret:

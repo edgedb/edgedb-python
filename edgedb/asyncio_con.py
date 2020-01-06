@@ -62,25 +62,78 @@ class AsyncIOConnection(base_con.BaseConnection,
         for cb in self._log_listeners:
             self._loop.call_soon(cb, self._ensure_proxied(), msg)
 
+    async def _fetchall(
+        self,
+        query: str,
+        *args,
+        __limit__: int=0,
+        **kwargs,
+    ) -> datatypes.Set:
+        return await self._protocol.execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            implicit_limit=__limit__,
+        )
+
+    async def _fetchall_json(
+        self,
+        query: str,
+        *args,
+        __limit__: int=0,
+        **kwargs,
+    ) -> datatypes.Set:
+        return await self._protocol.execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            implicit_limit=__limit__,
+            json_mode=True,
+        )
+
     async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
         return await self._protocol.execute_anonymous(
-            False, False, self._codecs_registry, self._query_cache,
-            query, args, kwargs)
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+        )
 
     async def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
         return await self._protocol.execute_anonymous(
-            True, False, self._codecs_registry, self._query_cache,
-            query, args, kwargs)
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            expect_one=True,
+        )
 
     async def fetchall_json(self, query: str, *args, **kwargs) -> str:
         return await self._protocol.execute_anonymous(
-            False, True, self._codecs_registry, self._query_cache,
-            query, args, kwargs)
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            json_mode=True,
+        )
 
     async def fetchone_json(self, query: str, *args, **kwargs) -> str:
         return await self._protocol.execute_anonymous(
-            True, True, self._codecs_registry, self._query_cache,
-            query, args, kwargs)
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            expect_one=True,
+            json_mode=True,
+        )
 
     async def execute(self, query: str) -> None:
         """Execute an EdgeQL command (or commands).

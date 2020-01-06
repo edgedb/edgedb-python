@@ -58,25 +58,78 @@ class BlockingIOConnection(base_con.BaseConnection):
         for cb in self._log_listeners:
             cb(self, msg)
 
+    def _fetchall(
+        self,
+        query: str,
+        *args,
+        __limit__: int=0,
+        **kwargs,
+    ) -> datatypes.Set:
+        return self._protocol.sync_execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            implicit_limit=__limit__,
+        )
+
+    def _fetchall_json(
+        self,
+        query: str,
+        *args,
+        __limit__: int=0,
+        **kwargs,
+    ) -> datatypes.Set:
+        return self._protocol.sync_execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            implicit_limit=__limit__,
+            json_mode=True,
+        )
+
     def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
         return self._protocol.sync_execute_anonymous(
-            False, False, self._codecs_registry, self._query_cache,
-            query, args, kwargs)
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+        )
 
     def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
         return self._protocol.sync_execute_anonymous(
-            True, False, self._codecs_registry, self._query_cache,
-            query, args, kwargs)
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            expect_one=True,
+        )
 
     def fetchall_json(self, query: str, *args, **kwargs) -> str:
         return self._protocol.sync_execute_anonymous(
-            False, True, self._codecs_registry, self._query_cache,
-            query, args, kwargs)
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            json_mode=True,
+        )
 
     def fetchone_json(self, query: str, *args, **kwargs) -> str:
         return self._protocol.sync_execute_anonymous(
-            True, True, self._codecs_registry, self._query_cache,
-            query, args, kwargs)
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            expect_one=True,
+            json_mode=True,
+        )
 
     def execute(self, query: str) -> None:
         self._protocol.sync_simple_query(query)
