@@ -377,15 +377,21 @@ cdef duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
     return datetime.timedelta(microseconds=microseconds)
 
 
+cdef checked_decimal_encode(
+    pgproto.CodecContext settings, WriteBuffer buf, obj
+):
+    if not isinstance(obj, decimal.Decimal) and not isinstance(obj, int):
+        raise TypeError('expected a Decimal or an int')
+    pgproto.numeric_encode_binary(settings, buf, obj)
+
+
 cdef decimal_decode(pgproto.CodecContext settings, FRBuffer *buf):
     return pgproto.numeric_decode_binary_ex(settings, buf, True)
 
 
 cdef ensure_is_int(obj):
     if type(obj) is not int and not isinstance(obj, int):
-        raise TypeError(
-            f'expected an int'
-        )
+        raise TypeError('expected an int')
 
 cdef checked_int2_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
     ensure_is_int(obj)
@@ -455,7 +461,7 @@ cdef register_base_scalar_codecs():
 
     register_base_scalar_codec(
         'std::decimal',
-        pgproto.numeric_encode_binary,
+        checked_decimal_encode,
         decimal_decode)
 
     register_base_scalar_codec(

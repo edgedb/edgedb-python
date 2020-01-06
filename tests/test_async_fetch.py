@@ -565,7 +565,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 'select <bigint>$arg',
                 arg=IntLike())
 
-    async def test_async_args_int_pack(self):
+    async def test_async_args_intlike(self):
         class IntLike:
             def __int__(self):
                 return 10
@@ -587,6 +587,27 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
             await self.con.fetchone(
                 'select <int64>$arg',
                 arg=IntLike())
+
+    async def test_async_args_decimal(self):
+        class IntLike:
+            def __int__(self):
+                return 10
+
+        val = await self.con.fetchone('select <decimal>$0',
+                                      decimal.Decimal("10.0"))
+        self.assertEqual(val, 10)
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected a Decimal or an int'):
+            await self.con.fetchone(
+                'select <decimal>$arg',
+                arg=IntLike())
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected a Decimal or an int'):
+            await self.con.fetchone(
+                'select <decimal>$arg',
+                arg="10.2")
 
     async def test_async_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
