@@ -8,8 +8,18 @@ jobs:
   check-review:
     runs-on: ubuntu-latest
     steps:
+    - name: Validate release PR
+      uses: edgedb/action-release/validate-pr@master
+      id: checkver
+      continue-on-error: true
+      with:
+        github_token: ${{ secrets.GITHUB_ALT_TOKEN }}
+        version_file: edgedb/_version.py
+        version_line_pattern: |
+          __version__\s*=\s*(?:['"])([[:PEP440:]])(?:['"])
     - name: Trigger release
       uses: edgedb/action-release/trigger@master
+      if: success()
       with:
         github_token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
         release_validation_check: "validate-release-request"
