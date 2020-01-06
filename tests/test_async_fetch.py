@@ -565,6 +565,29 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 'select <bigint>$arg',
                 arg=IntLike())
 
+    async def test_async_args_int_pack(self):
+        class IntLike:
+            def __int__(self):
+                return 10
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected an int'):
+            await self.con.fetchone(
+                'select <int16>$arg',
+                arg=IntLike())
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected an int'):
+            await self.con.fetchone(
+                'select <int32>$arg',
+                arg=IntLike())
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    'expected an int'):
+            await self.con.fetchone(
+                'select <int64>$arg',
+                arg=IntLike())
+
     async def test_async_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
         # by closing.

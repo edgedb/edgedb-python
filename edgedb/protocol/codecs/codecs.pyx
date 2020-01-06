@@ -381,12 +381,29 @@ cdef decimal_decode(pgproto.CodecContext settings, FRBuffer *buf):
     return pgproto.numeric_decode_binary_ex(settings, buf, True)
 
 
-cdef bigint_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+cdef ensure_is_int(obj):
     if type(obj) is not int and not isinstance(obj, int):
         raise TypeError(
             f'expected an int'
         )
 
+cdef checked_int2_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    ensure_is_int(obj)
+    pgproto.int2_encode(settings, buf, obj)
+
+
+cdef checked_int4_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    ensure_is_int(obj)
+    pgproto.int4_encode(settings, buf, obj)
+
+
+cdef checked_int8_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    ensure_is_int(obj)
+    pgproto.int8_encode(settings, buf, obj)
+
+
+cdef bigint_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    ensure_is_int(obj)
     pgproto.numeric_encode_binary(settings, buf, obj)
 
 
@@ -413,17 +430,17 @@ cdef register_base_scalar_codecs():
 
     register_base_scalar_codec(
         'std::int16',
-        pgproto.int2_encode,
+        checked_int2_encode,
         pgproto.int2_decode)
 
     register_base_scalar_codec(
         'std::int32',
-        pgproto.int4_encode,
+        checked_int4_encode,
         pgproto.int4_decode)
 
     register_base_scalar_codec(
         'std::int64',
-        pgproto.int8_encode,
+        checked_int8_encode,
         pgproto.int8_decode)
 
     register_base_scalar_codec(
