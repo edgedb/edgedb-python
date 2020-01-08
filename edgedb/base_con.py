@@ -19,6 +19,7 @@
 
 import itertools
 import typing
+import uuid
 
 from . import errors
 
@@ -53,6 +54,21 @@ class BaseConnection:
             self._query_cache = _QueryCodecsCache()
 
         self._top_xact = None
+
+    def _set_type_codec(
+        self,
+        typeid: uuid.UUID,
+        *,
+        encoder: typing.Callable[[typing.Any], typing.Any],
+        decoder: typing.Callable[[typing.Any], typing.Any],
+        format: str
+    ):
+        self._codecs_registry.set_type_codec(
+            typeid,
+            encoder=encoder,
+            decoder=decoder,
+            format=format,
+        )
 
     def _dispatch_log_message(self, msg):
         raise NotImplementedError

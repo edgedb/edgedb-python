@@ -47,6 +47,40 @@ cdef class BaseCodec:
         return f'{level * " "}{self.name}'
 
 
+cdef class CodecPythonOverride(BaseCodec):
+
+    def __cinit__(self):
+        self.codec = None
+        self.encoder = None
+        self.decoder = None
+
+    cdef encode(self, WriteBuffer buf, object obj):
+        self.codec.encode(buf, self.encoder(obj))
+
+    cdef decode(self, FRBuffer *buf):
+        return self.decoder(self.codec.decode(buf))
+
+    cdef dump(self, int level = 0):
+        return f'{level * " "}<Python override>{self.name}'
+
+    @staticmethod
+    cdef BaseCodec new(bytes tid,
+                       BaseCodec basecodec,
+                       object encoder,
+                       object decoder):
+
+        cdef:
+            CodecPythonOverride codec
+
+        codec = CodecPythonOverride.__new__(CodecPythonOverride)
+        codec.tid = tid
+        codec.name = basecodec.name
+        codec.codec = basecodec
+        codec.encoder = encoder
+        codec.decoder = decoder
+        return codec
+
+
 cdef class EmptyTupleCodec(BaseCodec):
 
     def __cinit__(self):
