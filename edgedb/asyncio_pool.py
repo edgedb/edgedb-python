@@ -140,7 +140,7 @@ class PoolConnectionHolder:
         elif self._generation != self._pool._generation:
             # Connections have been expired, re-connect the holder.
             self._pool._loop.create_task(
-                self._con.close(timeout=self._timeout))
+                self._con.aclose(timeout=self._timeout))
             self._con = None
             await self.connect()
 
@@ -159,7 +159,7 @@ class PoolConnectionHolder:
                     # An exception in `on_acquire` isn't necessarily caused
                     # by an IO or a protocol error.  close() will
                     # do the necessary cleanup via _release_on_close().
-                    await self._con.close()
+                    await self._con.aclose()
                 finally:
                     raise ex
 
@@ -184,7 +184,7 @@ class PoolConnectionHolder:
             # The connection has expired because it belongs to
             # an older generation (AsyncIOPool.expire_connections() has
             # been called.)
-            await self._con.close()
+            await self._con.aclose()
             return
 
         if self._on_release is not None:
@@ -200,7 +200,7 @@ class PoolConnectionHolder:
                     # An exception in `setup` isn't necessarily caused
                     # by an IO or a protocol error.  close() will
                     # do the necessary cleanup via _release_on_close().
-                    await self._con.close()
+                    await self._con.aclose()
                 finally:
                     raise ex
 
@@ -214,11 +214,11 @@ class PoolConnectionHolder:
         else:
             await self._in_use
 
-    async def close(self):
+    async def aclose(self):
         if self._con is not None:
-            # AsyncIOConnection.close() will call _release_on_close() to
+            # AsyncIOConnection.aclose() will call _release_on_close() to
             # finish holder cleanup.
-            await self._con.close()
+            await self._con.aclose()
 
     def terminate(self):
         if self._con is not None:
@@ -437,7 +437,7 @@ class AsyncIOPool:
                     # An exception in `init` isn't necessarily caused
                     # by an IO or a protocol error.  close() will
                     # do the necessary cleanup via _release_on_close().
-                    await con.close()
+                    await con.aclose()
                 finally:
                     raise ex
 
@@ -542,7 +542,7 @@ class AsyncIOPool:
         # pool properly.
         return await asyncio.shield(ch.release(timeout))
 
-    async def close(self):
+    async def aclose(self):
         """Attempt to gracefully close all connections in the pool.
 
         Wait until all pool connections are released, close them and
@@ -568,7 +568,7 @@ class AsyncIOPool:
             await asyncio.gather(*release_coros)
 
             close_coros = [
-                ch.close() for ch in self._holders]
+                ch.aclose() for ch in self._holders]
             await asyncio.gather(*close_coros)
 
         except (Exception, asyncio.CancelledError):
@@ -582,10 +582,10 @@ class AsyncIOPool:
 
     def _warn_on_long_close(self):
         logger.warning(
-            'AsyncIOPool.close() is taking over 60 seconds to complete. '
+            'AsyncIOPool.aclose() is taking over 60 seconds to complete. '
             'Check if you have any unreleased connections left. '
             'Use asyncio.wait_for() to set a timeout for '
-            'AsyncIOPool.close().')
+            'AsyncIOPool.aclose().')
 
     def terminate(self):
         """Terminate all connections in the pool."""
@@ -635,7 +635,7 @@ class AsyncIOPool:
         return self
 
     async def __aexit__(self, *exc):
-        await self.close()
+        await self.aclose()
 
 
 class PoolAcquireContext:

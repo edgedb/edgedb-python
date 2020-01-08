@@ -48,7 +48,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
                 tasks = [worker() for _ in range(n)]
                 await asyncio.gather(*tasks)
-                await pool.close()
+                await pool.aclose()
 
     async def test_pool_02(self):
         for n in {1, 3, 5, 10, 20, 100}:
@@ -77,7 +77,7 @@ class TestPool(tb.AsyncQueryTestCase):
         con = await pool.acquire()
         self.assertEqual(await con.fetchone("SELECT 1"), 1)
 
-        await con.close()
+        await con.aclose()
         self.assertIsNone(pool._holders[0]._con)
         self.assertIsNone(pool._holders[0]._in_use)
         # Calling release should not hurt.
@@ -96,7 +96,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
                 tasks = [worker() for _ in range(n)]
                 await asyncio.gather(*tasks)
-                await pool.close()
+                await pool.aclose()
 
     async def test_pool_06(self):
         fut = asyncio.Future()
@@ -148,7 +148,7 @@ class TestPool(tb.AsyncQueryTestCase):
                 await pool.release(con._con)
         finally:
             await pool.release(con)
-            await pool.close()
+            await pool.aclose()
 
     async def test_pool_09(self):
         pool1 = await self.create_pool(min_size=1, max_size=1)
@@ -164,8 +164,8 @@ class TestPool(tb.AsyncQueryTestCase):
         finally:
             await pool1.release(con)
 
-        await pool1.close()
-        await pool2.close()
+        await pool1.aclose()
+        await pool2.aclose()
 
     async def test_pool_10(self):
         pool = await self.create_pool(min_size=1, max_size=1)
@@ -174,7 +174,7 @@ class TestPool(tb.AsyncQueryTestCase):
         await pool.release(con)
         await pool.release(con)
 
-        await pool.close()
+        await pool.aclose()
 
     async def test_pool_11(self):
         pool = await self.create_pool(min_size=1, max_size=1)
@@ -205,7 +205,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
                 getattr(txn, meth)()
 
-        await pool.close()
+        await pool.aclose()
 
     async def test_pool_12(self):
         pool = await self.create_pool(min_size=1, max_size=1)
@@ -214,7 +214,7 @@ class TestPool(tb.AsyncQueryTestCase):
             self.assertTrue(isinstance(con, asyncio_con.AsyncIOConnection))
             self.assertFalse(isinstance(con, list))
 
-        await pool.close()
+        await pool.aclose()
 
     async def test_pool_13(self):
         pool = await self.create_pool(min_size=1, max_size=1)
@@ -228,13 +228,13 @@ class TestPool(tb.AsyncQueryTestCase):
                 str(inspect.signature(asyncio_con.AsyncIOConnection.execute)),
             )
 
-        await pool.close()
+        await pool.aclose()
 
     def test_pool_init_run_until_complete(self):
         pool_init = self.create_pool()
         pool = self.loop.run_until_complete(pool_init)
         self.assertIsInstance(pool, asyncio_pool.AsyncIOPool)
-        self.loop.run_until_complete(pool.close())
+        self.loop.run_until_complete(pool.aclose())
 
     async def test_pool_exception_in_on_acquire_and_on_connect(self):
         class Error(Exception):
@@ -381,7 +381,7 @@ class TestPool(tb.AsyncQueryTestCase):
                 finally:
                     await agen.aclose()
 
-        await pool.close()
+        await pool.aclose()
 
     async def test_pool_handles_transaction_exit_in_asyncgen_2(self):
         pool = await self.create_pool(min_size=1, max_size=1)
@@ -405,7 +405,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
             del iterator
 
-        await pool.close()
+        await pool.aclose()
 
     async def test_pool_handles_asyncgen_finalization(self):
         pool = await self.create_pool(min_size=1, max_size=1)
@@ -427,7 +427,7 @@ class TestPool(tb.AsyncQueryTestCase):
                     finally:
                         await agen.aclose()
 
-        await pool.close()
+        await pool.aclose()
 
     async def test_pool_close_waits_for_release(self):
         pool = await self.create_pool(min_size=1, max_size=1)
@@ -448,7 +448,7 @@ class TestPool(tb.AsyncQueryTestCase):
         self.loop.create_task(worker())
 
         await flag
-        await pool.close()
+        await pool.aclose()
         self.assertTrue(conn_released)
 
     async def test_pool_close_timeout(self):
@@ -465,7 +465,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
         with self.assertRaises(asyncio.TimeoutError):
             await flag
-            await asyncio.wait_for(pool.close(), timeout=0.1)
+            await asyncio.wait_for(pool.aclose(), timeout=0.1)
 
         await task
 
@@ -479,7 +479,7 @@ class TestPool(tb.AsyncQueryTestCase):
             await pool.release(con)
 
         self.assertIsNone(pool._holders[0]._con)
-        await pool.close()
+        await pool.aclose()
 
     async def test_pool_init_race(self):
         pool = self.create_pool(min_size=1, max_size=1)
@@ -494,7 +494,7 @@ class TestPool(tb.AsyncQueryTestCase):
         ):
             await t2
 
-        await pool.close()
+        await pool.aclose()
 
     async def test_pool_init_and_use_race(self):
         pool = self.create_pool(min_size=1, max_size=1)
@@ -509,4 +509,4 @@ class TestPool(tb.AsyncQueryTestCase):
             await pool.fetchone("SELECT 1")
 
         await pool_task
-        await pool.close()
+        await pool.aclose()

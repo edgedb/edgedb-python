@@ -106,7 +106,7 @@ An equivalent example using the **asyncio** API:
         print(user_set)
 
         # Close the connection.
-        await conn.close()
+        await conn.aclose()
 
     if __name__ == '__main__':
         asyncio.run(main())
