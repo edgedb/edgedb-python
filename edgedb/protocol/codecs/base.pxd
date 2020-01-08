@@ -32,6 +32,20 @@ cdef class BaseCodec:
     cdef dump(self, int level=?)
 
 
+cdef class CodecPythonOverride(BaseCodec):
+
+    cdef:
+        BaseCodec codec
+        object encoder
+        object decoder
+
+    @staticmethod
+    cdef BaseCodec new(bytes tid,
+                       BaseCodec basecodec,
+                       object encoder,
+                       object decoder)
+
+
 cdef class BaseRecordCodec(BaseCodec):
 
     cdef:

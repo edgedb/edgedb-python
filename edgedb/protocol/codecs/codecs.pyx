@@ -56,6 +56,23 @@ cdef class CodecsRegistry:
     def __init__(self, *, cache_size=1000):
         self.codecs_build_cache = LRUMapping(maxsize=_CODECS_BUILD_CACHE_SIZE)
         self.codecs = LRUMapping(maxsize=cache_size)
+        self.base_codec_overrides = {}
+
+    def set_type_codec(self, typeid, *, encoder, decoder, format):
+        if format != 'python':
+            raise ValueError('"python" is the only valid format')
+        if not isinstance(typeid, uuid.UUID):
+            raise TypeError('typeid must be a UUID')
+        basecodec = BASE_SCALAR_CODECS.get(typeid.bytes)
+        if basecodec is None:
+            raise ValueError(
+                f'{typeid} does not correspond to any known base type')
+        self.base_codec_overrides[typeid.bytes] = CodecPythonOverride.new(
+            typeid.bytes,
+            basecodec,
+            encoder,
+            decoder,
+        )
 
     cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list):
         cdef:
@@ -163,7 +180,10 @@ cdef class CodecsRegistry:
             res = ObjectCodec.new(tid, names, flags, codecs)
 
         elif t == CTYPE_BASE_SCALAR:
-            res = <BaseCodec>BASE_SCALAR_CODECS[tid]
+            if tid in self.base_codec_overrides:
+                return self.base_codec_overrides[tid]
+            else:
+                res = <BaseCodec>BASE_SCALAR_CODECS[tid]
 
         elif t == CTYPE_SCALAR:
             pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))

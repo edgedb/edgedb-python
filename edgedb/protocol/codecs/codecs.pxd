@@ -32,6 +32,7 @@ cdef class CodecsRegistry:
     cdef:
         LRUMapping codecs_build_cache
         LRUMapping codecs
+        dict base_codec_overrides
 
     cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list)
     cdef BaseCodec build_codec(self, bytes spec)
