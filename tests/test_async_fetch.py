@@ -631,7 +631,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 g.create_task(exec_to_fail())
 
                 await asyncio.sleep(0.1)
-                await con2.close()
+                await con2.aclose()
 
         finally:
             self.assertEqual(

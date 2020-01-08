@@ -401,7 +401,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     cls.con.execute(script))
         finally:
             try:
-                cls.loop.run_until_complete(cls.con.close())
+                cls.loop.run_until_complete(cls.con.aclose())
 
                 if not class_set_up:
                     dbname = cls.get_database_name()
@@ -414,7 +414,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 try:
                     if cls.admin_conn is not None:
                         cls.loop.run_until_complete(
-                            cls.admin_conn.close())
+                            cls.admin_conn.aclose())
                 finally:
                     super().tearDownClass()
 

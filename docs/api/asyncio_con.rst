@@ -224,7 +224,7 @@ Connection
             specified, the server-side default is used.
 
 
-    .. py:coroutinemethod:: close()
+    .. py:coroutinemethod:: aclose()
 
         Close the connection gracefully.
 
@@ -421,7 +421,7 @@ Connection Pools
             A :py:class:`AsyncIOConnection` object
             to release.
 
-    .. py:coroutinemethod:: close()
+    .. py:coroutinemethod:: aclose()
 
         Attempt to gracefully close all connections in the pool.
 

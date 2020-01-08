@@ -101,7 +101,7 @@ class AsyncIOConnection(base_con.BaseConnection,
         return transaction.AsyncIOTransaction(
             self, isolation, readonly, deferrable)
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         self.terminate()
 
     def terminate(self) -> None:
