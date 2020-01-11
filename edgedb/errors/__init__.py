@@ -47,7 +47,7 @@ __all__ = _base.__all__ + (
     'InvalidUserDefinitionError',
     'InvalidDatabaseDefinitionError',
     'InvalidOperatorDefinitionError',
-    'InvalidViewDefinitionError',
+    'InvalidAliasDefinitionError',
     'InvalidFunctionDefinitionError',
     'InvalidConstraintDefinitionError',
     'InvalidCastDefinitionError',
@@ -226,7 +226,7 @@ class InvalidOperatorDefinitionError(InvalidDefinitionError):
     _code = 0x_04_05_01_06
 
 
-class InvalidViewDefinitionError(InvalidDefinitionError):
+class InvalidAliasDefinitionError(InvalidDefinitionError):
     _code = 0x_04_05_01_07
 
 

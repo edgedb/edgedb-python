@@ -71,7 +71,7 @@ from .errors import (
     InvalidUserDefinitionError,
     InvalidDatabaseDefinitionError,
     InvalidOperatorDefinitionError,
-    InvalidViewDefinitionError,
+    InvalidAliasDefinitionError,
     InvalidFunctionDefinitionError,
     InvalidConstraintDefinitionError,
     InvalidCastDefinitionError,
