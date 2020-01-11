@@ -56,8 +56,6 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 from edgedb.datatypes cimport datatypes
 from . cimport cpythonx
 
-from . import dstructs
-
 from edgedb import errors
 from edgedb import scram
 
@@ -122,6 +120,11 @@ cdef class SansIOProtocol:
         raise NotImplementedError
 
     async def wait_for_message(self):
+        raise NotImplementedError
+
+    async def try_recv_eagerly(self):
+        # If there's data in the socket try reading it into the
+        # buffer.  Needed for blocking-io connections.
         raise NotImplementedError
 
     async def wait_for_connect(self):
@@ -573,7 +576,7 @@ cdef class SansIOProtocol:
                 else:
                     return ret
 
-    async def dump(self, data_callback):
+    async def dump(self, header_callback, block_callback):
         cdef:
             WriteBuffer buf
             char mtype
@@ -586,15 +589,12 @@ cdef class SansIOProtocol:
         buf = WriteBuffer.new_message(DUMP_MSG)
         buf.write_int16(0)  # no headers
         buf.end_message()
+        buf.write_bytes(SYNC_MESSAGE)
+        self.write(buf)
 
-        packet = WriteBuffer.new()
-        packet.write_buffer(buf)
-        packet.write_bytes(SYNC_MESSAGE)
-        self.write(packet)
-
+        header_received = False
+        data_received = False
         exc = None
-        result = None
-
         while True:
             if not self.buffer.take_message():
                 await self.wait_for_message()
@@ -602,62 +602,32 @@ cdef class SansIOProtocol:
 
             try:
                 if mtype == DUMP_BLOCK_MSG:
-                    self.reject_headers()
+                    if not header_received:
+                        raise RuntimeError('data block before header block')
+                    data_received = True
 
-                    block_id = self.buffer.read_uuid()
-                    block_num = <uint64_t>self.buffer.read_int64()
-                    block_data = self.buffer.consume_message()
-
-                    await data_callback(
-                        dstructs.DumpDataBlock(
-                            schema_object_id=block_id,
-                            number=block_num,
-                            data=block_data,
-                        )
+                    await block_callback(
+                        self.buffer.consume_message()
                     )
 
-                elif mtype == DUMP_COMPLETE_MSG:
-                    self.reject_headers()
+                elif mtype == DUMP_HEADER_BLOCK_MSG:
+                    if header_received:
+                        raise RuntimeError('more than one header block')
+                    if data_received:
+                        raise RuntimeError('header block after data block')
 
-                    server_version = self.buffer.read_len_prefixed_bytes()
-                    server_ts = self.buffer.read_int64()
-                    schema = self.buffer.read_len_prefixed_bytes()
+                    header_received = True
 
-                    num_blocks = <uint32_t>self.buffer.read_int32()
-                    blocks = []
-                    for i in range(num_blocks):
-                        self.reject_headers()
-
-                        block_id = self.buffer.read_uuid()
-                        num_deps = <uint16_t>self.buffer.read_int16()
-                        block_deps = []
-                        for j in range(num_deps):
-                            block_deps.append(self.buffer.read_uuid())
-
-                        block_td = self.buffer.read_len_prefixed_bytes()
-                        block_count = <uint64_t>self.buffer.read_int64()
-                        block_size = <uint64_t>self.buffer.read_int64()
-
-                        blocks.append(
-                            dstructs.DumpBlock(
-                                schema_object_id=block_id,
-                                schema_deps=block_deps,
-                                type_desc=block_td,
-                                data_blocks_count=block_count,
-                                data_size=block_size,
-                            )
-                        )
-
-                    result = dstructs.DumpDesc(
-                        schema=schema,
-                        server_version=server_version,
-                        server_ts=server_ts,
-                        blocks=blocks,
+                    await header_callback(
+                        self.buffer.consume_message()
                     )
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     # ErrorResponse
                     exc = self.parse_error_message()
+
+                elif mtype == COMMAND_COMPLETE_MSG:
+                    pass
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -669,13 +639,11 @@ cdef class SansIOProtocol:
             finally:
                 self.buffer.finish_message()
 
+        if not header_received:
+            raise RuntimeError('header block was not received')
+
         if exc is not None:
             raise exc
-
-        if result is None:
-            raise RuntimeError('DumpCompleteMessage was not received')
-
-        return result
 
     async def _sync(self):
         cdef char mtype
@@ -691,7 +659,7 @@ cdef class SansIOProtocol:
             else:
                 self.fallthrough()
 
-    async def restore(self, schema, blocks, data_gen):
+    async def restore(self, bytes header, data_gen):
         cdef:
             WriteBuffer buf
             char mtype
@@ -703,15 +671,8 @@ cdef class SansIOProtocol:
 
         buf = WriteBuffer.new_message(RESTORE_MSG)
         buf.write_int16(0)  # no headers
-        buf.write_len_prefixed_bytes(schema)
         buf.write_int16(1)  # -j level
-
-        buf.write_int32(len(blocks))
-        for block_object_schema_id, block_typedesc in blocks:
-
-            buf.write_bytes(block_object_schema_id)
-            buf.write_len_prefixed_bytes(block_typedesc)
-
+        buf.write_bytes(header)
         buf.end_message()
         self.write(buf)
 
@@ -738,15 +699,30 @@ cdef class SansIOProtocol:
             await self._sync()
             raise exc
 
-        async for (schema_object_id, data) in data_gen:
+        # TODO: flow-control is missing here. For now this is fine
+        # since this method is only called on a blocking connection.
+
+        async for data in data_gen:
             buf = WriteBuffer.new_message(DUMP_BLOCK_MSG)
-            buf.write_int16(0)  # no headers
-            buf.write_bytes(schema_object_id)
             buf.write_bytes(data)
             self.write(buf.end_message())
 
-        # TODO: flow-control is missing here. For now this is fine
-        # since this method is only called on a blocking connection.
+            if not self.buffer.take_message():
+                await self.try_recv_eagerly()
+            if self.buffer.take_message():
+                # Check if we received an error.
+                mtype = self.buffer.get_message_type()
+                if mtype == ERROR_RESPONSE_MSG:
+                    exc = self.parse_error_message()
+                    self.buffer.finish_message()
+                    break
+                else:
+                    self.fallthrough()
+
+        if exc is not None:
+            await self._sync()
+            raise exc
+
         self.write(WriteBuffer.new_message(RESTORE_EOF_MSG).end_message())
 
         exc = None

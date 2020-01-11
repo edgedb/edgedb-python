@@ -52,6 +52,23 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
                 raise ConnectionAbortedError
             self.buffer.feed_data(data)
 
+    async def try_recv_eagerly(self):
+        if self.buffer.take_message():
+            return
+
+        self.sock.settimeout(0)  # Make non-blocking.
+        try:
+            while not self.buffer.take_message():
+                data = self.sock.recv(RECV_BUF)
+                if not data:
+                    raise ConnectionAbortedError
+                self.buffer.feed_data(data)
+        except BlockingIOError:
+            # No data in the socket net buffer.
+            return
+        finally:
+            self.sock.settimeout(None)
+
     async def wait_for_connect(self):
         return True
 
@@ -76,12 +93,14 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
     def sync_simple_query(self, *args, **kwargs):
         return self._iter_coroutine(self.simple_query(*args, **kwargs))
 
-    def sync_dump(self, *, data_callback):
-        async def wrapper(data):
-            data_callback(data)
-        return self._iter_coroutine(self.dump(wrapper))
+    def sync_dump(self, *, header_callback, block_callback):
+        async def header_wrapper(data):
+            header_callback(data)
+        async def block_wrapper(data):
+            block_callback(data)
+        return self._iter_coroutine(self.dump(header_wrapper, block_wrapper))
 
-    def sync_restore(self, *, schema, blocks, data_gen):
+    def sync_restore(self, *, header, data_gen):
         async def wrapper():
             while True:
                 try:
@@ -91,4 +110,4 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
                 yield block
 
         return self._iter_coroutine(self.restore(
-            schema, blocks, wrapper()))
+            header, wrapper()))

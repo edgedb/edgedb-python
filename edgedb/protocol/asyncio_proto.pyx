@@ -64,6 +64,9 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
                 # until we can implement it properly.
                 pass
 
+    async def try_recv_eagerly(self):
+        pass
+
     async def wait_for_connect(self):
         if self.connected_fut is not None:
             await self.connected_fut
