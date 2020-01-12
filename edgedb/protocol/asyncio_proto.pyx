@@ -46,7 +46,7 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
             self.transport = None
 
     cdef write(self, WriteBuffer buf):
-        if not self.connected:
+        if self.transport is None:
             raise ConnectionAbortedError
         self.transport.write(memoryview(buf))
 
