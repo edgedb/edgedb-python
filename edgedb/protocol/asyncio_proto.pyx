@@ -46,6 +46,8 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
             self.transport = None
 
     cdef write(self, WriteBuffer buf):
+        if not self.connected:
+            raise ConnectionAbortedError
         self.transport.write(memoryview(buf))
 
     async def wait_for_message(self):
