@@ -21,6 +21,7 @@ import asyncio
 import datetime
 import decimal
 import json
+import random
 import uuid
 
 import edgedb
@@ -512,6 +513,81 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
             await self.con.fetchall(
                 'select schema::Object {name} filter .id=<uuid>$id',
                 id='asdasas')
+
+    async def test_async_args_bigint_basic(self):
+        testar = [
+            0,
+            -0,
+            +0,
+            1,
+            -1,
+            123,
+            -123,
+            123789,
+            -123789,
+            19876,
+            -19876,
+            19876,
+            -19876,
+            198761239812739812739801279371289371932,
+            -198761182763908473812974620938742386,
+            98761239812739812739801279371289371932,
+            -98761182763908473812974620938742386,
+            8761239812739812739801279371289371932,
+            -8761182763908473812974620938742386,
+            761239812739812739801279371289371932,
+            -761182763908473812974620938742386,
+            61239812739812739801279371289371932,
+            -61182763908473812974620938742386,
+            1239812739812739801279371289371932,
+            -1182763908473812974620938742386,
+            9812739812739801279371289371932,
+            -3908473812974620938742386,
+            98127373373209,
+            -4620938742386,
+            100000000000,
+            -100000000000,
+            10000000000,
+            -10000000000,
+            10000000100,
+            -10000000010,
+            1000000000,
+            -1000000000,
+            100000000,
+            -100000000,
+            10000000,
+            -10000000,
+            1000000,
+            -1000000,
+            100000,
+            -100000,
+            10000,
+            -10000,
+            1000,
+            -1000,
+            100,
+            -100,
+            10,
+            -10,
+        ]
+
+        for _ in range(500):
+            num = ''
+            for _ in range(random.randint(1, 50)):
+                num += random.choice("0123456789")
+            testar.append(int(num))
+
+        for _ in range(500):
+            num = ''
+            for _ in range(random.randint(1, 50)):
+                num += random.choice("0000000012")
+            testar.append(int(num))
+
+        val = await self.con.fetchone(
+            'select <array<bigint>>$arg',
+            arg=testar)
+
+        self.assertEqual(testar, val)
 
     async def test_async_args_bigint_pack(self):
         val = await self.con.fetchone(

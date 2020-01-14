@@ -46,6 +46,9 @@ DEF CTYPE_ENUM = 7
 
 DEF _CODECS_BUILD_CACHE_SIZE = 200
 
+DEF NBASE = 10000
+DEF NUMERIC_POS = 0x0000
+DEF NUMERIC_NEG = 0x4000
 
 cdef BaseCodec NULL_CODEC = NullCodec.__new__(NullCodec)
 cdef BaseCodec EMPTY_TUPLE_CODEC = EmptyTupleCodec.__new__(EmptyTupleCodec)
@@ -429,13 +432,68 @@ cdef checked_int8_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
 
 
 cdef bigint_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    cdef:
+        uint16_t sign = NUMERIC_POS
+        list digits = []
+
     ensure_is_int(obj)
-    pgproto.numeric_encode_binary(settings, buf, obj)
+
+    if obj == 0:
+        buf.write_int32(8)  # len
+        buf.write_int32(0)  # ndigits + weight
+        buf.write_int16(NUMERIC_POS)  # sign
+        buf.write_int16(0)  # dscale
+        return
+
+    if obj < 0:
+        sign = NUMERIC_NEG
+        obj = -obj
+
+    while obj:
+        mod = obj % NBASE
+        obj //= NBASE
+        digits.append(mod)
+
+    buf.write_int32(8 + len(digits) * 2)  # len
+    buf.write_int16(len(digits))  # ndigits
+    buf.write_int16(len(digits) - 1)  # weight
+    buf.write_int16(sign)  # sign
+    buf.write_int16(0)  # dscale
+    for dig in reversed(digits):
+        buf.write_int16(dig)
 
 
 cdef bigint_decode(pgproto.CodecContext settings, FRBuffer *buf):
-    dec = pgproto.numeric_decode_binary(settings, buf)
-    return int(dec)
+    cdef:
+        uint16_t ndigits = <uint16_t>hton.unpack_int16(frb_read(buf, 2))
+        uint16_t weight = <uint16_t>hton.unpack_int16(frb_read(buf, 2))
+        uint16_t sign = <uint16_t>hton.unpack_int16(frb_read(buf, 2))
+        uint16_t dscale = <uint16_t>hton.unpack_int16(frb_read(buf, 2))
+        result = ''
+        int32_t i = <int32_t>weight
+        uint16_t d = 0
+
+    if sign == NUMERIC_NEG:
+        result = '-'
+    elif sign != NUMERIC_POS:
+        raise ValueError("bad bigint sign data")
+
+    if dscale != 0:
+        raise ValueError("bigint data has fractional part")
+
+    if ndigits == 0:
+        return 0
+
+    while i >= 0:
+        if i <= weight and d < ndigits:
+            num = str(<uint16_t>hton.unpack_int16(frb_read(buf, 2)))
+            result += num.zfill(4)
+            d += 1
+        else:
+            result += '0000'
+        i -= 1
+
+    return int(result)
 
 
 cdef register_base_scalar_codecs():
