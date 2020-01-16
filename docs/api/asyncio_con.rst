@@ -4,7 +4,6 @@
 AsyncIO API
 ===========
 
-.. py:module:: edgedb
 .. py:currentmodule:: edgedb
 
 

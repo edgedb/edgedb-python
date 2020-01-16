@@ -4,7 +4,6 @@
 Datatypes
 =========
 
-.. py:module:: edgedb
 .. py:currentmodule:: edgedb
 
 
