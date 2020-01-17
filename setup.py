@@ -53,7 +53,7 @@ TEST_DEPENDENCIES = [
 
 # Dependencies required to build documentation.
 DOC_DEPENDENCIES = [
-    'Sphinx~=2.0.0',
+    'sphinx~=2.3.1',
     'sphinxcontrib-asyncio~=0.2.0',
     'sphinx_rtd_theme~=0.4.3',
 ]
