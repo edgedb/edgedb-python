@@ -49,7 +49,8 @@ The table below shows the correspondence between EdgeDB and Python types.
 +----------------------+-----------------------------------------------------+
 | ``int16``,           | :py:class:`int <python:int>`                        |
 | ``int32``,           |                                                     |
-| ``int64``            |                                                     |
+| ``int64``,           |                                                     |
+| ``bigint``           |                                                     |
 +----------------------+-----------------------------------------------------+
 | ``decimal``          | :py:class:`Decimal <python:decimal.Decimal>`        |
 +----------------------+-----------------------------------------------------+

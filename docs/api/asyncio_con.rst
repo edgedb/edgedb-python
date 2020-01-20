@@ -164,6 +164,18 @@ Connection
 
         Note, that positional and named query arguments cannot be mixed.
 
+        .. note::
+
+            Caution is advised when reading ``decimal`` values using
+            this method. The JSON specification does not have a limit
+            on significant digits, so a ``decimal`` number can be
+            losslessly represented in JSON. However, the default JSON
+            decoder in Python will read all such numbers as ``float``
+            values, which may result in errors or precision loss. If
+            such loss is unacceptable, then consider casting the value
+            into ``str`` and decoding it on the client side into a
+            more appropriate type, such as ``Decimal``.
+
 
     .. py:coroutinemethod:: fetchone_json(query, *args, **kwargs)
 
@@ -182,6 +194,18 @@ Connection
         is raised.
 
         Note, that positional and named query arguments cannot be mixed.
+
+        .. note::
+
+            Caution is advised when reading ``decimal`` values using
+            this method. The JSON specification does not have a limit
+            on significant digits, so a ``decimal`` number can be
+            losslessly represented in JSON. However, the default JSON
+            decoder in Python will read all such numbers as ``float``
+            values, which may result in errors or precision loss. If
+            such loss is unacceptable, then consider casting the value
+            into ``str`` and decoding it on the client side into a
+            more appropriate type, such as ``Decimal``.
 
 
     .. py:coroutinemethod:: execute(query)
