@@ -68,19 +68,26 @@ include "./codecs/codecs.pyx"
 cpython.datetime.import_datetime()
 
 
+_FETCHONE_METHOD = {
+    IoFormat.JSON: 'fetchone_json',
+    IoFormat.JSON_ELEMENTS: '_fetchall_json_elements',
+    IoFormat.BINARY: 'fetchone',
+}
+
+
 cdef class QueryCodecsCache:
 
     def __init__(self, *, cache_size=1000):
         self.queries = LRUMapping(maxsize=cache_size)
 
-    cdef get(self, str query, bint json_mode):
-        return self.queries.get((query, json_mode), None)
+    cdef get(self, str query, IoFormat io_format):
+        return self.queries.get((query, io_format), None)
 
-    cdef set(self, str query, bint json_mode,
+    cdef set(self, str query, IoFormat io_format,
              bint has_na_cardinality, BaseCodec in_type, BaseCodec out_type):
         assert in_type is not None
         assert out_type is not None
-        self.queries[(query, json_mode)] = (
+        self.queries[(query, io_format)] = (
             has_na_cardinality, in_type, out_type
         )
 
@@ -148,7 +155,7 @@ cdef class SansIOProtocol:
         query: str,
         *,
         reg: CodecsRegistry,
-        json_mode: bint=False,
+        io_format: IoFormat=IoFormat.BINARY,
         expect_one: bint=False,
         implicit_limit: int=0,
     ):
@@ -173,7 +180,7 @@ cdef class SansIOProtocol:
             )
         else:
             buf.write_int16(0)  # no headers
-        buf.write_byte(IO_FORMAT_JSON if json_mode else IO_FORMAT_BINARY)
+        buf.write_byte(io_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_bytes(b'')  # stmt_name
         buf.write_len_prefixed_utf8(query)
@@ -196,8 +203,8 @@ cdef class SansIOProtocol:
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
-                    exc = self.amend_parse_error(
-                        exc, json_mode, expect_one)
+                    exc = self._amend_parse_error(
+                        exc, io_format, expect_one)
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -237,8 +244,8 @@ cdef class SansIOProtocol:
 
                     elif mtype == ERROR_RESPONSE_MSG:
                         exc = self.parse_error_message()
-                        exc = self.amend_parse_error(
-                            exc, json_mode, expect_one)
+                        exc = self._amend_parse_error(
+                            exc, io_format, expect_one)
 
                     elif mtype == READY_FOR_COMMAND_MSG:
                         self.parse_sync_message()
@@ -254,7 +261,7 @@ cdef class SansIOProtocol:
             raise exc
 
         if expect_one and cardinality == CARDINALITY_NOT_APPLICABLE:
-            methname = 'fetchone_json' if json_mode else 'fetchone'
+            methname = _FETCHONE_METHOD[io_format]
             raise errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
                 f'does not return any data')
@@ -340,7 +347,7 @@ cdef class SansIOProtocol:
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
-        json_mode: bint,
+        io_format: object,
         expect_one: bint,
         implicit_limit: int,
         in_dc: BaseCodec,
@@ -362,7 +369,7 @@ cdef class SansIOProtocol:
             )
         else:
             buf.write_int16(0)  # no headers
-        buf.write_byte(IO_FORMAT_JSON if json_mode else IO_FORMAT_BINARY)
+        buf.write_byte(io_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
         buf.write_bytes(in_dc.get_tid())
@@ -389,7 +396,7 @@ cdef class SansIOProtocol:
                     new_cardinality, in_dc, out_dc = \
                         self.parse_describe_type_message(reg)
                     qc.set(
-                        query, json_mode,
+                        query, io_format,
                         new_cardinality == CARDINALITY_NOT_APPLICABLE,
                         in_dc, out_dc)
                     re_exec = True
@@ -420,8 +427,8 @@ cdef class SansIOProtocol:
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
-                    exc = self.amend_parse_error(
-                        exc, json_mode, expect_one)
+                    exc = self._amend_parse_error(
+                        exc, io_format, expect_one)
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -439,7 +446,7 @@ cdef class SansIOProtocol:
         if re_exec:
             assert new_cardinality is not None
             if expect_one and new_cardinality == CARDINALITY_NOT_APPLICABLE:
-                methname = 'fetchone_json' if json_mode else 'fetchone'
+                methname = _FETCHONE_METHOD[io_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
@@ -497,8 +504,8 @@ cdef class SansIOProtocol:
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
+        io_format: object,
         expect_one: bint = False,
-        json_mode: bint = False,
         implicit_limit: int = 0,
     ):
         cdef:
@@ -511,14 +518,14 @@ cdef class SansIOProtocol:
         self.reset_status()
 
         cached = True
-        codecs = qc.get(query, json_mode)
+        codecs = qc.get(query, io_format)
         if codecs is None:
             cached = False
 
             codecs = await self._parse(
                 query,
                 reg=reg,
-                json_mode=json_mode,
+                io_format=io_format,
                 expect_one=expect_one,
                 implicit_limit=implicit_limit,
             )
@@ -528,8 +535,8 @@ cdef class SansIOProtocol:
             out_dc = <BaseCodec>codecs[2]
 
             if not cached:
-                qc.set(query, json_mode,
-                cardinality == CARDINALITY_NOT_APPLICABLE, in_dc, out_dc)
+                qc.set(query, io_format,
+                    cardinality == CARDINALITY_NOT_APPLICABLE, in_dc, out_dc)
 
             ret = await self._execute(in_dc, out_dc, args, kwargs)
 
@@ -539,7 +546,7 @@ cdef class SansIOProtocol:
             out_dc = <BaseCodec>codecs[2]
 
             if expect_one and has_na_cardinality:
-                methname = 'fetchone_json' if json_mode else 'fetchone'
+                methname = _FETCHONE_METHOD[io_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
@@ -550,7 +557,7 @@ cdef class SansIOProtocol:
                 kwargs=kwargs,
                 reg=reg,
                 qc=qc,
-                json_mode=json_mode,
+                io_format=io_format,
                 expect_one=expect_one,
                 implicit_limit=implicit_limit,
                 in_dc=in_dc,
@@ -561,17 +568,17 @@ cdef class SansIOProtocol:
             if ret:
                 return ret[0]
             else:
-                methname = 'fetchone_json' if json_mode else 'fetchone'
+                methname = _FETCHONE_METHOD[io_format]
                 raise errors.NoDataError(
                     f'query executed via {methname}() returned no data')
         else:
             if ret:
-                if json_mode:
+                if io_format == IoFormat.JSON:
                     return ret[0]
                 else:
                     return ret
             else:
-                if json_mode:
+                if io_format == IoFormat.JSON:
                     return '[]'
                 else:
                     return ret
@@ -1109,9 +1116,9 @@ cdef class SansIOProtocol:
 
         self.buffer.finish_message()
 
-    cdef amend_parse_error(self, exc, bint json_mode, bint expect_one):
+    cdef _amend_parse_error(self, exc, IoFormat io_format, bint expect_one):
         if expect_one and exc.get_code() == result_cardinality_mismatch_code:
-            methname = 'fetchone_json' if json_mode else 'fetchone'
+            methname = _FETCHONE_METHOD[io_format]
             new_exc = errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
                 f'returns a multiset')

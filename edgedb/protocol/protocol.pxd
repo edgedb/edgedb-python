@@ -40,6 +40,12 @@ include "./codecs/codecs.pxd"
 ctypedef object (*decode_row_method)(BaseCodec, FRBuffer *buf)
 
 
+cpdef enum IoFormat:
+    BINARY = b'b'
+    JSON = b'j'
+    JSON_ELEMENTS = b'J'
+
+
 cdef enum TransactionStatus:
     TRANS_IDLE = 0                 # connection idle
     TRANS_ACTIVE = 1               # command in progress
@@ -65,8 +71,8 @@ cdef class QueryCodecsCache:
     cdef:
         LRUMapping queries
 
-    cdef get(self, str query, bint json_mode)
-    cdef set(self, str query, bint json_mode,
+    cdef get(self, str query, IoFormat io_format)
+    cdef set(self, str query, IoFormat io_format,
              bint has_na_cardinality, BaseCodec in_type, BaseCodec out_type)
 
 
@@ -95,7 +101,7 @@ cdef class SansIOProtocol:
     cdef parse_sync_message(self)
     cdef parse_command_complete_message(self)
     cdef parse_describe_type_message(self, CodecsRegistry reg)
-    cdef amend_parse_error(self, exc, bint json_mode, bint expect_one)
+    cdef _amend_parse_error(self, exc, IoFormat io_format, bint expect_one)
 
     cdef inline reject_headers(self)
     cdef dict parse_headers(self)
