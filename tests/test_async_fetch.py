@@ -38,6 +38,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         CREATE TYPE test::Tmp {
             CREATE REQUIRED PROPERTY tmp -> std::str;
         };
+
+        CREATE SCALAR TYPE MyEnum EXTENDING enum<"A", "B">;
     '''
 
     TEARDOWN = '''
@@ -727,3 +729,31 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
           filter .name = 'std::str_repeat'
           limit 1
         ''')
+
+    async def test_enum_argument_01(self):
+        A = await self.con.fetchone('SELECT <MyEnum><str>$0', 'A')
+        self.assertEqual(str(A), 'A')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError, 'invalid input value for enum'):
+            async with self.con.transaction():
+                await self.con.fetchone(
+                    'SELECT <MyEnum><str>$0', 'Oups')
+
+        self.assertEqual(
+            await self.con.fetchone('SELECT <MyEnum>$0', 'A'),
+            A)
+
+        self.assertEqual(
+            await self.con.fetchone('SELECT <MyEnum>$0', A),
+            A)
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError, 'invalid input value for enum'):
+            async with self.con.transaction():
+                await self.con.fetchone(
+                    'SELECT <MyEnum>$0', 'Oups')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidArgumentError, 'a str or edgedb.EnumValue'):
+            await self.con.fetchone('SELECT <MyEnum>$0', 123)
