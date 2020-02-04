@@ -20,6 +20,13 @@
 @cython.final
 cdef class EnumCodec(BaseCodec):
 
+    cdef encode(self, WriteBuffer buf, object obj):
+        if not isinstance(obj, (datatypes.EnumValue, str)):
+            raise TypeError(
+                f'a str or edgedb.EnumValue is expected as a valid '
+                f'enum argument, got {type(obj).__name__}')
+        pgproto.text_encode(DEFAULT_CODEC_CONTEXT, buf, str(obj))
+
     cdef decode(self, FRBuffer *buf):
         label = pgproto.text_decode(DEFAULT_CODEC_CONTEXT, buf)
         return datatypes.EnumValue(self.descriptor, label)

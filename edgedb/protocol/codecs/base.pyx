@@ -127,7 +127,7 @@ cdef class BaseRecordCodec(BaseCodec):
     cdef _check_encoder(self):
         if not (self.encoder_flags & RECORD_ENCODER_CHECKED):
             for codec in self.fields_codecs:
-                if not isinstance(codec, (ScalarCodec, ArrayCodec)):
+                if not isinstance(codec, (ScalarCodec, ArrayCodec, EnumCodec)):
                     self.encoder_flags |= RECORD_ENCODER_INVALID
                     break
             self.encoder_flags |= RECORD_ENCODER_CHECKED
