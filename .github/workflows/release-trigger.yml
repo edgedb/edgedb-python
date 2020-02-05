@@ -10,7 +10,7 @@ jobs:
     steps:
     - name: Validate release PR
       uses: edgedb/action-release/validate-pr@master
-      id: checkver
+      id: release
       continue-on-error: true
       with:
         github_token: ${{ secrets.GITHUB_ALT_TOKEN }}
@@ -19,7 +19,7 @@ jobs:
           __version__\s*=\s*(?:['"])([[:PEP440:]])(?:['"])
     - name: Trigger release
       uses: edgedb/action-release/trigger@master
-      if: success()
+      if: steps.release.outputs.version != 0
       with:
         github_token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
         release_validation_check: "validate-release-request"
