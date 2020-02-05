@@ -28,7 +28,7 @@ from . import transaction
 
 from .datatypes import datatypes
 from .protocol import asyncio_proto
-from .protocol.protocol import IoFormat
+from .protocol import protocol
 
 
 class _ConnectionProxy:
@@ -77,7 +77,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             reg=self._codecs_registry,
             qc=self._query_cache,
             implicit_limit=__limit__,
-            io_format=IoFormat.BINARY,
+            io_format=protocol.IoFormat.BINARY,
         )
 
     async def _fetchall_json(
@@ -94,7 +94,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             reg=self._codecs_registry,
             qc=self._query_cache,
             implicit_limit=__limit__,
-            io_format=IoFormat.JSON,
+            io_format=protocol.IoFormat.JSON,
         )
 
     async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
@@ -104,7 +104,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             kwargs=kwargs,
             reg=self._codecs_registry,
             qc=self._query_cache,
-            io_format=IoFormat.BINARY,
+            io_format=protocol.IoFormat.BINARY,
         )
 
     async def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
@@ -115,7 +115,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             reg=self._codecs_registry,
             qc=self._query_cache,
             expect_one=True,
-            io_format=IoFormat.BINARY,
+            io_format=protocol.IoFormat.BINARY,
         )
 
     async def fetchall_json(self, query: str, *args, **kwargs) -> str:
@@ -125,7 +125,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             kwargs=kwargs,
             reg=self._codecs_registry,
             qc=self._query_cache,
-            io_format=IoFormat.JSON,
+            io_format=protocol.IoFormat.JSON,
         )
 
     async def _fetchall_json_elements(
@@ -136,7 +136,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             kwargs=kwargs,
             reg=self._codecs_registry,
             qc=self._query_cache,
-            io_format=IoFormat.JSON_ELEMENTS,
+            io_format=protocol.IoFormat.JSON_ELEMENTS,
         )
 
     async def fetchone_json(self, query: str, *args, **kwargs) -> str:
@@ -147,7 +147,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             reg=self._codecs_registry,
             qc=self._query_cache,
             expect_one=True,
-            io_format=IoFormat.JSON,
+            io_format=protocol.IoFormat.JSON,
         )
 
     async def execute(self, query: str) -> None:
