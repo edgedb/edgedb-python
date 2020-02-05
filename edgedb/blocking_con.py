@@ -124,6 +124,17 @@ class BlockingIOConnection(base_con.BaseConnection):
             io_format=IoFormat.JSON,
         )
 
+    def _fetchall_json_elements(
+            self, query: str, *args, **kwargs) -> typing.List[str]:
+        return self._protocol.sync_execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            io_format=IoFormat.JSON_ELEMENTS,
+        )
+
     def fetchone_json(self, query: str, *args, **kwargs) -> str:
         return self._protocol.sync_execute_anonymous(
             query=query,

@@ -128,6 +128,17 @@ class AsyncIOConnection(base_con.BaseConnection,
             io_format=IoFormat.JSON,
         )
 
+    async def _fetchall_json_elements(
+            self, query: str, *args, **kwargs) -> typing.List[str]:
+        return await self._protocol.execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            io_format=IoFormat.JSON_ELEMENTS,
+        )
+
     async def fetchone_json(self, query: str, *args, **kwargs) -> str:
         return await self._protocol.execute_anonymous(
             query=query,
