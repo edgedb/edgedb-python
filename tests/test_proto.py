@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import unittest
 
 import edgedb
 
@@ -31,6 +32,7 @@ class TestProto(tb.SyncQueryTestCase):
             self.con.fetchall_json('SELECT {"aaa", "bbb"}'),
             '["aaa", "bbb"]')
 
+    @unittest.skip  # not merged into edgedb yet
     def test_json_elements(self):
         self.assertEqual(
             self.con._fetchall_json_elements('SELECT {"aaa", "bbb"}'),

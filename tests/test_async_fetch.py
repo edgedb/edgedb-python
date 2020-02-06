@@ -22,6 +22,7 @@ import datetime
 import decimal
 import json
 import random
+import unittest
 import uuid
 
 import edgedb
@@ -763,6 +764,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
             await self.con.fetchall_json('SELECT {"aaa", "bbb"}'),
             '["aaa", "bbb"]')
 
+    @unittest.skip  # not merged into edgedb yet
     async def test_json_elements(self):
         self.assertEqual(
             await self.con._fetchall_json_elements('SELECT {"aaa", "bbb"}'),
