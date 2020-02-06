@@ -28,6 +28,7 @@ from . import transaction
 
 from .datatypes import datatypes
 from .protocol import blocking_proto
+from .protocol import protocol
 
 
 class BlockingIOConnection(base_con.BaseConnection):
@@ -72,6 +73,7 @@ class BlockingIOConnection(base_con.BaseConnection):
             reg=self._codecs_registry,
             qc=self._query_cache,
             implicit_limit=__limit__,
+            io_format=protocol.IoFormat.BINARY,
         )
 
     def _fetchall_json(
@@ -88,7 +90,7 @@ class BlockingIOConnection(base_con.BaseConnection):
             reg=self._codecs_registry,
             qc=self._query_cache,
             implicit_limit=__limit__,
-            json_mode=True,
+            io_format=protocol.IoFormat.JSON,
         )
 
     def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
@@ -98,6 +100,7 @@ class BlockingIOConnection(base_con.BaseConnection):
             kwargs=kwargs,
             reg=self._codecs_registry,
             qc=self._query_cache,
+            io_format=protocol.IoFormat.BINARY,
         )
 
     def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
@@ -108,6 +111,7 @@ class BlockingIOConnection(base_con.BaseConnection):
             reg=self._codecs_registry,
             qc=self._query_cache,
             expect_one=True,
+            io_format=protocol.IoFormat.BINARY,
         )
 
     def fetchall_json(self, query: str, *args, **kwargs) -> str:
@@ -117,7 +121,18 @@ class BlockingIOConnection(base_con.BaseConnection):
             kwargs=kwargs,
             reg=self._codecs_registry,
             qc=self._query_cache,
-            json_mode=True,
+            io_format=protocol.IoFormat.JSON,
+        )
+
+    def _fetchall_json_elements(
+            self, query: str, *args, **kwargs) -> typing.List[str]:
+        return self._protocol.sync_execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
+            io_format=protocol.IoFormat.JSON_ELEMENTS,
         )
 
     def fetchone_json(self, query: str, *args, **kwargs) -> str:
@@ -128,7 +143,7 @@ class BlockingIOConnection(base_con.BaseConnection):
             reg=self._codecs_registry,
             qc=self._query_cache,
             expect_one=True,
-            json_mode=True,
+            io_format=protocol.IoFormat.JSON,
         )
 
     def execute(self, query: str) -> None:

@@ -22,6 +22,7 @@ import datetime
 import decimal
 import json
 import random
+import unittest
 import uuid
 
 import edgedb
@@ -757,3 +758,14 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidArgumentError, 'a str or edgedb.EnumValue'):
             await self.con.fetchone('SELECT <MyEnum>$0', 123)
+
+    async def test_json(self):
+        self.assertEqual(
+            await self.con.fetchall_json('SELECT {"aaa", "bbb"}'),
+            '["aaa", "bbb"]')
+
+    @unittest.skip  # not merged into edgedb yet
+    async def test_json_elements(self):
+        self.assertEqual(
+            await self.con._fetchall_json_elements('SELECT {"aaa", "bbb"}'),
+            edgedb.Set(['"aaa"', '"bbb"']))
