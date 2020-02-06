@@ -94,6 +94,7 @@ cdef class SansIOProtocol:
 
         readonly bytes last_status
         readonly bytes last_details
+        readonly uint16_t minor_protocol_version
 
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
 
