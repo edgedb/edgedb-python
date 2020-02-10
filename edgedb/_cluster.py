@@ -193,6 +193,7 @@ class Cluster:
     def _test_connection(self, timeout=60):
         while True:
             started = time.monotonic()
+            left = timeout
             try:
                 conn = edgedb.connect(
                     host=str(self._runstate_dir),
@@ -200,13 +201,13 @@ class Cluster:
                     admin=True,
                     database='edgedb',
                     user='edgedb',
-                    timeout=timeout)
+                    timeout=left)
             except (OSError, socket.error, TimeoutError,
                     edgedb.ClientConnectionError):
-                timeout -= (time.monotonic() - started)
-                if timeout > 0.05:
+                left -= (time.monotonic() - started)
+                if left > 0.05:
                     time.sleep(0.05)
-                    timeout -= 0.05
+                    left -= 0.05
                     continue
                 raise ClusterError(
                     f'could not connect to edgedb-server '
