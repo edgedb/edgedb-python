@@ -106,7 +106,7 @@ cdef class SansIOProtocol:
 
         self.server_settings = {}
         self.reset_status()
-        self.minor_protocol_version = PROTO_VER_MINOR_MIN
+        self.protocol_version = (PROTO_VER_MAJOR, PROTO_VER_MINOR_MIN)
 
     cdef reset_status(self):
         self.last_status = None
@@ -813,7 +813,7 @@ cdef class SansIOProtocol:
                         f'the protocol: {major}.{minor}'
                     )
 
-                self.minor_protocol_version = minor
+                self.protocol_version = (PROTO_VER_MAJOR, minor)
 
             elif mtype == AUTH_REQUEST_MSG:
                 # Authentication...
