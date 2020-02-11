@@ -106,6 +106,7 @@ cdef class SansIOProtocol:
 
         self.server_settings = {}
         self.reset_status()
+        self.protocol_version = (PROTO_VER_MAJOR, PROTO_VER_MINOR_MIN)
 
     cdef reset_status(self):
         self.last_status = None
@@ -806,11 +807,13 @@ cdef class SansIOProtocol:
                 self.parse_headers()
                 self.buffer.finish_message()
 
-                if major != PROTO_VER_MAJOR or minor != PROTO_VER_MINOR:
+                if major != PROTO_VER_MAJOR or minor < PROTO_VER_MINOR_MIN:
                     raise errors.ClientConnectionError(
                         f'the server requested an unsupported version of '
                         f'the protocol: {major}.{minor}'
                     )
+
+                self.protocol_version = (PROTO_VER_MAJOR, minor)
 
             elif mtype == AUTH_REQUEST_MSG:
                 # Authentication...
