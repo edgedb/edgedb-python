@@ -166,6 +166,7 @@ cdef class BaseRecordCodec(BaseCodec):
         elem_data = WriteBuffer.new()
         for i in range(objlen):
             item = obj[i]
+            elem_data.write_int32(0)  # reserved bytes
             if item is None:
                 elem_data.write_int32(-1)
             else:
