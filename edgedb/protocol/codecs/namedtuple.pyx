@@ -80,6 +80,7 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
             name = datatypes.record_desc_pointer_name(self.descriptor, i)
             arg = obj[name]
 
+            elem_data.write_int32(0)  # reserved bytes
             if arg is None:
                 elem_data.write_int32(-1)
             else:
