@@ -515,7 +515,7 @@ class TestObject(unittest.TestCase):
         self.assertNotEqual(link1, link2)
 
         self.assertEqual(list(linkset), [link1, link2])
-        self.assertEqual([l for l in linkset], [link1, link2])
+        self.assertEqual([link for link in linkset], [link1, link2])
 
         self.assertNotEqual(link1, link2)
 
