@@ -394,3 +394,48 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'combine positional and named parameters'):
             self.con.fetchall('select <int64>$0 + <int64>$bar;')
+
+    def test_sync_mismatched_args_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"expected {'a'} keyword arguments, got {'[bc]', '[bc]'}, "
+                r"missed {'a'}, extra {'[bc]', '[bc]'}"):
+
+            self.con.fetchall("""SELECT <int64>$a;""", b=1, c=2)
+
+    def test_sync_mismatched_args_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"expected {'[ab]', '[ab]'} keyword arguments, "
+                r"got {'[acd]', '[acd]', '[acd]'}, "
+                r"missed {'b'}, extra {'[cd]', '[cd]'}"):
+
+            self.con.fetchall("""
+                SELECT <int64>$a + <int64>$b;
+            """, a=1, c=2, d=3)
+
+    def test_sync_mismatched_args_03(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                "expected {'a'} keyword arguments, got {'b'}, "
+                "missed {'a'}, extra {'b'}"):
+
+            self.con.fetchall("""SELECT <int64>$a;""", b=1)
+
+    def test_sync_mismatched_args_04(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"expected {'[ab]', '[ab]'} keyword arguments, "
+                r"got {'a'}, "
+                r"missed {'b'}"):
+
+            self.con.fetchall("""SELECT <int64>$a + <int64>$b;""", a=1)
+
+    def test_sync_mismatched_args_05(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"expected {'a'} keyword arguments, "
+                r"got {'[ab]', '[ab]'}, "
+                r"extra {'b'}"):
+
+            self.con.fetchall("""SELECT <int64>$a;""", a=1, b=2)
