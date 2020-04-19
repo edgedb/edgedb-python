@@ -488,6 +488,51 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 'select <datetime>$0;',
                 date)
 
+    async def test_async_mismatched_args_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"expected {'a'} keyword arguments, got {'[bc]', '[bc]'}, "
+                r"missed {'a'}, extra {'[bc]', '[bc]'}"):
+
+            await self.con.fetchall("""SELECT <int64>$a;""", b=1, c=2)
+
+    async def test_async_mismatched_args_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"expected {'[ab]', '[ab]'} keyword arguments, "
+                r"got {'[acd]', '[acd]', '[acd]'}, "
+                r"missed {'b'}, extra {'[cd]', '[cd]'}"):
+
+            await self.con.fetchall("""
+                SELECT <int64>$a + <int64>$b;
+            """, a=1, c=2, d=3)
+
+    async def test_async_mismatched_args_03(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                "expected {'a'} keyword arguments, got {'b'}, "
+                "missed {'a'}, extra {'b'}"):
+
+            await self.con.fetchall("""SELECT <int64>$a;""", b=1)
+
+    async def test_async_mismatched_args_04(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"expected {'[ab]', '[ab]'} keyword arguments, "
+                r"got {'a'}, "
+                r"missed {'b'}"):
+
+            await self.con.fetchall("""SELECT <int64>$a + <int64>$b;""", a=1)
+
+    async def test_async_mismatched_args_05(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"expected {'a'} keyword arguments, "
+                r"got {'[ab]', '[ab]'}, "
+                r"extra {'b'}"):
+
+            await self.con.fetchall("""SELECT <int64>$a;""", a=1, b=2)
+
     async def test_async_args_uuid_pack(self):
         obj = await self.con.fetchone(
             'select schema::Object {id, name} limit 1')

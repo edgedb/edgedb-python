@@ -71,14 +71,15 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
 
         objlen = len(obj)
         if objlen != len(self.fields_codecs):
-            raise RuntimeError(
-                f'expected {len(self.fields_codecs)} keyword arguments, '
-                f'got {objlen}')
+            raise self._make_missing_args_error_message(obj)
 
         elem_data = WriteBuffer.new()
         for i in range(objlen):
             name = datatypes.record_desc_pointer_name(self.descriptor, i)
-            arg = obj[name]
+            try:
+                arg = obj[name]
+            except KeyError:
+                raise self._make_missing_args_error_message(obj) from None
 
             elem_data.write_int32(0)  # reserved bytes
             if arg is None:
@@ -114,3 +115,27 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
         codec.fields_codecs = fields_codecs
 
         return codec
+
+    def _make_missing_args_error_message(self, args):
+        required_args = set()
+
+        for i in range(len(self.fields_codecs)):
+            name = datatypes.record_desc_pointer_name(self.descriptor, i)
+            required_args.add(name)
+
+        passed_args = set(args.keys())
+        missed_args = required_args - passed_args
+        extra_args = passed_args - required_args
+
+        error_message = f'expected {required_args} keyword arguments'
+        error_message += f', got {passed_args}'
+
+        missed_args = set(required_args) - set(passed_args)
+        if missed_args:
+            error_message += f', missed {missed_args}'
+
+        extra_args = set(passed_args) - set(required_args)
+        if extra_args:
+            error_message += f', extra {extra_args}'
+
+        return errors.QueryArgumentError(error_message)
