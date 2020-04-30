@@ -222,10 +222,19 @@ object_getitem(EdgeObject *o, PyObject *name)
         case L_ERROR:
             return NULL;
 
-        case L_LINKPROP:
         case L_PROPERTY:
+            PyErr_Format(
+                PyExc_TypeError,
+                "property %R should be accessed via dot notation",
+                name);
+            return NULL;
+
+        case L_LINKPROP:
         case L_NOT_FOUND:
-            PyErr_SetObject(PyExc_KeyError, name);
+            PyErr_Format(
+                PyExc_KeyError,
+                "link %R does not exist",
+                name);
             return NULL;
 
         case L_LINK: {
