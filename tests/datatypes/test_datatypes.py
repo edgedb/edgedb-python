@@ -406,7 +406,7 @@ class TestObject(unittest.TestCase):
         with self.assertRaises(KeyError):
             o[0]
 
-        with self.assertRaises(KeyError):
+        with self.assertRaises(TypeError):
             o['id']
 
         self.assertEqual(set(dir(o)), {'id', 'c'})
@@ -462,6 +462,19 @@ class TestObject(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "without 'id' field"):
             f(1, 2, 3)
+
+    def test_object_6(self):
+        User = private.create_object_factory(
+            id='property',
+            name='property',
+        )
+
+        u = User(1, 'user1')
+
+        with self.assertRaisesRegex(TypeError,
+                                    "property 'name' should be "
+                                    "accessed via dot notation"):
+            u['name']
 
     def test_object_links_1(self):
         O2 = private.create_object_factory(
@@ -554,6 +567,18 @@ class TestObject(unittest.TestCase):
         self.assertEqual(
             repr(u2['friend']),
             "Link(name='friend', source_id=2, target_id=1)")
+
+    def test_object_links_4(self):
+        User = private.create_object_factory(
+            id='property',
+            friend='link',
+        )
+
+        u = User(1, None)
+
+        with self.assertRaisesRegex(KeyError,
+                                    "link 'error_key' does not exist"):
+            u['error_key']
 
 
 class TestSet(unittest.TestCase):
