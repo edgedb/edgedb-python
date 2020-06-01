@@ -978,28 +978,29 @@ cdef class SansIOProtocol:
              WriteBuffer tmp = WriteBuffer.new()
 
         if args and kwargs:
-            raise RuntimeError(
+            raise errors.QueryArgumentError(
                 'either positional or named arguments are supported; '
                 'not both')
 
         if type(in_dc) is EmptyTupleCodec:
             if args:
-                raise RuntimeError('expected no positional arguments')
+                raise errors.QueryArgumentError(
+                    'expected no positional arguments')
             if kwargs:
-                raise RuntimeError('expected no named arguments')
+                raise errors.QueryArgumentError('expected no named arguments')
             in_dc.encode(buf, ())
             return
 
         if kwargs:
             if type(in_dc) is not NamedTupleCodec:
-                raise RuntimeError(
+                raise errors.QueryArgumentError(
                     'expected positional arguments, got named arguments')
 
             (<NamedTupleCodec>in_dc).encode_kwargs(buf, kwargs)
 
         else:
             if type(in_dc) is not TupleCodec:
-                raise RuntimeError(
+                raise errors.QueryArgumentError(
                     'expected named arguments, got positional arguments')
             in_dc.encode(buf, args)
 
