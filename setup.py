@@ -46,8 +46,9 @@ TEST_DEPENDENCIES = [
     # pycodestyle is a dependency of flake8, but it must be frozen because
     # their combination breaks too often
     # (example breakage: https://gitlab.com/pycqa/flake8/issues/427)
-    'pycodestyle~=2.5.0',
-    'flake8~=3.7.9',
+    'pycodestyle~=2.6.0',
+    'pyflakes~=2.2.0',
+    'flake8~=3.8.1',
     'uvloop>=0.14.0;platform_system!="Windows"',
 ]
 
