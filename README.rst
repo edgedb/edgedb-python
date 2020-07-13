@@ -7,8 +7,8 @@ The Python driver for EdgeDB
 .. image:: https://img.shields.io/pypi/v/edgedb.svg
     :target: https://pypi.python.org/pypi/edgedb
 
-.. image:: https://img.shields.io/badge/join%20the%20community-on%20spectrum-blueviolet
-    :target: https://spectrum.chat/edgedb
+.. image:: https://img.shields.io/badge/join-github%20discussions-green
+    :target: https://github.com/edgedb/edgedb/discussions
 
 
 **edgedb-python** is the official EdgeDB driver for Python.
