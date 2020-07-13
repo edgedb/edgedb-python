@@ -61,5 +61,7 @@ jobs:
 
     - name: Test
       if: steps.release.outputs.version == 0
+      env:
+        EDGEDB_CI_SLOT: 1-alpha4
       run: |
         make && make quicktest

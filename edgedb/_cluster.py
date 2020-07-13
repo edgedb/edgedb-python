@@ -81,7 +81,7 @@ class Cluster:
             runstate_dir, env=None, testmode=False):
         self._data_dir = data_dir
         self._location = data_dir
-        self._edgedb_cmd = ['edgedb-server', '-D', self._data_dir]
+        self._edgedb_cmd = [self.get_edgedb_server(), '-D', self._data_dir]
 
         if testmode:
             self._edgedb_cmd.append('--testmode')
@@ -92,6 +92,13 @@ class Cluster:
         self._port = port
         self._effective_port = None
         self._env = env
+
+    @staticmethod
+    def get_edgedb_server():
+        try:
+            return f'edgedb-server-{os.environ["EDGEDB_CI_SLOT"]}'
+        except KeyError:
+            return 'edgedb-server'
 
     def get_status(self):
         data_dir = pathlib.Path(self._data_dir)
