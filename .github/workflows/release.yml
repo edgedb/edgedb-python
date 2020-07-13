@@ -114,6 +114,8 @@ jobs:
       if: |
         !startsWith(matrix.os, 'windows')
         && !contains(github.event.pull_request.labels.*.name, 'skip wheel tests')
+      env:
+        EDGEDB_CI_SLOT: 1-alpha4
       run: |
         pip install --pre edgedb[test] -f "file:///${GITHUB_WORKSPACE}/dist"
         make -C "${GITHUB_WORKSPACE}" testinstalled
