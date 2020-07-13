@@ -60,7 +60,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
         self.assertIsNone(self.con._top_xact)
 
-        result = await self.con.fetchall('''
+        result = await self.con.query('''
             SELECT
                 test::TransactionTest
             FILTER
@@ -103,7 +103,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
                         1 / 0
 
-                recs = await self.con.fetchall('''
+                recs = await self.con.query('''
                     SELECT
                         test::TransactionTest {
                             name
@@ -119,7 +119,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
         self.assertIs(self.con._top_xact, None)
 
-        recs = await self.con.fetchall('''
+        recs = await self.con.query('''
             SELECT
                 test::TransactionTest {
                     name

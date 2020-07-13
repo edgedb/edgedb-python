@@ -20,6 +20,7 @@
 import asyncio
 import time
 import typing
+import warnings
 
 from . import base_con
 from . import con_utils
@@ -97,7 +98,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             io_format=protocol.IoFormat.JSON,
         )
 
-    async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
+    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
         return await self._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -107,7 +108,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             io_format=protocol.IoFormat.BINARY,
         )
 
-    async def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
+    async def query_one(self, query: str, *args, **kwargs) -> typing.Any:
         return await self._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -118,7 +119,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             io_format=protocol.IoFormat.BINARY,
         )
 
-    async def fetchall_json(self, query: str, *args, **kwargs) -> str:
+    async def query_json(self, query: str, *args, **kwargs) -> str:
         return await self._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -139,7 +140,7 @@ class AsyncIOConnection(base_con.BaseConnection,
             io_format=protocol.IoFormat.JSON_ELEMENTS,
         )
 
-    async def fetchone_json(self, query: str, *args, **kwargs) -> str:
+    async def query_one_json(self, query: str, *args, **kwargs) -> str:
         return await self._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -213,6 +214,34 @@ class AsyncIOConnection(base_con.BaseConnection,
 
     def is_closed(self) -> bool:
         return self._transport.is_closing() or not self._protocol.connected
+
+    async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
+        warnings.warn(
+            'The "fetchall()" method is deprecated and is scheduled to be '
+            'removed. Use the "query()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query(query, *args, **kwargs)
+
+    async def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
+        warnings.warn(
+            'The "fetchone()" method is deprecated and is scheduled to be '
+            'removed. Use the "query_one()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query_one(query, *args, **kwargs)
+
+    async def fetchall_json(self, query: str, *args, **kwargs) -> str:
+        warnings.warn(
+            'The "fetchall_json()" method is deprecated and is scheduled to '
+            'be removed. Use the "query_json()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query_json(query, *args, **kwargs)
+
+    async def fetchone_json(self, query: str, *args, **kwargs) -> str:
+        warnings.warn(
+            'The "fetchone_json()" method is deprecated and is scheduled to '
+            'be removed. Use the "query_one_json()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query_one_json(query, *args, **kwargs)
 
 
 async def _connect_addr(*, addr, loop, timeout, params, config,
