@@ -83,7 +83,7 @@ jobs:
       if: "!startsWith(matrix.os, 'windows')"
       env:
         OS_NAME: ${{ matrix.os }}
-        SLOT: 1-alpha3
+        SLOT: 1-alpha4
       run: |
         .github/workflows/install-edgedb.sh
 
