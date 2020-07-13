@@ -373,9 +373,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         # Don't wrap the script into a transaction here, so that
         # potentially it's easier to stitch multiple such scripts
         # together in a fashion similar to what `edb inittestdb` does.
-        script += f'\nCREATE MIGRATION test_migration'
-        script += f' TO {{ {"".join(schema)} }};'
-        script += f'\nCOMMIT MIGRATION test_migration;'
+        script += f'\nSTART MIGRATION TO {{ {"".join(schema)} }};'
+        script += f'\nPOPULATE MIGRATION; \nCOMMIT MIGRATION;'
 
         if cls.SETUP:
             if not isinstance(cls.SETUP, (list, tuple)):
