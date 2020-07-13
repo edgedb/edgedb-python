@@ -69,9 +69,9 @@ cpython.datetime.import_datetime()
 
 
 _FETCHONE_METHOD = {
-    IoFormat.JSON: 'fetchone_json',
+    IoFormat.JSON: 'query_one_json',
     IoFormat.JSON_ELEMENTS: '_fetchall_json_elements',
-    IoFormat.BINARY: 'fetchone',
+    IoFormat.BINARY: 'query_one',
 }
 
 

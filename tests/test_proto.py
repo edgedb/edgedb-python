@@ -29,7 +29,7 @@ class TestProto(tb.SyncQueryTestCase):
 
     def test_json(self):
         self.assertEqual(
-            self.con.fetchall_json('SELECT {"aaa", "bbb"}'),
+            self.con.query_json('SELECT {"aaa", "bbb"}'),
             '["aaa", "bbb"]')
 
     @unittest.skip  # not merged into edgedb yet
@@ -47,7 +47,7 @@ class TestProto(tb.SyncQueryTestCase):
                 # we know that the codec will fail.
                 # The test will be rewritten once it's possible to override
                 # default codecs.
-                self.con.fetchall("""
+                self.con.query("""
                     SELECT
                         cal::to_local_date('0001-01-01 BC', 'YYYY-MM-DD AD');
                 """)
@@ -55,7 +55,7 @@ class TestProto(tb.SyncQueryTestCase):
             # The protocol, though, shouldn't be in some inconsistent
             # state; it should allow new queries to execute successfully.
             self.assertEqual(
-                self.con.fetchall('SELECT {"aaa", "bbb"}'),
+                self.con.query('SELECT {"aaa", "bbb"}'),
                 ['aaa', 'bbb'])
 
     async def test_proto_codec_error_recovery_02(self):
@@ -67,7 +67,7 @@ class TestProto(tb.SyncQueryTestCase):
                 # we know that the codec will fail.
                 # The test will be rewritten once it's possible to override
                 # default codecs.
-                self.con.fetchall(r"""
+                self.con.query(r"""
                     SELECT cal::to_local_date(
                         {
                             '2010-01-01 AD',
@@ -84,5 +84,5 @@ class TestProto(tb.SyncQueryTestCase):
             # The protocol, though, shouldn't be in some inconsistent
             # state; it should allow new queries to execute successfully.
             self.assertEqual(
-                self.con.fetchall('SELECT {"aaa", "bbb"}'),
+                self.con.query('SELECT {"aaa", "bbb"}'),
                 ['aaa', 'bbb'])

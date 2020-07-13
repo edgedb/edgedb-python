@@ -21,9 +21,14 @@ import asyncio
 import functools
 import inspect
 import logging
+import typing
+import warnings
 
 from . import asyncio_con
 from . import errors
+
+from .datatypes import datatypes
+
 
 __all__ = ('create_async_pool', 'AsyncIOPool')
 
@@ -443,21 +448,49 @@ class AsyncIOPool:
 
         return con
 
-    async def fetchall(self, query, *args, **kwargs):
+    async def query(self, query, *args, **kwargs):
         async with self.acquire() as con:
-            return await con.fetchall(query, *args, **kwargs)
+            return await con.query(query, *args, **kwargs)
 
-    async def fetchone(self, query, *args, **kwargs):
+    async def query_one(self, query, *args, **kwargs):
         async with self.acquire() as con:
-            return await con.fetchone(query, *args, **kwargs)
+            return await con.query_one(query, *args, **kwargs)
 
-    async def fetchall_json(self, query, *args, **kwargs):
+    async def query_json(self, query, *args, **kwargs):
         async with self.acquire() as con:
-            return await con.fetchall_json(query, *args, **kwargs)
+            return await con.query_json(query, *args, **kwargs)
 
-    async def fetchone_json(self, query, *args, **kwargs):
+    async def query_one_json(self, query, *args, **kwargs):
         async with self.acquire() as con:
-            return await con.fetchone_json(query, *args, **kwargs)
+            return await con.query_one_json(query, *args, **kwargs)
+
+    async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
+        warnings.warn(
+            'The "fetchall()" method is deprecated and is scheduled to be '
+            'removed. Use the "query()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query(query, *args, **kwargs)
+
+    async def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
+        warnings.warn(
+            'The "fetchone()" method is deprecated and is scheduled to be '
+            'removed. Use the "query_one()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query_one(query, *args, **kwargs)
+
+    async def fetchall_json(self, query: str, *args, **kwargs) -> str:
+        warnings.warn(
+            'The "fetchall_json()" method is deprecated and is scheduled to '
+            'be removed. Use the "query_json()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query_json(query, *args, **kwargs)
+
+    async def fetchone_json(self, query: str, *args, **kwargs) -> str:
+        warnings.warn(
+            'The "fetchone_json()" method is deprecated and is scheduled to '
+            'be removed. Use the "query_one_json()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query_one_json(query, *args, **kwargs)
 
     async def execute(self, query):
         async with self.acquire() as con:

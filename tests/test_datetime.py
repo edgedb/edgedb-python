@@ -56,7 +56,7 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         durs = [timedelta(**d) for d in duration_kwargs]
 
         # Test encode/decode roundtrip
-        durs_from_db = self.con.fetchall('''
+        durs_from_db = self.con.query('''
             WITH args := array_unpack(<array<duration>>$0)
             SELECT args;
         ''', durs)
@@ -91,13 +91,13 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
 
         # Test that RelativeDelta.__str__ formats the
         # same as <str><cal::relativedelta>
-        durs_as_text = self.con.fetchall('''
+        durs_as_text = self.con.query('''
             WITH args := array_unpack(<array<cal::relativedelta>>$0)
             SELECT <str>args;
         ''', durs)
 
         # Test encode/decode roundtrip
-        durs_from_db = self.con.fetchall('''
+        durs_from_db = self.con.query('''
             WITH args := array_unpack(<array<cal::relativedelta>>$0)
             SELECT args;
         ''', durs)

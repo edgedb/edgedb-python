@@ -50,22 +50,22 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
     async def test_async_parse_error_recover_01(self):
         for _ in range(2):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
-                await self.con.fetchall('select syntax error')
+                await self.con.query('select syntax error')
 
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
-                await self.con.fetchall('select syntax error')
+                await self.con.query('select syntax error')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
                                         'Unexpected end of line'):
-                await self.con.fetchall('select (')
+                await self.con.query('select (')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
                                         'Unexpected end of line'):
-                await self.con.fetchall_json('select (')
+                await self.con.query_json('select (')
 
             for _ in range(10):
                 self.assertEqual(
-                    await self.con.fetchall('select 1;'),
+                    await self.con.query('select 1;'),
                     edgedb.Set((1,)))
 
             self.assertFalse(self.con.is_closed())
@@ -84,14 +84,14 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
     async def test_async_exec_error_recover_01(self):
         for _ in range(2):
             with self.assertRaises(edgedb.DivisionByZeroError):
-                await self.con.fetchall('select 1 / 0;')
+                await self.con.query('select 1 / 0;')
 
             with self.assertRaises(edgedb.DivisionByZeroError):
-                await self.con.fetchall('select 1 / 0;')
+                await self.con.query('select 1 / 0;')
 
             for _ in range(10):
                 self.assertEqual(
-                    await self.con.fetchall('select 1;'),
+                    await self.con.query('select 1;'),
                     edgedb.Set((1,)))
 
     async def test_async_exec_error_recover_02(self):
@@ -110,11 +110,11 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         for i in [1, 2, 0, 3, 1, 0, 1]:
             if i:
                 self.assertEqual(
-                    await self.con.fetchall(query, i),
+                    await self.con.query(query, i),
                     edgedb.Set([10 // i]))
             else:
                 with self.assertRaises(edgedb.DivisionByZeroError):
-                    await self.con.fetchall(query, i)
+                    await self.con.query(query, i)
 
     async def test_async_exec_error_recover_04(self):
         for i in [1, 2, 0, 3, 1, 0, 1]:
@@ -122,18 +122,18 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 await self.con.execute(f'select 10 // {i};')
             else:
                 with self.assertRaises(edgedb.DivisionByZeroError):
-                    await self.con.fetchall(f'select 10 // {i};')
+                    await self.con.query(f'select 10 // {i};')
 
     async def test_async_exec_error_recover_05(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'cannot accept parameters'):
             await self.con.execute(f'select <int64>$0')
         self.assertEqual(
-            await self.con.fetchall('SELECT "HELLO"'),
+            await self.con.query('SELECT "HELLO"'),
             ["HELLO"])
 
     async def test_async_fetch_single_command_01(self):
-        r = await self.con.fetchall('''
+        r = await self.con.query('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
@@ -141,12 +141,12 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchall('''
+        r = await self.con.query('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchall('''
+        r = await self.con.query('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
@@ -154,12 +154,12 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchall_json('''
+        r = await self.con.query_json('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertEqual(r, '[]')
 
-        r = await self.con.fetchall_json('''
+        r = await self.con.query_json('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
@@ -169,48 +169,48 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'query cannot be executed with fetchone_json\('):
-            await self.con.fetchone_json('''
+                r'query cannot be executed with query_one_json\('):
+            await self.con.query_one_json('''
                 DROP TYPE test::server_fetch_single_command_01;
             ''')
 
-        r = await self.con.fetchall_json('''
+        r = await self.con.query_json('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertEqual(r, '[]')
 
     async def test_async_fetch_single_command_02(self):
-        r = await self.con.fetchall('''
+        r = await self.con.query('''
             SET MODULE default;
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchall('''
+        r = await self.con.query('''
             RESET ALIAS *;
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchall('''
+        r = await self.con.query('''
             SET ALIAS bar AS MODULE std;
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchall('''
+        r = await self.con.query('''
             SET MODULE default;
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchall('''
+        r = await self.con.query('''
             SET ALIAS bar AS MODULE std;
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetchall_json('''
+        r = await self.con.query_json('''
             SET MODULE default;
         ''')
         self.assertEqual(r, '[]')
 
-        r = await self.con.fetchall_json('''
+        r = await self.con.query_json('''
             SET ALIAS foo AS MODULE default;
         ''')
         self.assertEqual(r, '[]')
@@ -228,44 +228,44 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         for _ in range(3):
             for q in qs:
-                r = await self.con.fetchall(q)
+                r = await self.con.query(q)
                 self.assertEqual(r, [])
 
             for q in qs:
-                r = await self.con.fetchall_json(q)
+                r = await self.con.query_json(q)
                 self.assertEqual(r, '[]')
 
         for q in qs:
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'cannot be executed with fetchone\(\).*'
+                    r'cannot be executed with query_one\(\).*'
                     r'not return'):
-                await self.con.fetchone(q)
+                await self.con.query_one(q)
 
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'cannot be executed with fetchone_json\(\).*'
+                    r'cannot be executed with query_one_json\(\).*'
                     r'not return'):
-                await self.con.fetchone_json(q)
+                await self.con.query_one_json(q)
 
     async def test_async_fetch_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            await self.con.fetchall('''
+            await self.con.query('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            await self.con.fetchone('''
+            await self.con.query_one('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            await self.con.fetchall_json('''
+            await self.con.query_json('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
@@ -273,28 +273,28 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
     async def test_async_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
-                await self.con.fetchone(
+                await self.con.query_one(
                     'select ()'),
                 ())
 
             self.assertEqual(
-                await self.con.fetchall(
+                await self.con.query(
                     'select (1,)'),
                 edgedb.Set([(1,)]))
 
             async with self.con.transaction(isolation='repeatable_read'):
                 self.assertEqual(
-                    await self.con.fetchone(
+                    await self.con.query_one(
                         'select <array<int64>>[]'),
                     [])
 
             self.assertEqual(
-                await self.con.fetchall(
+                await self.con.query(
                     'select ["a", "b"]'),
                 edgedb.Set([["a", "b"]]))
 
             self.assertEqual(
-                await self.con.fetchall('''
+                await self.con.query('''
                     SELECT {(a := 1 + 1 + 40, world := ("hello", 32)),
                             (a:=1, world := ("yo", 10))};
                 '''),
@@ -305,55 +305,55 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'fetchone\(\) as it returns a multiset'):
-                await self.con.fetchone('SELECT {1, 2}')
+                    r'query_one\(\) as it returns a multiset'):
+                await self.con.query_one('SELECT {1, 2}')
 
-            with self.assertRaisesRegex(edgedb.NoDataError, r'\bfetchone\('):
-                await self.con.fetchone('SELECT <int64>{}')
+            with self.assertRaisesRegex(edgedb.NoDataError, r'\bquery_one\('):
+                await self.con.query_one('SELECT <int64>{}')
 
     async def test_async_basic_datatypes_02(self):
         self.assertEqual(
-            await self.con.fetchall(
+            await self.con.query(
                 r'''select [b"\x00a", b"b", b'', b'\na']'''),
             edgedb.Set([[b"\x00a", b"b", b'', b'\na']]))
 
         self.assertEqual(
-            await self.con.fetchall(
+            await self.con.query(
                 r'select <bytes>$0', b'he\x00llo'),
             edgedb.Set([b'he\x00llo']))
 
     async def test_async_basic_datatypes_03(self):
         for _ in range(10):  # test opportunistic execute
             self.assertEqual(
-                await self.con.fetchall_json(
+                await self.con.query_json(
                     'select ()'),
                 '[[]]')
 
             self.assertEqual(
-                await self.con.fetchall_json(
+                await self.con.query_json(
                     'select (1,)'),
                 '[[1]]')
 
             self.assertEqual(
-                await self.con.fetchall_json(
+                await self.con.query_json(
                     'select <array<int64>>[]'),
                 '[[]]')
 
             self.assertEqual(
                 json.loads(
-                    await self.con.fetchall_json(
+                    await self.con.query_json(
                         'select ["a", "b"]')),
                 [["a", "b"]])
 
             self.assertEqual(
                 json.loads(
-                    await self.con.fetchone_json(
+                    await self.con.query_one_json(
                         'select ["a", "b"]')),
                 ["a", "b"])
 
             self.assertEqual(
                 json.loads(
-                    await self.con.fetchall_json('''
+                    await self.con.query_json('''
                         SELECT {(a := 1 + 1 + 40, world := ("hello", 32)),
                                 (a:=1, world := ("yo", 10))};
                     ''')),
@@ -364,18 +364,18 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
             self.assertEqual(
                 json.loads(
-                    await self.con.fetchall_json('SELECT {1, 2}')),
+                    await self.con.query_json('SELECT {1, 2}')),
                 [1, 2])
 
             self.assertEqual(
-                json.loads(await self.con.fetchall_json('SELECT <int64>{}')),
+                json.loads(await self.con.query_json('SELECT <int64>{}')),
                 [])
 
             with self.assertRaises(edgedb.NoDataError):
-                await self.con.fetchone_json('SELECT <int64>{}')
+                await self.con.query_one_json('SELECT <int64>{}')
 
     async def test_async_basic_datatypes_04(self):
-        val = await self.con.fetchone(
+        val = await self.con.query_one(
             '''
                 SELECT schema::ObjectType {
                     foo := {
@@ -403,28 +403,28 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
     async def test_async_args_01(self):
         self.assertEqual(
-            await self.con.fetchall(
+            await self.con.query(
                 'select (<array<str>>$foo)[0] ++ (<array<str>>$bar)[0];',
                 foo=['aaa'], bar=['bbb']),
             edgedb.Set(('aaabbb',)))
 
     async def test_async_args_02(self):
         self.assertEqual(
-            await self.con.fetchall(
+            await self.con.query(
                 'select (<array<str>>$0)[0] ++ (<array<str>>$1)[0];',
                 ['aaa'], ['bbb']),
             edgedb.Set(('aaabbb',)))
 
     async def test_async_args_03(self):
         with self.assertRaisesRegex(edgedb.QueryError, r'missing \$0'):
-            await self.con.fetchall('select <int64>$1;')
+            await self.con.query('select <int64>$1;')
 
         with self.assertRaisesRegex(edgedb.QueryError, r'missing \$1'):
-            await self.con.fetchall('select <int64>$0 + <int64>$2;')
+            await self.con.query('select <int64>$0 + <int64>$2;')
 
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'combine positional and named parameters'):
-            await self.con.fetchall('select <int64>$0 + <int64>$bar;')
+            await self.con.query('select <int64>$0 + <int64>$bar;')
 
     async def test_async_args_04(self):
         aware_datetime = datetime.datetime.now(datetime.timezone.utc)
@@ -435,56 +435,56 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         aware_time = datetime.time(hour=11, tzinfo=datetime.timezone.utc)
 
         self.assertEqual(
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <datetime>$0;',
                 aware_datetime),
             aware_datetime)
 
         self.assertEqual(
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <cal::local_datetime>$0;',
                 naive_datetime),
             naive_datetime)
 
         self.assertEqual(
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <cal::local_date>$0;',
                 date),
             date)
 
         self.assertEqual(
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <cal::local_time>$0;',
                 naive_time),
             naive_time)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'a timezone-aware.*expected'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <datetime>$0;',
                 naive_datetime)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'a naive time object.*expected'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <cal::local_time>$0;',
                 aware_time)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'a naive datetime object.*expected'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <cal::local_datetime>$0;',
                 aware_datetime)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'datetime.datetime object was expected'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <cal::local_datetime>$0;',
                 date)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     r'datetime.datetime object was expected'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <datetime>$0;',
                 date)
 
@@ -494,7 +494,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 r"expected {'a'} keyword arguments, got {'[bc]', '[bc]'}, "
                 r"missed {'a'}, extra {'[bc]', '[bc]'}"):
 
-            await self.con.fetchall("""SELECT <int64>$a;""", b=1, c=2)
+            await self.con.query("""SELECT <int64>$a;""", b=1, c=2)
 
     async def test_async_mismatched_args_02(self):
         with self.assertRaisesRegex(
@@ -503,7 +503,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 r"got {'[acd]', '[acd]', '[acd]'}, "
                 r"missed {'b'}, extra {'[cd]', '[cd]'}"):
 
-            await self.con.fetchall("""
+            await self.con.query("""
                 SELECT <int64>$a + <int64>$b;
             """, a=1, c=2, d=3)
 
@@ -513,7 +513,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 "expected {'a'} keyword arguments, got {'b'}, "
                 "missed {'a'}, extra {'b'}"):
 
-            await self.con.fetchall("""SELECT <int64>$a;""", b=1)
+            await self.con.query("""SELECT <int64>$a;""", b=1)
 
     async def test_async_mismatched_args_04(self):
         with self.assertRaisesRegex(
@@ -522,7 +522,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 r"got {'a'}, "
                 r"missed {'b'}"):
 
-            await self.con.fetchall("""SELECT <int64>$a + <int64>$b;""", a=1)
+            await self.con.query("""SELECT <int64>$a + <int64>$b;""", a=1)
 
     async def test_async_mismatched_args_05(self):
         with self.assertRaisesRegex(
@@ -531,34 +531,34 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 r"got {'[ab]', '[ab]'}, "
                 r"extra {'b'}"):
 
-            await self.con.fetchall("""SELECT <int64>$a;""", a=1, b=2)
+            await self.con.query("""SELECT <int64>$a;""", a=1, b=2)
 
     async def test_async_args_uuid_pack(self):
-        obj = await self.con.fetchone(
+        obj = await self.con.query_one(
             'select schema::Object {id, name} limit 1')
 
         # Test that the custom UUID that our driver uses can be
         # passed back as a parameter.
-        ot = await self.con.fetchone(
+        ot = await self.con.query_one(
             'select schema::Object {name} filter .id=<uuid>$id',
             id=obj.id)
         self.assertEqual(obj, ot)
 
         # Test that a string UUID is acceptable.
-        ot = await self.con.fetchone(
+        ot = await self.con.query_one(
             'select schema::Object {name} filter .id=<uuid>$id',
             id=str(obj.id))
         self.assertEqual(obj, ot)
 
         # Test that a standard uuid.UUID is acceptable.
-        ot = await self.con.fetchone(
+        ot = await self.con.query_one(
             'select schema::Object {name} filter .id=<uuid>$id',
             id=uuid.UUID(bytes=obj.id.bytes))
         self.assertEqual(obj, ot)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'invalid UUID.*length must be'):
-            await self.con.fetchall(
+            await self.con.query(
                 'select schema::Object {name} filter .id=<uuid>$id',
                 id='asdasas')
 
@@ -631,51 +631,51 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 num += random.choice("0000000012")
             testar.append(int(num))
 
-        val = await self.con.fetchone(
+        val = await self.con.query_one(
             'select <array<bigint>>$arg',
             arg=testar)
 
         self.assertEqual(testar, val)
 
     async def test_async_args_bigint_pack(self):
-        val = await self.con.fetchone(
+        val = await self.con.query_one(
             'select <bigint>$arg',
             arg=10)
         self.assertEqual(val, 10)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected an int'):
-            await self.con.fetchall(
+            await self.con.query(
                 'select <bigint>$arg',
                 arg='bad int')
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected an int'):
-            await self.con.fetchall(
+            await self.con.query(
                 'select <bigint>$arg',
                 arg=10.11)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected an int'):
-            await self.con.fetchall(
+            await self.con.query(
                 'select <bigint>$arg',
                 arg=decimal.Decimal('10.0'))
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected an int'):
-            await self.con.fetchall(
+            await self.con.query(
                 'select <bigint>$arg',
                 arg=decimal.Decimal('10.11'))
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected an int'):
-            await self.con.fetchall(
+            await self.con.query(
                 'select <bigint>$arg',
                 arg='10')
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected an int'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <bigint>$arg',
                 arg=decimal.Decimal('10'))
 
@@ -685,7 +685,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 def __int__(self):
                     return 10
 
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <bigint>$arg',
                 arg=IntLike())
 
@@ -696,19 +696,19 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected an int'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <int16>$arg',
                 arg=IntLike())
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected an int'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <int32>$arg',
                 arg=IntLike())
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected an int'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <int64>$arg',
                 arg=IntLike())
 
@@ -717,19 +717,19 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
             def __int__(self):
                 return 10
 
-        val = await self.con.fetchone('select <decimal>$0',
-                                      decimal.Decimal("10.0"))
+        val = await self.con.query_one('select <decimal>$0',
+                                       decimal.Decimal("10.0"))
         self.assertEqual(val, 10)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected a Decimal or an int'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <decimal>$arg',
                 arg=IntLike())
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'expected a Decimal or an int'):
-            await self.con.fetchone(
+            await self.con.query_one(
                 'select <decimal>$arg',
                 arg="10.2")
 
@@ -740,7 +740,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         con2 = await self.connect(database=self.con.dbname)
 
-        await self.con.fetchone(
+        await self.con.query_one(
             'select sys::advisory_lock(<int64>$0)',
             lock_key)
 
@@ -749,7 +749,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
                 async def exec_to_fail():
                     with self.assertRaises(ConnectionAbortedError):
-                        await con2.fetchall(
+                        await con2.query(
                             'select sys::advisory_lock(<int64>$0)', lock_key)
 
                 g.create_task(exec_to_fail())
@@ -759,12 +759,12 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         finally:
             self.assertEqual(
-                await self.con.fetchall(
+                await self.con.query(
                     'select sys::advisory_unlock(<int64>$0)', lock_key),
                 [True])
 
     async def test_empty_set_unpack(self):
-        await self.con.fetchone('''
+        await self.con.query_one('''
           select schema::Function {
             name,
             params: {
@@ -777,36 +777,36 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         ''')
 
     async def test_enum_argument_01(self):
-        A = await self.con.fetchone('SELECT <MyEnum><str>$0', 'A')
+        A = await self.con.query_one('SELECT <MyEnum><str>$0', 'A')
         self.assertEqual(str(A), 'A')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
             async with self.con.transaction():
-                await self.con.fetchone(
+                await self.con.query_one(
                     'SELECT <MyEnum><str>$0', 'Oups')
 
         self.assertEqual(
-            await self.con.fetchone('SELECT <MyEnum>$0', 'A'),
+            await self.con.query_one('SELECT <MyEnum>$0', 'A'),
             A)
 
         self.assertEqual(
-            await self.con.fetchone('SELECT <MyEnum>$0', A),
+            await self.con.query_one('SELECT <MyEnum>$0', A),
             A)
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
             async with self.con.transaction():
-                await self.con.fetchone(
+                await self.con.query_one(
                     'SELECT <MyEnum>$0', 'Oups')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidArgumentError, 'a str or edgedb.EnumValue'):
-            await self.con.fetchone('SELECT <MyEnum>$0', 123)
+            await self.con.query_one('SELECT <MyEnum>$0', 123)
 
     async def test_json(self):
         self.assertEqual(
-            await self.con.fetchall_json('SELECT {"aaa", "bbb"}'),
+            await self.con.query_json('SELECT {"aaa", "bbb"}'),
             '["aaa", "bbb"]')
 
     @unittest.skip  # not merged into edgedb yet

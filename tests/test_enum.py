@@ -33,9 +33,9 @@ class TestEnum(tb.AsyncQueryTestCase):
     '''
 
     async def test_enum_01(self):
-        ct_red = await self.con.fetchone('SELECT <CellType>"red"')
-        ct_white = await self.con.fetchone('SELECT <CellType>"white"')
-        c_red = await self.con.fetchone('SELECT <Color>"red"')
+        ct_red = await self.con.query_one('SELECT <CellType>"red"')
+        ct_white = await self.con.query_one('SELECT <CellType>"white"')
+        c_red = await self.con.query_one('SELECT <Color>"red"')
 
         self.assertTrue(isinstance(ct_red, edgedb.EnumValue))
         self.assertTrue(isinstance(ct_red.__tid__, uuid.UUID))
