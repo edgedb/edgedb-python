@@ -40,7 +40,7 @@ Blocking connection example:
         ''')
 
         # Insert a new User object
-        conn.fetchall('''
+        conn.query('''
             INSERT User {
                 name := <str>$name,
                 dob := <local_date>$dob
@@ -48,7 +48,7 @@ Blocking connection example:
         ''', name='Bob', dob=datetime.date(1984, 3, 1))
 
         # Select User objects.
-        user_set = conn.fetchall(
+        user_set = conn.query(
             'SELECT User {name, dob} FILTER .name = <str>$name',
             name='Bob')
 
@@ -87,7 +87,7 @@ An equivalent example using the **asyncio** API:
         ''')
 
         # Insert a new User object
-        await conn.fetchall('''
+        await conn.query('''
             INSERT User {
                 name := <str>$name,
                 dob := <local_date>$dob
@@ -95,7 +95,7 @@ An equivalent example using the **asyncio** API:
         ''', name='Bob', dob=datetime.date(1984, 3, 1))
 
         # Select User objects.
-        user_set = await conn.fetchall('''
+        user_set = await conn.query('''
             SELECT User {name, dob}
             FILTER .name = <str>$name
         ''', name='Bob')
@@ -182,7 +182,7 @@ Below is an example of a connection pool usage:
         # Take a connection from the pool.
         async with pool.acquire() as connection:
             # Run the query passing the request argument.
-            result = await connection.fetchone_json(
+            result = await connection.query_one_json(
                 '''
                     SELECT User {first_name, email, bio}
                     FILTER .name = <str>$username

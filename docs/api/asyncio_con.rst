@@ -103,7 +103,7 @@ Connection
         >>> import edgedb
         >>> async def main():
         ...     con = await edgedb.async_connect(user='edgedeb')
-        ...     print(await con.fetchone('SELECT 1 + 1'))
+        ...     print(await con.query_one('SELECT 1 + 1'))
         ...
         >>> asyncio.run(main())
         {2}
@@ -116,7 +116,7 @@ Connection
     Connections are created by calling :py:func:`~edgedb.async_connect`.
 
 
-    .. py:coroutinemethod:: fetchall(query, *args, **kwargs)
+    .. py:coroutinemethod:: query(query, *args, **kwargs)
 
         Run a query and return the results as a
         :py:class:`edgedb.Set <edgedb.Set>` instance.
@@ -132,7 +132,7 @@ Connection
         Note, that positional and named query arguments cannot be mixed.
 
 
-    .. py:coroutinemethod:: fetchone(query, *args, **kwargs)
+    .. py:coroutinemethod:: query_one(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element.
 
@@ -151,7 +151,7 @@ Connection
         Note, that positional and named query arguments cannot be mixed.
 
 
-    .. py:coroutinemethod:: fetchall_json(query, *args, **kwargs)
+    .. py:coroutinemethod:: query_json(query, *args, **kwargs)
 
         Run a query and return the results as JSON.
 
@@ -177,7 +177,7 @@ Connection
             more appropriate type, such as ``Decimal``.
 
 
-    .. py:coroutinemethod:: fetchone_json(query, *args, **kwargs)
+    .. py:coroutinemethod:: query_one_json(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element in JSON.
 
@@ -292,7 +292,7 @@ a savepoint):
 
        # Because the nested savepoint was rolled back, there
        # will be nothing in `User`.
-       assert (await connection.fetchall('SELECT User')) == []
+       assert (await connection.query('SELECT User')) == []
 
 Alternatively, transactions can be used without an ``async with`` block:
 
@@ -387,7 +387,7 @@ Connection Pools
 
         async with edgedb.create_pool(user='edgedb') as pool:
             async with pool.acquire() as con:
-                await con.fetchall('SELECT {1, 2, 3}')
+                await con.query('SELECT {1, 2, 3}')
 
     Or directly with ``await``:
 
@@ -396,7 +396,7 @@ Connection Pools
         pool = await edgedb.create_pool(user='edgedb')
         con = await pool.acquire()
         try:
-            await con.fetchall('SELECT {1, 2, 3}')
+            await con.query('SELECT {1, 2, 3}')
         finally:
             await pool.release(con)
 
@@ -485,3 +485,48 @@ Connection Pools
         they expire. Use :py:meth:`Pool.expire_connections()
         <edgedb.AsyncIOPool.expire_connections>` to expedite
         the connection expiry.
+
+    .. py:coroutinemethod:: query(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a query and return the results
+        as a :py:class:`edgedb.Set <edgedb.Set>` instance. The temporary
+        connection is automatically returned back to the pool.
+
+        See :py:meth:`AsyncIOConnection.query()
+        <edgedb.AsyncIOConnection.query>` for details.
+
+    .. py:coroutinemethod:: query_one(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a singleton-returning query
+        and return its element. The temporary connection is automatically
+        returned back to the pool.
+
+        See :py:meth:`AsyncIOConnection.query_one()
+        <edgedb.AsyncIOConnection.query_one>` for details.
+
+    .. py:coroutinemethod:: query_json(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a query and
+        return the results as JSON. The temporary connection is automatically
+        returned back to the pool.
+
+        See :py:meth:`AsyncIOConnection.query_json()
+        <edgedb.AsyncIOConnection.query_json>` for details.
+
+    .. py:coroutinemethod:: query_one_json(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a singleton-returning
+        query and return its element in JSON. The temporary connection is
+        automatically returned back to the pool.
+
+        See :py:meth:`AsyncIOConnection.query_one_json()
+        <edgedb.AsyncIOConnection.query_one_json>` for details.
+
+    .. py:coroutinemethod:: execute(query)
+
+        Acquire a connection and use it to execute an EdgeQL command
+        (or commands).  The temporary connection is automatically
+        returned back to the pool.
+
+        See :py:meth:`AsyncIOConnection.execute()
+        <edgedb.AsyncIOConnection.execute>` for details.

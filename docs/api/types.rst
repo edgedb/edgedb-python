@@ -77,10 +77,10 @@ Sets
 
     A representation of an immutable set of values returned by a query.
 
-    The :py:meth:`BlockingIOConnection.fetchall()
-    <edgedb.BlockingIOConnection.fetchall>` and
-    :py:meth:`AsyncIOConnection.fetchall()
-    <edgedb.AsyncIOConnection.fetchall>` methods return
+    The :py:meth:`BlockingIOConnection.query()
+    <edgedb.BlockingIOConnection.query>` and
+    :py:meth:`AsyncIOConnection.query()
+    <edgedb.AsyncIOConnection.query>` methods return
     an instance of this type.  Nested sets in the result are also
     returned as ``Set`` objects.
 
@@ -109,7 +109,7 @@ Objects
 
         >>> import edgedb
         >>> conn = edgedb.connect()
-        >>> r = conn.fetchone('''
+        >>> r = conn.query_one('''
         ...     SELECT schema::ObjectType {name}
         ...     FILTER .name = 'std::Object'
         ...     LIMIT 1''')
@@ -130,7 +130,7 @@ Objects
 
           >>> import edgedb
           >>> conn = edgedb.connect()
-          >>> r = conn.fetchone('''
+          >>> r = conn.query_one('''
           ...     SELECT schema::Property {name, annotations: {name, @value}}
           ...     FILTER .name = 'listen_port'
           ...            AND .source.name = 'cfg::Config'
@@ -186,7 +186,7 @@ Tuples
 
         >>> import edgedb
         >>> conn = edgedb.connect()
-        >>> r = conn.fetchone('''SELECT (1, 'a', [3])''')
+        >>> r = conn.query_one('''SELECT (1, 'a', [3])''')
         >>> r
         (1, 'a', [3])
         >>> len(r)
@@ -211,7 +211,7 @@ Named Tuples
 
         >>> import edgedb
         >>> conn = edgedb.connect()
-        >>> r = conn.fetchone('''SELECT (a := 1, b := 'a', c := [3])''')
+        >>> r = conn.query_one('''SELECT (a := 1, b := 'a', c := [3])''')
         >>> r
         (a := 1, b := 'a', c := [3])
         >>> r.b
@@ -233,7 +233,7 @@ Arrays
 
         >>> import edgedb
         >>> conn = edgedb.connect()
-        >>> r = conn.fetchone('''SELECT [1, 2, 3]''')
+        >>> r = conn.query_one('''SELECT [1, 2, 3]''')
         >>> r
         [1, 2, 3]
         >>> len(r)

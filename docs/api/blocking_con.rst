@@ -101,7 +101,7 @@ Connection
 
         >>> import edgedb
         >>> con = edgedb.connect(user='edgedeb')
-        >>> con.fetchone('SELECT 1 + 1')
+        >>> con.query_one('SELECT 1 + 1')
         {2}
 
 
@@ -112,7 +112,7 @@ Connection
     Connections are created by calling :py:func:`~edgedb.connect`.
 
 
-    .. py:method:: fetchall(query, *args, **kwargs)
+    .. py:method:: query(query, *args, **kwargs)
 
         Run a query and return the results as a
         :py:class:`edgedb.Set <edgedb.Set>` instance.
@@ -128,7 +128,7 @@ Connection
         Note, that positional and named query arguments cannot be mixed.
 
 
-    .. py:method:: fetchone(query, *args, **kwargs)
+    .. py:method:: query_one(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element.
 
@@ -147,7 +147,7 @@ Connection
         Note, that positional and named query arguments cannot be mixed.
 
 
-    .. py:method:: fetchall_json(query, *args, **kwargs)
+    .. py:method:: query_json(query, *args, **kwargs)
 
         Run a query and return the results as JSON.
 
@@ -173,7 +173,7 @@ Connection
             more appropriate type, such as ``Decimal``.
 
 
-    .. py:method:: fetchone_json(query, *args, **kwargs)
+    .. py:method:: query_one_json(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element in JSON.
 
@@ -288,7 +288,7 @@ a savepoint):
 
        # Because the nested savepoint was rolled back, there
        # will be nothing in `User`.
-       assert connection.fetchall('SELECT User') == []
+       assert connection.query('SELECT User') == []
 
 Alternatively, transactions can be used without a ``with`` block:
 
