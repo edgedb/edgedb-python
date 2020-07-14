@@ -213,6 +213,22 @@ class PoolConnectionHolder:
         # connection proxy.
         self._release()
 
+    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+        async with self.acquire() as conn:
+            return conn.query(query, *args, **kwargs)
+
+    async def query_one(self, query: str, *args, **kwargs) -> typing.Any:
+        async with self.acquire() as conn:
+            return conn.query_one(query, *args, **kwargs)
+
+    async def query_json(self, query: str, *args, **kwargs) -> str:
+        async with self.acquire() as conn:
+            return conn.query_json(query, *args, **kwargs)
+
+    async def query_one_json(self, query: str, *args, **kwargs) -> str:
+        async with self.acquire() as conn:
+            return conn.query_one_json(query, *args, **kwargs)
+
     async def wait_until_released(self):
         if self._in_use is None:
             return
