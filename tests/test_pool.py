@@ -94,6 +94,12 @@ class TestPool(tb.AsyncQueryTestCase):
                     async with pool.acquire() as con:
                         self.assertEqual(await con.query_one("SELECT 1"), 1)
 
+                    self.assertEqual(await pool.query('SELECT 1'), [1])
+                    self.assertEqual(await pool.query_one('SELECT 1'), 1)
+                    self.assertEqual(await pool.query_json('SELECT 1'), '[1]')
+                    self.assertEqual(
+                        await pool.query_one_json('SELECT 1'), '1')
+
                 tasks = [worker() for _ in range(n)]
                 await asyncio.gather(*tasks)
                 await pool.aclose()
