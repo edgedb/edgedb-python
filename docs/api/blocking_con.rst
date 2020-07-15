@@ -226,6 +226,10 @@ Connection
             ...     UNION INSERT MyType { a := x };
             ... ''')
 
+        .. note::
+            If the results of *query* are desired, :py:meth:`query` or
+            :py:meth:`query_one` should be used instead.
+
 
     .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
 
