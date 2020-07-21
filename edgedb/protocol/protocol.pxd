@@ -71,8 +71,10 @@ cdef class QueryCodecsCache:
     cdef:
         LRUMapping queries
 
-    cdef get(self, str query, IoFormat io_format)
+    cdef get(self, str query, IoFormat io_format,
+             int implicit_limit, bint inline_typenames, bint expect_one)
     cdef set(self, str query, IoFormat io_format,
+             int implicit_limit, bint inline_typenames, bint expect_one,
              bint has_na_cardinality, BaseCodec in_type, BaseCodec out_type)
 
 
@@ -116,3 +118,10 @@ cdef class SansIOProtocol:
     cdef reset_status(self)
 
     cdef fallthrough(self)
+
+    cdef write_execute_headers(
+        self,
+        WriteBuffer buf,
+        int implicit_limit,
+        bint inline_typenames,
+    )
