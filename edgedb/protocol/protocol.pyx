@@ -80,14 +80,22 @@ cdef class QueryCodecsCache:
     def __init__(self, *, cache_size=1000):
         self.queries = LRUMapping(maxsize=cache_size)
 
-    cdef get(self, str query, IoFormat io_format):
-        return self.queries.get((query, io_format), None)
+    cdef get(
+        self, str query, IoFormat io_format,
+        int implicit_limit, bint inline_typenames, bint expect_one
+    ):
+        key = (query, io_format, implicit_limit, inline_typenames, expect_one)
+        return self.queries.get(key, None)
 
-    cdef set(self, str query, IoFormat io_format,
-             bint has_na_cardinality, BaseCodec in_type, BaseCodec out_type):
+    cdef set(
+        self, str query, IoFormat io_format,
+        int implicit_limit, bint inline_typenames, bint expect_one,
+        bint has_na_cardinality, BaseCodec in_type, BaseCodec out_type
+    ):
+        key = (query, io_format, implicit_limit, inline_typenames, expect_one)
         assert in_type is not None
         assert out_type is not None
-        self.queries[(query, io_format)] = (
+        self.queries[key] = (
             has_na_cardinality, in_type, out_type
         )
 
@@ -151,6 +159,22 @@ cdef class SansIOProtocol:
             buf.write_int16(<int16_t><uint16_t>k)
             buf.write_len_prefixed_utf8(str(v))
 
+    cdef write_execute_headers(
+        self,
+        WriteBuffer buf,
+        int implicit_limit,
+        bint inline_typenames,
+    ):
+        if implicit_limit or inline_typenames:
+            headers = {}
+            if implicit_limit:
+                headers[QUERY_OPT_IMPLICIT_LIMIT] = implicit_limit
+            if inline_typenames:
+                headers[QUERY_OPT_INLINE_TYPENAMES] = True
+            self.write_headers(buf, headers)
+        else:
+            buf.write_int16(0)  # no headers
+
     async def _parse(
         self,
         query: str,
@@ -159,6 +183,7 @@ cdef class SansIOProtocol:
         io_format: IoFormat=IoFormat.BINARY,
         expect_one: bint=False,
         implicit_limit: int=0,
+        inline_typenames: bool=False,
     ):
         cdef:
             WriteBuffer buf
@@ -174,13 +199,7 @@ cdef class SansIOProtocol:
             raise RuntimeError('not connected')
 
         buf = WriteBuffer.new_message(PREPARE_MSG)
-        if implicit_limit:
-            self.write_headers(
-                buf,
-                {QUERY_OPT_IMPLICIT_LIMIT: implicit_limit},
-            )
-        else:
-            buf.write_int16(0)  # no headers
+        self.write_execute_headers(buf, implicit_limit, inline_typenames)
         buf.write_byte(io_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_bytes(b'')  # stmt_name
@@ -351,6 +370,7 @@ cdef class SansIOProtocol:
         io_format: object,
         expect_one: bint,
         implicit_limit: int,
+        inline_typenames: bint,
         in_dc: BaseCodec,
         out_dc: BaseCodec,
     ):
@@ -363,13 +383,7 @@ cdef class SansIOProtocol:
             bytes new_cardinality = None
 
         buf = WriteBuffer.new_message(OPTIMISTIC_EXECUTE_MSG)
-        if implicit_limit:
-            self.write_headers(
-                buf,
-                {QUERY_OPT_IMPLICIT_LIMIT: implicit_limit},
-            )
-        else:
-            buf.write_int16(0)  # no headers
+        self.write_execute_headers(buf, implicit_limit, inline_typenames)
         buf.write_byte(io_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
@@ -397,7 +411,11 @@ cdef class SansIOProtocol:
                     new_cardinality, in_dc, out_dc = \
                         self.parse_describe_type_message(reg)
                     qc.set(
-                        query, io_format,
+                        query,
+                        io_format,
+                        implicit_limit,
+                        inline_typenames,
+                        expect_one,
                         new_cardinality == CARDINALITY_NOT_APPLICABLE,
                         in_dc, out_dc)
                     re_exec = True
@@ -508,36 +526,42 @@ cdef class SansIOProtocol:
         io_format: object,
         expect_one: bint = False,
         implicit_limit: int = 0,
+        inline_typenames: bool = False,
     ):
         cdef:
             BaseCodec in_dc
             BaseCodec out_dc
-            bint cached
 
         if not self.connected:
             raise RuntimeError('not connected')
         self.reset_status()
 
-        cached = True
-        codecs = qc.get(query, io_format)
+        codecs = qc.get(
+            query, io_format, implicit_limit, inline_typenames, expect_one)
         if codecs is None:
-            cached = False
-
             codecs = await self._parse(
                 query,
                 reg=reg,
                 io_format=io_format,
                 expect_one=expect_one,
                 implicit_limit=implicit_limit,
+                inline_typenames=inline_typenames,
             )
 
             cardinality = codecs[0]
             in_dc = <BaseCodec>codecs[1]
             out_dc = <BaseCodec>codecs[2]
 
-            if not cached:
-                qc.set(query, io_format,
-                    cardinality == CARDINALITY_NOT_APPLICABLE, in_dc, out_dc)
+            qc.set(
+                query,
+                io_format,
+                implicit_limit,
+                inline_typenames,
+                expect_one,
+                cardinality == CARDINALITY_NOT_APPLICABLE,
+                in_dc,
+                out_dc
+            )
 
             ret = await self._execute(in_dc, out_dc, args, kwargs)
 
@@ -561,6 +585,7 @@ cdef class SansIOProtocol:
                 io_format=io_format,
                 expect_one=expect_one,
                 implicit_limit=implicit_limit,
+                inline_typenames=inline_typenames,
                 in_dc=in_dc,
                 out_dc=out_dc,
             )
