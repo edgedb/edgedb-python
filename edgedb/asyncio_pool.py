@@ -728,7 +728,7 @@ def create_async_pool(dsn=None, *,
 
     .. code-block:: python
 
-        async with edgedb.create_pool(user='edgedb') as pool:
+        async with edgedb.create_async_pool(user='edgedb') as pool:
             async with pool.acquire() as con:
                 await con.fetchall('SELECT {1, 2, 3}')
 
@@ -736,7 +736,7 @@ def create_async_pool(dsn=None, *,
 
     .. code-block:: python
 
-        pool = await edgedb.create_pool(user='edgedb')
+        pool = await edgedb.create_async_pool(user='edgedb')
         con = await pool.acquire()
         try:
             await con.fetchall('SELECT {1, 2, 3}')
