@@ -53,7 +53,7 @@ Basic Usage
         ''')
 
         # Insert a new User object
-        conn.fetchall('''
+        conn.query('''
             INSERT User {
                 name := <str>$name,
                 dob := <local_date>$dob
@@ -61,7 +61,7 @@ Basic Usage
         ''', name='Bob', dob=datetime.date(1984, 3, 1))
 
         # Select User objects.
-        user_set = conn.fetchall(
+        user_set = conn.query(
             'SELECT User {name, dob} FILTER .name = <str>$name', name='Bob')
         # *user_set* now contains
         # Set{Object{name := 'Bob', dob := datetime.date(1984, 3, 1)}}

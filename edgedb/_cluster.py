@@ -230,7 +230,7 @@ class Cluster:
         conn = self.connect(**conn_args)
 
         try:
-            return conn.fetchall(query)
+            return conn.query(query)
         finally:
             conn.close()
 
