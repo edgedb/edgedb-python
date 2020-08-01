@@ -521,12 +521,16 @@ class TestPool(tb.AsyncQueryTestCase):
         min_size = 1
         max_size = 2
 
-        pool = await self.create_pool(min_size=min_size, max_size=max_size)
+        pool = self.create_pool(min_size=min_size, max_size=max_size)
         self.assertEqual(pool.min_size, min_size)
         self.assertEqual(pool.max_size, max_size)
         self.assertEqual(pool.free_size, max_size)
 
+        await pool
+
         async with pool.acquire() as _:
             self.assertEqual(pool.free_size, max_size - 1)
+
+        self.assertEqual(pool.free_size, max_size)
 
         await pool.aclose()
