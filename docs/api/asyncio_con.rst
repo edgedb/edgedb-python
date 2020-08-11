@@ -531,14 +531,14 @@ Connection Pools
         See :py:meth:`AsyncIOConnection.execute()
         <edgedb.AsyncIOConnection.execute>` for details.
 
-    .. py:attribute:: min_size()
+    .. py:attribute:: min_size
 
         Number of connection the pool was initialized with.
 
-    .. py:attribute:: max_size()
+    .. py:attribute:: max_size
 
         Max number of connections in the pool.
 
-    .. py:attribute:: free_size()
+    .. py:attribute:: free_size
 
         Number of available connections in the pool.
