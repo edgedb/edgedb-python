@@ -235,15 +235,17 @@ def _connect_addr(*, addr, timeout, params, config, connection_class):
 
 
 def connect(dsn: str = None, *,
+            credentials_file: str = None,
             host: str = None, port: int = None,
             user: str = None, password: str = None,
-            admin: str = None,
+            admin: bool = None,
             database: str = None,
             timeout: int = 60) -> BlockingIOConnection:
 
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         database=database, admin=admin,
+        credentials_file=credentials_file,
 
         # ToDos
         timeout=None,

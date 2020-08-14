@@ -287,9 +287,10 @@ async def _connect_addr(*, addr, loop, timeout, params, config,
 
 
 async def async_connect(dsn: str = None, *,
+                        credentials_file: str = None,
                         host: str = None, port: int = None,
                         user: str = None, password: str = None,
-                        admin: str = None,
+                        admin: bool = None,
                         database: str = None,
                         connection_class=None,
                         timeout: int = 60) -> AsyncIOConnection:
@@ -302,6 +303,7 @@ async def async_connect(dsn: str = None, *,
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         database=database, admin=admin, timeout=timeout,
+        credentials_file=credentials_file,
 
         # ToDos
         command_timeout=None,

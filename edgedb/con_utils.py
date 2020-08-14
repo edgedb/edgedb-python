@@ -22,8 +22,10 @@ import os
 import platform
 import typing
 import urllib.parse
+import warnings
 
 from . import errors
+from . import credentials
 
 
 EDGEDB_PORT = 5656
@@ -103,12 +105,26 @@ def _parse_hostlist(hostlist, port):
 
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                                 password, database, admin,
-                                connect_timeout, server_settings):
+                                connect_timeout, server_settings,
+                                credentials_file):
+    if admin:
+        warnings.warn(
+            'The "admin=True" parameter is deprecated and is scheduled to be '
+            'removed. Admin socket should never be used in applications. '
+            'Use command-line tool `edgedb` to setup proper credentials.',
+            DeprecationWarning, 4)
 
     if dsn:
         parsed = urllib.parse.urlparse(dsn)
 
         if parsed.scheme not in ('edgedb', 'edgedbadmin'):
+            if parsed.scheme == 'edgedbadmin':
+                warnings.warn(
+                    'The `edgedbadmin` scheme is deprecated and is scheduled '
+                    'to be removed. Admin socket should never be used in '
+                    'applications. Use command-line tool `edgedb` to setup '
+                    'proper credentials.',
+                    DeprecationWarning, 4)
             raise ValueError(
                 f'invalid DSN: scheme is expected to be '
                 f'"edgedb" or "edgedbadmin", got {parsed.scheme!r}')
@@ -177,6 +193,19 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                     server_settings = query
                 else:
                     server_settings = {**query, **server_settings}
+
+    elif credentials_file:
+        creds = credentials.read_credentials(credentials_file)
+        if port is None:
+            port = creds['port']
+        if user is None:
+            user = creds['user']
+        if host is None and 'host' in creds:
+            host = creds['host']
+        if password is None and 'password' in creds:
+            password = creds['password']
+        if database is None and 'database' in creds:
+            database = creds['database']
 
     if not host:
         hostspec = os.environ.get('EDGEDB_HOST')
@@ -280,7 +309,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
 
 def parse_connect_arguments(*, dsn, host, port, user, password,
                             database, admin, timeout, command_timeout,
-                            server_settings):
+                            server_settings, credentials_file):
 
     if command_timeout is not None:
         try:
@@ -300,6 +329,7 @@ def parse_connect_arguments(*, dsn, host, port, user, password,
         password=password, admin=admin,
         database=database, connect_timeout=timeout,
         server_settings=server_settings,
+        credentials_file=credentials_file,
     )
 
     config = ClientConfiguration(

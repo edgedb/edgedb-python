@@ -332,6 +332,47 @@ class TestConUtils(unittest.TestCase):
                 {}
             )
         },
+        {
+            'credentials_file': 'tests/credentials1.json',
+            'result': (
+                ['/run/edgedb/.s.EDGEDB.10702',
+                 '/var/run/edgedb/.s.EDGEDB.10702',
+                 ('localhost', 10702)],
+                {
+                    'user': 'test3n',
+                    'database': 'test3n',
+                    'password': 'lZTBy1RVCfOpBAOwSCwIyBIR',
+                },
+                {}
+            )
+        },
+        {
+            'credentials_file': 'tests/credentials1.json',
+            'database': 'hello',
+            'result': (
+                ['/run/edgedb/.s.EDGEDB.10702',
+                 '/var/run/edgedb/.s.EDGEDB.10702',
+                 ('localhost', 10702)],
+                {
+                    'user': 'test3n',
+                    'database': 'hello',
+                    'password': 'lZTBy1RVCfOpBAOwSCwIyBIR',
+                },
+                {}
+            )
+        },
+        {
+            'dsn': 'edgedb://user3@localhost:5555/abcdef',
+            # We don't even read credentials file if dns is present
+            'credentials_file': 'non-existent.json',
+            'result': (
+                [('localhost', 5555)],
+                {
+                    'user': 'user3',
+                    'database': 'abcdef'
+                },
+                {})
+        },
     ]
 
     @contextlib.contextmanager
@@ -374,6 +415,7 @@ class TestConUtils(unittest.TestCase):
         timeout = testcase.get('timeout')
         command_timeout = testcase.get('command_timeout')
         server_settings = testcase.get('server_settings')
+        credentials_file = testcase.get('credentials_file')
 
         expected = testcase.get('result')
         expected_error = testcase.get('error')
@@ -398,7 +440,8 @@ class TestConUtils(unittest.TestCase):
                 dsn=dsn, host=host, port=port, user=user, password=password,
                 database=database, admin=admin,
                 timeout=timeout, command_timeout=command_timeout,
-                server_settings=server_settings)
+                server_settings=server_settings,
+                credentials_file=credentials_file)
 
             params = {k: v for k, v in params._asdict().items()
                       if v is not None}
