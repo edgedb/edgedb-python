@@ -22,8 +22,11 @@ import os
 import platform
 import typing
 import urllib.parse
+import warnings
+import pathlib
 
 from . import errors
+from . import credentials
 
 
 EDGEDB_PORT = 5656
@@ -104,11 +107,24 @@ def _parse_hostlist(hostlist, port):
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                                 password, database, admin,
                                 connect_timeout, server_settings):
+    if admin:
+        warnings.warn(
+            'The "admin=True" parameter is deprecated and is scheduled to be '
+            'removed. Admin socket should never be used in applications. '
+            'Use command-line tool `edgedb` to setup proper credentials.',
+            DeprecationWarning, 4)
 
-    if dsn:
+    if dsn and dsn.startswith(("edgedb://", "edgedbadmin://")):
         parsed = urllib.parse.urlparse(dsn)
 
         if parsed.scheme not in ('edgedb', 'edgedbadmin'):
+            if parsed.scheme == 'edgedbadmin':
+                warnings.warn(
+                    'The `edgedbadmin` scheme is deprecated and is scheduled '
+                    'to be removed. Admin socket should never be used in '
+                    'applications. Use command-line tool `edgedb` to setup '
+                    'proper credentials.',
+                    DeprecationWarning, 4)
             raise ValueError(
                 f'invalid DSN: scheme is expected to be '
                 f'"edgedb" or "edgedbadmin", got {parsed.scheme!r}')
@@ -177,6 +193,31 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                     server_settings = query
                 else:
                     server_settings = {**query, **server_settings}
+    elif dsn:
+        if not dsn.isidentifier():
+            raise ValueError(
+                f"dsn {dsn!r} is neither a edgedb:// URI "
+                f"nor valid instance name"
+            )
+        path = (pathlib.Path.home() /
+                '.edgedb' / 'credentials' / dsn + '.json')
+        try:
+            creds = credentials.read_credentials(path)
+        except Exception as e:
+            raise errors.ClientError(
+                f"cannot read credentials of instance {dsn!r}"
+            ) from e
+
+        if port is None:
+            port = creds['port']
+        if user is None:
+            user = creds['user']
+        if host is None and 'host' in creds:
+            host = creds['host']
+        if password is None and 'password' in creds:
+            password = creds['password']
+        if database is None and 'database' in creds:
+            database = creds['database']
 
     if not host:
         hostspec = os.environ.get('EDGEDB_HOST')

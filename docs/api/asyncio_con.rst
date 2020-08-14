@@ -28,9 +28,11 @@ Connection
 
     Returns a new :py:class:`AsyncIOConnection` object.
 
-    :param dsn:
-        Connection arguments specified using as a single string in the
-        connection URI format:
+    :param str dsn:
+        If this parameter does not start with ``edgedb://`` then this is
+        a :ref:`name of an instance <edgedb-instances>`.
+
+        Otherwise it specifies a single string in the following format:
         ``edgedb://user:password@host:port/database?option=value``.
         The following options are recognized: host, port,
         user, database, password.
@@ -472,8 +474,10 @@ Connection Pools
         Set the new connection arguments for this pool.
 
         :param str dsn:
-            Connection arguments specified using as a single string in
-            the following format:
+            If this parameter does not start with ``edgedb://`` then this is
+            a :ref:`name of an instance <edgedb-instances>`.
+
+            Otherwise it specifies a single string in the following format:
             ``edgedb://user:pass@host:port/database?option=value``.
 
         :param \*\*connect_kwargs:
