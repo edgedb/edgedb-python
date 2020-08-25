@@ -271,7 +271,12 @@ class TestConUtils(unittest.TestCase):
 
         {
             'dsn': 'pq:///dbname?host=/unix_sock/test&user=spam',
-            'error': (ValueError, 'invalid DSN')
+            'error': (
+                ValueError,
+                "dsn "
+                "'pq:///dbname\\?host=/unix_sock/test&user=spam' "
+                "is neither a edgedb:// URI nor valid instance name"
+            )
         },
 
         {
@@ -312,19 +317,6 @@ class TestConUtils(unittest.TestCase):
             'dsn': 'edgedbadmin://user@?host=%2Ftmp',
             'result': (
                 [os.path.join('/tmp', '.s.EDGEDB.admin.5656')],
-                {
-                    'user': 'user',
-                    'database': 'user',
-                },
-                {}
-            )
-        },
-
-        {
-            'dsn': 'edgedbadmin://user@?host=%2Ftmp',
-            'admin': False,
-            'result': (
-                [os.path.join('/tmp', '.s.EDGEDB.5656')],
                 {
                     'user': 'user',
                     'database': 'user',

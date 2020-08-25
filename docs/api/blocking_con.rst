@@ -22,8 +22,10 @@ Connection
     Establish a connection to an EdgeDB server.
 
     :param dsn:
-        Connection arguments specified using as a single string in the
-        connection URI format:
+        If this parameter does not start with ``edgedb://`` then this is
+        a :ref:`name of an instance <edgedb-instances>`.
+
+        Otherwise it specifies a single string in the connection URI format:
         ``edgedb://user:password@host:port/database?option=value``.
         The following options are recognized: host, port,
         user, database, password.

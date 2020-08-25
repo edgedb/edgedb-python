@@ -766,8 +766,10 @@ def create_async_pool(dsn=None, *,
             await pool.release(con)
 
     :param str dsn:
-        Connection arguments specified using as a single string in
-        the following format:
+        If this parameter does not start with ``edgedb://`` then this is
+        a :ref:`name of an instance <edgedb-instances>`.
+
+        Otherwies it specifies as a single string in the following format:
         ``edgedb://user:pass@host:port/database?option=value``.
 
     :param \*\*connect_kwargs:

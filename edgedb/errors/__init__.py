@@ -384,4 +384,3 @@ class InvalidArgumentError(QueryArgumentError):
 
 class NoDataError(ClientError):
     _code = 0x_FF_03_00_00
-
