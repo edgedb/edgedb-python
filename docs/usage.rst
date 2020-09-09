@@ -154,7 +154,7 @@ or, if using the async API:
 Connection Pools
 ----------------
 
-For server-type type applications, that handle frequent requests and need
+For server-type type applications that handle frequent requests and need
 the database connection for a short period time while handling a request,
 the use of a connection pool is recommended.  The edgedb-python asyncio API
 provides an implementation of such a pool.
