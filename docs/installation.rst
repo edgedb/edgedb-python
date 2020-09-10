@@ -4,7 +4,7 @@
 Installation
 ============
 
-The recommended way to install the EdgeDB driver it is to use **pip**:
+The recommended way to install the EdgeDB driver is to use **pip**:
 
 .. code-block:: bash
 

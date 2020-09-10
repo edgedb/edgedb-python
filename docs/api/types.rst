@@ -160,7 +160,7 @@ Links
     An immutable representation of an object link.
 
     Links are created when :py:class:`edgedb.Object` is accessed via
-    a ``[]`` operator.  Using Links objects explicitly is useful for
+    a ``[]`` operator.  Using Link objects explicitly is useful for
     accessing link properties.
 
 

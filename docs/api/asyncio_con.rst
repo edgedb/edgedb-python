@@ -131,7 +131,7 @@ Connection
             An instance of :py:class:`edgedb.Set <edgedb.Set>` containing
             the query result.
 
-        Note, that positional and named query arguments cannot be mixed.
+        Note that positional and named query arguments cannot be mixed.
 
 
     .. py:coroutinemethod:: query_one(query, *args, **kwargs)
@@ -329,7 +329,7 @@ See also the
 
     .. py:coroutinemethod:: start()
 
-        Enter the trasnaction or savepoint block.
+        Enter the transaction or savepoint block.
 
     .. py:coroutinemethod:: commit()
 
@@ -369,7 +369,7 @@ Connection Pools
         :py:class:`AsyncIOConnection`.
 
     :param int min_size:
-        Number of connection the pool will be initialized with.
+        Number of connections the pool will be initialized with.
 
     :param int max_size:
         Max number of connections in the pool.
@@ -411,7 +411,7 @@ Connection Pools
 
     A connection pool.
 
-    Connection pool can be used to manage a set of connections to the database.
+    A connection pool can be used to manage a set of connections to the database.
     Connections are first acquired from the pool, then used, and then released
     back to the pool.  Once a connection is released, it's reset to close all
     open cursors and other resources *except* prepared statements.
@@ -497,7 +497,7 @@ Connection Pools
     .. py:coroutinemethod:: query(query, *args, **kwargs)
 
         Acquire a connection and use it to run a query and return the results
-        as a :py:class:`edgedb.Set <edgedb.Set>` instance. The temporary
+        as an :py:class:`edgedb.Set <edgedb.Set>` instance. The temporary
         connection is automatically returned back to the pool.
 
         See :py:meth:`AsyncIOConnection.query()
@@ -541,7 +541,7 @@ Connection Pools
 
     .. py:attribute:: min_size
 
-        Number of connection the pool was initialized with.
+        Number of connections the pool was initialized with.
 
     .. py:attribute:: max_size
 

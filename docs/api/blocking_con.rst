@@ -127,7 +127,7 @@ Connection
             An instance of :py:class:`edgedb.Set <edgedb.Set>` containing
             the query result.
 
-        Note, that positional and named query arguments cannot be mixed.
+        Note that positional and named query arguments cannot be mixed.
 
 
     .. py:method:: query_one(query, *args, **kwargs)
@@ -325,7 +325,7 @@ See also the
 
     .. py:method:: start()
 
-        Enter the trasnaction or savepoint block.
+        Enter the transaction or savepoint block.
 
     .. py:method:: commit()
 

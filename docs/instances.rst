@@ -17,7 +17,8 @@ This usually refer to instances created by the command-line tool:
 
    edgedb server init my_name
 
-When the command is run, it puts a credentials file into users home directory::
+When the command is run, it puts a credentials file into the user's 
+home directory::
 
     $HOME/.edgedb/credentials/my_name.json
 
