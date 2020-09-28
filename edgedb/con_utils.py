@@ -107,6 +107,8 @@ def _parse_hostlist(hostlist, port):
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                                 password, database, admin,
                                 connect_timeout, server_settings):
+    using_credentials = False
+
     if admin:
         warnings.warn(
             'The "admin=True" parameter is deprecated and is scheduled to be '
@@ -199,8 +201,10 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                 f"dsn {dsn!r} is neither a edgedb:// URI "
                 f"nor valid instance name"
             )
+
+        using_credentials = True
         path = (pathlib.Path.home() /
-                '.edgedb' / 'credentials' / dsn + '.json')
+                '.edgedb' / 'credentials' / (dsn + '.json'))
         try:
             creds = credentials.read_credentials(path)
         except Exception as e:
@@ -225,7 +229,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
             host, port = _parse_hostlist(hostspec, port)
 
     if not host:
-        if _system == 'Windows':
+        if _system == 'Windows' or using_credentials:
             host = []
         else:
             host = ['/run/edgedb', '/var/run/edgedb']
