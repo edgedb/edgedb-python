@@ -259,7 +259,7 @@ def connect(dsn: str = None, *,
                 addr=addr, timeout=timeout,
                 params=params, config=config,
                 connection_class=BlockingIOConnection)
-        except (OSError, TimeoutError, ConnectionError, socket.error,
+        except (OSError, socket.error,
                 errors.ClientConnectionError) as ex:
             last_error = ex
         else:

@@ -35,7 +35,7 @@ Blocking connection example:
         conn.execute('''
             CREATE TYPE User {
                 CREATE REQUIRED PROPERTY name -> str;
-                CREATE PROPERTY dob -> local_date;
+                CREATE PROPERTY dob -> cal::local_date;
             }
         ''')
 
@@ -43,7 +43,7 @@ Blocking connection example:
         conn.query('''
             INSERT User {
                 name := <str>$name,
-                dob := <local_date>$dob
+                dob := <cal::local_date>$dob
             }
         ''', name='Bob', dob=datetime.date(1984, 3, 1))
 
@@ -82,7 +82,7 @@ An equivalent example using the **asyncio** API:
         await conn.execute('''
             CREATE TYPE User {
                 CREATE REQUIRED PROPERTY name -> str;
-                CREATE PROPERTY dob -> local_date;
+                CREATE PROPERTY dob -> cal::local_date;
             }
         ''')
 
@@ -90,7 +90,7 @@ An equivalent example using the **asyncio** API:
         await conn.query('''
             INSERT User {
                 name := <str>$name,
-                dob := <local_date>$dob
+                dob := <cal::local_date>$dob
             }
         ''', name='Bob', dob=datetime.date(1984, 3, 1))
 
