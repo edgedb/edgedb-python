@@ -17,11 +17,13 @@
 #
 
 
+import abc
 import asyncio
 import time
 import typing
 import warnings
 
+from . import abstract
 from . import base_con
 from . import con_utils
 from . import errors
@@ -37,7 +39,7 @@ class _ConnectionProxy:
     __slots__ = ()
 
 
-class AsyncIOConnectionMeta(type):
+class AsyncIOConnectionMeta(abc.ABCMeta):
 
     def __instancecheck__(cls, instance):
         mro = type(instance).__mro__
@@ -45,6 +47,7 @@ class AsyncIOConnectionMeta(type):
 
 
 class AsyncIOConnection(base_con.BaseConnection,
+                        abstract.AsyncIOExecutor,
                         metaclass=AsyncIOConnectionMeta):
 
     def __init__(self, transport, protocol, loop, addr, config, params, *,

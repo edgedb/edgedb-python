@@ -22,6 +22,7 @@ import time
 import typing
 import warnings
 
+from . import abstract
 from . import base_con
 from . import con_utils
 from . import errors
@@ -31,7 +32,7 @@ from .datatypes import datatypes
 from .protocol import blocking_proto, protocol
 
 
-class BlockingIOConnection(base_con.BaseConnection):
+class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
 
     def _dump(
         self,

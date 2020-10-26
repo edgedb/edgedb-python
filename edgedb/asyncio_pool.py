@@ -17,6 +17,7 @@
 #
 
 
+import abc
 import asyncio
 import functools
 import inspect
@@ -24,6 +25,7 @@ import logging
 import typing
 import warnings
 
+from . import abstract
 from . import asyncio_con
 from . import errors
 
@@ -36,7 +38,7 @@ __all__ = ('create_async_pool', 'AsyncIOPool')
 logger = logging.getLogger(__name__)
 
 
-class PoolConnectionProxyMeta(type):
+class PoolConnectionProxyMeta(abc.ABCMeta):
 
     def __new__(mcls, name, bases, dct, *, wrap=False):
         if wrap:
@@ -78,6 +80,7 @@ class PoolConnectionProxyMeta(type):
 
 
 class PoolConnectionProxy(asyncio_con._ConnectionProxy,
+                          abstract.AsyncIOExecutor,
                           metaclass=PoolConnectionProxyMeta,
                           wrap=True):
 
@@ -271,7 +274,7 @@ class PoolConnectionHolder:
         self._pool._queue.put_nowait(self)
 
 
-class AsyncIOPool:
+class AsyncIOPool(abstract.AsyncIOExecutor):
     """A connection pool.
 
     Connection pool can be used to manage a set of connections to the database.
