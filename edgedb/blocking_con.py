@@ -29,7 +29,6 @@ from . import transaction
 
 from .datatypes import datatypes
 from .protocol import blocking_proto
-from .protocgitol import protocol
 
 
 class BlockingIOConnection(base_con.BaseConnection):
