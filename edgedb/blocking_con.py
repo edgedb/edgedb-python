@@ -28,8 +28,7 @@ from . import errors
 from . import transaction
 
 from .datatypes import datatypes
-from .protocol import blocking_proto
-from .protocol import protocol
+from .protocol import blocking_proto, protocol
 
 
 class BlockingIOConnection(base_con.BaseConnection):
