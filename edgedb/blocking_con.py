@@ -262,7 +262,8 @@ def connect(dsn: str = None, *,
                 addr=addr, timeout=timeout,
                 params=params, config=config,
                 connection_class=BlockingIOConnection)
-        except (OSError, socket.error, errors.ClientConnectionError) as ex:
+        except (OSError, socket.error,
+                errors.ClientConnectionError) as ex:
             last_error = ex
         else:
             return con

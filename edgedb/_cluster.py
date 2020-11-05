@@ -209,7 +209,8 @@ class Cluster:
                     database='edgedb',
                     user='edgedb',
                     timeout=left)
-            except (OSError, socket.error, edgedb.ClientConnectionError):
+            except (OSError, socket.error,
+                    edgedb.ClientConnectionError):
                 left -= (time.monotonic() - started)
                 if left > 0.05:
                     time.sleep(0.05)
