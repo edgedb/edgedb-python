@@ -141,10 +141,11 @@ cdef class CodecsRegistry:
                     str_len = hton.unpack_uint32(frb_read(spec, 4))
                     frb_read(spec, str_len)
 
-            elif (t >= 0xf0 and t <= 0xff):
+            elif (t >= 0x7f and t <= 0xff):
                 # Ignore all type annotations.
                 str_len = hton.unpack_uint32(frb_read(spec, 4))
                 frb_read(spec, str_len)
+                return None
 
             else:
                 raise NotImplementedError(
@@ -252,12 +253,6 @@ cdef class CodecsRegistry:
             sub_codec = <BaseCodec>codecs_list[pos]
             res = ArrayCodec.new(tid, sub_codec, dim_len)
 
-        elif (t >= 0xf0 and t <= 0xff):
-            # Ignore all type annotations.
-            str_len = hton.unpack_uint32(frb_read(spec, 4))
-            frb_read(spec, str_len)
-            return
-
         else:
             raise NotImplementedError(
                 f'no codec implementation for EdgeDB data class {t}')
@@ -300,11 +295,15 @@ cdef class CodecsRegistry:
         while frb_get_len(&buf):
             res = self._build_codec(&buf, codecs_list)
             if res is None:
+                # An annotation; ignore.
                 continue
             codecs_list.append(res)
             self.codecs[res.tid] = res
 
-        return res
+        if not codecs_list:
+            raise RuntimeError(f'cannot not build codec; empty type desc')
+
+        return codecs_list[-1]
 
 
 cdef dict BASE_SCALAR_CODECS = {}
