@@ -231,18 +231,17 @@ class TestSyncFetch(tb.SyncQueryTestCase):
                 r = self.con.query_json(q)
                 self.assertEqual(r, '[]')
 
-        for q in qs:
-            with self.assertRaisesRegex(
-                    edgedb.InterfaceError,
-                    r'cannot be executed with query_one\(\).*'
-                    r'not return'):
-                self.con.query_one(q)
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'cannot be executed with query_one\(\).*'
+                r'not return'):
+            self.con.query_one('START TRANSACTION')
 
-            with self.assertRaisesRegex(
-                    edgedb.InterfaceError,
-                    r'cannot be executed with query_one_json\(\).*'
-                    r'not return'):
-                self.con.query_one_json(q)
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'cannot be executed with query_one_json\(\).*'
+                r'not return'):
+            self.con.query_one_json('START TRANSACTION')
 
     def test_sync_fetch_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
