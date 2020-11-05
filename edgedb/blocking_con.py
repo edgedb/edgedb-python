@@ -29,7 +29,7 @@ from . import transaction
 
 from .datatypes import datatypes
 from .protocol import blocking_proto
-from .protocol import protocol
+from .protocgitol import protocol
 
 
 class BlockingIOConnection(base_con.BaseConnection):
@@ -259,8 +259,7 @@ def connect(dsn: str = None, *,
                 addr=addr, timeout=timeout,
                 params=params, config=config,
                 connection_class=BlockingIOConnection)
-        except (OSError, socket.error,
-                errors.ClientConnectionError) as ex:
+        except (OSError, socket.error, errors.ClientConnectionError) as ex:
             last_error = ex
         else:
             return con
