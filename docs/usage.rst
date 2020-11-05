@@ -82,7 +82,7 @@ An equivalent example using the **asyncio** API:
         await conn.execute('''
             CREATE TYPE User {
                 CREATE REQUIRED PROPERTY name -> str;
-                CREATE PROPERTY dob -> call:local_date;
+                CREATE PROPERTY dob -> cal::local_date;
             }
         ''')
 

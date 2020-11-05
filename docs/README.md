@@ -1,8 +1,8 @@
 Documentation
-==================
+=============
 
 About
-------------
+-----
 
 This directory contains the source code for edgedb-python documentation
 and build scripts. The documentation uses Sphinx and reStructuredText.
