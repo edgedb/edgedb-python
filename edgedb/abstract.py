@@ -7,7 +7,8 @@ from .datatypes import datatypes
 __all__ = ('Executor', 'AsyncIOExecutor')
 
 
-class Executor(abc.ABC):
+class ReadOnlyExecutor(abc.ABC):
+    """Subclasses can execute *at least* read-only queries"""
 
     @abc.abstractmethod
     def query(self, query: str, *args, **kwargs) -> datatypes.Set:
@@ -31,7 +32,12 @@ class Executor(abc.ABC):
         ...
 
 
-class AsyncIOExecutor(abc.ABC):
+class Executor(ReadOnlyExecutor):
+    """Subclasses can execute both read-only and modification queries"""
+
+
+class AsyncIOReadOnlyExecutor(abc.ABC):
+    """Subclasses can execute *at least* read-only queries"""
 
     @abc.abstractmethod
     async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
@@ -53,3 +59,7 @@ class AsyncIOExecutor(abc.ABC):
     @abc.abstractmethod
     async def execute(self, query: str) -> None:
         ...
+
+
+class AsyncIOExecutor(AsyncIOReadOnlyExecutor):
+    """Subclasses can execute both read-only and modification queries"""
