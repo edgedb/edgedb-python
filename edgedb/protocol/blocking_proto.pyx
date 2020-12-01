@@ -88,7 +88,11 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
         return self._iter_coroutine(self.connect())
 
     def sync_execute_anonymous(self, *args, **kwargs):
-        return self._iter_coroutine(self.execute_anonymous(*args, **kwargs))
+        result, _headers = self._iter_coroutine(
+            self.execute_anonymous(*args, **kwargs),
+        )
+        # don't expose headers to blocking client for now
+        return result
 
     def sync_simple_query(self, *args, **kwargs):
         return self._iter_coroutine(self.simple_query(*args, **kwargs))
