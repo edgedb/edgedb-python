@@ -119,16 +119,17 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
         parsed = urllib.parse.urlparse(dsn)
 
         if parsed.scheme not in ('edgedb', 'edgedbadmin'):
-            if parsed.scheme == 'edgedbadmin':
-                warnings.warn(
-                    'The `edgedbadmin` scheme is deprecated and is scheduled '
-                    'to be removed. Admin socket should never be used in '
-                    'applications. Use command-line tool `edgedb` to setup '
-                    'proper credentials.',
-                    DeprecationWarning, 4)
             raise ValueError(
                 f'invalid DSN: scheme is expected to be '
                 f'"edgedb" or "edgedbadmin", got {parsed.scheme!r}')
+
+        if parsed.scheme == 'edgedbadmin':
+            warnings.warn(
+                'The `edgedbadmin` scheme is deprecated and is scheduled '
+                'to be removed. Admin socket should never be used in '
+                'applications. Use command-line tool `edgedb` to setup '
+                'proper credentials.',
+                DeprecationWarning, 4)
 
         if admin is None:
             admin = parsed.scheme == 'edgedbadmin'
