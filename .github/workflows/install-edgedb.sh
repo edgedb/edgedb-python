@@ -15,7 +15,7 @@ if [[ "${OS_NAME}" == macos* ]]; then
     _path=$(/usr/libexec/path_helper -s |
             sed -E -e 's/.*:([^:]+EdgeDB[^:]+):.*/\1/g')
 
-    echo ::add-path::${_path}
+    echo ${_path} >> $GITHUB_PATH
 
 elif [[ "${OS_NAME}" == ubuntu* ]]; then
     curl https://packages.edgedb.com/keys/edgedb.asc \
