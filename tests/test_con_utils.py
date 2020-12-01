@@ -36,7 +36,7 @@ class TestConUtils(unittest.TestCase):
                 [("localhost", 5656)],
                 {
                     'user': 'user',
-                    'database': 'user',
+                    'database': 'edgedb',
                 },
                 {},
             )
@@ -294,7 +294,7 @@ class TestConUtils(unittest.TestCase):
                 [os.path.join('/tmp', '.s.EDGEDB.56226')],
                 {
                     'user': 'user',
-                    'database': 'user',
+                    'database': 'edgedb',
                 },
                 {}
             )
@@ -307,7 +307,7 @@ class TestConUtils(unittest.TestCase):
                 [os.path.join('/tmp', '.s.EDGEDB.admin.5656')],
                 {
                     'user': 'user',
-                    'database': 'user',
+                    'database': 'edgedb',
                 },
                 {}
             )
@@ -319,7 +319,7 @@ class TestConUtils(unittest.TestCase):
                 [os.path.join('/tmp', '.s.EDGEDB.admin.5656')],
                 {
                     'user': 'user',
-                    'database': 'user',
+                    'database': 'edgedb',
                 },
                 {}
             )
@@ -443,7 +443,7 @@ class TestConUtils(unittest.TestCase):
                 'host': 'abc',
                 'result': (
                     [('abc', 5656)],
-                    {'user': '__test__', 'database': '__test__'},
+                    {'user': '__test__', 'database': 'edgedb'},
                     {}
                 )
             })
