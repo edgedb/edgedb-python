@@ -17,7 +17,6 @@
 #
 
 
-import getpass
 import os
 import platform
 import typing
@@ -261,7 +260,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
     if user is None:
         user = os.getenv('EDGEDB_USER')
         if not user:
-            user = getpass.getuser()
+            user = 'edgedb'
 
     if password is None:
         password = os.getenv('EDGEDB_PASSWORD')
@@ -270,7 +269,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
         database = os.getenv('EDGEDB_DATABASE')
 
     if database is None:
-        database = user
+        database = 'edgedb'
 
     if user is None:
         raise errors.InterfaceError(
