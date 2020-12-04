@@ -741,7 +741,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         async with self.con.transaction():
             await self.con.query_one(
-                'select sys::advisory_lock(<int64>$0)',
+                'select sys::_advisory_lock(<int64>$0)',
                 lock_key)
 
             try:
@@ -751,7 +751,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                         with self.assertRaises(ConnectionAbortedError):
                             async with con2.transaction():
                                 await con2.query(
-                                    'select sys::advisory_lock(<int64>$0)',
+                                    'select sys::_advisory_lock(<int64>$0)',
                                     lock_key,
                                 )
 
@@ -763,7 +763,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
             finally:
                 self.assertEqual(
                     await self.con.query(
-                        'select sys::advisory_unlock(<int64>$0)', lock_key),
+                        'select sys::_advisory_unlock(<int64>$0)', lock_key),
                     [True])
 
     async def test_empty_set_unpack(self):
