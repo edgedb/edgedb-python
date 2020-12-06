@@ -97,7 +97,7 @@ class BlockingIOConnection(base_con.BaseConnection):
         )
 
     def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        return self._protocol.sync_execute_anonymous(
+        result, _ = self._protocol.sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -105,9 +105,10 @@ class BlockingIOConnection(base_con.BaseConnection):
             qc=self._query_cache,
             io_format=protocol.IoFormat.BINARY,
         )
+        return result
 
     def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        return self._protocol.sync_execute_anonymous(
+        result, _ = self._protocol.sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -116,9 +117,10 @@ class BlockingIOConnection(base_con.BaseConnection):
             expect_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
+        return result
 
     def query_json(self, query: str, *args, **kwargs) -> str:
-        return self._protocol.sync_execute_anonymous(
+        result, _ = self._protocol.sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -126,6 +128,7 @@ class BlockingIOConnection(base_con.BaseConnection):
             qc=self._query_cache,
             io_format=protocol.IoFormat.JSON,
         )
+        return result
 
     def _fetchall_json_elements(
             self, query: str, *args, **kwargs) -> typing.List[str]:
@@ -139,7 +142,7 @@ class BlockingIOConnection(base_con.BaseConnection):
         )
 
     def query_one_json(self, query: str, *args, **kwargs) -> str:
-        return self._protocol.sync_execute_anonymous(
+        result, _ = self._protocol.sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -148,6 +151,7 @@ class BlockingIOConnection(base_con.BaseConnection):
             expect_one=True,
             io_format=protocol.IoFormat.JSON,
         )
+        return result
 
     def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
         warnings.warn(
