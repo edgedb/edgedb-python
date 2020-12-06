@@ -957,19 +957,22 @@ cdef class SansIOProtocol:
         msg_buf.end_message()
         self.write(msg_buf)
 
-        if not self.buffer.take_message():
-            await self.wait_for_message()
-        mtype = self.buffer.get_message_type()
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
 
-        if mtype == ERROR_RESPONSE_MSG:
-            # ErrorResponse
-            exc = self.parse_error_message()
-            self.buffer.finish_message()
-            raise exc
+            if mtype == ERROR_RESPONSE_MSG:
+                # ErrorResponse
+                exc = self.parse_error_message()
+                self.buffer.finish_message()
+                raise exc
 
-        elif mtype != AUTH_REQUEST_MSG:
-            raise RuntimeError(
-                f'expected SASLContinue from the server, received {mtype}')
+            elif mtype == AUTH_REQUEST_MSG:
+                break
+
+            else:
+                self.fallthrough()
 
         status = self.buffer.read_int32()
         if status != AuthenticationStatuses.AUTH_SASL_CONTINUE:
@@ -995,17 +998,21 @@ cdef class SansIOProtocol:
         msg_buf.end_message()
         self.write(msg_buf)
 
-        if not self.buffer.take_message():
-            await self.wait_for_message()
-        mtype = self.buffer.get_message_type()
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
 
-        if mtype == ERROR_RESPONSE_MSG:
-            exc = self.parse_error_message()
-            self.buffer.finish_message()
-            raise exc
-        elif mtype != AUTH_REQUEST_MSG:
-            raise RuntimeError(
-                f'expected SASLFinal from the server, received {mtype}')
+            if mtype == ERROR_RESPONSE_MSG:
+                exc = self.parse_error_message()
+                self.buffer.finish_message()
+                raise exc
+
+            elif mtype == AUTH_REQUEST_MSG:
+                break
+
+            else:
+                self.fallthrough()
 
         status = self.buffer.read_int32()
         if status != AuthenticationStatuses.AUTH_SASL_FINAL:
@@ -1039,9 +1046,10 @@ cdef class SansIOProtocol:
             self.buffer.finish_message()
 
             msg = errors.EdgeDBMessage._from_code(code, severity, message)
-            con = self.con()
-            if con is not None:
-                con._on_log_message(msg)
+            if self.con is not None:
+                con = self.con()
+                if con is not None:
+                    con._on_log_message(msg)
 
         else:
             self.abort()
