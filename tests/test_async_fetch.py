@@ -733,6 +733,14 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 arg="10.2")
 
     async def test_async_wait_cancel_01(self):
+        underscored_lock = await self.con.query_one("""
+            SELECT EXISTS(
+                SELECT schema::Function FILTER .name = 'sys::_advisory_lock'
+            )
+        """)
+        if not underscored_lock:
+            self.skipTest("No sys::_advisory_lock function")
+
         # Test that client protocol handles waits interrupted
         # by closing.
         lock_key = tb.gen_lock_key()
