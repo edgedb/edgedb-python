@@ -37,7 +37,7 @@ jobs:
     - name: Install EdgeDB
       env:
         OS_NAME: ${{ matrix.os }}
-        SLOT: 1-alpha4
+        SLOT: 1-alpha7-dev5259
       # If this is a release PR, skip tests.  They will be run
       # as part of the release process, and running them here
       # might interfere with the release automation due to
@@ -62,6 +62,6 @@ jobs:
     - name: Test
       if: steps.release.outputs.version == 0
       env:
-        EDGEDB_CI_SLOT: 1-alpha4
+        EDGEDB_CI_SLOT: 1-alpha7-dev5259
       run: |
         make && make quicktest

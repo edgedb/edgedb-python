@@ -83,7 +83,7 @@ jobs:
       if: "!startsWith(matrix.os, 'windows')"
       env:
         OS_NAME: ${{ matrix.os }}
-        SLOT: 1-alpha4
+        SLOT: 1-alpha7-dev5259
       run: |
         .github/workflows/install-edgedb.sh
 
@@ -115,7 +115,7 @@ jobs:
         !startsWith(matrix.os, 'windows')
         && !contains(github.event.pull_request.labels.*.name, 'skip wheel tests')
       env:
-        EDGEDB_CI_SLOT: 1-alpha4
+        EDGEDB_CI_SLOT: 1-alpha7-dev5259
       run: |
         pip install --pre edgedb[test] -f "file:///${GITHUB_WORKSPACE}/dist"
         make -C "${GITHUB_WORKSPACE}" testinstalled
