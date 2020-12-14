@@ -12,12 +12,16 @@ on:
 jobs:
   validate-release-request:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.checkver.outputs.version }}
     steps:
     - name: Validate release PR
       uses: edgedb/action-release/validate-pr@master
       id: checkver
       with:
         github_token: ${{ secrets.GITHUB_ALT_TOKEN }}
+        require_team: Release Managers
+        require_approval: no
         version_file: edgedb/_version.py
         version_line_pattern: |
           __version__\s*=\s*(?:['"])([[:PEP440:]])(?:['"])
@@ -81,11 +85,7 @@ jobs:
 
     - name: Install EdgeDB
       if: "!startsWith(matrix.os, 'windows')"
-      env:
-        OS_NAME: ${{ matrix.os }}
-        SLOT: 1-alpha7-dev5259
-      run: |
-        .github/workflows/install-edgedb.sh
+      uses: edgedb/setup-edgedb@v1
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
@@ -111,13 +111,14 @@ jobs:
         python setup.py bdist_wheel
 
     - name: Test Wheels
+      env:
+        PKG_VERSION: ${{ needs.validate-release-request.version }}
       if: |
         !startsWith(matrix.os, 'windows')
         && !contains(github.event.pull_request.labels.*.name, 'skip wheel tests')
-      env:
-        EDGEDB_CI_SLOT: 1-alpha7-dev5259
       run: |
-        pip install --pre edgedb[test] -f "file:///${GITHUB_WORKSPACE}/dist"
+        pip install -f "file:///${GITHUB_WORKSPACE}/dist" \
+            edgedb[test]==${PKG_VERSION}
         make -C "${GITHUB_WORKSPACE}" testinstalled
 
     - uses: actions/upload-artifact@v1
