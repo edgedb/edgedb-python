@@ -32,10 +32,9 @@ BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
 
 class BaseConnection:
 
-    def __init__(self, protocol, addr, config, params, *,
+    def __init__(self, addr, config, params, *,
                  codecs_registry=None, query_cache=None):
-        self._protocol = protocol
-        self._protocol.set_connection(self)
+        self._protocol = None
 
         self._log_listeners = set()
 

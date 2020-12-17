@@ -19,6 +19,10 @@
 
 import abc
 import asyncio
+import errno
+import random
+import re
+import socket
 import time
 import typing
 import warnings
@@ -34,11 +38,21 @@ from .protocol import asyncio_proto
 from .protocol import protocol
 
 
+ERRNO_RE = re.compile(r"\[Errno (\d+)\]")
+TEMPORARY_ERRORS = frozenset({
+    errno.ECONNREFUSED,
+    errno.ECONNABORTED,
+    errno.ECONNRESET,
+    errno.ENOENT,
+})
+
+#TODO(tailhook) remove
 class _ConnectionProxy:
     # Base class to enable `isinstance(AsyncIOConnection)` check.
     __slots__ = ()
 
 
+#TODO(tailhook) remove
 class AsyncIOConnectionMeta(abc.ABCMeta):
 
     def __instancecheck__(cls, instance):
@@ -46,26 +60,124 @@ class AsyncIOConnectionMeta(abc.ABCMeta):
         return AsyncIOConnection in mro or _ConnectionProxy in mro
 
 
-class AsyncIOConnection(base_con.BaseConnection,
-                        abstract.AsyncIOExecutor,
-                        metaclass=AsyncIOConnectionMeta):
+def extract_errno(s):
+    result = []
+    for match in ERRNO_RE.finditer(s):
+        result.append(int(match.group(1)))
+    if result:
+        return result
 
-    def __init__(self, transport, protocol, loop, addr, config, params, *,
+
+class AsyncIOConnectionImpl(base_con.BaseConnection):
+
+    def __init__(self, loop, addrs, config, params):
+        self._loop = loop
+        self._addrs = addrs
+        self._config = config
+        self._params = params
+        self._transport = None
+        self._protocol = None
+
+    async def _connection(self):
+        transport = self._transport
+        protocol = self._protocol
+        if (
+            transport and not transport.is_closing() and
+            protocol and protocol.connected
+        ):
+            return protocol
+        await self._reconnect()
+        return self._protocol
+
+    async def _reconnect(self):
+        last_error = None
+        addr = None
+        max_time = time.monotonic() + self._config.wait_until_available
+        iteration = 1
+
+        while True:
+            for addr in self._addrs:
+                try:
+                    con = await asyncio.wait_for(
+                        self._connect_addr(addr),
+                        self._config.connect_timeout,
+                    )
+                except asyncio.TimeoutError as e:
+                    if iteration == 1 or time.monotonic() < max_time:
+                        continue
+                    else:
+                        raise error.ConnectionTimeoutError(
+                            f"connecting to {addr} failed in"
+                            f" {self._config.connect_timeout} sec"
+                        )
+                except errors.ClientConnectionError as e:
+                    if (
+                        e.has_tag(errors.SHOULD_RECONNECT) and
+                        (iteration == 1 or time.monotonic() < max_time)
+                    ):
+                        continue
+                    e.message = con_utils.render_client_no_connection_error(
+                        e,
+                        addr,
+                    )
+                    raise e
+                else:
+                    return con
+
+            iteration += 1
+            await asyncio.sleep(0.01 + random.random()*0.2)
+
+    async def _connect_addr(self, addr):
+
+        loop = self._loop
+        factory = lambda: asyncio_proto.AsyncIOProtocol(
+            self._params, loop)
+
+        try:
+            if isinstance(addr, str):
+                # UNIX socket
+                tr, pr = await loop.create_unix_connection(factory, addr)
+            else:
+                tr, pr = await loop.create_connection(factory, *addr)
+        except socket.gaierror as e:
+            # All name resolution errors are considered temporary
+            raise errors.ConnectionFailedTemporarilyError(str(e)) from e
+        except OSError as e:
+            # TODO(tailhook) figure out error
+            message = str(e)
+            if e.errno is None:
+                errnos = extract_errno(message)
+            else:
+                errnos = [e.errno]
+            if any((code in TEMPORARY_ERRORS for code in errnos)):
+                err = errors.ConnectionFailedTemporarilyError(message)
+            else:
+                err = errors.ConnectionFailedError(message)
+            raise err from e
+
+        await pr.connect()
+        self._transport = tr
+        self._protocol = pr
+
+
+class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
+
+    def __init__(self, loop, addr, config, params, *,
                  codecs_registry=None, query_cache=None):
-        super().__init__(protocol, addr, config, params,
+        super().__init__(addr, config, params,
                          codecs_registry=codecs_registry,
                          query_cache=query_cache)
-        self._transport = transport
-        self._loop = loop
-        self._proxy = None
-        # Incremented every time the connection is released back to a pool.
-        # Used to catch invalid references to connection-related resources
-        # post-release.
+        self._impl = AsyncIOConnectionImpl(loop, addr, config, params)
+
+        # TODO(tailhook) shouldn't we keep it in WeekKeyDict?
         self._pool_release_ctr = 0
 
-    def _dispatch_log_message(self, msg):
-        for cb in self._log_listeners:
-            self._loop.call_soon(cb, self._ensure_proxied(), msg)
+    #def _dispatch_log_message(self, msg):
+    #    for cb in self._log_listeners:
+    #        self._loop.call_soon(cb, self._ensure_proxied(), msg)
+
+    async def ensure_connected(self):
+        await self._impl._connection()
 
     async def _fetchall(
         self,
@@ -77,7 +189,8 @@ class AsyncIOConnection(base_con.BaseConnection,
         __allow_capabilities__: typing.Optional[int]=None,
         **kwargs,
     ) -> datatypes.Set:
-        result, _ = await self._protocol.execute_anonymous(
+        proto = await self._impl._connection()
+        result, _ = await proto.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -101,7 +214,8 @@ class AsyncIOConnection(base_con.BaseConnection,
         __allow_capabilities__: typing.Optional[int]=None,
         **kwargs,
     ) -> typing.Tuple[datatypes.Set, typing.Dict[int, bytes]]:
-        return await self._protocol.execute_anonymous(
+        proto = await self._impl._connection()
+        return await proto.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -121,7 +235,8 @@ class AsyncIOConnection(base_con.BaseConnection,
         __limit__: int=0,
         **kwargs,
     ) -> datatypes.Set:
-        result, _ = await self._protocol.execute_anonymous(
+        proto = await self._impl._connection()
+        result, _ = await proto.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -134,7 +249,8 @@ class AsyncIOConnection(base_con.BaseConnection,
         return result
 
     async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        result, _ = await self._protocol.execute_anonymous(
+        proto = await self._impl._connection()
+        result, _ = await proto.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -145,7 +261,8 @@ class AsyncIOConnection(base_con.BaseConnection,
         return result
 
     async def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        result, _ = await self._protocol.execute_anonymous(
+        proto = await self._impl._connection()
+        result, _ = await proto.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -169,7 +286,8 @@ class AsyncIOConnection(base_con.BaseConnection,
 
     async def _fetchall_json_elements(
             self, query: str, *args, **kwargs) -> typing.List[str]:
-        result, _ = await self._protocol.execute_anonymous(
+        proto = await self._impl._connection()
+        result, _ = await proto.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -180,7 +298,8 @@ class AsyncIOConnection(base_con.BaseConnection,
         return result
 
     async def query_one_json(self, query: str, *args, **kwargs) -> str:
-        result, _ = await self._protocol.execute_anonymous(
+        proto = await self._impl._connection()
+        result, _ = await proto.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -203,7 +322,8 @@ class AsyncIOConnection(base_con.BaseConnection,
             ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
             ... ''')
         """
-        await self._protocol.simple_query(query)
+        proto = await self._impl._connection()
+        await proto.simple_query(query)
 
     def transaction(self, *, isolation: str = None, readonly: bool = None,
                     deferrable: bool = None) -> transaction.AsyncIOTransaction:
@@ -226,16 +346,16 @@ class AsyncIOConnection(base_con.BaseConnection,
 
         self._proxy = proxy
 
-    def _ensure_proxied(self):
-        if self._proxy is None:
-            con_ref = self
-        else:
-            # `_proxy` is not None when the connection is a member
-            # of a connection pool.  Which means that the user is working
-            # with a `PoolConnectionProxy` instance, and expects to see it
-            # (and not the actual Connection) in their event callbacks.
-            con_ref = self._proxy
-        return con_ref
+    #def _ensure_proxied(self):
+    #    if self._proxy is None:
+    #        con_ref = self
+    #    else:
+    #        # `_proxy` is not None when the connection is a member
+    #        # of a connection pool.  Which means that the user is working
+    #        # with a `PoolConnectionProxy` instance, and expects to see it
+    #        # (and not the actual Connection) in their event callbacks.
+    #        con_ref = self._proxy
+    #    return con_ref
 
     def _on_release(self, stacklevel=1):
         # Invalidate external references to the connection.
@@ -284,46 +404,6 @@ class AsyncIOConnection(base_con.BaseConnection,
         return await self.query_one_json(query, *args, **kwargs)
 
 
-async def _connect_addr(*, addr, loop, timeout, params, config,
-                        connection_class, codecs_registry=None,
-                        query_cache=None):
-    assert loop is not None
-
-    if timeout <= 0:
-        raise asyncio.TimeoutError
-
-    protocol_factory = lambda: asyncio_proto.AsyncIOProtocol(
-        params, loop)
-
-    if isinstance(addr, str):
-        # UNIX socket
-        connector = loop.create_unix_connection(protocol_factory, addr)
-    else:
-        connector = loop.create_connection(protocol_factory, *addr)
-
-    before = time.monotonic()
-
-    try:
-        tr, pr = await asyncio.wait_for(
-            connector, timeout=timeout)
-    except OSError as e:
-        msg = con_utils.render_client_no_connection_error(e, addr)
-        raise errors.ClientConnectionError(msg) from e
-
-    timeout -= time.monotonic() - before
-
-    try:
-        if timeout <= 0:
-            raise asyncio.TimeoutError
-        await asyncio.wait_for(pr.connect(), timeout=timeout)
-    except (Exception, asyncio.CancelledError):
-        tr.close()
-        raise
-
-    con = connection_class(tr, pr, loop, addr, config, params,
-                           codecs_registry=codecs_registry,
-                           query_cache=query_cache)
-    return con
 
 
 async def async_connect(dsn: str = None, *,
@@ -332,7 +412,8 @@ async def async_connect(dsn: str = None, *,
                         admin: bool = None,
                         database: str = None,
                         connection_class=None,
-                        timeout: int = 60) -> AsyncIOConnection:
+                        wait_until_available_sec: int = 30,
+                        timeout: int = 10) -> AsyncIOConnection:
 
     loop = asyncio.get_event_loop()
 
@@ -342,26 +423,12 @@ async def async_connect(dsn: str = None, *,
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         database=database, admin=admin, timeout=timeout,
+        wait_until_available_sec=wait_until_available_sec,
 
         # ToDos
         command_timeout=None,
         server_settings=None)
 
-    last_error = None
-    addr = None
-    for addr in addrs:
-        before = time.monotonic()
-        try:
-            con = await _connect_addr(
-                addr=addr, loop=loop, timeout=timeout,
-                params=params, config=config,
-                connection_class=connection_class)
-        except (OSError, asyncio.TimeoutError,
-                errors.ClientConnectionError) as ex:
-            last_error = ex
-        else:
-            return con
-        finally:
-            timeout -= time.monotonic() - before
-
-    raise last_error
+    connection = AsyncIOConnection(loop, addrs, config, params)
+    await connection.ensure_connected()
+    return connection
