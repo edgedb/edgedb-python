@@ -125,6 +125,7 @@ cdef class SansIOProtocol:
         self.server_settings = {}
         self.reset_status()
         self.protocol_version = (PROTO_VER_MAJOR, 0)
+        self.foo = False
 
     cdef reset_status(self):
         self.last_status = None
@@ -523,7 +524,14 @@ cdef class SansIOProtocol:
 
         if not self.connected:
             raise RuntimeError('not connected')
+        dd = 'YYYY' in query
+
         self.reset_status()
+
+        if dd:
+            self.foo = True
+
+        if dd: print('=== CLIENT', self)
 
         buf = WriteBuffer.new_message(EXECUTE_SCRIPT_MSG)
         buf.write_int16(0)  # no headers
@@ -532,31 +540,55 @@ cdef class SansIOProtocol:
 
         exc = None
 
+        if dd: print('=== CLIENT data sent', self)
+
         while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
+            try:
+                if not self.buffer.take_message():
+                    await self.wait_for_message()
+                mtype = self.buffer.get_message_type()
+
+                if dd: print(f'=== CLIENT packet {chr(mtype)!r}', self)
+            except BaseException as ex:
+                print('=== CLIENT ERRROROROROROROR', type(ex), ex)
+                raise
 
             try:
                 if mtype == COMMAND_COMPLETE_MSG:
                     self.parse_command_complete_message()
+                    if dd: print(f'=== CLIENT parsed command complete', self)
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     # ErrorResponse
                     exc = self.parse_error_message()
+                    if dd: print(f'=== CLIENT parsed error {type(exc)} {exc}', self)
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
+                    if dd: print(f'=== CLIENT ready', self)
+
                     break
 
                 else:
                     self.fallthrough()
+                    if dd: print(f'=== CLIENT wat', self)
+
+            except BaseException as ex:
+                print('=== CLIENT ERRROROROROROROR2', type(ex), ex)
+                raise
 
             finally:
                 self.buffer.finish_message()
 
+        if dd: print(f'=== CLIENT after loop', self)
+
         if exc is not None:
+            if dd: print(f'=== CLIENT raise', self)
             raise exc
+
+        if dd:
+            print(f'=== CLIENT DONE', self)
+            self.foo = False
 
     async def execute_anonymous(
         self,

@@ -96,6 +96,8 @@ cdef class SansIOProtocol:
 
         dict server_settings
 
+        object foo
+
         readonly bytes last_status
         readonly bytes last_details
         readonly tuple protocol_version

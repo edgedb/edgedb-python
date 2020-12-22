@@ -57,6 +57,8 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
         while True:
             try:
                 self.msg_waiter = self.loop.create_future()
+                if self.foo:
+                    print('CLIENT WAITING ON msg_waiter', self.msg_waiter)
                 await self.msg_waiter
                 return
             except asyncio.CancelledError:
@@ -64,7 +66,12 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
                 # support, which isn't yet available.  Therefore,
                 # we're disabling asyncio cancellation completely
                 # until we can implement it properly.
-                pass
+                if self.foo:
+                    print('CLIENT WAITING ON msg_waiter cancellederror', self.msg_waiter)
+            except BaseException as e:
+                if self.foo:
+                    print('CLIENT WAITING ON msg_waiter error', e, self.msg_waiter)
+                raise
 
     async def try_recv_eagerly(self):
         pass
@@ -100,13 +107,25 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
         pass
 
     def data_received(self, data):
-        self.buffer.feed_data(data)
+        if self.foo:
+            print(f'CLIENT {self} DATA RECEIVED', data[:50], len(data))
+            if self.msg_waiter:
+                print('CLIENT2', self.msg_waiter, self.msg_waiter.done(), self.msg_waiter.cancelled())
 
-        if (self.msg_waiter is not None and
-                self.buffer.take_message() and
-                not self.msg_waiter.done()):
-            self.msg_waiter.set_result(True)
-            self.msg_waiter = None
+        try:
+            self.buffer.feed_data(data)
+
+            if (self.msg_waiter is not None and
+                    self.buffer.take_message() and
+                    not self.msg_waiter.done()):
+                if self.foo:
+                    print(f'CLIENT {self} waking up waiter')
+                self.msg_waiter.set_result(True)
+                self.msg_waiter = None
+        except BaseException as e:
+            if self.foo:
+                print(f'CLIENT {self} ERROR IN DATA RECEIVED {e}')
+            raise
 
     def eof_received(self):
         pass
