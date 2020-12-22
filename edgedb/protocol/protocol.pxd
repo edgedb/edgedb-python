@@ -86,6 +86,7 @@ cdef class SansIOProtocol:
         ReadBuffer buffer
 
         readonly bint connected
+        readonly bint cancelled
 
         object con
         readonly object con_params
@@ -129,3 +130,5 @@ cdef class SansIOProtocol:
         bint inline_typeids,
         uint64_t allow_capabilities,
     )
+
+    cdef ensure_connected(self)
