@@ -825,3 +825,28 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         self.assertEqual(
             await self.con._fetchall_json_elements('SELECT {"aaa", "bbb"}'),
             edgedb.Set(['"aaa"', '"bbb"']))
+
+    async def test_async_cancel_01(self):
+        has_sleep = await self.con.query_one("""
+            SELECT EXISTS(
+                SELECT schema::Function FILTER .name = 'sys::_sleep'
+            )
+        """)
+        if not has_sleep:
+            self.skipTest("No sys::_sleep function")
+
+        con = await self.connect(database=self.con.dbname)
+
+        try:
+            self.assertEqual(await con.query_one('SELECT 1'), 1)
+
+            with self.assertRaises(asyncio.TimeoutError):
+                await asyncio.wait_for(
+                    con.query_one('SELECT sys::_sleep(10)'),
+                    timeout=0.1)
+
+            with self.assertRaisesRegex(
+                    edgedb.ClientConnectionError, 'opertation was cancelled'):
+                await con.query('SELECT 2')
+        finally:
+            await con.aclose()
