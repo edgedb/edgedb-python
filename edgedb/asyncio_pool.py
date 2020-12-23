@@ -38,84 +38,9 @@ __all__ = ('create_async_pool', 'AsyncIOPool')
 logger = logging.getLogger(__name__)
 
 
-class PoolConnectionProxyMeta(abc.ABCMeta):
-
-    def __new__(mcls, name, bases, dct, *, wrap=False):
-        if wrap:
-            for attrname in dir(asyncio_con.AsyncIOConnection):
-                if attrname.startswith('_') or attrname in dct:
-                    continue
-
-                meth = getattr(asyncio_con.AsyncIOConnection, attrname)
-                if not inspect.isfunction(meth):
-                    continue
-
-                wrapper = mcls._wrap_connection_method(attrname)
-                wrapper = functools.update_wrapper(wrapper, meth)
-                dct[attrname] = wrapper
-
-            if '__doc__' not in dct:
-                dct['__doc__'] = asyncio_con.AsyncIOConnection.__doc__
-
-        return super().__new__(mcls, name, bases, dct)
-
-    def __init__(cls, name, bases, dct, *, wrap=False):
-        # Needed for Python 3.5 to handle `wrap` class keyword argument.
-        super().__init__(name, bases, dct)
-
-    @staticmethod
-    def _wrap_connection_method(meth_name):
-        def call_con_method(self, *args, **kwargs):
-            # This method will be owned by PoolConnectionProxy class.
-            if self._con is None:
-                raise errors.InterfaceError(
-                    'cannot call AsyncIOConnection.{}(): '
-                    'connection has been released back to the pool'.format(
-                        meth_name))
-
-            meth = getattr(self._con.__class__, meth_name)
-            return meth(self._con, *args, **kwargs)
-
-        return call_con_method
-
-
-class PoolConnectionProxy(asyncio_con._ConnectionProxy,
-                          abstract.AsyncIOExecutor,
-                          metaclass=PoolConnectionProxyMeta,
-                          wrap=True):
-
-    __slots__ = ('_con', '_holder')
-
-    def __init__(self, holder: 'PoolConnectionHolder',
-                 con: asyncio_con.AsyncIOConnection):
-        self._con = con
-        self._holder = holder
-        con._set_proxy(self)
-
-    def __getattr__(self, attr):
-        # Proxy all unresolved attributes to the wrapped Connection object.
-        return getattr(self._con, attr)
-
-    def _detach(self) -> asyncio_con.AsyncIOConnection:
-        if self._con is None:
-            return
-
-        con, self._con = self._con, None
-        con._set_proxy(None)
-        return con
-
-    def __repr__(self):
-        if self._con is None:
-            return '<{classname} [released] {id:#x}>'.format(
-                classname=self.__class__.__name__, id=id(self))
-        else:
-            return '<{classname} {con!r} {id:#x}>'.format(
-                classname=self.__class__.__name__, con=self._con, id=id(self))
-
-
 class PoolConnectionHolder:
 
-    __slots__ = ('_con', '_pool', '_proxy',
+    __slots__ = ('_con', '_pool',
                  '_on_acquire', '_on_release',
                  '_in_use', '_timeout', '_generation')
 
@@ -123,7 +48,6 @@ class PoolConnectionHolder:
 
         self._pool = pool
         self._con = None
-        self._proxy = None
 
         self._on_acquire = on_acquire
         self._on_release = on_release
@@ -138,9 +62,11 @@ class PoolConnectionHolder:
                 'connection already exists')
 
         self._con = await self._pool._get_new_connection()
+        assert self._con._holder is None
+        self._con._holder = self
         self._generation = self._pool._generation
 
-    async def acquire(self) -> PoolConnectionProxy:
+    async def acquire(self) -> asyncio_con.AsyncIOConnection:
         if self._con is None or self._con.is_closed():
             self._con = None
             await self.connect()
@@ -151,8 +77,6 @@ class PoolConnectionHolder:
                 self._con.aclose(timeout=self._timeout))
             self._con = None
             await self.connect()
-
-        self._proxy = proxy = PoolConnectionProxy(self, self._con)
 
         if self._on_acquire is not None:
             try:
@@ -173,7 +97,7 @@ class PoolConnectionHolder:
 
         self._in_use = self._pool._loop.create_future()
 
-        return proxy
+        return self._con
 
     async def release(self, timeout):
         if self._in_use is None:
@@ -197,7 +121,7 @@ class PoolConnectionHolder:
 
         if self._on_release is not None:
             try:
-                await self._on_release(self._proxy)
+                await self._on_release(self._con)
             except (Exception, asyncio.CancelledError) as ex:
                 # If a user-defined `on_release` function fails, we don't
                 # know if the connection is safe for re-use, hence
@@ -215,22 +139,6 @@ class PoolConnectionHolder:
         # Free this connection holder and invalidate the
         # connection proxy.
         self._release()
-
-    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        async with self.acquire() as conn:
-            return conn.query(query, *args, **kwargs)
-
-    async def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        async with self.acquire() as conn:
-            return conn.query_one(query, *args, **kwargs)
-
-    async def query_json(self, query: str, *args, **kwargs) -> str:
-        async with self.acquire() as conn:
-            return conn.query_json(query, *args, **kwargs)
-
-    async def query_one_json(self, query: str, *args, **kwargs) -> str:
-        async with self.acquire() as conn:
-            return conn.query_one_json(query, *args, **kwargs)
 
     async def wait_until_released(self):
         if self._in_use is None:
@@ -264,14 +172,27 @@ class PoolConnectionHolder:
             self._in_use.set_result(None)
         self._in_use = None
 
-        # Deinitialize the connection proxy.  All subsequent
-        # operations on it will fail.
-        if self._proxy is not None:
-            self._proxy._detach()
-            self._proxy = None
+        self._con = self._con._detach()
 
         # Put ourselves back to the pool queue.
         self._pool._queue.put_nowait(self)
+
+
+class PoolConnection(asyncio_con.AsyncIOConnection):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._holder = None
+
+    def _reconnect(self):
+        raise errors.InterfaceError(
+            "the underlying connection has been released back to the pool"
+        )
+
+    def _cleanup(self):
+        self.holder._release_on_close()
+        super()._cleanup()
+
 
 
 class AsyncIOPool(abstract.AsyncIOExecutor):
@@ -451,7 +372,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
                 connection_class=self._connection_class,
                 **self._connect_kwargs)
 
-            self._working_addr = con._addr
+            self._working_addr = con.connected_addr()
             self._working_config = con._config
             self._working_params = con._params
             self._codecs_registry = con._codecs_registry
@@ -462,8 +383,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
             # and parsed options and config.
             con = await asyncio_con._connect_addr(
                 loop=self._loop,
-                addr=self._working_addr,
-                timeout=self._working_params.connect_timeout,
+                addrs=[self._working_addr],
                 config=self._working_config,
                 params=self._working_params,
                 query_cache=self._query_cache,
@@ -592,21 +512,18 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
             A :class:`~edgedb.asyncio_con.AsyncIOConnection` object
             to release.
         """
-        if (type(connection) is not PoolConnectionProxy or
+        if (type(connection) is not PoolConnection or
                 connection._holder._pool is not self):
             raise errors.InterfaceError(
                 'AsyncIOPool.release() received invalid connection: '
                 '{connection!r} is not a member of this pool'.format(
                     connection=connection))
 
-        if connection._con is None:
+        if connection._impl is None:  # TODO(tailhook) not sure if needed
             # Already released, do nothing.
             return
 
         self._check_init()
-
-        # Let the connection do its internal housekeeping when its released.
-        connection._con._on_release()
 
         ch = connection._holder
         timeout = None
@@ -745,7 +662,7 @@ def create_async_pool(dsn=None, *,
                       on_acquire=None,
                       on_release=None,
                       on_connect=None,
-                      connection_class=asyncio_con.AsyncIOConnection,
+                      connection_class=PoolConnection,
                       **connect_kwargs):
     r"""Create an asynchronous connection pool.
 

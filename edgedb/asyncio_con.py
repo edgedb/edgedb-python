@@ -36,6 +36,8 @@ from . import transaction
 from .datatypes import datatypes
 from .protocol import asyncio_proto
 from .protocol import protocol
+from .protocol.protocol import CodecsRegistry as _CodecsRegistry
+from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
 
 ERRNO_RE = re.compile(r"\[Errno (\d+)\]")
@@ -46,20 +48,6 @@ TEMPORARY_ERRORS = frozenset({
     errno.ENOENT,
 })
 
-#TODO(tailhook) remove
-class _ConnectionProxy:
-    # Base class to enable `isinstance(AsyncIOConnection)` check.
-    __slots__ = ()
-
-
-#TODO(tailhook) remove
-class AsyncIOConnectionMeta(abc.ABCMeta):
-
-    def __instancecheck__(cls, instance):
-        mro = type(instance).__mro__
-        return AsyncIOConnection in mro or _ConnectionProxy in mro
-
-
 def extract_errno(s):
     result = []
     for match in ERRNO_RE.finditer(s):
@@ -68,39 +56,36 @@ def extract_errno(s):
         return result
 
 
-class AsyncIOConnectionImpl(base_con.BaseConnection):
+class _AsyncIOConnectionImpl:
 
-    def __init__(self, loop, addrs, config, params):
-        self._loop = loop
-        self._addrs = addrs
-        self._config = config
-        self._params = params
-        self._transport = None
-        self._protocol = None
+    def __init__(self, codecs_registry, query_cache):
+        self._codecs_registry = codecs_registry
+        self._query_cache = query_cache
 
-    async def _connection(self):
+        # TODO(tailhook) temporary, this is not needed when we implement
+        # transaction part of RFC1004
+        self._top_xact = None
+
+    def is_closed(self):
         transport = self._transport
         protocol = self._protocol
-        if (
+        return not (
             transport and not transport.is_closing() and
             protocol and protocol.connected
-        ):
-            return protocol
-        await self._reconnect()
-        return self._protocol
+        )
 
-    async def _reconnect(self):
+    async def connect(self, loop, addrs, config, params):
         last_error = None
         addr = None
-        max_time = time.monotonic() + self._config.wait_until_available
+        max_time = time.monotonic() + config.wait_until_available
         iteration = 1
 
         while True:
-            for addr in self._addrs:
+            for addr in addrs:
                 try:
                     con = await asyncio.wait_for(
-                        self._connect_addr(addr),
-                        self._config.connect_timeout,
+                        self._connect_addr(loop, addr, params),
+                        config.connect_timeout,
                     )
                 except asyncio.TimeoutError as e:
                     if iteration == 1 or time.monotonic() < max_time:
@@ -108,7 +93,7 @@ class AsyncIOConnectionImpl(base_con.BaseConnection):
                     else:
                         raise error.ConnectionTimeoutError(
                             f"connecting to {addr} failed in"
-                            f" {self._config.connect_timeout} sec"
+                            f" {config.connect_timeout} sec"
                         )
                 except errors.ClientConnectionError as e:
                     if (
@@ -122,16 +107,16 @@ class AsyncIOConnectionImpl(base_con.BaseConnection):
                     )
                     raise e
                 else:
+                    self._addr = addr
                     return con
 
             iteration += 1
             await asyncio.sleep(0.01 + random.random()*0.2)
 
-    async def _connect_addr(self, addr):
+    async def _connect_addr(self, loop, addr, params):
 
-        loop = self._loop
         factory = lambda: asyncio_proto.AsyncIOProtocol(
-            self._params, loop)
+            params, loop)
 
         try:
             if isinstance(addr, str):
@@ -159,25 +144,51 @@ class AsyncIOConnectionImpl(base_con.BaseConnection):
         self._transport = tr
         self._protocol = pr
 
+    async def execute(self, query):
+        await self._protocol.simple_query(query)
+
 
 class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
 
-    def __init__(self, loop, addr, config, params, *,
-                 codecs_registry=None, query_cache=None):
-        super().__init__(addr, config, params,
+    def __init__(self, loop, addrs, config, params, *,
+                 codecs_registry, query_cache):
+        super().__init__(addrs, config, params,
                          codecs_registry=codecs_registry,
                          query_cache=query_cache)
-        self._impl = AsyncIOConnectionImpl(loop, addr, config, params)
+        self._loop = loop
+        self._impl = None
 
-        # TODO(tailhook) shouldn't we keep it in WeekKeyDict?
-        self._pool_release_ctr = 0
+    def _detach(self):
+        impl = self._impl
+        self._impl = None
+        new_conn = AsyncIOConnection(
+            self._loop, self._addrs, self._config, self._params,
+            codecs_registry=self._codecs_registry,
+            query_cache=self._query_cache)
+        new_conn._impl = impl
+        return new_conn
 
     #def _dispatch_log_message(self, msg):
     #    for cb in self._log_listeners:
     #        self._loop.call_soon(cb, self._ensure_proxied(), msg)
 
     async def ensure_connected(self):
-        await self._impl._connection()
+        if not self._impl or self._impl.is_closed():
+            self._impl = _AsyncIOConnectionImpl(
+                self._codecs_registry,
+                self._query_cache,
+            )
+            await self._impl.connect(self._loop, self._addrs,
+                                     self._config, self._params)
+
+    # overriden by connection pool
+    async def _reconnect(self):
+        self._impl = _AsyncIOConnectionImpl(
+            self._codecs_registry,
+            self._query_cache,
+        )
+        await self._impl.connect(self._loop, self._addrs,
+                                 self._config, self._params)
 
     async def _fetchall(
         self,
@@ -189,8 +200,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         __allow_capabilities__: typing.Optional[int]=None,
         **kwargs,
     ) -> datatypes.Set:
-        proto = await self._impl._connection()
-        result, _ = await proto.execute_anonymous(
+        if not self._impl or self._impl.is_closed():
+            await self._reconnect()
+        result, _ = await self._impl._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -214,8 +226,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         __allow_capabilities__: typing.Optional[int]=None,
         **kwargs,
     ) -> typing.Tuple[datatypes.Set, typing.Dict[int, bytes]]:
-        proto = await self._impl._connection()
-        return await proto.execute_anonymous(
+        if not self._impl or self._impl.is_closed():
+            await self._reconnect()
+        return await self._impl._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -235,8 +248,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         __limit__: int=0,
         **kwargs,
     ) -> datatypes.Set:
-        proto = await self._impl._connection()
-        result, _ = await proto.execute_anonymous(
+        if not self._impl or self._impl.is_closed():
+            await self._reconnect()
+        result, _ = await self._impl._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -249,8 +263,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         return result
 
     async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        proto = await self._impl._connection()
-        result, _ = await proto.execute_anonymous(
+        if not self._impl or self._impl.is_closed():
+            await self._reconnect()
+        result, _ = await self._impl._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -261,8 +276,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         return result
 
     async def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        proto = await self._impl._connection()
-        result, _ = await proto.execute_anonymous(
+        if not self._impl or self._impl.is_closed():
+            await self._reconnect()
+        result, _ = await self._impl._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -274,7 +290,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         return result
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
-        result, _ = await self._protocol.execute_anonymous(
+        if not self._impl or self._impl.is_closed():
+            await self._reconnect()
+        result, _ = await self._impl._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -286,8 +304,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
 
     async def _fetchall_json_elements(
             self, query: str, *args, **kwargs) -> typing.List[str]:
-        proto = await self._impl._connection()
-        result, _ = await proto.execute_anonymous(
+        if not self._impl or self._impl.is_closed():
+            await self._reconnect()
+        result, _ = await self._impl._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -298,8 +317,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         return result
 
     async def query_one_json(self, query: str, *args, **kwargs) -> str:
-        proto = await self._impl._connection()
-        result, _ = await proto.execute_anonymous(
+        if not self._impl or self._impl.is_closed():
+            await self._reconnect()
+        result, _ = await self._impl._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -322,8 +342,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
             ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
             ... ''')
         """
-        proto = await self._impl._connection()
-        await proto.simple_query(query)
+        if not self._impl or self._impl.is_closed():
+            await self._reconnect()
+        await self._impl._protocol.simple_query(query)
 
     def transaction(self, *, isolation: str = None, readonly: bool = None,
                     deferrable: bool = None) -> transaction.AsyncIOTransaction:
@@ -346,34 +367,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
 
         self._proxy = proxy
 
-    #def _ensure_proxied(self):
-    #    if self._proxy is None:
-    #        con_ref = self
-    #    else:
-    #        # `_proxy` is not None when the connection is a member
-    #        # of a connection pool.  Which means that the user is working
-    #        # with a `PoolConnectionProxy` instance, and expects to see it
-    #        # (and not the actual Connection) in their event callbacks.
-    #        con_ref = self._proxy
-    #    return con_ref
-
-    def _on_release(self, stacklevel=1):
-        # Invalidate external references to the connection.
-        self._pool_release_ctr += 1
-
-    def _cleanup(self):
-        # Free the resources associated with this connection.
-        # This must be called when a connection is terminated.
-
-        if self._proxy is not None:
-            # Connection is a member of a pool, so let the pool
-            # know that this connection is dead.
-            self._proxy._holder._release_on_close()
-
-        super()._cleanup()
-
     def is_closed(self) -> bool:
-        return self._transport.is_closing() or not self._protocol.connected
+        return self._impl.is_closed()
 
     async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
         warnings.warn(
@@ -404,8 +399,6 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         return await self.query_one_json(query, *args, **kwargs)
 
 
-
-
 async def async_connect(dsn: str = None, *,
                         host: str = None, port: int = None,
                         user: str = None, password: str = None,
@@ -429,6 +422,25 @@ async def async_connect(dsn: str = None, *,
         command_timeout=None,
         server_settings=None)
 
-    connection = AsyncIOConnection(loop, addrs, config, params)
+    connection = connection_class(
+        loop, addrs, config, params,
+        codecs_registry=_CodecsRegistry(),
+        query_cache=_QueryCodecsCache(),
+    )
+    await connection.ensure_connected()
+    return connection
+
+
+async def _connect_addr(loop, addrs, config, params,
+                        query_cache, codecs_registry, connection_class):
+
+    if connection_class is None:
+        connection_class = AsyncIOConnection
+
+    connection = connection_class(
+        loop, addrs, config, params,
+        codecs_registry=codecs_registry,
+        query_cache=query_cache,
+    )
     await connection.ensure_connected()
     return connection

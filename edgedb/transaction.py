@@ -192,11 +192,7 @@ class BaseTransaction:
             mod, self.__class__.__name__, ' '.join(attrs), id(self))
 
 
-class AsyncIOTransaction(BaseTransaction, connresource.ConnectionResource):
-
-    def __init__(self, connection, isolation, readonly, deferrable):
-        super().__init__(connection, isolation, readonly, deferrable)
-        connresource.ConnectionResource.__init__(self, connection)
+class AsyncIOTransaction(BaseTransaction):
 
     async def __aenter__(self):
         if self._managed:
@@ -214,12 +210,14 @@ class AsyncIOTransaction(BaseTransaction, connresource.ConnectionResource):
         finally:
             self._managed = False
 
-    @connresource.guarded
     async def start(self) -> None:
         """Enter the transaction or savepoint block."""
+        await self._connection.ensure_connected()
+        self._connection_impl = self._connection._impl
+
         query = self._make_start_query()
         try:
-            await self._connection.execute(query)
+            await self._connection_impl.execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -229,7 +227,7 @@ class AsyncIOTransaction(BaseTransaction, connresource.ConnectionResource):
     async def __commit(self):
         query = self._make_commit_query()
         try:
-            await self._connection.execute(query)
+            await self._connection_impl.execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -239,14 +237,13 @@ class AsyncIOTransaction(BaseTransaction, connresource.ConnectionResource):
     async def __rollback(self):
         query = self._make_rollback_query()
         try:
-            await self._connection.execute(query)
+            await self._connection_impl.execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
         else:
             self._state = TransactionState.ROLLEDBACK
 
-    @connresource.guarded
     async def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
         if self._managed:
@@ -254,7 +251,6 @@ class AsyncIOTransaction(BaseTransaction, connresource.ConnectionResource):
                 'cannot manually commit from within an `async with` block')
         await self.__commit()
 
-    @connresource.guarded
     async def rollback(self) -> None:
         """Exit the transaction or savepoint block and rollback changes."""
         if self._managed:
