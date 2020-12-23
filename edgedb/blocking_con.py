@@ -242,7 +242,8 @@ def connect(dsn: str = None, *,
             user: str = None, password: str = None,
             admin: bool = None,
             database: str = None,
-            timeout: int = 60) -> BlockingIOConnection:
+            timeout: int = 10,
+            wait_until_available_sec: int = 30) -> BlockingIOConnection:
 
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
@@ -251,7 +252,8 @@ def connect(dsn: str = None, *,
         # ToDos
         timeout=None,
         command_timeout=None,
-        server_settings=None)
+        server_settings=None,
+        wait_until_available_sec=wait_until_available_sec)
 
     last_error = None
     addr = None

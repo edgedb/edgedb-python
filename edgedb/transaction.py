@@ -19,7 +19,6 @@
 
 import enum
 
-from . import connresource
 from . import errors
 
 

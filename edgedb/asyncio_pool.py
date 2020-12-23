@@ -17,10 +17,7 @@
 #
 
 
-import abc
 import asyncio
-import functools
-import inspect
 import logging
 import typing
 import warnings
@@ -80,7 +77,7 @@ class PoolConnectionHolder:
 
         if self._on_acquire is not None:
             try:
-                await self._on_acquire(proxy)
+                await self._on_acquire(self._con)
             except (Exception, asyncio.CancelledError) as ex:
                 # If a user-defined `on_acquire` function fails, we don't
                 # know if the connection is safe for re-use, hence
@@ -192,7 +189,6 @@ class PoolConnection(asyncio_con.AsyncIOConnection):
     def _cleanup(self):
         self.holder._release_on_close()
         super()._cleanup()
-
 
 
 class AsyncIOPool(abstract.AsyncIOExecutor):
@@ -485,7 +481,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
         async def _acquire_impl():
             ch = await self._queue.get()  # type: PoolConnectionHolder
             try:
-                proxy = await ch.acquire()  # type: PoolConnectionProxy
+                proxy = await ch.acquire()  # type: PoolConnection
             except (Exception, asyncio.CancelledError):
                 self._queue.put_nowait(ch)
                 raise

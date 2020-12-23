@@ -17,7 +17,6 @@
 #
 
 
-import abc
 import asyncio
 import errno
 import random
@@ -48,6 +47,7 @@ TEMPORARY_ERRORS = frozenset({
     errno.ENOENT,
 })
 
+
 def extract_errno(s):
     result = []
     for match in ERRNO_RE.finditer(s):
@@ -75,7 +75,6 @@ class _AsyncIOConnectionImpl:
         )
 
     async def connect(self, loop, addrs, config, params):
-        last_error = None
         addr = None
         max_time = time.monotonic() + config.wait_until_available
         iteration = 1
@@ -91,10 +90,10 @@ class _AsyncIOConnectionImpl:
                     if iteration == 1 or time.monotonic() < max_time:
                         continue
                     else:
-                        raise error.ConnectionTimeoutError(
+                        raise errors.ConnectionTimeoutError(
                             f"connecting to {addr} failed in"
                             f" {config.connect_timeout} sec"
-                        )
+                        ) from e
                 except errors.ClientConnectionError as e:
                     if (
                         e.has_tag(errors.SHOULD_RECONNECT) and
@@ -111,7 +110,7 @@ class _AsyncIOConnectionImpl:
                     return con
 
             iteration += 1
-            await asyncio.sleep(0.01 + random.random()*0.2)
+            await asyncio.sleep(0.01 + random.random() * 0.2)
 
     async def _connect_addr(self, loop, addr, params):
 
@@ -168,9 +167,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         new_conn._impl = impl
         return new_conn
 
-    #def _dispatch_log_message(self, msg):
-    #    for cb in self._log_listeners:
-    #        self._loop.call_soon(cb, self._ensure_proxied(), msg)
+    def _dispatch_log_message(self, msg):
+        for cb in self._log_listeners:
+            self._loop.call_soon(cb, self._ensure_proxied(), msg)
 
     async def ensure_connected(self):
         if not self._impl or self._impl.is_closed():

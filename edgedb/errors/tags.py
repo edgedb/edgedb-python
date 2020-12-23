@@ -3,9 +3,9 @@ __all__ = [
     'SHOULD_RECONNECT',
 ]
 
+
 class Tag(object):
     pass
 
+
 SHOULD_RECONNECT = Tag()
-
-
