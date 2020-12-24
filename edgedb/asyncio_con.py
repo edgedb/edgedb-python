@@ -58,13 +58,10 @@ def extract_errno(s):
 
 class _AsyncIOConnectionImpl:
 
-    def __init__(self, codecs_registry, query_cache):
-        self._codecs_registry = codecs_registry
-        self._query_cache = query_cache
-
-        # TODO(tailhook) temporary, this is not needed when we implement
-        # transaction part of RFC1004
-        self._top_xact = None
+    def __init__(self):
+        self._addr = None
+        self._transport = None
+        self._protocol = None
 
     def is_closed(self):
         transport = self._transport
@@ -82,7 +79,7 @@ class _AsyncIOConnectionImpl:
         while True:
             for addr in addrs:
                 try:
-                    con = await asyncio.wait_for(
+                    await asyncio.wait_for(
                         self._connect_addr(loop, addr, params),
                         config.connect_timeout,
                     )
@@ -100,14 +97,14 @@ class _AsyncIOConnectionImpl:
                         (iteration == 1 or time.monotonic() < max_time)
                     ):
                         continue
-                    e.message = con_utils.render_client_no_connection_error(
-                        e,
-                        addr,
-                    )
-                    raise e
+                    nice_err = e.__class__(
+                        con_utils.render_client_no_connection_error(
+                            e,
+                            addr,
+                        ))
+                    raise nice_err from e.__cause__
                 else:
-                    self._addr = addr
-                    return con
+                    return
 
             iteration += 1
             await asyncio.sleep(0.01 + random.random() * 0.2)
@@ -142,9 +139,14 @@ class _AsyncIOConnectionImpl:
         await pr.connect()
         self._transport = tr
         self._protocol = pr
+        self._adddr = addr
 
     async def execute(self, query):
         await self._protocol.simple_query(query)
+
+    def close(self):
+        if self._protocol:
+            self._protocol.abort()
 
 
 class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
@@ -157,15 +159,15 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         self._loop = loop
         self._impl = None
 
-    def _detach(self):
-        impl = self._impl
-        self._impl = None
-        new_conn = AsyncIOConnection(
-            self._loop, self._addrs, self._config, self._params,
-            codecs_registry=self._codecs_registry,
-            query_cache=self._query_cache)
-        new_conn._impl = impl
-        return new_conn
+    def __repr__(self):
+        if self.is_closed():
+            return '<{classname} [closed] {id:#x}>'.format(
+                classname=self.__class__.__name__, id=id(self))
+        else:
+            return '<{classname} [connected to {addr}] {id:#x}>'.format(
+                classname=self.__class__.__name__,
+                addr=self.connected_addr(),
+                id=id(self))
 
     def _dispatch_log_message(self, msg):
         for cb in self._log_listeners:
@@ -173,19 +175,11 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
 
     async def ensure_connected(self):
         if not self._impl or self._impl.is_closed():
-            self._impl = _AsyncIOConnectionImpl(
-                self._codecs_registry,
-                self._query_cache,
-            )
-            await self._impl.connect(self._loop, self._addrs,
-                                     self._config, self._params)
+            await self._reconnect()
 
     # overriden by connection pool
     async def _reconnect(self):
-        self._impl = _AsyncIOConnectionImpl(
-            self._codecs_registry,
-            self._query_cache,
-        )
+        self._impl = _AsyncIOConnectionImpl()
         await self._impl.connect(self._loop, self._addrs,
                                  self._config, self._params)
 
@@ -355,7 +349,7 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
 
     def terminate(self) -> None:
         if not self.is_closed():
-            self._protocol.abort()
+            self._impl.close()
         self._cleanup()
 
     def _set_proxy(self, proxy):

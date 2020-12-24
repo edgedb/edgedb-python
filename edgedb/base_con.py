@@ -118,7 +118,7 @@ class BaseConnection:
 
     @property
     def dbname(self) -> str:
-        return self._impl._params.database
+        return self._params.database
 
     def is_closed(self) -> bool:
         raise NotImplementedError

@@ -840,13 +840,16 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         try:
             self.assertEqual(await con.query_one('SELECT 1'), 1)
 
+            conn_before = con._impl
+
             with self.assertRaises(asyncio.TimeoutError):
                 await asyncio.wait_for(
                     con.query_one('SELECT sys::_sleep(10)'),
                     timeout=0.1)
 
-            with self.assertRaisesRegex(
-                    edgedb.ClientConnectionError, 'opertation was cancelled'):
-                await con.query('SELECT 2')
+            await con.query('SELECT 2')
+
+            conn_after = con._impl
+            self.assertIsNot(conn_before, conn_after, "Reconnect expected")
         finally:
             await con.aclose()

@@ -35,6 +35,48 @@ __all__ = ('create_async_pool', 'AsyncIOPool')
 logger = logging.getLogger(__name__)
 
 
+class PoolConnection(asyncio_con.AsyncIOConnection):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._holder = None
+        self._detached = False
+
+    async def _reconnect(self):
+        if self._detached:
+            # initial connection
+            raise errors.InterfaceError(
+                "the underlying connection has been released back to the pool"
+            )
+        return await super()._reconnect()
+
+    def _detach(self):
+        new_conn = self.__class__(
+            self._loop, self._addrs, self._config, self._params,
+            codecs_registry=self._codecs_registry,
+            query_cache=self._query_cache)
+        impl = self._impl
+        holder = self._holder
+        self._impl = None
+        self._holder = None
+        self._detached = True
+        new_conn._impl = impl
+        new_conn._holder = holder
+        return new_conn
+
+    def _cleanup(self):
+        if self._holder:
+            self._holder._release_on_close()
+        super()._cleanup()
+
+    def __repr__(self):
+        if self._holder is None:
+            return '<{classname} [released] {id:#x}>'.format(
+                classname=self.__class__.__name__, id=id(self))
+        else:
+            return super().__repr__()
+
+
 class PoolConnectionHolder:
 
     __slots__ = ('_con', '_pool',
@@ -63,7 +105,7 @@ class PoolConnectionHolder:
         self._con._holder = self
         self._generation = self._pool._generation
 
-    async def acquire(self) -> asyncio_con.AsyncIOConnection:
+    async def acquire(self) -> PoolConnection:
         if self._con is None or self._con.is_closed():
             self._con = None
             await self.connect()
@@ -175,22 +217,6 @@ class PoolConnectionHolder:
         self._pool._queue.put_nowait(self)
 
 
-class PoolConnection(asyncio_con.AsyncIOConnection):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._holder = None
-
-    def _reconnect(self):
-        raise errors.InterfaceError(
-            "the underlying connection has been released back to the pool"
-        )
-
-    def _cleanup(self):
-        self.holder._release_on_close()
-        super()._cleanup()
-
-
 class AsyncIOPool(abstract.AsyncIOExecutor):
     """A connection pool.
 
@@ -232,10 +258,11 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
         if min_size > max_size:
             raise ValueError('min_size is greater than max_size')
 
-        if not issubclass(connection_class, asyncio_con.AsyncIOConnection):
+        if not issubclass(connection_class, PoolConnection):
             raise TypeError(
-                'connection_class is expected to be a subclass of '
-                'edgedb.AsyncIOConnection, got {!r}'.format(connection_class))
+                f'connection_class is expected to be a subclass of '
+                f'edgedb.asyncio_pool.PoolConnection, '
+                f'got {connection_class}')
 
         self._minsize = min_size
         self._maxsize = max_size
@@ -508,20 +535,26 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
             A :class:`~edgedb.asyncio_con.AsyncIOConnection` object
             to release.
         """
-        if (type(connection) is not PoolConnection or
-                connection._holder._pool is not self):
-            raise errors.InterfaceError(
-                'AsyncIOPool.release() received invalid connection: '
-                '{connection!r} is not a member of this pool'.format(
-                    connection=connection))
 
-        if connection._impl is None:  # TODO(tailhook) not sure if needed
+        if not isinstance(connection, PoolConnection):
+            raise errors.InterfaceError(
+                f'AsyncIOPool.release() received invalid connection: '
+                f'{connection!r} does not belong to any connection pool'
+            )
+
+        ch = connection._holder
+        if ch is None:
             # Already released, do nothing.
             return
 
+        if ch._pool is not self:
+            raise errors.InterfaceError(
+                f'AsyncIOPool.release() received invalid connection: '
+                f'{connection!r} is not a member of this pool'
+            )
+
         self._check_init()
 
-        ch = connection._holder
         timeout = None
 
         # Use asyncio.shield() to guarantee that task cancellation

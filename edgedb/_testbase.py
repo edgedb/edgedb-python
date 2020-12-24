@@ -32,6 +32,9 @@ import edgedb
 from edgedb import _cluster as edgedb_cluster
 
 
+log = logging.getLogger(__name__)
+
+
 @contextlib.contextmanager
 def silence_asyncio_long_exec_warning():
     def flt(log_record):
@@ -417,6 +420,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     cls.loop.run_until_complete(
                         cls.admin_conn.execute(script))
 
+            except Exception:
+                log.exception('error running teardown')
+                # skip the exception so that original error is shown instead
+                # of finalizer error
             finally:
                 try:
                     if cls.admin_conn is not None:

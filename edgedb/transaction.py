@@ -279,8 +279,10 @@ class Transaction(BaseTransaction):
     def start(self) -> None:
         """Enter the transaction or savepoint block."""
         query = self._make_start_query()
+        self._connection.ensure_connected()
+        self._connection_impl = self._connection._impl
         try:
-            self._connection.execute(query)
+            self._connection_impl.execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -290,7 +292,7 @@ class Transaction(BaseTransaction):
     def __commit(self):
         query = self._make_commit_query()
         try:
-            self._connection.execute(query)
+            self._connection_impl.execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -300,7 +302,7 @@ class Transaction(BaseTransaction):
     def __rollback(self):
         query = self._make_rollback_query()
         try:
-            self._connection.execute(query)
+            self._connection_impl.execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
