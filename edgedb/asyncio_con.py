@@ -48,7 +48,14 @@ TEMPORARY_ERRORS = frozenset({
 })
 
 
-def extract_errno(s):
+def _extract_errno(s):
+    """Extract multiple errnos from error string
+
+    When we connect to a host that has multiple underlying IP addresses, say
+    ``localhost`` having ``::1`` and ``127.0.0.1``, we get
+    ``OSError("Multiple exceptions:...")`` error without ``.errno`` attribute
+    set. There are multiple ones in the text, so we extract all of them.
+    """
     result = []
     for match in ERRNO_RE.finditer(s):
         result.append(int(match.group(1)))
@@ -124,10 +131,9 @@ class _AsyncIOConnectionImpl:
             # All name resolution errors are considered temporary
             raise errors.ConnectionFailedTemporarilyError(str(e)) from e
         except OSError as e:
-            # TODO(tailhook) figure out error
             message = str(e)
             if e.errno is None:
-                errnos = extract_errno(message)
+                errnos = _extract_errno(message)
             else:
                 errnos = [e.errno]
             if any((code in TEMPORARY_ERRORS for code in errnos)):

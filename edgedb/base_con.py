@@ -102,9 +102,6 @@ class BaseConnection:
             **connection**: a Connection the callback is registered with;
             **message**: the `edgedb.EdgeDBMessage` message.
         """
-        # TODO(tailhook)
-        if self.is_closed():
-            raise errors.InterfaceError('connection is closed')
         self._log_listeners.add(callback)
 
     def remove_log_listener(
@@ -112,7 +109,6 @@ class BaseConnection:
         callback: typing.Callable[[BaseConnection_T, errors.EdgeDBMessage],
                                   None]
     ) -> None:
-        # TODO(tailhook)
         """Remove a listening callback for log messages."""
         self._log_listeners.discard(callback)
 
