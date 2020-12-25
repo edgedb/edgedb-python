@@ -63,7 +63,7 @@ class _BlockingIOConnectionImpl:
                     if iteration == 1 or time.monotonic() < max_time:
                         continue
                     else:
-                        raise errors.ConnectionTimeoutError(
+                        raise errors.ClientConnectionTimeoutError(
                             f"connecting to {addr} failed in"
                             f" {config.connect_timeout} sec"
                         ) from e
@@ -103,13 +103,16 @@ class _BlockingIOConnectionImpl:
                 sock.connect(addr)
             except socket.gaierror as e:
                 # All name resolution errors are considered temporary
-                raise errors.ConnectionFailedTemporarilyError(str(e)) from e
+                err = errors.ClientConnectionFailedTemporarilyError(str(e))
+                raise err from e
             except OSError as e:
                 message = str(e)
                 if e.errno in TEMPORARY_ERRORS:
-                    err = errors.ConnectionFailedTemporarilyError(message)
+                    err = errors.ClientConnectionFailedTemporarilyError(
+                        message
+                    )
                 else:
-                    err = errors.ConnectionFailedError(message)
+                    err = errors.ClientConnectionFailedError(message)
                 raise err from e
 
             time_left = deadline - time.monotonic()
@@ -332,13 +335,13 @@ def connect(dsn: str = None, *,
             admin: bool = None,
             database: str = None,
             timeout: int = 10,
-            wait_until_available_sec: int = 30) -> BlockingIOConnection:
+            wait_until_available: int = 30) -> BlockingIOConnection:
 
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         database=database, admin=admin,
         timeout=timeout,
-        wait_until_available_sec=wait_until_available_sec,
+        wait_until_available=wait_until_available,
 
         # ToDos
         command_timeout=None,

@@ -85,9 +85,9 @@ __all__ = _base.__all__ + (  # type: ignore
     'WarningMessage',
     'ClientError',
     'ClientConnectionError',
-    'ConnectionFailedError',
-    'ConnectionFailedTemporarilyError',
-    'ConnectionTimeoutError',
+    'ClientConnectionFailedError',
+    'ClientConnectionFailedTemporarilyError',
+    'ClientConnectionTimeoutError',
     'InterfaceError',
     'QueryArgumentError',
     'MissingArgumentError',
@@ -381,21 +381,17 @@ class ClientConnectionError(ClientError):
     _code = 0x_FF_01_00_00
 
 
-class ConnectionFailedError(ClientConnectionError):
+class ClientConnectionFailedError(ClientConnectionError):
     _code = 0x_FF_01_01_00
 
 
-class ConnectionFailedTemporarilyError(ConnectionFailedError):
+class ClientConnectionFailedTemporarilyError(ClientConnectionFailedError):
     _code = 0x_FF_01_01_01
-
-
     tags = frozenset({SHOULD_RECONNECT})
 
 
-class ConnectionTimeoutError(ClientConnectionError):
+class ClientConnectionTimeoutError(ClientConnectionError):
     _code = 0x_FF_01_02_00
-
-
     tags = frozenset({SHOULD_RECONNECT})
 
 

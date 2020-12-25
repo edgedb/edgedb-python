@@ -129,7 +129,7 @@ class _AsyncIOConnectionImpl:
                 tr, pr = await loop.create_connection(factory, *addr)
         except socket.gaierror as e:
             # All name resolution errors are considered temporary
-            raise errors.ConnectionFailedTemporarilyError(str(e)) from e
+            raise errors.ClientConnectionFailedTemporarilyError(str(e)) from e
         except OSError as e:
             message = str(e)
             if e.errno is None:
@@ -137,9 +137,9 @@ class _AsyncIOConnectionImpl:
             else:
                 errnos = [e.errno]
             if any((code in TEMPORARY_ERRORS for code in errnos)):
-                err = errors.ConnectionFailedTemporarilyError(message)
+                err = errors.ClientConnectionFailedTemporarilyError(message)
             else:
-                err = errors.ConnectionFailedError(message)
+                err = errors.ClientConnectionFailedError(message)
             raise err from e
 
         await pr.connect()
@@ -404,7 +404,7 @@ async def async_connect(dsn: str = None, *,
                         admin: bool = None,
                         database: str = None,
                         connection_class=None,
-                        wait_until_available_sec: int = 30,
+                        wait_until_available: int = 30,
                         timeout: int = 10) -> AsyncIOConnection:
 
     loop = asyncio.get_event_loop()
@@ -415,7 +415,7 @@ async def async_connect(dsn: str = None, *,
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         database=database, admin=admin, timeout=timeout,
-        wait_until_available_sec=wait_until_available_sec,
+        wait_until_available=wait_until_available,
 
         # ToDos
         command_timeout=None,

@@ -327,7 +327,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
 
 def parse_connect_arguments(*, dsn, host, port, user, password,
                             database, admin,
-                            timeout, command_timeout, wait_until_available_sec,
+                            timeout, command_timeout, wait_until_available,
                             server_settings):
 
     if command_timeout is not None:
@@ -353,7 +353,7 @@ def parse_connect_arguments(*, dsn, host, port, user, password,
     config = ClientConfiguration(
         connect_timeout=timeout,
         command_timeout=command_timeout,
-        wait_until_available=wait_until_available_sec or 0,
+        wait_until_available=wait_until_available or 0,
     )
 
     return addrs, params, config

@@ -37,7 +37,7 @@ compile: _touch
 
 
 gen-errors:
-	edb gen-errors --import "from edgedb.errors._base import *" \
+	edb gen-errors --import "$(echo "from edgedb.errors._base import *"; echo "from edgedb.errors.tags import *")" \
 		--extra-all "_base.__all__" --stdout --client > $(ROOT)/.errors
 	mv $(ROOT)/.errors $(ROOT)/edgedb/errors/__init__.py
 	$(PYTHON) tools/gen_init.py

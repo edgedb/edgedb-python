@@ -403,7 +403,7 @@ class TestConUtils(unittest.TestCase):
                 database=database, admin=admin,
                 timeout=timeout, command_timeout=command_timeout,
                 server_settings=server_settings,
-                wait_until_available_sec=30)
+                wait_until_available=30)
 
             params = {k: v for k, v in params._asdict().items()
                       if v is not None}
