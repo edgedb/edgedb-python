@@ -17,6 +17,8 @@
 #
 
 
+import errno
+import random
 import socket
 import time
 import typing
@@ -30,9 +32,143 @@ from . import transaction
 
 from .datatypes import datatypes
 from .protocol import blocking_proto, protocol
+from .protocol.protocol import CodecsRegistry as _CodecsRegistry
+from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
+
+
+TEMPORARY_ERRORS = frozenset({
+    errno.ECONNREFUSED,
+    errno.ECONNABORTED,
+    errno.ECONNRESET,
+    errno.ENOENT,
+})
+
+
+class _BlockingIOConnectionImpl:
+
+    def __init__(self):
+        self._addr = None
+        self._protocol = None
+
+    def connect(self, addrs, config, params):
+        addr = None
+        max_time = time.monotonic() + config.wait_until_available
+        iteration = 1
+
+        while True:
+            for addr in addrs:
+                try:
+                    self._connect_addr(addr, config, params)
+                except TimeoutError as e:
+                    if iteration == 1 or time.monotonic() < max_time:
+                        continue
+                    else:
+                        raise errors.ClientConnectionTimeoutError(
+                            f"connecting to {addr} failed in"
+                            f" {config.connect_timeout} sec"
+                        ) from e
+                except errors.ClientConnectionError as e:
+                    if (
+                        e.has_tag(errors.SHOULD_RECONNECT) and
+                        (iteration == 1 or time.monotonic() < max_time)
+                    ):
+                        continue
+                    nice_err = e.__class__(
+                        con_utils.render_client_no_connection_error(
+                            e,
+                            addr,
+                        ))
+                    raise nice_err from e.__cause__
+                else:
+                    assert self._protocol
+                    return
+
+            iteration += 1
+            time.sleep(0.01 + random.random() * 0.2)
+
+    def _connect_addr(self, addr, config, params):
+        timeout = config.connect_timeout
+        deadline = time.monotonic() + timeout
+
+        if isinstance(addr, str):
+            # UNIX socket
+            sock = socket.socket(socket.AF_UNIX)
+        else:
+            sock = socket.socket(socket.AF_INET)
+
+        try:
+            sock.settimeout(timeout)
+
+            try:
+                sock.connect(addr)
+            except socket.gaierror as e:
+                # All name resolution errors are considered temporary
+                err = errors.ClientConnectionFailedTemporarilyError(str(e))
+                raise err from e
+            except OSError as e:
+                message = str(e)
+                if e.errno in TEMPORARY_ERRORS:
+                    err = errors.ClientConnectionFailedTemporarilyError(
+                        message
+                    )
+                else:
+                    err = errors.ClientConnectionFailedError(message)
+                raise err from e
+
+            time_left = deadline - time.monotonic()
+            if time_left <= 0:
+                raise TimeoutError
+
+            if not isinstance(addr, str):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+            proto = blocking_proto.BlockingIOProtocol(params, sock)
+
+            sock.settimeout(time_left)
+            proto.sync_connect()
+            sock.settimeout(None)
+
+            self._protocol = proto
+            self._addr = addr
+
+        except Exception:
+            sock.close()
+            raise
+
+    def execute(self, query: str) -> None:
+        self._protocol.sync_simple_query(query)
+
+    def is_closed(self):
+        proto = self._protocol
+        return not (proto and proto.sock is not None and
+                    proto.sock.fileno() >= 0 and proto.connected)
+
+    def close(self):
+        if self._protocol:
+            self._protocol.abort()
 
 
 class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
+
+    def __init__(self, addrs, config, params, *,
+                 codecs_registry, query_cache):
+        super().__init__(addrs, config, params,
+                         codecs_registry=codecs_registry,
+                         query_cache=query_cache)
+        self._impl = None
+
+    def ensure_connected(self):
+        self._get_protocol()
+
+    def _reconnect(self):
+        self._impl = _BlockingIOConnectionImpl()
+        self._impl.connect(self._addrs, self._config, self._params)
+        assert self._impl._protocol
+
+    def _get_protocol(self):
+        if not self._impl or self._impl.is_closed():
+            self._reconnect()
+        return self._impl._protocol
 
     def _dump(
         self,
@@ -40,8 +176,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         on_header: typing.Callable[[bytes], None],
         on_data: typing.Callable[[bytes], None],
     ) -> None:
-        # Private API: do not use.
-        self._protocol.sync_dump(
+        self._get_protocol().sync_dump(
             header_callback=on_header,
             block_callback=on_data)
 
@@ -51,7 +186,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         header: bytes,
         data_gen: typing.Iterable[bytes],
     ) -> None:
-        self._protocol.sync_restore(
+        self._get_protocol().sync_restore(
             header=header,
             data_gen=data_gen
         )
@@ -68,7 +203,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         __typenames__: bool=False,
         **kwargs,
     ) -> datatypes.Set:
-        return self._protocol.sync_execute_anonymous(
+        return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -86,7 +221,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         __limit__: int=0,
         **kwargs,
     ) -> datatypes.Set:
-        return self._protocol.sync_execute_anonymous(
+        return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -98,7 +233,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         )
 
     def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        return self._protocol.sync_execute_anonymous(
+        return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -108,7 +243,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         )
 
     def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        return self._protocol.sync_execute_anonymous(
+        return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -119,7 +254,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         )
 
     def query_json(self, query: str, *args, **kwargs) -> str:
-        return self._protocol.sync_execute_anonymous(
+        return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -130,7 +265,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
 
     def _fetchall_json_elements(
             self, query: str, *args, **kwargs) -> typing.List[str]:
-        return self._protocol.sync_execute_anonymous(
+        return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -140,7 +275,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         )
 
     def query_one_json(self, query: str, *args, **kwargs) -> str:
-        return self._protocol.sync_execute_anonymous(
+        return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -179,7 +314,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         return self.query_one_json(query, *args, **kwargs)
 
     def execute(self, query: str) -> None:
-        self._protocol.sync_simple_query(query)
+        self._get_protocol().sync_simple_query(query)
 
     def transaction(self, *, isolation: str = None, readonly: bool = None,
                     deferrable: bool = None) -> transaction.Transaction:
@@ -188,53 +323,10 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
 
     def close(self) -> None:
         if not self.is_closed():
-            self._protocol.abort()
+            self._impl.close()
 
     def is_closed(self) -> bool:
-        return (self._protocol.sock is None or
-                self._protocol.sock.fileno() < 0 or
-                not self._protocol.connected)
-
-
-def _connect_addr(*, addr, timeout, params, config, connection_class):
-    if timeout <= 0:
-        raise TimeoutError
-
-    if isinstance(addr, str):
-        # UNIX socket
-        sock = socket.socket(socket.AF_UNIX)
-    else:
-        sock = socket.socket(socket.AF_INET)
-
-    try:
-        before = time.monotonic()
-        sock.settimeout(timeout)
-
-        try:
-            sock.connect(addr)
-        except (ConnectionError, FileNotFoundError) as e:
-            msg = con_utils.render_client_no_connection_error(e, addr)
-            raise errors.ClientConnectionError(msg) from e
-
-        timeout -= time.monotonic() - before
-
-        if timeout <= 0:
-            raise TimeoutError
-
-        if not isinstance(addr, str):
-            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-        proto = blocking_proto.BlockingIOProtocol(params, sock)
-
-        sock.settimeout(timeout)
-        proto.sync_connect()
-        sock.settimeout(None)
-
-        return connection_class(proto, addr, config, params)
-
-    except Exception:
-        sock.close()
-        raise
+        return self._impl is None or self._impl.is_closed()
 
 
 def connect(dsn: str = None, *,
@@ -242,31 +334,22 @@ def connect(dsn: str = None, *,
             user: str = None, password: str = None,
             admin: bool = None,
             database: str = None,
-            timeout: int = 60) -> BlockingIOConnection:
+            timeout: int = 10,
+            wait_until_available: int = 30) -> BlockingIOConnection:
 
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         database=database, admin=admin,
+        timeout=timeout,
+        wait_until_available=wait_until_available,
 
         # ToDos
-        timeout=None,
         command_timeout=None,
         server_settings=None)
 
-    last_error = None
-    addr = None
-    for addr in addrs:
-        before = time.monotonic()
-        try:
-            con = _connect_addr(
-                addr=addr, timeout=timeout,
-                params=params, config=config,
-                connection_class=BlockingIOConnection)
-        except (OSError, socket.error, errors.ClientConnectionError) as ex:
-            last_error = ex
-        else:
-            return con
-        finally:
-            timeout -= time.monotonic() - before
-
-    raise last_error
+    conn = BlockingIOConnection(
+        addrs=addrs, params=params, config=config,
+        codecs_registry=_CodecsRegistry(),
+        query_cache=_QueryCodecsCache())
+    conn.ensure_connected()
+    return conn

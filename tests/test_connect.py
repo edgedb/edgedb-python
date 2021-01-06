@@ -34,6 +34,7 @@ class TestConnect(tb.AsyncQueryTestCase):
         orig_conn_args = self.get_connect_args()
         conn_args = orig_conn_args.copy()
         conn_args['port'] = self.port
+        conn_args['wait_until_available'] = 0
 
         with self.assertRaisesRegex(
                 edgedb.ClientConnectionError,

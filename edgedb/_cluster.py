@@ -27,7 +27,6 @@ import socket
 import subprocess
 import sys
 import tempfile
-import time
 
 import edgedb
 
@@ -164,8 +163,6 @@ class Cluster:
             stdout=sys.stdout, stderr=sys.stderr,
             env=env, cwd=str(self._data_dir))
 
-        self._test_connection()
-
     def stop(self, wait=60):
         if (
                 self._daemon_process is not None and
@@ -196,31 +193,6 @@ class Cluster:
             raise ClusterError(
                 f'edgedb-server --bootstrap failed with '
                 f'exit code {init.returncode}')
-
-    def _test_connection(self, timeout=60):
-        while True:
-            started = time.monotonic()
-            left = timeout
-            try:
-                conn = edgedb.connect(
-                    host=str(self._runstate_dir),
-                    port=self._effective_port,
-                    admin=True,
-                    database='edgedb',
-                    user='edgedb',
-                    timeout=left)
-            except (OSError, socket.error, edgedb.ClientConnectionError):
-                left -= (time.monotonic() - started)
-                if left > 0.05:
-                    time.sleep(0.05)
-                    left -= 0.05
-                    continue
-                raise ClusterError(
-                    f'could not connect to edgedb-server '
-                    f'within {timeout} seconds')
-            else:
-                conn.close()
-                return
 
     def _admin_query(self, query):
         conn_args = self.get_connect_args().copy()

@@ -122,17 +122,17 @@ class TestPool(tb.AsyncQueryTestCase):
         cons = set()
 
         async def on_acquire(con):
-            if con._con not in cons:  # `con` is `PoolConnectionProxy`.
-                raise RuntimeError("on_acquire was not called")
+            if con._impl not in cons:  # check underlying connection
+                raise RuntimeError("on_connect was not called")
 
         async def on_connect(con):
-            if con in cons:
+            if con._impl in cons:  # check underlying connection
                 raise RuntimeError("on_connect was called more than once")
-            cons.add(con)
+            cons.add(con._impl)
 
         async def user(pool):
             async with pool.acquire() as con:
-                if con._con not in cons:  # `con` is `PoolConnectionProxy`.
+                if con._impl not in cons:
                     raise RuntimeError("init was not called")
 
         async with self.create_pool(
@@ -150,8 +150,9 @@ class TestPool(tb.AsyncQueryTestCase):
         try:
             con = await pool.acquire()
             with self.assertRaisesRegex(
-                    edgedb.InterfaceError, "is not a member"):
-                await pool.release(con._con)
+                    edgedb.InterfaceError,
+                    "does not belong to any connection pool"):
+                await pool.release(con._impl)
         finally:
             await pool.release(con)
             await pool.aclose()
@@ -186,7 +187,6 @@ class TestPool(tb.AsyncQueryTestCase):
         pool = await self.create_pool(min_size=1, max_size=1)
 
         async with pool.acquire() as con:
-            self.assertIn(repr(con._con), repr(con))  # Test __repr__.
             txn = con.transaction()
 
         self.assertIn("[released]", repr(con))
@@ -198,18 +198,22 @@ class TestPool(tb.AsyncQueryTestCase):
         ):
             with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r"cannot call.*Connection\..*released back to the pool",
+                r"released back to the pool",
             ):
-                getattr(con, meth)("select 1")
+                await getattr(con, meth)("select 1")
 
-        for meth in ("start", "commit", "rollback"):
+        with self.assertRaisesRegex(
+            edgedb.InterfaceError,
+            r"released back to the pool",
+        ):
+            await txn.start()
+
+        for meth in ("commit", "rollback"):
             with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r"cannot call.*Transaction\.{meth}.*released "
-                r"back to the pool".format(meth=meth),
+                r"transaction is not yet started",
             ):
-
-                getattr(txn, meth)()
+                await getattr(txn, meth)()
 
         await pool.aclose()
 
@@ -283,7 +287,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
                 async with pool.acquire() as con:
                     self.assertEqual(await con.query_one("select 1"), 1)
-                    self.assertEqual(cons, ["error", con._con])
+                    self.assertEqual(cons, ["error", con])
 
     async def test_pool_no_acquire_deadlock(self):
         async with self.create_pool(
@@ -304,7 +308,7 @@ class TestPool(tb.AsyncQueryTestCase):
         N = 100
         cons = set()
 
-        class MyConnection(asyncio_con.AsyncIOConnection):
+        class MyConnection(asyncio_pool.PoolConnection):
             async def foo(self):
                 return 42
 

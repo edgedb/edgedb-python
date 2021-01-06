@@ -32,14 +32,12 @@ BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
 
 class BaseConnection:
 
-    def __init__(self, protocol, addr, config, params, *,
+    def __init__(self, addrs, config, params, *,
                  codecs_registry=None, query_cache=None):
-        self._protocol = protocol
-        self._protocol.set_connection(self)
-
         self._log_listeners = set()
+        self._cleanup_listeners = set()
 
-        self._addr = addr
+        self._addrs = addrs
         self._config = config
         self._params = params
 
@@ -54,6 +52,9 @@ class BaseConnection:
             self._query_cache = _QueryCodecsCache()
 
         self._top_xact = None
+
+    def connected_addr(self):
+        return self._impl._addr
 
     def _set_type_codec(
         self,
@@ -101,8 +102,6 @@ class BaseConnection:
             **connection**: a Connection the callback is registered with;
             **message**: the `edgedb.EdgeDBMessage` message.
         """
-        if self.is_closed():
-            raise errors.InterfaceError('connection is closed')
         self._log_listeners.add(callback)
 
     def remove_log_listener(
@@ -125,10 +124,10 @@ class BaseConnection:
 
         :return bool: True if inside transaction, False otherwise.
         """
-        return self._protocol.is_in_transaction()
+        return self._impl._protocol.is_in_transaction()
 
     def get_settings(self) -> typing.Dict[str, str]:
-        return self._protocol.get_settings()
+        return self._impl._protocol.get_settings()
 
 
 # Thread-safe "+= 1" counter.

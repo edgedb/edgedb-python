@@ -328,7 +328,7 @@ cdef class SansIOProtocol:
         if self.cancelled:
             raise errors.ClientConnectionError(
                 'the connection has been closed '
-                'because an opertation was cancelled on it')
+                'because an operation was cancelled on it')
         if not self.connected:
             raise errors.ClientConnectionError(
                 'the connection has been closed')
