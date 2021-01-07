@@ -18,13 +18,8 @@
 
 
 import enum
-import typing
 
-from . import abstract
-from . import base_con
 from . import errors
-from .datatypes import datatypes
-from .protocol import protocol
 
 
 __all__ = ('Transaction', 'AsyncIOTransaction')
@@ -44,10 +39,10 @@ ISOLATION_LEVELS = {'serializable', 'repeatable_read'}
 class BaseTransaction:
 
     __slots__ = ('_connection', '_isolation', '_readonly', '_deferrable',
-                 '_state', '_managed')
+                 '_state', '_nested', '_id', '_managed')
 
-    def __init__(self, connection, isolation: str = None,
-                 readonly: bool = None, deferrable: bool = None):
+    def __init__(self, connection, isolation: str,
+                 readonly: bool, deferrable: bool):
         if isolation is not None and isolation not in ISOLATION_LEVELS:
             raise ValueError(
                 'isolation is expected to be either of {}, '
@@ -58,6 +53,8 @@ class BaseTransaction:
         self._readonly = readonly
         self._deferrable = deferrable
         self._state = TransactionState.NEW
+        self._nested = False
+        self._id = None
         self._managed = False
 
     def is_active(self) -> bool:
@@ -91,32 +88,88 @@ class BaseTransaction:
             raise errors.InterfaceError(
                 'cannot start; the transaction is already started')
 
-        query = 'START TRANSACTION'
+        con = self._connection
 
-        if self._isolation == 'repeatable_read':
-            query = 'START TRANSACTION ISOLATION REPEATABLE READ'
-        elif self._isolation == 'serializable':
-            query = 'START TRANSACTION ISOLATION SERIALIZABLE'
+        if con._top_xact is None:
+            con._top_xact = self
+        else:
+            # Nested transaction block
+            top_xact = con._top_xact
+            if self._isolation is None:
+                self._isolation = top_xact._isolation
+            if self._readonly is None:
+                self._readonly = top_xact._readonly
+            if self._deferrable is None:
+                self._deferrable = top_xact._deferrable
 
-        if self._readonly:
-            query += ' READ ONLY'
-        elif self._readonly is not None:
-            query += ' READ WRITE'
-        if self._deferrable:
-            query += ' DEFERRABLE'
-        elif self._deferrable is not None:
-            query += ' NOT DEFERRABLE'
-        query += ';'
+            if self._isolation != top_xact._isolation:
+                raise errors.InterfaceError(
+                    'nested transaction has a different isolation level: '
+                    'current {!r} != outer {!r}'.format(
+                        self._isolation, top_xact._isolation))
+
+            if self._readonly != top_xact._readonly:
+                raise errors.InterfaceError(
+                    'nested transaction has a different read-write spec: '
+                    'current {!r} != outer {!r}'.format(
+                        self._readonly, top_xact._readonly))
+
+            if self._deferrable != top_xact._deferrable:
+                raise errors.InterfaceError(
+                    'nested transaction has a different deferrable spec: '
+                    'current {!r} != outer {!r}'.format(
+                        self._deferrable, top_xact._deferrable))
+
+            self._nested = True
+
+        if self._nested:
+            self._id = con._get_unique_id('savepoint')
+            query = f'DECLARE SAVEPOINT {self._id};'
+        else:
+            query = 'START TRANSACTION'
+
+            if self._isolation == 'repeatable_read':
+                query = 'START TRANSACTION ISOLATION REPEATABLE READ'
+            elif self._isolation == 'serializable':
+                query = 'START TRANSACTION ISOLATION SERIALIZABLE'
+
+            if self._readonly:
+                query += ' READ ONLY'
+            elif self._readonly is not None:
+                query += ' READ WRITE'
+            if self._deferrable:
+                query += ' DEFERRABLE'
+            elif self._deferrable is not None:
+                query += ' NOT DEFERRABLE'
+            query += ';'
 
         return query
 
     def _make_commit_query(self):
         self.__check_state('commit')
-        return 'COMMIT;'
+
+        if self._connection._top_xact is self:
+            self._connection._top_xact = None
+
+        if self._nested:
+            query = f'RELEASE SAVEPOINT {self._id};'
+        else:
+            query = 'COMMIT;'
+
+        return query
 
     def _make_rollback_query(self):
         self.__check_state('rollback')
-        return 'ROLLBACK;'
+
+        if self._connection._top_xact is self:
+            self._connection._top_xact = None
+
+        if self._nested:
+            query = f'ROLLBACK TO SAVEPOINT {self._id};'
+        else:
+            query = 'ROLLBACK;'
+
+        return query
 
     def __repr__(self):
         attrs = []
@@ -138,8 +191,7 @@ class BaseTransaction:
             mod, self.__class__.__name__, ' '.join(attrs), id(self))
 
 
-class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
-    __slots__ = ()
+class AsyncIOTransaction(BaseTransaction):
 
     async def __aenter__(self):
         if self._managed:
@@ -147,7 +199,6 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
                 'cannot enter context: already in an `async with` block')
         self._managed = True
         await self.start()
-        return self
 
     async def __aexit__(self, extype, ex, tb):
         try:
@@ -160,17 +211,14 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def start(self) -> None:
         """Enter the transaction or savepoint block."""
-        query = self._make_start_query()
-        if self._connection._borrow:
-            raise base_con.borrow_error(self._connection._borrow)
         await self._connection.ensure_connected()
-        self._connection._borrow = 'transaction'
         self._connection_impl = self._connection._impl
+
+        query = self._make_start_query()
         try:
             await self._connection_impl.execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
-            self._connection._borrow = None
             raise
         else:
             self._state = TransactionState.STARTED
@@ -184,8 +232,6 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             raise
         else:
             self._state = TransactionState.COMMITTED
-        finally:
-            self._connection._borrow = None
 
     async def __rollback(self):
         query = self._make_rollback_query()
@@ -196,8 +242,6 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             raise
         else:
             self._state = TransactionState.ROLLEDBACK
-        finally:
-            self._connection._borrow = None
 
     async def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
@@ -213,73 +257,8 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
                 'cannot manually rollback from within an `async with` block')
         await self.__rollback()
 
-    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        con = self._connection
-        result, _ = await self._connection_impl._protocol.execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            io_format=protocol.IoFormat.BINARY,
-        )
-        return result
 
-    async def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        con = self._connection
-        result, _ = await self._connection_impl._protocol.execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            io_format=protocol.IoFormat.BINARY,
-        )
-        return result
-
-    async def query_json(self, query: str, *args, **kwargs) -> str:
-        con = self._connection
-        result, _ = await self._connection_impl._protocol.execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            io_format=protocol.IoFormat.JSON,
-        )
-        return result
-
-    async def query_one_json(self, query: str, *args, **kwargs) -> str:
-        con = self._connection
-        result, _ = await self._connection_impl._protocol.execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            io_format=protocol.IoFormat.JSON,
-        )
-        return result
-
-    async def execute(self, query: str) -> None:
-        """Execute an EdgeQL command (or commands).
-
-        Example:
-
-        .. code-block:: pycon
-
-            >>> await con.execute('''
-            ...     CREATE TYPE MyType { CREATE PROPERTY a -> int64 };
-            ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
-            ... ''')
-        """
-        await self._connection_impl._protocol.simple_query(query)
-
-
-class Transaction(BaseTransaction, abstract.Executor):
-    __slots__ = ()
+class Transaction(BaseTransaction):
 
     def __enter__(self):
         if self._managed:
@@ -287,7 +266,6 @@ class Transaction(BaseTransaction, abstract.Executor):
                 'cannot enter context: already in a `with` block')
         self._managed = True
         self.start()
-        return self
 
     def __exit__(self, extype, ex, tb):
         try:
@@ -301,16 +279,12 @@ class Transaction(BaseTransaction, abstract.Executor):
     def start(self) -> None:
         """Enter the transaction or savepoint block."""
         query = self._make_start_query()
-        if self._connection._borrow:
-            raise base_con.borrow_error(self._connection._borrow)
         self._connection.ensure_connected()
-        self._connection._borrow = 'transaction'
         self._connection_impl = self._connection._impl
         try:
             self._connection_impl.execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
-            self._connection._borrow = None
             raise
         else:
             self._state = TransactionState.STARTED
@@ -324,8 +298,6 @@ class Transaction(BaseTransaction, abstract.Executor):
             raise
         else:
             self._state = TransactionState.COMMITTED
-        finally:
-            self._connection._borrow = None
 
     def __rollback(self):
         query = self._make_rollback_query()
@@ -336,8 +308,6 @@ class Transaction(BaseTransaction, abstract.Executor):
             raise
         else:
             self._state = TransactionState.ROLLEDBACK
-        finally:
-            self._connection._borrow = None
 
     def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
@@ -352,52 +322,3 @@ class Transaction(BaseTransaction, abstract.Executor):
             raise errors.InterfaceError(
                 'cannot manually rollback from within a `with` block')
         self.__rollback()
-
-    def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        con = self._connection
-        return self._connection_impl._protocol.sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            io_format=protocol.IoFormat.BINARY,
-        )
-
-    def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        con = self._connection
-        return self._connection_impl._protocol.sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            io_format=protocol.IoFormat.BINARY,
-        )
-
-    def query_json(self, query: str, *args, **kwargs) -> str:
-        con = self._connection
-        return self._connection_impl._protocol.sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            io_format=protocol.IoFormat.JSON,
-        )
-
-    def query_one_json(self, query: str, *args, **kwargs) -> str:
-        con = self._connection
-        return self._connection_impl._protocol.sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            io_format=protocol.IoFormat.JSON,
-        )
-
-    def execute(self, query: str) -> None:
-        self._connection_impl._protocol.sync_simple_query(query)

@@ -28,7 +28,8 @@ from . import abstract
 from . import base_con
 from . import con_utils
 from . import errors
-from . import transaction
+from . import transaction as _transaction
+from . import legacy_transaction
 
 from .datatypes import datatypes
 from .protocol import blocking_proto, protocol
@@ -156,16 +157,20 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
                          codecs_registry=codecs_registry,
                          query_cache=query_cache)
         self._impl = None
+        self._borrow = None
 
     def ensure_connected(self):
         self._get_protocol()
 
     def _reconnect(self):
+        assert not self._borrow, self._borrow
         self._impl = _BlockingIOConnectionImpl()
         self._impl.connect(self._addrs, self._config, self._params)
         assert self._impl._protocol
 
     def _get_protocol(self):
+        if self._borrow:
+            raise base_con.borrow_error(self._borrow)
         if not self._impl or self._impl.is_closed():
             self._reconnect()
         return self._impl._protocol
@@ -317,9 +322,19 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         self._get_protocol().sync_simple_query(query)
 
     def transaction(self, *, isolation: str = None, readonly: bool = None,
-                    deferrable: bool = None) -> transaction.Transaction:
-        return transaction.Transaction(
+                    deferrable: bool = None) -> legacy_transaction.Transaction:
+        warnings.warn(
+            'The "transaction()" method is deprecated and is scheduled to be '
+            'removed. Use the "retry()" or "try_transaction()" method '
+            'instead.',
+            DeprecationWarning, 2)
+        return legacy_transaction.Transaction(
             self, isolation, readonly, deferrable)
+
+    def try_transaction(self) -> _transaction.Transaction:
+        if self._borrow:
+            raise base_con.borrow_error(self._borrow)
+        return _transaction.Transaction(self)
 
     def close(self) -> None:
         if not self.is_closed():
