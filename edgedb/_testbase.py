@@ -281,7 +281,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     'CONFIGURE SESSION SET __internal_testmode := true;'))
 
         if self.ISOLATED_METHODS:
-            self.xact = self.con.transaction()
+            self.xact = self.con.try_transaction()
             self.loop.run_until_complete(self.xact.start())
 
         if self.SETUP_METHOD:
@@ -338,9 +338,9 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             if script:
                 # The setup is expected to contain a CREATE MIGRATION,
                 # which needs to be wrapped in a transaction.
-                tx = cls.con.transaction()
+                tx = cls.con.try_transaction()
                 cls.loop.run_until_complete(tx.start())
-                cls.loop.run_until_complete(cls.con.execute(script))
+                cls.loop.run_until_complete(tx.execute(script))
                 cls.loop.run_until_complete(tx.commit())
                 del tx
 
