@@ -46,14 +46,14 @@ class BaseTransaction:
     __slots__ = ('_connection', '_isolation', '_readonly', '_deferrable',
                  '_state', '_managed')
 
-    def __init__(self, connection, isolation: str = None,
+    def __init__(self, owner, isolation: str = None,
                  readonly: bool = None, deferrable: bool = None):
         if isolation is not None and isolation not in ISOLATION_LEVELS:
             raise ValueError(
                 'isolation is expected to be either of {}, '
                 'got {!r}'.format(ISOLATION_LEVELS, isolation))
 
-        self._connection = connection
+        self._owner = owner
         self._isolation = isolation
         self._readonly = readonly
         self._deferrable = deferrable
@@ -161,6 +161,10 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
     async def start(self) -> None:
         """Enter the transaction or savepoint block."""
         query = self._make_start_query()
+        if isinstance(self._owner, base_con.BaseConnection):
+            self._connection = self._owner
+        else:
+            self._connection = await self._owner.acquire()
         if self._connection._borrow:
             raise base_con.borrow_error(self._connection._borrow)
         await self._connection.ensure_connected()
@@ -186,6 +190,8 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             self._state = TransactionState.COMMITTED
         finally:
             self._connection._borrow = None
+            if self._connection is not self._owner:
+                await self._owner.release(self._connection)
 
     async def __rollback(self):
         query = self._make_rollback_query()
@@ -198,6 +204,8 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             self._state = TransactionState.ROLLEDBACK
         finally:
             self._connection._borrow = None
+            if self._connection is not self._owner:
+                await self._owner.release(self._connection)
 
     async def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
@@ -301,6 +309,7 @@ class Transaction(BaseTransaction, abstract.Executor):
     def start(self) -> None:
         """Enter the transaction or savepoint block."""
         query = self._make_start_query()
+        self._connection = self._owner  # no pools supported for blocking con
         if self._connection._borrow:
             raise base_con.borrow_error(self._connection._borrow)
         self._connection.ensure_connected()

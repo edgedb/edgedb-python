@@ -25,6 +25,7 @@ import warnings
 from . import abstract
 from . import asyncio_con
 from . import errors
+from . import transaction as _transaction
 
 from .datatypes import datatypes
 
@@ -656,6 +657,9 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
 
     async def __aexit__(self, *exc):
         await self.aclose()
+
+    def try_transaction(self) -> _transaction.AsyncIOTransaction:
+        return _transaction.AsyncIOTransaction(self)
 
 
 class PoolAcquireContext:
