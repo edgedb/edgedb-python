@@ -30,6 +30,7 @@ from . import abstract
 from . import base_con
 from . import con_utils
 from . import errors
+from . import retry as _retry
 from . import transaction as _transaction
 from . import legacy_transaction
 
@@ -146,7 +147,7 @@ class _AsyncIOConnectionImpl:
         await pr.connect()
         self._transport = tr
         self._protocol = pr
-        self._adddr = addr
+        self._addr = addr
 
     async def execute(self, query):
         await self._protocol.simple_query(query)
@@ -379,6 +380,9 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
             DeprecationWarning, 2)
         return legacy_transaction.AsyncIOTransaction(
             self, isolation, readonly, deferrable)
+
+    def retry(self) -> _retry.AsyncIORetry:
+        return _retry.AsyncIORetry(self)
 
     def try_transaction(self) -> _transaction.AsyncIOTransaction:
         return _transaction.AsyncIOTransaction(self)

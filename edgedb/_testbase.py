@@ -218,6 +218,14 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                                 f'{expected_val!r})') from e
                 raise
 
+    def addCleanup(self, func, *args, **kwargs):
+        @functools.wraps(func)
+        def cleanup():
+            res = func(*args, **kwargs)
+            if asyncio.isfuture(res) or asyncio.iscoroutine(res):
+                self.loop.run_until_complete(res)
+        super().addCleanup(cleanup)
+
 
 class ClusterTestCase(TestCase):
 
