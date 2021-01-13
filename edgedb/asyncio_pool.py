@@ -26,6 +26,7 @@ from . import abstract
 from . import asyncio_con
 from . import errors
 from . import transaction as _transaction
+from . import retry as _retry
 
 from .datatypes import datatypes
 
@@ -660,6 +661,9 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
 
     def try_transaction(self) -> _transaction.AsyncIOTransaction:
         return _transaction.AsyncIOTransaction(self)
+
+    def retry(self) -> _retry.AsyncIORetry:
+        return _retry.AsyncIORetry(self)
 
 
 class PoolAcquireContext:

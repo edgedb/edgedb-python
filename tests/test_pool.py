@@ -248,6 +248,15 @@ class TestPool(tb.AsyncQueryTestCase):
 
         await pool.aclose()
 
+    async def test_pool_retry(self):
+        pool = await self.create_pool(min_size=1, max_size=1)
+
+        async for tx in pool.retry():
+            async with tx:
+                self.assertEqual(await tx.query_one("SELECT 7*8"), 56)
+
+        await pool.aclose()
+
     def test_pool_init_run_until_complete(self):
         pool_init = self.create_pool()
         pool = self.loop.run_until_complete(pool_init)
