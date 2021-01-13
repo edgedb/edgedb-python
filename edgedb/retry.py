@@ -31,13 +31,16 @@ class AsyncIOIteration(_transaction.AsyncIOTransaction):
     async def __aexit__(self, extype, ex, tb):
         try:
             await super().__aexit__(extype, ex, tb)
-        except errors.ClientConnectionClosedError as err:
+        except errors.EdgeDBError as err:
             if ex is None:
                 # TODO(tailhook) should we figure out if err is *caused by*
                 # CancelledError and propagate the latter instead or retrying?
 
                 # If we were going to commit, retry
-                if self.__retry._retry(err):
+                if (
+                    err.has_tag(errors.SHOULD_RETRY) and
+                    self.__retry._retry(err)
+                ):
                     return True
                 else:
                     # if retries are exhausted we need to propagate this error
@@ -143,7 +146,10 @@ class Iteration(_transaction.Transaction):
                 # CancelledError and propagate the latter instead or retrying?
 
                 # If we were going to commit, retry
-                if self.__retry._retry(err):
+                if (
+                    err.has_tag(errors.SHOULD_RETRY) and
+                    self.__retry._retry(err)
+                ):
                     return True
                 else:
                     # if retries are exhausted we need to propagate this error
