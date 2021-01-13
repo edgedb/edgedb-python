@@ -29,6 +29,7 @@ from . import base_con
 from . import con_utils
 from . import errors
 from . import transaction as _transaction
+from . import retry as _retry
 from . import legacy_transaction
 
 from .datatypes import datatypes
@@ -332,9 +333,10 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
             self, isolation, readonly, deferrable)
 
     def try_transaction(self) -> _transaction.Transaction:
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
         return _transaction.Transaction(self)
+
+    def retry(self) -> _retry.Retry:
+        return _retry.Retry(self)
 
     def close(self) -> None:
         if not self.is_closed():
