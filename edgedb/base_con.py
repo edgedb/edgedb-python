@@ -30,8 +30,12 @@ from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
 
 
+class BorrowReason:
+    TRANSACTION = 'transaction'
+
+
 BORROW_ERRORS = {
-    'transaction':
+    BorrowReason.TRANSACTION:
         "Connection object is borrowed for a transaction. "
         "Use the methods on transaction object instead.",
 }

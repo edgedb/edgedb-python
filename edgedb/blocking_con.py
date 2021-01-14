@@ -158,20 +158,20 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
                          codecs_registry=codecs_registry,
                          query_cache=query_cache)
         self._impl = None
-        self._borrow = None
+        self._borrowed_for = None
 
     def ensure_connected(self):
         self._get_protocol()
 
     def _reconnect(self):
-        assert not self._borrow, self._borrow
+        assert not self._borrowed_for, self._borrowed_for
         self._impl = _BlockingIOConnectionImpl()
         self._impl.connect(self._addrs, self._config, self._params)
         assert self._impl._protocol
 
     def _get_protocol(self):
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             self._reconnect()
         return self._impl._protocol

@@ -166,7 +166,7 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
                          query_cache=query_cache)
         self._loop = loop
         self._impl = None
-        self._borrow = None
+        self._borrowed_for = None
 
     def __repr__(self):
         if self.is_closed():
@@ -188,7 +188,7 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
 
     # overriden by connection pool
     async def _reconnect(self):
-        assert not self._borrow, self._borrow
+        assert not self._borrowed_for, self._borrowed_for
         self._impl = _AsyncIOConnectionImpl()
         await self._impl.connect(self._loop, self._addrs,
                                  self._config, self._params)
@@ -203,8 +203,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         __allow_capabilities__: typing.Optional[int]=None,
         **kwargs,
     ) -> datatypes.Set:
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             await self._reconnect()
         result, _ = await self._impl._protocol.execute_anonymous(
@@ -231,8 +231,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         __allow_capabilities__: typing.Optional[int]=None,
         **kwargs,
     ) -> typing.Tuple[datatypes.Set, typing.Dict[int, bytes]]:
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             await self._reconnect()
         return await self._impl._protocol.execute_anonymous(
@@ -255,8 +255,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         __limit__: int=0,
         **kwargs,
     ) -> datatypes.Set:
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             await self._reconnect()
         result, _ = await self._impl._protocol.execute_anonymous(
@@ -272,8 +272,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         return result
 
     async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             await self._reconnect()
         result, _ = await self._impl._protocol.execute_anonymous(
@@ -287,8 +287,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         return result
 
     async def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             await self._reconnect()
         result, _ = await self._impl._protocol.execute_anonymous(
@@ -303,8 +303,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         return result
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             await self._reconnect()
         result, _ = await self._impl._protocol.execute_anonymous(
@@ -319,8 +319,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
 
     async def _fetchall_json_elements(
             self, query: str, *args, **kwargs) -> typing.List[str]:
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             await self._reconnect()
         result, _ = await self._impl._protocol.execute_anonymous(
@@ -334,8 +334,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         return result
 
     async def query_one_json(self, query: str, *args, **kwargs) -> str:
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             await self._reconnect()
         result, _ = await self._impl._protocol.execute_anonymous(
@@ -361,8 +361,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
             ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
             ... ''')
         """
-        if self._borrow:
-            raise base_con.borrow_error(self._borrow)
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             await self._reconnect()
         await self._impl._protocol.simple_query(query)

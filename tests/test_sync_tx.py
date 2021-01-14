@@ -37,9 +37,9 @@ class TestSyncTx(tb.SyncQueryTestCase):
     '''
 
     def test_sync_transaction_regular_01(self):
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
         tr = self.con.try_transaction()
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
 
         with self.assertRaises(ZeroDivisionError):
             with tr as with_tr:
@@ -51,7 +51,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
                 1 / 0
 
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
 
         result = self.con.query('''
             SELECT

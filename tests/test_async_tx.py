@@ -37,13 +37,13 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
     '''
 
     async def test_async_transaction_regular_01(self):
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
         tr = self.con.try_transaction()
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
 
         with self.assertRaises(ZeroDivisionError):
             async with tr as with_tr:
-                self.assertIs(self.con._borrow, 'transaction')
+                self.assertIs(self.con._borrowed_for, 'transaction')
 
                 with self.assertRaisesRegex(edgedb.InterfaceError,
                                             '.*is borrowed.*'):
@@ -61,7 +61,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
                 1 / 0
 
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
 
         result = await self.con.query('''
             SELECT
@@ -73,7 +73,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
         self.assertEqual(result, [])
 
     async def test_async_transaction_interface_errors(self):
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
 
         tr = self.con.try_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -84,14 +84,14 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
         self.assertTrue(repr(tr).startswith(
             '<edgedb.AsyncIOTransaction state:rolledback'))
 
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
 
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot start; .* already rolled back'):
             async with tr:
                 pass
 
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
 
         tr = self.con.try_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -99,7 +99,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
             async with tr:
                 await tr.commit()
 
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
 
         tr = self.con.try_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -107,7 +107,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
             async with tr:
                 await tr.rollback()
 
-        self.assertIsNone(self.con._borrow)
+        self.assertIsNone(self.con._borrowed_for)
 
         tr = self.con.try_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
