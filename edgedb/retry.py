@@ -36,6 +36,7 @@ class AsyncIOIteration(_transaction.AsyncIOTransaction):
                 # On commit we don't know if commit is succeeded before the
                 # database have received it or after it have been done but
                 # network is dropped before we were able to receive a response
+                # TODO(tailhook) retry on some errors
                 raise err
             # If we were going to rollback, look at original error
             # to find out whether we want to retry, regardless of
