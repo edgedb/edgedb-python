@@ -33,24 +33,18 @@ class AsyncIOIteration(_transaction.AsyncIOTransaction):
             await super().__aexit__(extype, ex, tb)
         except errors.EdgeDBError as err:
             if ex is None:
-                # TODO(tailhook) should we figure out if err is *caused by*
-                # CancelledError and propagate the latter instead or retrying?
-
-                # If we were going to commit, retry
-                if (
-                    err.has_tag(errors.SHOULD_RETRY) and
-                    self.__retry._retry(err)
-                ):
-                    return True
-                else:
-                    # if retries are exhausted we need to propagate this error
-                    raise err
+                # On commit we don't know if commit is succeeded before the
+                # database have received it or after it have been done but
+                # network is dropped before we were able to receive a response
+                raise err
             # If we were going to rollback, look at original error
             # to find out whether we want to retry, regardless of
             # the rollback error.
             # In this case we ignore rollback issue as original error is more
             # important, e.g. in case `CancelledError` it's important
             # to propagate it to cancel the whole task.
+            # NOTE: rollback error is always swallowed, should we use
+            # on_log_message for it?
 
         if (
             extype is not None and
