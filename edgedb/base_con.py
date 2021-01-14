@@ -32,7 +32,7 @@ BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
 
 BORROW_ERRORS = {
     'transaction':
-        "Connection object is borrowed for the transaction. "
+        "Connection object is borrowed for a transaction. "
         "Use the methods on transaction object instead.",
 }
 
