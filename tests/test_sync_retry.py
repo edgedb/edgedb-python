@@ -17,11 +17,29 @@
 #
 
 
+import collections
 import threading
 from concurrent import futures
 
 import edgedb
 from edgedb import _testbase as tb
+
+
+class Barrier:
+    def __init__(self, number):
+        self._counter = number
+        self._cond = threading.Condition()
+
+    def ready(self):
+        if self._counter == 0:
+            return
+        with self._cond:
+            self._counter -= 1
+            assert self._counter >= 0, self._counter
+            if self._counter == 0:
+                self._cond.notify_all()
+            else:
+                self._cond.wait_for(lambda: self._counter == 0)
 
 
 class TestSyncRetry(tb.SyncQueryTestCase):
@@ -58,27 +76,26 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         con2 = edgedb.connect(**con_args)
         self.addCleanup(con2.close)
 
-        def mark_as_done():
-            nonlocal barrier_done
-            barrier_done = True
-
-        barrier_done = bool
-        barrier = threading.Barrier(2, timeout=10, action=mark_as_done)
+        barrier = Barrier(2)
 
         iterations = 0
 
         def transaction1(con):
             for tx in con.retry():
-                nonlocal iterations, barrier_done
+                nonlocal iterations
                 iterations += 1
                 with tx:
+                    # This magic query makes the test more reliable for some
+                    # reason. I guess this is because starting a transaction
+                    # in EdgeDB (and/or Postgres) is accomplished somewhat
+                    # lazily, i.e. only start transaction on the first query
+                    # rather than on the `START TRANSACTION`.
+                    tx.query("SELECT 1")
 
                     # Start both transactions at the same initial data.
                     # One should succeed other should fail and retry.
                     # On next attempt, the latter should succeed
-                    # (and avoid barrier)
-                    if not barrier_done:
-                        barrier.wait()
+                    barrier.ready()
 
                     res = tx.query_one('''
                         SELECT (
