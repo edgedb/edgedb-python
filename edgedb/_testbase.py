@@ -222,7 +222,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         @functools.wraps(func)
         def cleanup():
             res = func(*args, **kwargs)
-            if asyncio.isfuture(res) or asyncio.iscoroutine(res):
+            if inspect.isawaitable(res):
                 self.loop.run_until_complete(res)
         super().addCleanup(cleanup)
 
