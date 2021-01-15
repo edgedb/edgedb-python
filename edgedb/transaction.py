@@ -160,6 +160,9 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def start(self) -> None:
         """Enter the transaction or savepoint block."""
+        await self._start()
+
+    async def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
         if isinstance(self._owner, base_con.BaseConnection):
             self._connection = self._owner
@@ -167,7 +170,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             self._connection = await self._owner.acquire()
         if self._connection._borrowed_for:
             raise base_con.borrow_error(self._connection._borrowed_for)
-        await self._connection.ensure_connected()
+        await self._connection.ensure_connected(single_attempt=single_connect)
         self._connection._borrowed_for = base_con.BorrowReason.TRANSACTION
         self._connection_impl = self._connection._impl
         try:
@@ -308,11 +311,14 @@ class Transaction(BaseTransaction, abstract.Executor):
 
     def start(self) -> None:
         """Enter the transaction or savepoint block."""
+        self._start()
+
+    def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
         self._connection = self._owner  # no pools supported for blocking con
         if self._connection._borrowed_for:
             raise base_con.borrow_error(self._connection._borrowed_for)
-        self._connection.ensure_connected()
+        self._connection.ensure_connected(single_attempt=single_connect)
         self._connection._borrowed_for = base_con.BorrowReason.TRANSACTION
         self._connection_impl = self._connection._impl
         try:

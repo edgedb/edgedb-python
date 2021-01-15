@@ -52,9 +52,12 @@ class _BlockingIOConnectionImpl:
         self._addr = None
         self._protocol = None
 
-    def connect(self, addrs, config, params):
+    def connect(self, addrs, config, params, *, single_attempt=False):
         addr = None
-        max_time = time.monotonic() + config.wait_until_available
+        if single_attempt:
+            max_time = 0
+        else:
+            max_time = time.monotonic() + config.wait_until_available
         iteration = 1
 
         while True:
@@ -160,13 +163,17 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         self._impl = None
         self._borrowed_for = None
 
-    def ensure_connected(self):
-        self._get_protocol()
+    def ensure_connected(self, single_attempt=False):
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
+        if not self._impl or self._impl.is_closed():
+            self._reconnect(single_attempt=single_attempt)
 
-    def _reconnect(self):
+    def _reconnect(self, single_attempt=False):
         assert not self._borrowed_for, self._borrowed_for
         self._impl = _BlockingIOConnectionImpl()
-        self._impl.connect(self._addrs, self._config, self._params)
+        self._impl.connect(self._addrs, self._config, self._params,
+                           single_attempt=single_attempt)
         assert self._impl._protocol
 
     def _get_protocol(self):

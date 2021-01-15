@@ -14,9 +14,10 @@ def default_backoff(attempt):
 
 
 class AsyncIOIteration(_transaction.AsyncIOTransaction):
-    def __init__(self, retry, owner):
+    def __init__(self, retry, owner, iteration):
         super().__init__(owner)
         self.__retry = retry
+        self.__iteration = iteration
 
     async def start(self):
         if not self._managed:
@@ -24,9 +25,7 @@ class AsyncIOIteration(_transaction.AsyncIOTransaction):
                 "Only managed retriable transactions are supported. "
                 "Use `async with transaction:`"
             )
-        # TODO(tailhook) if this is not the first iteration suppress
-        # `wait_until_available` timeout
-        await super().start()
+        await self._start(single_connect=self.__iteration != 0)
 
     async def __aexit__(self, extype, ex, tb):
         try:
@@ -74,9 +73,10 @@ class AsyncIORetry:
             f"Extra retry {self._iteration}/{self._max_iterations}"
         if self._iteration > 0:
             await asyncio.sleep(self._backoff(self._iteration))
-        self._iteration += 1
         self._done = True
-        return AsyncIOIteration(self, self._owner)
+        iteration = AsyncIOIteration(self, self._owner, self._iteration)
+        self._iteration += 1
+        return iteration
 
     def _retry(self, exc):
         self._last_exception = exc
@@ -105,9 +105,10 @@ class Retry:
             f"Extra retry {self._iteration}/{self._max_iterations}"
         if self._iteration > 0:
             time.sleep(self._backoff(self._iteration))
-        self._iteration += 1
         self._done = True
-        return Iteration(self, self._owner)
+        iteration = Iteration(self, self._owner, self._iteration)
+        self._iteration += 1
+        return iteration
 
     def _retry(self, exc):
         self._last_exception = exc
@@ -118,9 +119,10 @@ class Retry:
 
 
 class Iteration(_transaction.Transaction):
-    def __init__(self, retry, owner):
+    def __init__(self, retry, owner, iteration):
         super().__init__(owner)
         self.__retry = retry
+        self.__iteration = iteration
 
     def start(self):
         if not self._managed:
@@ -128,9 +130,7 @@ class Iteration(_transaction.Transaction):
                 "Only managed retriable transactions are supported. "
                 "Use `with transaction:`"
             )
-        # TODO(tailhook) if this is not the first iteration suppress
-        # `wait_until_available` timeout
-        super().start()
+        self._start(single_connect=self.__iteration != 0)
 
     def __exit__(self, extype, ex, tb):
         try:

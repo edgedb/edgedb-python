@@ -44,13 +44,13 @@ class PoolConnection(asyncio_con.AsyncIOConnection):
         self._holder = None
         self._detached = False
 
-    async def _reconnect(self):
+    async def _reconnect(self, single_attempt=False):
         if self._detached:
             # initial connection
             raise errors.InterfaceError(
                 "the underlying connection has been released back to the pool"
             )
-        return await super()._reconnect()
+        return await super()._reconnect(single_attempt=single_attempt)
 
     def _detach(self):
         new_conn = self.__class__(
