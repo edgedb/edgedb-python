@@ -20,6 +20,7 @@ import asyncio
 
 import logging
 
+import edgedb
 from edgedb import _testbase as tb
 
 log = logging.getLogger(__name__)
@@ -119,3 +120,15 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
 
         self.assertEqual(set(results), {1, 2})
         self.assertEqual(iterations, 3)
+
+    async def test_async_transaction_interface_errors(self):
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*the transaction is already started'):
+            async for tx in self.con.retry():
+                async with tx:
+                    await tx.start()
+
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*Use `async with transaction:`'):
+            async for tx in self.con.retry():
+                await tx.start()

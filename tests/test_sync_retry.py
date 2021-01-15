@@ -117,3 +117,15 @@ class TestSyncRetry(tb.SyncQueryTestCase):
 
         self.assertEqual(results, {1, 2})
         self.assertEqual(iterations, 3)
+
+    def test_sync_transaction_interface_errors(self):
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*the transaction is already started'):
+            for tx in self.con.retry():
+                with tx:
+                    tx.start()
+
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*Use `with transaction:`'):
+            for tx in self.con.retry():
+                tx.start()
