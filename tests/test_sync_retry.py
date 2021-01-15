@@ -17,7 +17,6 @@
 #
 
 
-import collections
 import threading
 from concurrent import futures
 
