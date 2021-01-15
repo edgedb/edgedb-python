@@ -54,10 +54,11 @@ class _BlockingIOConnectionImpl:
 
     def connect(self, addrs, config, params, *, single_attempt=False):
         addr = None
+        start = time.monotonic()
         if single_attempt:
             max_time = 0
         else:
-            max_time = time.monotonic() + config.wait_until_available
+            max_time = start + config.wait_until_available
         iteration = 1
 
         while True:
@@ -82,6 +83,8 @@ class _BlockingIOConnectionImpl:
                         con_utils.render_client_no_connection_error(
                             e,
                             addr,
+                            attempts=iteration,
+                            duration=time.monotonic() - start,
                         ))
                     raise nice_err from e.__cause__
                 else:
