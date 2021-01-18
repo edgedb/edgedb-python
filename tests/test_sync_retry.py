@@ -69,6 +69,22 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                     };
                 ''')
 
+    def test_async_retry_02(self):
+        with self.assertRaises(ZeroDivisionError):
+            for tx in self.con.retry():
+                with tx:
+                    tx.execute('''
+                        INSERT test::Counter {
+                            name := 'counter_retry_02'
+                        };
+                    ''')
+                    1 / 0
+        with self.assertRaises(edgedb.NoDataError):
+            self.con.query_one('''
+                SELECT test::Counter
+                FILTER .name = 'counter_retry_02'
+            ''')
+
     def test_sync_retry_conflict(self):
         con_args = self.get_connect_args().copy()
         con_args.update(database=self.get_database_name())
