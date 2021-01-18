@@ -91,7 +91,7 @@ class AsyncIORetry(BaseRetry):
         return iteration
 
 
-class Retry:
+class Retry(BaseRetry):
 
     def __iter__(self):
         return self
