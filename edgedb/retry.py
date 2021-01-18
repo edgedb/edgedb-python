@@ -10,7 +10,7 @@ DEFAULT_MAX_ITERATIONS = 3
 
 
 def default_backoff(attempt):
-    return (2 ** attempt) * 0.1 + random.randrange(100) * 0.1
+    return (2 ** attempt) * 0.1 + random.randrange(100) * 0.001
 
 
 class AsyncIOIteration(_transaction.AsyncIOTransaction):
