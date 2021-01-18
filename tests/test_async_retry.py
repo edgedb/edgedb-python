@@ -92,6 +92,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
         self.addCleanup(con2.aclose)
 
         barrier = Barrier(2)
+        lock = asyncio.Lock()
         iterations = 0
 
         async def transaction1(con):
@@ -111,6 +112,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                     # On next attempt, the latter should succeed
                     await barrier.ready()
 
+                    await lock.acquire()
                     res = await tx.query_one('''
                         SELECT (
                             INSERT test::Counter {
@@ -123,6 +125,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                             )
                         ).value
                     ''')
+                lock.release()
             return res
 
         results = await asyncio.wait_for(asyncio.gather(

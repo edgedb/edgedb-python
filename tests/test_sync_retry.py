@@ -92,6 +92,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         self.addCleanup(con2.close)
 
         barrier = Barrier(2)
+        lock = threading.Lock()
 
         iterations = 0
 
@@ -112,6 +113,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                     # On next attempt, the latter should succeed
                     barrier.ready()
 
+                    lock.acquire()
                     res = tx.query_one('''
                         SELECT (
                             INSERT test::Counter {
@@ -124,6 +126,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                             )
                         ).value
                     ''')
+                lock.release()
             return res
 
         with futures.ThreadPoolExecutor(2) as pool:
