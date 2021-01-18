@@ -363,14 +363,14 @@ def render_client_no_connection_error(prefix, addr, attempts, duration):
     if isinstance(addr, str):
         msg = (
             f'{prefix}'
-            f'\n\tAfter {attempts} attempts in {duration} sec'
+            f'\n\tAfter {attempts} attempts in {duration:.1f} sec'
             f'\n\tIs the server running locally and accepting '
             f'\n\tconnections on Unix domain socket {addr!r}?'
         )
     else:
         msg = (
             f'{prefix}'
-            f'\n\tAfter {attempts} attempts in {duration} sec'
+            f'\n\tAfter {attempts} attempts in {duration:.1f} sec'
             f'\n\tIs the server running on host {addr[0]!r} '
             f'and accepting '
             f'\n\tTCP/IP connections on port {addr[1]}?'
