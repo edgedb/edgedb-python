@@ -54,7 +54,7 @@ class AsyncIOIteration(_transaction.AsyncIOTransaction):
             return self.__retry._retry(ex)
 
 
-class AsyncIORetry:
+class BaseRetry:
 
     def __init__(self, owner):
         self._owner = owner
@@ -63,10 +63,22 @@ class AsyncIORetry:
         self._backoff = default_backoff
         self._max_iterations = DEFAULT_MAX_ITERATIONS
 
+    def _retry(self, exc):
+        self._last_exception = exc
+        if self._iteration >= self._max_iterations:
+            return False
+        self._done = False
+        return True
+
+
+class AsyncIORetry(BaseRetry):
+
     def __aiter__(self):
         return self
 
     async def __anext__(self):
+        # Note: when changing this code consider also
+        # updating Retry.__next__.
         if self._done:
             raise StopAsyncIteration
         assert self._iteration + 1 < self._max_iterations, \
@@ -78,27 +90,15 @@ class AsyncIORetry:
         self._iteration += 1
         return iteration
 
-    def _retry(self, exc):
-        self._last_exception = exc
-        if self._iteration >= self._max_iterations:
-            return False
-        self._done = False
-        return True
-
 
 class Retry:
-
-    def __init__(self, owner):
-        self._owner = owner
-        self._iteration = 0
-        self._done = False
-        self._backoff = default_backoff
-        self._max_iterations = DEFAULT_MAX_ITERATIONS
 
     def __iter__(self):
         return self
 
     def __next__(self):
+        # Note: when changing this code consider also
+        # updating AsyncIORetry.__anext__.
         if self._done:
             raise StopIteration
         assert self._iteration + 1 < self._max_iterations, \
@@ -109,13 +109,6 @@ class Retry:
         iteration = Iteration(self, self._owner, self._iteration)
         self._iteration += 1
         return iteration
-
-    def _retry(self, exc):
-        self._last_exception = exc
-        if self._iteration >= self._max_iterations:
-            return False
-        self._done = False
-        return True
 
 
 class Iteration(_transaction.Transaction):
