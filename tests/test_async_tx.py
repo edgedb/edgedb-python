@@ -37,20 +37,23 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
     '''
 
     async def test_async_transaction_regular_01(self):
-        self.assertIsNone(self.con._top_xact)
-        tr = self.con.transaction()
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._borrowed_for)
+        tr = self.con.try_transaction()
+        self.assertIsNone(self.con._borrowed_for)
 
         with self.assertRaises(ZeroDivisionError):
             async with tr as with_tr:
-                self.assertIs(self.con._top_xact, tr)
+                self.assertIs(self.con._borrowed_for, 'transaction')
 
-                # We don't return the transaction object from __aenter__,
-                # to make it harder for people to use '.rollback()' and
-                # '.commit()' from within an 'async with' block.
-                self.assertIsNone(with_tr)
+                with self.assertRaisesRegex(edgedb.InterfaceError,
+                                            '.*is borrowed.*'):
+                    await self.con.execute('''
+                        INSERT test::TransactionTest {
+                            name := 'Test Transaction'
+                        };
+                    ''')
 
-                await self.con.execute('''
+                await with_tr.execute('''
                     INSERT test::TransactionTest {
                         name := 'Test Transaction'
                     };
@@ -58,7 +61,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
                 1 / 0
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._borrowed_for)
 
         result = await self.con.query('''
             SELECT
@@ -69,94 +72,10 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
         self.assertEqual(result, [])
 
-    async def test_async_transaction_nested_01(self):
-        self.assertIsNone(self.con._top_xact)
-        tr = self.con.transaction()
-        self.assertIsNone(self.con._top_xact)
-
-        with self.assertRaises(ZeroDivisionError):
-            async with tr:
-                self.assertIs(self.con._top_xact, tr)
-
-                async with self.con.transaction():
-                    self.assertIs(self.con._top_xact, tr)
-
-                    await self.con.execute('''
-                        INSERT test::TransactionTest {
-                            name := 'TXTEST 1'
-                        };
-                    ''')
-
-                self.assertIs(self.con._top_xact, tr)
-
-                with self.assertRaises(ZeroDivisionError):
-                    in_tr = self.con.transaction()
-                    async with in_tr:
-
-                        self.assertIs(self.con._top_xact, tr)
-
-                        await self.con.execute('''
-                            INSERT test::TransactionTest {
-                                name := 'TXTEST 2'
-                            };
-                        ''')
-
-                        1 / 0
-
-                recs = await self.con.query('''
-                    SELECT
-                        test::TransactionTest {
-                            name
-                        }
-                    FILTER
-                        test::TransactionTest.name LIKE 'TXTEST%';
-                ''')
-
-                self.assertEqual(recs[0].name, 'TXTEST 1')
-                self.assertIs(self.con._top_xact, tr)
-
-                1 / 0
-
-        self.assertIs(self.con._top_xact, None)
-
-        recs = await self.con.query('''
-            SELECT
-                test::TransactionTest {
-                    name
-                }
-            FILTER
-                test::TransactionTest.name LIKE 'TXTEST%';
-        ''')
-
-        self.assertEqual(len(recs), 0)
-
-    async def test_async_transaction_nested_02(self):
-        async with self.con.transaction(isolation='repeatable_read'):
-            async with self.con.transaction():  # no explicit isolation, OK
-                pass
-
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'different isolation'):
-            async with self.con.transaction(isolation='repeatable_read'):
-                async with self.con.transaction(isolation='serializable'):
-                    pass
-
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'different read-write'):
-            async with self.con.transaction():
-                async with self.con.transaction(readonly=True):
-                    pass
-
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'different deferrable'):
-            async with self.con.transaction(deferrable=True):
-                async with self.con.transaction(deferrable=False):
-                    pass
-
     async def test_async_transaction_interface_errors(self):
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._borrowed_for)
 
-        tr = self.con.transaction()
+        tr = self.con.try_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot start; .* already started'):
             async with tr:
@@ -165,34 +84,64 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
         self.assertTrue(repr(tr).startswith(
             '<edgedb.AsyncIOTransaction state:rolledback'))
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._borrowed_for)
 
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot start; .* already rolled back'):
             async with tr:
                 pass
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._borrowed_for)
 
-        tr = self.con.transaction()
+        tr = self.con.try_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot manually commit.*async with'):
             async with tr:
                 await tr.commit()
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._borrowed_for)
 
-        tr = self.con.transaction()
+        tr = self.con.try_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot manually rollback.*async with'):
             async with tr:
                 await tr.rollback()
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._borrowed_for)
 
-        tr = self.con.transaction()
+        tr = self.con.try_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot enter context:.*async with'):
             async with tr:
                 async with tr:
                     pass
+
+        tr = self.con.try_transaction()
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*is borrowed.*'):
+            async with tr:
+                await self.con.query("SELECT 1")
+
+        tr = self.con.try_transaction()
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*is borrowed.*'):
+            async with tr:
+                await self.con.query_one("SELECT 1")
+
+        tr = self.con.try_transaction()
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*is borrowed.*'):
+            async with tr:
+                await self.con.query_json("SELECT 1")
+
+        tr = self.con.try_transaction()
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*is borrowed.*'):
+            async with tr:
+                await self.con.query_one_json("SELECT 1")
+
+        tr = self.con.try_transaction()
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*is borrowed.*'):
+            async with tr:
+                await self.con.execute("SELECT 1")

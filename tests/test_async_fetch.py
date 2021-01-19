@@ -747,8 +747,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         con2 = await self.connect(database=self.con.dbname)
 
-        async with self.con.transaction():
-            await self.con.query_one(
+        async with self.con.try_transaction() as tx:
+            await tx.query_one(
                 'select sys::_advisory_lock(<int64>$0)',
                 lock_key)
 
@@ -757,8 +757,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
                     async def exec_to_fail():
                         with self.assertRaises(ConnectionAbortedError):
-                            async with con2.transaction():
-                                await con2.query(
+                            async with con2.try_transaction():
+                                await tx.query(
                                     'select sys::_advisory_lock(<int64>$0)',
                                     lock_key,
                                 )
@@ -770,7 +770,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
             finally:
                 self.assertEqual(
-                    await self.con.query(
+                    await tx.query(
                         'select sys::_advisory_unlock(<int64>$0)', lock_key),
                     [True])
 
@@ -793,9 +793,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
-            async with self.con.transaction():
-                await self.con.query_one(
-                    'SELECT <MyEnum><str>$0', 'Oups')
+            async with self.con.try_transaction() as tx:
+                await tx.query_one('SELECT <MyEnum><str>$0', 'Oups')
 
         self.assertEqual(
             await self.con.query_one('SELECT <MyEnum>$0', 'A'),
@@ -807,9 +806,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
-            async with self.con.transaction():
-                await self.con.query_one(
-                    'SELECT <MyEnum>$0', 'Oups')
+            async with self.con.try_transaction() as tx:
+                await tx.query_one('SELECT <MyEnum>$0', 'Oups')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidArgumentError, 'a str or edgedb.EnumValue'):

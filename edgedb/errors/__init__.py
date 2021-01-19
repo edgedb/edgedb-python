@@ -88,6 +88,7 @@ __all__ = _base.__all__ + (  # type: ignore
     'ClientConnectionFailedError',
     'ClientConnectionFailedTemporarilyError',
     'ClientConnectionTimeoutError',
+    'ClientConnectionClosedError',
     'InterfaceError',
     'QueryArgumentError',
     'MissingArgumentError',
@@ -347,10 +348,12 @@ class TransactionError(ExecutionError):
 
 class TransactionSerializationError(TransactionError):
     _code = 0x_05_03_00_01
+    tags = frozenset({SHOULD_RETRY})
 
 
 class TransactionDeadlockError(TransactionError):
     _code = 0x_05_03_00_02
+    tags = frozenset({SHOULD_RETRY})
 
 
 class ConfigurationError(EdgeDBError):
@@ -387,12 +390,17 @@ class ClientConnectionFailedError(ClientConnectionError):
 
 class ClientConnectionFailedTemporarilyError(ClientConnectionFailedError):
     _code = 0x_FF_01_01_01
-    tags = frozenset({SHOULD_RECONNECT})
+    tags = frozenset({SHOULD_RECONNECT, SHOULD_RETRY})
 
 
 class ClientConnectionTimeoutError(ClientConnectionError):
     _code = 0x_FF_01_02_00
-    tags = frozenset({SHOULD_RECONNECT})
+    tags = frozenset({SHOULD_RECONNECT, SHOULD_RETRY})
+
+
+class ClientConnectionClosedError(ClientConnectionError):
+    _code = 0x_FF_01_03_00
+    tags = frozenset({SHOULD_RECONNECT, SHOULD_RETRY})
 
 
 class InterfaceError(ClientError):

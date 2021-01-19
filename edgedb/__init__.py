@@ -112,6 +112,7 @@ from .errors import (
     ClientConnectionFailedError,
     ClientConnectionFailedTemporarilyError,
     ClientConnectionTimeoutError,
+    ClientConnectionClosedError,
     InterfaceError,
     QueryArgumentError,
     MissingArgumentError,
