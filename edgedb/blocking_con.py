@@ -28,7 +28,9 @@ from . import abstract
 from . import base_con
 from . import con_utils
 from . import errors
-from . import transaction
+from . import transaction as _transaction
+from . import retry as _retry
+from . import legacy_transaction
 
 from .datatypes import datatypes
 from .protocol import blocking_proto, protocol
@@ -50,9 +52,13 @@ class _BlockingIOConnectionImpl:
         self._addr = None
         self._protocol = None
 
-    def connect(self, addrs, config, params):
+    def connect(self, addrs, config, params, *, single_attempt=False):
         addr = None
-        max_time = time.monotonic() + config.wait_until_available
+        start = time.monotonic()
+        if single_attempt:
+            max_time = 0
+        else:
+            max_time = start + config.wait_until_available
         iteration = 1
 
         while True:
@@ -77,6 +83,8 @@ class _BlockingIOConnectionImpl:
                         con_utils.render_client_no_connection_error(
                             e,
                             addr,
+                            attempts=iteration,
+                            duration=time.monotonic() - start,
                         ))
                     raise nice_err from e.__cause__
                 else:
@@ -156,16 +164,24 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
                          codecs_registry=codecs_registry,
                          query_cache=query_cache)
         self._impl = None
+        self._borrowed_for = None
 
-    def ensure_connected(self):
-        self._get_protocol()
+    def ensure_connected(self, single_attempt=False):
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
+        if not self._impl or self._impl.is_closed():
+            self._reconnect(single_attempt=single_attempt)
 
-    def _reconnect(self):
+    def _reconnect(self, single_attempt=False):
+        assert not self._borrowed_for, self._borrowed_for
         self._impl = _BlockingIOConnectionImpl()
-        self._impl.connect(self._addrs, self._config, self._params)
+        self._impl.connect(self._addrs, self._config, self._params,
+                           single_attempt=single_attempt)
         assert self._impl._protocol
 
     def _get_protocol(self):
+        if self._borrowed_for:
+            raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             self._reconnect()
         return self._impl._protocol
@@ -317,9 +333,20 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         self._get_protocol().sync_simple_query(query)
 
     def transaction(self, *, isolation: str = None, readonly: bool = None,
-                    deferrable: bool = None) -> transaction.Transaction:
-        return transaction.Transaction(
+                    deferrable: bool = None) -> legacy_transaction.Transaction:
+        warnings.warn(
+            'The "transaction()" method is deprecated and is scheduled to be '
+            'removed. Use the "retry()" or "try_transaction()" method '
+            'instead.',
+            DeprecationWarning, 2)
+        return legacy_transaction.Transaction(
             self, isolation, readonly, deferrable)
+
+    def try_transaction(self) -> _transaction.Transaction:
+        return _transaction.Transaction(self)
+
+    def retry(self) -> _retry.Retry:
+        return _retry.Retry(self)
 
     def close(self) -> None:
         if not self.is_closed():

@@ -1,6 +1,7 @@
 __all__ = [
     'Tag',
     'SHOULD_RECONNECT',
+    'SHOULD_RETRY',
 ]
 
 
@@ -21,3 +22,4 @@ class Tag(object):
 
 
 SHOULD_RECONNECT = Tag('SHOULD_RECONNECT')
+SHOULD_RETRY = Tag('SHOULD_RETRY')

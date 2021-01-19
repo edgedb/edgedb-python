@@ -25,6 +25,8 @@ import warnings
 from . import abstract
 from . import asyncio_con
 from . import errors
+from . import transaction as _transaction
+from . import retry as _retry
 
 from .datatypes import datatypes
 
@@ -42,13 +44,13 @@ class PoolConnection(asyncio_con.AsyncIOConnection):
         self._holder = None
         self._detached = False
 
-    async def _reconnect(self):
+    async def _reconnect(self, single_attempt=False):
         if self._detached:
             # initial connection
             raise errors.InterfaceError(
                 "the underlying connection has been released back to the pool"
             )
-        return await super()._reconnect()
+        return await super()._reconnect(single_attempt=single_attempt)
 
     def _detach(self):
         new_conn = self.__class__(
@@ -656,6 +658,12 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
 
     async def __aexit__(self, *exc):
         await self.aclose()
+
+    def try_transaction(self) -> _transaction.AsyncIOTransaction:
+        return _transaction.AsyncIOTransaction(self)
+
+    def retry(self) -> _retry.AsyncIORetry:
+        return _retry.AsyncIORetry(self)
 
 
 class PoolAcquireContext:

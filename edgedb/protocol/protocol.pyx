@@ -326,11 +326,11 @@ cdef class SansIOProtocol:
 
     cdef ensure_connected(self):
         if self.cancelled:
-            raise errors.ClientConnectionError(
+            raise errors.ClientConnectionClosedError(
                 'the connection has been closed '
                 'because an operation was cancelled on it')
         if not self.connected:
-            raise errors.ClientConnectionError(
+            raise errors.ClientConnectionClosedError(
                 'the connection has been closed')
 
     async def _execute(self, BaseCodec in_dc, BaseCodec out_dc, args, kwargs):
