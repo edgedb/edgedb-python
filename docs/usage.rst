@@ -119,36 +119,6 @@ edgedb-python automatically converts EdgeDB types to the corresponding Python
 types and vice versa.  See :ref:`edgedb-python-datatypes` for details.
 
 
-Transactions
-------------
-
-To create transactions, the
-:py:meth:`BlockingIOConnection.transaction()
-<edgedb.BlockingIOConnection.transaction>` method or
-its asyncio equivalent :py:meth:`AsyncIOConnection.transaction()
-<edgedb.AsyncIOConnection.transaction>`
-should be used.
-
-The most common way to use transactions is through a context manager:
-
-.. code-block:: python
-
-   with connection.transaction():
-       connection.execute("INSERT User {name := 'Don'}")
-
-or, if using the async API:
-
-.. code-block:: python
-
-   async with connection.transaction():
-       await connection.execute("INSERT User {name := 'Don'}")
-
-.. note::
-
-   When not in an explicit transaction block, any changes to the database
-   will be applied immediately.
-
-
 .. _edgedb-python-connection-pool:
 
 Connection Pools
@@ -179,17 +149,15 @@ Below is an example of a connection pool usage:
         pool = request.app['pool']
         username = int(request.match_info.get('name'))
 
-        # Take a connection from the pool.
-        async with pool.acquire() as connection:
-            # Run the query passing the request argument.
-            result = await connection.query_one_json(
-                '''
-                    SELECT User {first_name, email, bio}
-                    FILTER .name = <str>$username
-                ''', username=username)
-            return web.Response(
-                text=result,
-                content_type='application/json')
+        # Execute the query on any pool connection
+        result = await pool.query_one_json(
+            '''
+                SELECT User {first_name, email, bio}
+                FILTER .name = <str>$username
+            ''', username=username)
+        return web.Response(
+            text=result,
+            content_type='application/json')
 
 
     async def init_app():
@@ -208,5 +176,53 @@ Below is an example of a connection pool usage:
     app = loop.run_until_complete(init_app())
     web.run_app(app)
 
+You can also acquire connection from the pool:
+
+    .. code-block:: python
+
+        async with pool.acquire() as conn:
+            result = await conn.query_one_json(
+                '''
+                    SELECT User {first_name, email, bio}
+                    FILTER .name = <str>$username
+                ''', username=username)
+
+But if you have a bunch of tightly related queries it's better to use
+transactions.
+
 See :ref:`edgedb-python-asyncio-api-pool` API documentation for
+more information.
+
+
+Transactions
+------------
+
+The most robust way to create a transaction is ``retry`` method:
+
+* :py:meth:`AsyncIOPool.retry() <edgedb.AsyncIOPool.retry>`
+* :py:meth:`BlockingIOConnection.retry() <edgedb.BlockingIOConnection.retry>`
+* :py:meth:`AsyncIOConnection.retry() <edgedb.AsyncIOConnection.retry>`
+
+Example:
+
+.. code-block:: python
+
+    for tx in connection.retry():
+        with tx:
+            tx.execute("INSERT User {name := 'Don'}")
+
+or, if using the async API on connection pool:
+
+.. code-block:: python
+
+    async for tx in connection.retry():
+        async with tx:
+            await tx.execute("INSERT User {name := 'Don'}")
+
+.. note::
+
+   When not in an explicit transaction block, any changes to the database
+   will be applied immediately.
+
+See :ref:`edgedb-python-asyncio-api-transaction` API documentation for
 more information.
