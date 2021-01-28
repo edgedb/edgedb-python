@@ -664,7 +664,7 @@ See also:
 
     .. py:coroutinemethod:: start()
 
-        Enter the transaction or savepoint block.
+        Start a transaction or create a savepoint.
 
     .. py:coroutinemethod:: commit()
 
