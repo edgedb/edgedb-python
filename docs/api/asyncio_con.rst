@@ -589,7 +589,8 @@ Connection Pools
 Transactions
 ============
 
-The most robust way to make transaction is using a retry loop:
+The most robust way to execute transactional code is to use 
+the ``retry()`` API:
 
 .. code-block:: python
 
