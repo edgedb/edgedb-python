@@ -598,8 +598,9 @@ the ``retry()`` loop API:
         async with tx:
             await tx.execute("INSERT User { name := 'Don' }")
 
-Note executing queries on ``tx`` object rather than original
-connection or connection pool.
+Note that we execute queries on the ``tx`` object in the above
+example, rather than on the original connection pool ``pool`` 
+object.
 
 This implies that:
 
