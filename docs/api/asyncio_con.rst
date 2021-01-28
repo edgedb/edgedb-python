@@ -658,8 +658,8 @@ See also:
 
     Represents a transaction or savepoint block.
 
-    Transactions are created by calling the
-    :py:meth:`AsyncIOConnection.transaction()` method.
+    Instances of this type are created by calling the
+    :py:meth:`AsyncIOConnection.try_transaction()` method.
 
 
     .. py:coroutinemethod:: start()
