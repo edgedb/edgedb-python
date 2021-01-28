@@ -610,7 +610,9 @@ The ``retry()`` API guarantees that:
 3. If any other, non-retryable exception occurs, the transaction is rolled back,
    and the exception is propagated, immediately aborting the ``retry()`` block.
 
-One non-obvious implication of the (3) is that whole block is retried
+The key implication of retrying transactions is that the entire 
+nested code block can be re-run, including any non-querying
+Python code.
 including non-database statements, so for example:
 
 .. code-block:: python
