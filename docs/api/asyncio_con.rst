@@ -624,9 +624,12 @@ Here execution of the http request be retried too. The core of the issue
 is that whenever transaction is interrupted user might have changed the
 email, so we have to redo all the work done.
 
-Generally it's recommended not to do potentially slow or long running
-external tasks within the transaction and split it into multiple
-ones.
+Generally it's recommended to not execute any long running
+code within the transaction unless absolutely necessary.
+
+Transactions allocate expensive server resources and having
+too many concurrently running long-running transactions will
+negatively impact the performance of the DB server.
 
 See also:
 * RFC1004_
@@ -721,4 +724,3 @@ See also:
         be repeated.
 
 .. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
-
