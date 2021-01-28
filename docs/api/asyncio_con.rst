@@ -602,13 +602,13 @@ Note that we execute queries on the ``tx`` object in the above
 example, rather than on the original connection pool ``pool`` 
 object.
 
-This implies that:
+The ``retry()`` API guarantees that:
 
-1. Transaction is executed atomically
-2. If transaction is failed for any of the number of transient errors (i.e.
-   network failure or concurrent update error) transaction is retried
-3. If any other exception occurs, transaction is rolled back and not
-   retried.
+1. Transactions are executed atomically;
+2. If a transaction is failed for any of the number of transient errors (i.e.
+   a network failure or a concurrent update error), the transaction would be retried;
+3. If any other, non-retryable exception occurs, the transaction is rolled back,
+   and the exception is propagated, immediately aborting the ``retry()`` block.
 
 One non-obvious implication of the (3) is that whole block is retried
 including non-database statements, so for example:
