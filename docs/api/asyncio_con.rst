@@ -352,9 +352,15 @@ Connection Pools
 
     :return: An instance of :py:class:`AsyncIOPool`.
 
-    Queries on the connection pool can be executed directly, in this
-    case every invocation some connection is picked for the duration of
-    the query:
+    The connection pool has high-level APIs to access Connection[link]
+    APIs directly, without manually acquiring and releasing connections
+    from the pool:
+    
+    * Pool.retry()
+    * Pool.query()
+    * Pool.query_one()
+    * Pool.query_json()
+    * Pool.query_one_json()
 
     .. code-block:: python
 
