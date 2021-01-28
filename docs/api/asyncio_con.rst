@@ -258,14 +258,14 @@ Connection
     .. py:method:: try_transaction()
 
         Execute a non-retryable transaction.
-        
+
         Contrary to ``retry()``, ``try_transaction()`` will not attempt
         to re-run the nested code block in case a retryable error happens.
-        
-        This is a low-level API and it is advised to use the ``retry()`` 
+
+        This is a low-level API and it is advised to use the ``retry()``
         method instead.
 
-        A call to ``try_transaction()`` returns 
+        A call to ``try_transaction()`` returns
         :py:class:`AsyncIOTransaction`.
 
         Example:
@@ -355,7 +355,7 @@ Connection Pools
     The connection pool has high-level APIs to access Connection[link]
     APIs directly, without manually acquiring and releasing connections
     from the pool:
-    
+
     * Pool.retry()
     * Pool.query()
     * Pool.query_one()
@@ -589,8 +589,8 @@ Connection Pools
 Transactions
 ============
 
-The most robust way to execute transactional code is to use 
-the ``retry()`` API:
+The most robust way to execute transactional code is to use
+the ``retry()`` loop API:
 
 .. code-block:: python
 
