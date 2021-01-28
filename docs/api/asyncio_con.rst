@@ -257,11 +257,16 @@ Connection
 
     .. py:method:: try_transaction()
 
-        Create an individual :py:class:`AsyncIOTransaction` object.
+        Execute a non-retryable transaction.
+        
+        Contrary to ``retry()``, ``try_transaction()`` will not attempt
+        to re-run the nested code block in case a retryable error happens.
+        
+        This is a low-level API and it is advised to use the ``retry()`` 
+        method instead.
 
-        Transaction may fail so it's often better to use :py:meth:`retry`
-        instead. This method is targeted for users who want to implement \
-        more specialized transaction retry loop.
+        A call to ``try_transaction()`` returns 
+        :py:class:`AsyncIOTransaction`.
 
         Example:
 
