@@ -656,7 +656,7 @@ See also:
 
 .. py:class:: AsyncIOTransaction
 
-    Represents a transaction or savepoint block.
+    Represents a transaction or a savepoint block.
 
     Instances of this type are created by calling the
     :py:meth:`AsyncIOConnection.try_transaction()` method.
