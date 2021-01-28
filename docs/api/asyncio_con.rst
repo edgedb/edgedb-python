@@ -376,7 +376,7 @@ Connection Pools
                 async with tx:
                     await tx.query('SELECT {1, 2, 3}')
 
-    If you need to lock on specific connection, use ``async with`` block:
+    To hold on a specific connection object, use the ``pool.acquire()`` API:
 
     .. code-block:: python
 
