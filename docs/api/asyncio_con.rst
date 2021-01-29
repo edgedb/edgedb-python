@@ -259,8 +259,8 @@ Connection
                         value=value,
                     )
 
-        Note executing queries on ``tx`` object rather than the original
-        connection.
+        Note that we are executing queries on the ``tx`` object rather
+        than on the original pool itself.
 
     .. py:method:: try_transaction()
 
