@@ -236,15 +236,15 @@ Connection
 
     .. py:method:: retry()
 
-        Open a retriable transaction loop.
-       
+        Open a retryable transaction loop.
+
         This is the preferred method of initiating and running a database
         transaction in a robust fashion.  The `retry()` transaction loop will
         attempt to re-execute the transaction loop body if a transient error
         occurs, such as a network error or a transaction serialization error.
-       
+
         Returns an instance of :py:class:`AsyncIORetry`.
-       
+
         See :ref:`edgedb-python-asyncio-api-transaction` for more details.
 
         Example:
@@ -363,11 +363,11 @@ Connection Pools
     APIs directly, without manually acquiring and releasing connections
     from the pool:
 
-    * Pool.retry()
-    * Pool.query()
-    * Pool.query_one()
-    * Pool.query_json()
-    * Pool.query_one_json()
+    * :py:meth:`AsyncIOPool.retry()`
+    * :py:meth:`AsyncIOPool.query()`
+    * :py:meth:`AsyncIOPool.query_one()`
+    * :py:meth:`AsyncIOPool.query_json()`
+    * :py:meth:`AsyncIOPool.query_one_json()`
 
     .. code-block:: python
 
@@ -536,6 +536,7 @@ Connection Pools
         <edgedb.AsyncIOConnection.execute>` for details.
 
     .. py:method:: retry()
+
         Create a :py:class:`AsyncIORetry` object. This is a way to make
         reliable transactions. See
         :ref:`edgedb-python-asyncio-api-transaction` for more info.
@@ -556,6 +557,7 @@ Connection Pools
         pool.
 
     .. py:method:: try_transaction()
+
         Create a :py:class:`AsyncIOTransaction` object.
 
         Creates individual transaction.
@@ -606,7 +608,7 @@ the ``retry()`` loop API:
             await tx.execute("INSERT User { name := 'Don' }")
 
 Note that we execute queries on the ``tx`` object in the above
-example, rather than on the original connection pool ``pool`` 
+example, rather than on the original connection pool ``pool``
 object.
 
 The ``retry()`` API guarantees that:
@@ -617,7 +619,7 @@ The ``retry()`` API guarantees that:
 3. If any other, non-retryable exception occurs, the transaction is rolled back,
    and the exception is propagated, immediately aborting the ``retry()`` block.
 
-The key implication of retrying transactions is that the entire 
+The key implication of retrying transactions is that the entire
 nested code block can be re-run, including any non-querying
 Python code.
 including non-database statements, so for example:
@@ -654,6 +656,7 @@ too many concurrently running long-running transactions will
 negatively impact the performance of the DB server.
 
 See also:
+
 * RFC1004_
 * :py:meth:`AsyncIOPool.retry()`
 * :py:meth:`AsyncIOPool.try_transaction()`
