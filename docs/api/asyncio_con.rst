@@ -621,8 +621,7 @@ The ``retry()`` API guarantees that:
 
 The key implication of retrying transactions is that the entire
 nested code block can be re-run, including any non-querying
-Python code.
-including non-database statements, so for example:
+Python code. Here is an example:
 
 .. code-block:: python
 
