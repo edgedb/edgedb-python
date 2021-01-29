@@ -236,9 +236,16 @@ Connection
 
     .. py:method:: retry()
 
-        Create a :py:class:`AsyncIORetry` object. This is a way to make
-        reliable transactions. See
-        :ref:`edgedb-python-asyncio-api-transaction` for more info.
+        Open a retriable transaction loop.
+       
+        This is the preferred method of initiating and running a database
+        transaction in a robust fashion.  The `retry()` transaction loop will
+        attempt to re-execute the transaction loop body if a transient error
+        occurs, such as a network error or a transaction serialization error.
+       
+        Returns an instance of :py:class:`AsyncIORetry`.
+       
+        See :ref:`edgedb-python-asyncio-api-transaction` for more details.
 
         Example:
 
