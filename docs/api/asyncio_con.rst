@@ -686,7 +686,7 @@ See also:
 
     .. describe:: async with c:
 
-        start and commit/rollback the transaction or savepoint block
+        Start and commit/rollback the transaction or savepoint block
         automatically when entering and exiting the code inside the
         context manager block.
 
