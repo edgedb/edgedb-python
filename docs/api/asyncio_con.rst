@@ -383,7 +383,7 @@ Connection Pools
                 async with tx:
                     await tx.query('SELECT {1, 2, 3}')
 
-    To hold on a specific connection object, use the ``pool.acquire()`` API:
+    To hold on to a specific connection object, use the ``pool.acquire()`` API:
 
     .. code-block:: python
 
