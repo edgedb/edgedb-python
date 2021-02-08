@@ -260,7 +260,7 @@ Connection
                     )
 
         Note that we are executing queries on the ``tx`` object rather
-        than on the original pool itself.
+        than on the original connection.
 
     .. py:method:: try_transaction()
 
@@ -368,6 +368,7 @@ Connection Pools
     * :py:meth:`AsyncIOPool.query_one()`
     * :py:meth:`AsyncIOPool.query_json()`
     * :py:meth:`AsyncIOPool.query_one_json()`
+    * :py:meth:`AsyncIOPool.execute()`
 
     .. code-block:: python
 
@@ -537,13 +538,20 @@ Connection Pools
 
     .. py:method:: retry()
 
-        Create a :py:class:`AsyncIORetry` object. This is a way to make
-        reliable transactions. See
-        :ref:`edgedb-python-asyncio-api-transaction` for more info.
+        Open a retryable transaction loop.
+
+        This is the preferred method of initiating and running a database
+        transaction in a robust fashion.  The `retry()` transaction loop will
+        attempt to re-execute the transaction loop body if a transient error
+        occurs, such as a network error or a transaction serialization error.
+
+        Returns an instance of :py:class:`AsyncIORetry`.
+
+        See :ref:`edgedb-python-asyncio-api-transaction` for more details.
 
         Example:
 
-        .. code-block::python
+        .. code-block:: python
 
             async for tx in pool.retry():
                 with tx:
@@ -554,21 +562,24 @@ Connection Pools
                     )
 
         Note that we are executing queries on the ``tx`` object rather
-        than on the original pool itself.
+        than on the original pool.
 
     .. py:method:: try_transaction()
 
-        Create a :py:class:`AsyncIOTransaction` object.
+        Execute a non-retryable transaction.
 
-        Creates individual transaction.
+        Contrary to ``retry()``, ``try_transaction()`` will not attempt
+        to re-run the nested code block in case a retryable error happens.
 
-        Transaction may fail so it's often better to use :py:meth:`retry`
-        instead. This method is targeted for users who want to implement \
-        more specialized transaction retry loop.
+        This is a low-level API and it is advised to use the ``retry()``
+        method instead.
+
+        A call to ``try_transaction()`` returns
+        :py:class:`AsyncIOTransaction`.
 
         Example:
 
-        .. code-block::python
+        .. code-block:: python
 
             with pool.try_transaction() as tx:
                 value = tx.query_one("SELECT Counter.value")
@@ -579,18 +590,6 @@ Connection Pools
 
         Note executing queries on ``tx`` object rather than the original
         pool.
-
-    .. py:attribute:: min_size
-
-        Number of connections the pool was initialized with.
-
-    .. py:attribute:: max_size
-
-        Max number of connections in the pool.
-
-    .. py:attribute:: free_size
-
-        Number of available connections in the pool.
 
 
 .. _edgedb-python-asyncio-api-transaction:

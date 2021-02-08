@@ -197,7 +197,8 @@ more information.
 Transactions
 ------------
 
-The most robust way to create a transaction is ``retry`` method:
+The most robust way to create a
+:ref:`transaction <edgedb-python-asyncio-api-transaction>` is ``retry`` method:
 
 * :py:meth:`AsyncIOPool.retry() <edgedb.AsyncIOPool.retry>`
 * :py:meth:`BlockingIOConnection.retry() <edgedb.BlockingIOConnection.retry>`
