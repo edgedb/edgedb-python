@@ -234,8 +234,63 @@ Connection
             If the results of *query* are desired, :py:meth:`query` or
             :py:meth:`query_one` should be used instead.
 
+    .. py:method:: retry()
+
+        Open a retryable transaction loop.
+
+        This is the preferred method of initiating and running a database
+        transaction in a robust fashion.  The `retry()` transaction loop will
+        attempt to re-execute the transaction loop body if a transient error
+        occurs, such as a network error or a transaction serialization error.
+
+        Returns an instance of :py:class:`AsyncIORetry`.
+
+        See :ref:`edgedb-python-asyncio-api-transaction` for more details.
+
+        Example:
+
+        .. code-block:: python
+
+            async for tx in con.retry():
+                with tx:
+                    value = tx.query_one("SELECT Counter.value")
+                    tx.execute(
+                        "UPDATE Counter SET { value := <int64>$value",
+                        value=value,
+                    )
+
+        Note that we are executing queries on the ``tx`` object rather
+        than on the original connection.
+
+    .. py:method:: try_transaction()
+
+        Execute a non-retryable transaction.
+
+        Contrary to ``retry()``, ``try_transaction()`` will not attempt
+        to re-run the nested code block in case a retryable error happens.
+
+        This is a low-level API and it is advised to use the ``retry()``
+        method instead.
+
+        A call to ``try_transaction()`` returns
+        :py:class:`AsyncIOTransaction`.
+
+        Example:
+
+        .. code-block:: python
+
+            with con.try_transaction() as tx:
+                value = tx.query_one("SELECT Counter.value")
+                tx.execute(
+                    "UPDATE Counter SET { value := <int64>$value",
+                    value=value,
+                )
+
+        Note that we are executing queries on the ``tx`` object,
+        rather than on the original connection `con`.
 
     .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
+        **Deprecated**. Use :py:meth:`retry` or :py:meth:`try_transaction`.
 
         Create a :py:class:`AsyncIOTransaction` object.
 
@@ -261,89 +316,6 @@ Connection
     .. py:method:: is_closed()
 
         Return ``True`` if the connection is closed.
-
-
-.. _edgedb-python-asyncio-api-transaction:
-
-Transactions
-============
-
-The most common way to use transactions is through a context manager statement:
-
-.. code-block:: python
-
-   async with connection.transaction():
-       await connection.execute("INSERT User { name := 'Don' }")
-
-It is possible to nest transactions (a nested transaction context will create
-a savepoint):
-
-.. code-block:: python
-
-   async with connection.transaction():
-       await connection.execute(
-           'CREATE TYPE User { CREATE PROPERTY name -> str }')
-
-       try:
-           # Create a savepoint:
-           async with connection.transaction():
-               await connection.execute(
-                   "INSERT User { name := 'Don' }")
-               # This nested savepoint will be
-               # automatically rolled back:
-               raise Exception
-       except:
-           # Ignore exception
-           pass
-
-       # Because the nested savepoint was rolled back, there
-       # will be nothing in `User`.
-       assert (await connection.query('SELECT User')) == []
-
-Alternatively, transactions can be used without an ``async with`` block:
-
-.. code-block:: python
-
-    tr = connection.transaction()
-    await tr.start()
-    try:
-        ...
-    except:
-        await tr.rollback()
-        raise
-    else:
-        await tr.commit()
-
-
-See also the
-:py:meth:`AsyncIOConnection.transaction()` function.
-
-
-.. py:class:: AsyncIOTransaction
-
-    Represents a transaction or savepoint block.
-
-    Transactions are created by calling the
-    :py:meth:`AsyncIOConnection.transaction()` method.
-
-
-    .. py:coroutinemethod:: start()
-
-        Enter the transaction or savepoint block.
-
-    .. py:coroutinemethod:: commit()
-
-        Exit the transaction or savepoint block and commit changes.
-
-    .. py:coroutinemethod:: rollback()
-
-        Exit the transaction or savepoint block and discard changes.
-
-    .. describe:: async with c:
-
-        start and commit/rollback the transaction or savepoint block
-        automatically when entering and exiting the code inside the
-        context manager block.
 
 
 .. _edgedb-python-asyncio-api-pool:
@@ -387,7 +359,32 @@ Connection Pools
 
     :return: An instance of :py:class:`AsyncIOPool`.
 
-    Can be used either with an ``async with`` block:
+    The connection pool has high-level APIs to access Connection[link]
+    APIs directly, without manually acquiring and releasing connections
+    from the pool:
+
+    * :py:meth:`AsyncIOPool.retry()`
+    * :py:meth:`AsyncIOPool.query()`
+    * :py:meth:`AsyncIOPool.query_one()`
+    * :py:meth:`AsyncIOPool.query_json()`
+    * :py:meth:`AsyncIOPool.query_one_json()`
+    * :py:meth:`AsyncIOPool.execute()`
+
+    .. code-block:: python
+
+        async with edgedb.create_async_pool(user='edgedb') as pool:
+            await pool.query('SELECT {1, 2, 3}')
+
+    Transactions can be executed as well:
+
+    .. code-block:: python
+
+        async with edgedb.create_async_pool(user='edgedb') as pool:
+            async for tx in pool.retry():
+                async with tx:
+                    await tx.query('SELECT {1, 2, 3}')
+
+    To hold on to a specific connection object, use the ``pool.acquire()`` API:
 
     .. code-block:: python
 
@@ -395,7 +392,7 @@ Connection Pools
             async with pool.acquire() as con:
                 await con.query('SELECT {1, 2, 3}')
 
-    Or directly with ``await``:
+    Or directly ``await``:
 
     .. code-block:: python
 
@@ -539,14 +536,215 @@ Connection Pools
         See :py:meth:`AsyncIOConnection.execute()
         <edgedb.AsyncIOConnection.execute>` for details.
 
-    .. py:attribute:: min_size
+    .. py:method:: retry()
 
-        Number of connections the pool was initialized with.
+        Open a retryable transaction loop.
 
-    .. py:attribute:: max_size
+        This is the preferred method of initiating and running a database
+        transaction in a robust fashion.  The `retry()` transaction loop will
+        attempt to re-execute the transaction loop body if a transient error
+        occurs, such as a network error or a transaction serialization error.
 
-        Max number of connections in the pool.
+        Returns an instance of :py:class:`AsyncIORetry`.
 
-    .. py:attribute:: free_size
+        See :ref:`edgedb-python-asyncio-api-transaction` for more details.
 
-        Number of available connections in the pool.
+        Example:
+
+        .. code-block:: python
+
+            async for tx in pool.retry():
+                with tx:
+                    value = tx.query_one("SELECT Counter.value")
+                    tx.execute(
+                        "UPDATE Counter SET { value := <int64>$value",
+                        value=value,
+                    )
+
+        Note that we are executing queries on the ``tx`` object rather
+        than on the original pool.
+
+    .. py:method:: try_transaction()
+
+        Execute a non-retryable transaction.
+
+        Contrary to ``retry()``, ``try_transaction()`` will not attempt
+        to re-run the nested code block in case a retryable error happens.
+
+        This is a low-level API and it is advised to use the ``retry()``
+        method instead.
+
+        A call to ``try_transaction()`` returns
+        :py:class:`AsyncIOTransaction`.
+
+        Example:
+
+        .. code-block:: python
+
+            with pool.try_transaction() as tx:
+                value = tx.query_one("SELECT Counter.value")
+                tx.execute(
+                    "UPDATE Counter SET { value := <int64>$value",
+                    value=value,
+                )
+
+        Note executing queries on ``tx`` object rather than the original
+        pool.
+
+
+.. _edgedb-python-asyncio-api-transaction:
+
+Transactions
+============
+
+The most robust way to execute transactional code is to use
+the ``retry()`` loop API:
+
+.. code-block:: python
+
+    async for tx in pool.retry():
+        async with tx:
+            await tx.execute("INSERT User { name := 'Don' }")
+
+Note that we execute queries on the ``tx`` object in the above
+example, rather than on the original connection pool ``pool``
+object.
+
+The ``retry()`` API guarantees that:
+
+1. Transactions are executed atomically;
+2. If a transaction is failed for any of the number of transient errors (i.e.
+   a network failure or a concurrent update error), the transaction would be retried;
+3. If any other, non-retryable exception occurs, the transaction is rolled back,
+   and the exception is propagated, immediately aborting the ``retry()`` block.
+
+The key implication of retrying transactions is that the entire
+nested code block can be re-run, including any non-querying
+Python code. Here is an example:
+
+.. code-block:: python
+
+    async for tx in pool.retry():
+        async with tx:
+            user = await tx.fetch_one(
+                "SELECT User { email } FILTER .login = <str>$login",
+                login=login,
+            )
+            data = await httpclient.get(
+                'https://service.local/email_info',
+                params=dict(email=user.email),
+            )
+            user = await tx.fetch_one('''
+                    UPDATE User FILTER .login = <str>$login
+                    SET { email_info := <json>$data}
+                ''',
+                login=login,
+                data=data,
+            )
+
+In the above example, the execution of the HTTP request would be retried
+too. The core of the issue is that whenever transaction is interrupted
+user might have the email changed (as the result of concurrent
+transaction), so we have to redo all the work done.
+
+Generally it's recommended to not execute any long running
+code within the transaction unless absolutely necessary.
+
+Transactions allocate expensive server resources and having
+too many concurrently running long-running transactions will
+negatively impact the performance of the DB server.
+
+See also:
+
+* RFC1004_
+* :py:meth:`AsyncIOPool.retry()`
+* :py:meth:`AsyncIOPool.try_transaction()`
+* :py:meth:`AsyncIOConnection.retry()`
+* :py:meth:`AsyncIOConnection.try_transaction()`
+
+
+.. py:class:: AsyncIOTransaction
+
+    Represents a transaction or a savepoint block.
+
+    Instances of this type are created by calling the
+    :py:meth:`AsyncIOConnection.try_transaction()` method.
+
+
+    .. py:coroutinemethod:: start()
+
+        Start a transaction or create a savepoint.
+
+    .. py:coroutinemethod:: commit()
+
+        Exit the transaction or savepoint block and commit changes.
+
+    .. py:coroutinemethod:: rollback()
+
+        Exit the transaction or savepoint block and discard changes.
+
+    .. describe:: async with c:
+
+        Start and commit/rollback the transaction or savepoint block
+        automatically when entering and exiting the code inside the
+        context manager block.
+
+    .. py:coroutinemethod:: query(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a query and return the results
+        as an :py:class:`edgedb.Set <edgedb.Set>` instance. The temporary
+        connection is automatically returned back to the pool.
+
+        See :py:meth:`AsyncIOConnection.query()
+        <edgedb.AsyncIOConnection.query>` for details.
+
+    .. py:coroutinemethod:: query_one(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a singleton-returning query
+        and return its element. The temporary connection is automatically
+        returned back to the pool.
+
+        See :py:meth:`AsyncIOConnection.query_one()
+        <edgedb.AsyncIOConnection.query_one>` for details.
+
+    .. py:coroutinemethod:: query_json(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a query and
+        return the results as JSON. The temporary connection is automatically
+        returned back to the pool.
+
+        See :py:meth:`AsyncIOConnection.query_json()
+        <edgedb.AsyncIOConnection.query_json>` for details.
+
+    .. py:coroutinemethod:: query_one_json(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a singleton-returning
+        query and return its element in JSON. The temporary connection is
+        automatically returned back to the pool.
+
+        See :py:meth:`AsyncIOConnection.query_one_json()
+        <edgedb.AsyncIOConnection.query_one_json>` for details.
+
+    .. py:coroutinemethod:: execute(query)
+
+        Acquire a connection and use it to execute an EdgeQL command
+        (or commands).  The temporary connection is automatically
+        returned back to the pool.
+
+        See :py:meth:`AsyncIOConnection.execute()
+        <edgedb.AsyncIOConnection.execute>` for details.
+
+
+.. py:class:: AsyncIORetry
+
+    Represents a wrapper that yields :py:class:`AsyncIOTransaction`
+    object when iterating.
+
+    See :py:meth:`AsyncIOConnection.retry()` method for an example.
+
+    .. py:coroutinemethod:: __anext__()
+
+        Yields `AsyncIOTransaction` object every time transaction has to
+        be repeated.
+
+.. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
