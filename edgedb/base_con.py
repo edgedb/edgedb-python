@@ -97,7 +97,11 @@ class BaseConnection:
         return f'_edgedb_{prefix}_{_uid_counter():x}_'
 
     def _get_last_status(self) -> typing.Optional[str]:
-        status = self._protocol.last_status
+        if self._impl is None:
+            return None
+        if self._impl._protocol is None:
+            return None
+        status = self._impl._protocol.last_status
         if status is not None:
             status = status.decode()
         return status

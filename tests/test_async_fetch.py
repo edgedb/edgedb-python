@@ -179,6 +179,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         ''')
         self.assertEqual(r, '[]')
 
+        self.assertTrue(self.con._get_last_status().startswith('DROP'))
+
     async def test_async_fetch_single_command_02(self):
         r = await self.con.query('''
             SET MODULE default;

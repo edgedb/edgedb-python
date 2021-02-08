@@ -162,6 +162,8 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         ''')
         self.assertEqual(r, '[]')
 
+        self.assertTrue(self.con._get_last_status().startswith('DROP'))
+
     def test_sync_fetch_single_command_02(self):
         r = self.con.query('''
             SET MODULE default;
