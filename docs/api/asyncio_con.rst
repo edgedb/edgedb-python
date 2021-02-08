@@ -286,8 +286,8 @@ Connection
                     value=value,
                 )
 
-        Note executing queries on ``tx`` object rather than the original
-        connection.
+        Note that we are executing queries on the ``tx`` object,
+        rather than on the original connection `con`.
 
     .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
         **Deprecated**. Use :py:meth:`retry` or :py:meth:`try_transaction`.
