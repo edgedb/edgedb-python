@@ -230,8 +230,65 @@ Connection
             If the results of *query* are desired, :py:meth:`query` or
             :py:meth:`query_one` should be used instead.
 
+    .. py:method:: retry()
+
+        Open a retryable transaction loop.
+
+        This is the preferred method of initiating and running a database
+        transaction in a robust fashion.  The `retry()` transaction loop will
+        attempt to re-execute the transaction loop body if a transient error
+        occurs, such as a network error or a transaction serialization error.
+
+        Returns an instance of :py:class:`Retry`.
+
+        See :ref:`edgedb-python-blocking-api-transaction` for more details.
+
+        Example:
+
+        .. code-block:: python
+
+            for tx in con.retry():
+                with tx:
+                    value = tx.query_one("SELECT Counter.value")
+                    tx.execute(
+                        "UPDATE Counter SET { value := <int64>$value }",
+                        value=value + 1,
+                    )
+
+        Note that we are executing queries on the ``tx`` object rather
+        than on the original connection.
+
+    .. py:method:: try_transaction()
+
+        Execute a non-retryable transaction.
+
+        Contrary to ``retry()``, ``try_transaction()`` will not attempt
+        to re-run the nested code block in case a retryable error happens.
+
+        This is a low-level API and it is advised to use the ``retry()``
+        method instead.
+
+        A call to ``try_transaction()`` returns
+        :py:class:`AsyncIOTransaction`.
+
+        Example:
+
+        .. code-block:: python
+
+            with con.try_transaction() as tx:
+                value = tx.query_one("SELECT Counter.value")
+                tx.execute(
+                    "UPDATE Counter SET { value := <int64>$value }",
+                    value=value + 1,
+                )
+
+        Note that we are executing queries on the ``tx`` object,
+        rather than on the original connection ``con``.
+
 
     .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
+
+        **Deprecated**. Use :py:meth:`retry` or :py:meth:`try_transaction`.
 
         Create a :py:class:`Transaction` object.
 
@@ -264,55 +321,70 @@ Connection
 Transactions
 ============
 
-The most common way to use transactions is through a context statement:
+The most robust way to execute transactional code is to use the
+``retry()`` loop API:
 
 .. code-block:: python
 
-   with connection.transaction():
-       connection.execute("INSERT User { name := 'Don' }")
+    for tx in pool.retry():
+        with tx:
+            tx.execute("INSERT User { name := 'Don' }")
 
-It is possible to nest transactions (a nested transaction context will create
-a savepoint):
+Note that we execute queries on the ``tx`` object in the above
+example, rather than on the original connection pool ``pool``
+object.
 
-.. code-block:: python
+The ``retry()`` API guarantees that:
 
-   with connection.transaction():
-       connection.execute(
-           'CREATE TYPE User { CREATE PROPERTY name -> str }')
+1. Transactions are executed atomically;
+2. If a transaction is failed for any of the number of transient errors
+   (i.e.  a network failure or a concurrent update error), the transaction
+   would be retried;
+3. If any other, non-retryable exception occurs, the transaction is
+   rolled back, and the exception is propagated, immediately aborting the
+   ``retry()`` block.
 
-       try:
-           # Create a savepoint:
-           with connection.transaction():
-               connection.execute(
-                   "INSERT User { name := 'Don' }")
-               # This nested savepoint will be
-               # automatically rolled back:
-               raise Exception
-       except:
-           # Ignore exception
-           pass
-
-       # Because the nested savepoint was rolled back, there
-       # will be nothing in `User`.
-       assert connection.query('SELECT User') == []
-
-Alternatively, transactions can be used without a ``with`` block:
+The key implication of retrying transactions is that the entire
+nested code block can be re-run, including any non-querying
+Python code. Here is an example:
 
 .. code-block:: python
 
-    tr = connection.transaction()
-    tr.start()
-    try:
-        ...
-    except:
-        tr.rollback()
-        raise
-    else:
-        tr.commit()
+    for tx in pool.retry():
+        with tx:
+            user = tx.fetch_one(
+                "SELECT User { email } FILTER .login = <str>$login",
+                login=login,
+            )
+            data = httpclient.get(
+                'https://service.local/email_info',
+                params=dict(email=user.email),
+            )
+            user = tx.fetch_one('''
+                    UPDATE User FILTER .login = <str>$login
+                    SET { email_info := <json>$data}
+                ''',
+                login=login,
+                data=data,
+            )
 
+In the above example, the execution of the HTTP request would be retried
+too. The core of the issue is that whenever transaction is interrupted
+user might have the email changed (as the result of concurrent
+transaction), so we have to redo all the work done.
 
-See also the
-:py:meth:`BlockingIOConnection.transaction()` function.
+Generally it's recommended to not execute any long running
+code within the transaction unless absolutely necessary.
+
+Transactions allocate expensive server resources and having
+too many concurrently running long-running transactions will
+negatively impact the performance of the DB server.
+
+See also:
+
+* RFC1004_
+* :py:meth:`BlockingIOConnection.retry()`
+* :py:meth:`BlockingIOConnection.try_transaction()`
 
 
 .. py:class:: Transaction()
@@ -340,3 +412,18 @@ See also the
         start and commit/rollback the transaction or savepoint block
         automatically when entering and exiting the code inside the
         context manager block.
+
+
+.. py:class:: Retry
+
+    Represents a wrapper that yields :py:class:`Transaction`
+    object when iterating.
+
+    See :py:meth:`BlockingIOConnection.retry()` method for an example.
+
+    .. py:coroutinemethod:: __next__()
+
+        Yields :py:class:`Transaction` object every time transaction has to
+        be repeated.
+
+.. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
