@@ -440,3 +440,23 @@ class TestSyncFetch(tb.SyncQueryTestCase):
                 r"extra {'b'}"):
 
             self.con.query("""SELECT <int64>$a;""", a=1, b=2)
+
+    async def test_sync_log_message(self):
+        msgs = []
+
+        def on_log(con, msg):
+            msgs.append(msg)
+
+        self.con.add_log_listener(on_log)
+        try:
+            self.con.query('configure system set __internal_restart := true;')
+            # self.con.query('SELECT 1')
+        finally:
+            self.con.remove_log_listener(on_log)
+
+        for msg in msgs:
+            if (msg.get_severity_name() == 'NOTICE' and
+                    'server restart is required' in str(msg)):
+                break
+        else:
+            raise AssertionError('a notice message was not delivered')

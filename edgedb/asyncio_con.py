@@ -81,7 +81,7 @@ class _AsyncIOConnectionImpl:
         )
 
     async def connect(self, loop, addrs, config, params, *,
-                      single_attempt=False):
+                      single_attempt=False, connection):
         addr = None
         start = time.monotonic()
         if single_attempt:
@@ -94,7 +94,7 @@ class _AsyncIOConnectionImpl:
             for addr in addrs:
                 try:
                     await asyncio.wait_for(
-                        self._connect_addr(loop, addr, params),
+                        self._connect_addr(loop, addr, params, connection),
                         config.connect_timeout,
                     )
                 except asyncio.TimeoutError as e:
@@ -125,7 +125,7 @@ class _AsyncIOConnectionImpl:
             iteration += 1
             await asyncio.sleep(0.01 + random.random() * 0.2)
 
-    async def _connect_addr(self, loop, addr, params):
+    async def _connect_addr(self, loop, addr, params, connection):
 
         factory = lambda: asyncio_proto.AsyncIOProtocol(
             params, loop)
@@ -151,6 +151,7 @@ class _AsyncIOConnectionImpl:
                 err = errors.ClientConnectionFailedError(message)
             raise err from e
 
+        pr.set_connection(connection)
         await pr.connect()
         self._transport = tr
         self._protocol = pr
@@ -187,7 +188,7 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
 
     def _dispatch_log_message(self, msg):
         for cb in self._log_listeners:
-            self._loop.call_soon(cb, self._ensure_proxied(), msg)
+            self._loop.call_soon(cb, self, msg)
 
     async def ensure_connected(self, *, single_attempt=False):
         if not self._impl or self._impl.is_closed():
@@ -199,7 +200,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         self._impl = _AsyncIOConnectionImpl()
         await self._impl.connect(self._loop, self._addrs,
                                  self._config, self._params,
-                                 single_attempt=single_attempt)
+                                 single_attempt=single_attempt,
+                                 connection=self)
 
     async def _fetchall(
         self,

@@ -853,3 +853,24 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
             self.assertIsNot(conn_before, conn_after, "Reconnect expected")
         finally:
             await con.aclose()
+
+    async def test_async_log_message(self):
+        msgs = []
+
+        def on_log(con, msg):
+            msgs.append(msg)
+
+        self.con.add_log_listener(on_log)
+        try:
+            await self.con.query(
+                'configure system set __internal_restart := true;')
+            await asyncio.sleep(0.01)  # allow the loop to call the callback
+        finally:
+            self.con.remove_log_listener(on_log)
+
+        for msg in msgs:
+            if (msg.get_severity_name() == 'NOTICE' and
+                    'server restart is required' in str(msg)):
+                break
+        else:
+            raise AssertionError('a notice message was not delivered')

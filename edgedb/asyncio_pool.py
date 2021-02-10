@@ -63,6 +63,7 @@ class PoolConnection(asyncio_con.AsyncIOConnection):
         self._holder = None
         self._detached = True
         new_conn._impl = impl
+        new_conn._impl._protocol.set_connection(new_conn)
         new_conn._holder = holder
         return new_conn
 
