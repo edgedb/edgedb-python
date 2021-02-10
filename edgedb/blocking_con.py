@@ -52,7 +52,8 @@ class _BlockingIOConnectionImpl:
         self._addr = None
         self._protocol = None
 
-    def connect(self, addrs, config, params, *, single_attempt=False):
+    def connect(self, addrs, config, params, *,
+                single_attempt=False, connection):
         addr = None
         start = time.monotonic()
         if single_attempt:
@@ -64,7 +65,7 @@ class _BlockingIOConnectionImpl:
         while True:
             for addr in addrs:
                 try:
-                    self._connect_addr(addr, config, params)
+                    self._connect_addr(addr, config, params, connection)
                 except TimeoutError as e:
                     if iteration == 1 or time.monotonic() < max_time:
                         continue
@@ -94,7 +95,7 @@ class _BlockingIOConnectionImpl:
             iteration += 1
             time.sleep(0.01 + random.random() * 0.2)
 
-    def _connect_addr(self, addr, config, params):
+    def _connect_addr(self, addr, config, params, connection):
         timeout = config.connect_timeout
         deadline = time.monotonic() + timeout
 
@@ -131,6 +132,7 @@ class _BlockingIOConnectionImpl:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
             proto = blocking_proto.BlockingIOProtocol(params, sock)
+            proto.set_connection(connection)
 
             sock.settimeout(time_left)
             proto.sync_connect()
@@ -176,7 +178,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         assert not self._borrowed_for, self._borrowed_for
         self._impl = _BlockingIOConnectionImpl()
         self._impl.connect(self._addrs, self._config, self._params,
-                           single_attempt=single_attempt)
+                           single_attempt=single_attempt, connection=self)
         assert self._impl._protocol
 
     def _get_protocol(self):
