@@ -118,6 +118,7 @@ cdef class SansIOProtocol:
         self.con_params = con_params
 
         self.connected = False
+        self.cancelled = False
         self.backend_secret = None
 
         self.xact_status = TRANS_UNKNOWN
@@ -323,14 +324,22 @@ cdef class SansIOProtocol:
 
         return cardinality, in_dc, out_dc, attrs
 
+    cdef ensure_connected(self):
+        if self.cancelled:
+            raise errors.ClientConnectionClosedError(
+                'the connection has been closed '
+                'because an operation was cancelled on it')
+        if not self.connected:
+            raise errors.ClientConnectionClosedError(
+                'the connection has been closed')
+
     async def _execute(self, BaseCodec in_dc, BaseCodec out_dc, args, kwargs):
         cdef:
             WriteBuffer packet
             WriteBuffer buf
             char mtype
 
-        if not self.connected:
-            raise RuntimeError('not connected')
+        self.ensure_connected()
         self.reset_status()
 
         packet = WriteBuffer.new()
@@ -521,8 +530,7 @@ cdef class SansIOProtocol:
             WriteBuffer buf
             char mtype
 
-        if not self.connected:
-            raise RuntimeError('not connected')
+        self.ensure_connected()
         self.reset_status()
 
         buf = WriteBuffer.new_message(EXECUTE_SCRIPT_MSG)
@@ -577,8 +585,7 @@ cdef class SansIOProtocol:
             BaseCodec in_dc
             BaseCodec out_dc
 
-        if not self.connected:
-            raise RuntimeError('not connected')
+        self.ensure_connected()
         self.reset_status()
 
         codecs = qc.get(
@@ -665,9 +672,7 @@ cdef class SansIOProtocol:
             WriteBuffer buf
             char mtype
 
-        if not self.connected:
-            raise RuntimeError('not connected')
-
+        self.ensure_connected()
         self.reset_status()
 
         buf = WriteBuffer.new_message(DUMP_MSG)
@@ -748,9 +753,7 @@ cdef class SansIOProtocol:
             WriteBuffer buf
             char mtype
 
-        if not self.connected:
-            raise RuntimeError('not connected')
-
+        self.ensure_connected()
         self.reset_status()
 
         buf = WriteBuffer.new_message(RESTORE_MSG)

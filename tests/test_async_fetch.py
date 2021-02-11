@@ -179,6 +179,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         ''')
         self.assertEqual(r, '[]')
 
+        self.assertTrue(self.con._get_last_status().startswith('DROP'))
+
     async def test_async_fetch_single_command_02(self):
         r = await self.con.query('''
             SET MODULE default;
@@ -747,8 +749,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         con2 = await self.connect(database=self.con.dbname)
 
-        async with self.con.transaction():
-            await self.con.query_one(
+        async with self.con.try_transaction() as tx:
+            await tx.query_one(
                 'select sys::_advisory_lock(<int64>$0)',
                 lock_key)
 
@@ -757,8 +759,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
                     async def exec_to_fail():
                         with self.assertRaises(ConnectionAbortedError):
-                            async with con2.transaction():
-                                await con2.query(
+                            async with con2.try_transaction():
+                                await tx.query(
                                     'select sys::_advisory_lock(<int64>$0)',
                                     lock_key,
                                 )
@@ -770,7 +772,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
             finally:
                 self.assertEqual(
-                    await self.con.query(
+                    await tx.query(
                         'select sys::_advisory_unlock(<int64>$0)', lock_key),
                     [True])
 
@@ -793,9 +795,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
-            async with self.con.transaction():
-                await self.con.query_one(
-                    'SELECT <MyEnum><str>$0', 'Oups')
+            async with self.con.try_transaction() as tx:
+                await tx.query_one('SELECT <MyEnum><str>$0', 'Oups')
 
         self.assertEqual(
             await self.con.query_one('SELECT <MyEnum>$0', 'A'),
@@ -807,9 +808,8 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
-            async with self.con.transaction():
-                await self.con.query_one(
-                    'SELECT <MyEnum>$0', 'Oups')
+            async with self.con.try_transaction() as tx:
+                await tx.query_one('SELECT <MyEnum>$0', 'Oups')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidArgumentError, 'a str or edgedb.EnumValue'):
@@ -825,3 +825,52 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         self.assertEqual(
             await self.con._fetchall_json_elements('SELECT {"aaa", "bbb"}'),
             edgedb.Set(['"aaa"', '"bbb"']))
+
+    async def test_async_cancel_01(self):
+        has_sleep = await self.con.query_one("""
+            SELECT EXISTS(
+                SELECT schema::Function FILTER .name = 'sys::_sleep'
+            )
+        """)
+        if not has_sleep:
+            self.skipTest("No sys::_sleep function")
+
+        con = await self.connect(database=self.con.dbname)
+
+        try:
+            self.assertEqual(await con.query_one('SELECT 1'), 1)
+
+            conn_before = con._impl
+
+            with self.assertRaises(asyncio.TimeoutError):
+                await asyncio.wait_for(
+                    con.query_one('SELECT sys::_sleep(10)'),
+                    timeout=0.1)
+
+            await con.query('SELECT 2')
+
+            conn_after = con._impl
+            self.assertIsNot(conn_before, conn_after, "Reconnect expected")
+        finally:
+            await con.aclose()
+
+    async def test_async_log_message(self):
+        msgs = []
+
+        def on_log(con, msg):
+            msgs.append(msg)
+
+        self.con.add_log_listener(on_log)
+        try:
+            await self.con.query(
+                'configure system set __internal_restart := true;')
+            await asyncio.sleep(0.01)  # allow the loop to call the callback
+        finally:
+            self.con.remove_log_listener(on_log)
+
+        for msg in msgs:
+            if (msg.get_severity_name() == 'NOTICE' and
+                    'server restart is required' in str(msg)):
+                break
+        else:
+            raise AssertionError('a notice message was not delivered')

@@ -39,8 +39,8 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
         self.msg_waiter = None
 
     cpdef abort(self):
-        self.terminate()
         self.connected = False
+        self.terminate()
         if self.transport is not None:
             self.transport.close()
             self.transport = None
@@ -54,17 +54,20 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
         if self.buffer.take_message():
             return
 
-        while True:
+        try:
+            self.msg_waiter = self.loop.create_future()
+            await self.msg_waiter
+            return
+        except asyncio.CancelledError:
+            # TODO: A proper cancellation requires server/protocol
+            # support, which isn't yet available.  Therefore,
+            # we're disabling asyncio cancellation completely
+            # until we can implement it properly.
             try:
-                self.msg_waiter = self.loop.create_future()
-                await self.msg_waiter
-                return
-            except asyncio.CancelledError:
-                # TODO: A proper cancellation requires server/protocol
-                # support, which isn't yet available.  Therefore,
-                # we're disabling asyncio cancellation completely
-                # until we can implement it properly.
-                pass
+                self.cancelled = True
+                self.abort()
+            finally:
+                raise
 
     async def try_recv_eagerly(self):
         pass

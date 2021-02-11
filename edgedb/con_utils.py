@@ -42,7 +42,9 @@ class ConnectionParameters(typing.NamedTuple):
 
 class ClientConfiguration(typing.NamedTuple):
 
+    connect_timeout: float
     command_timeout: float
+    wait_until_available: float
 
 
 _system = platform.uname().system
@@ -324,7 +326,8 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
 
 
 def parse_connect_arguments(*, dsn, host, port, user, password,
-                            database, admin, timeout, command_timeout,
+                            database, admin,
+                            timeout, command_timeout, wait_until_available,
                             server_settings):
 
     if command_timeout is not None:
@@ -348,22 +351,26 @@ def parse_connect_arguments(*, dsn, host, port, user, password,
     )
 
     config = ClientConfiguration(
+        connect_timeout=timeout,
         command_timeout=command_timeout,
+        wait_until_available=wait_until_available or 0,
     )
 
     return addrs, params, config
 
 
-def render_client_no_connection_error(prefix, addr):
+def render_client_no_connection_error(prefix, addr, attempts, duration):
     if isinstance(addr, str):
         msg = (
             f'{prefix}'
+            f'\n\tAfter {attempts} attempts in {duration:.1f} sec'
             f'\n\tIs the server running locally and accepting '
             f'\n\tconnections on Unix domain socket {addr!r}?'
         )
     else:
         msg = (
             f'{prefix}'
+            f'\n\tAfter {attempts} attempts in {duration:.1f} sec'
             f'\n\tIs the server running on host {addr[0]!r} '
             f'and accepting '
             f'\n\tTCP/IP connections on port {addr[1]}?'

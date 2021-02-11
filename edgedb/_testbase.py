@@ -32,6 +32,9 @@ import edgedb
 from edgedb import _cluster as edgedb_cluster
 
 
+log = logging.getLogger(__name__)
+
+
 @contextlib.contextmanager
 def silence_asyncio_long_exec_warning():
     def flt(log_record):
@@ -215,6 +218,14 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                                 f'{expected_val!r})') from e
                 raise
 
+    def addCleanup(self, func, *args, **kwargs):
+        @functools.wraps(func)
+        def cleanup():
+            res = func(*args, **kwargs)
+            if inspect.isawaitable(res):
+                self.loop.run_until_complete(res)
+        super().addCleanup(cleanup)
+
 
 class ClusterTestCase(TestCase):
 
@@ -278,7 +289,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     'CONFIGURE SESSION SET __internal_testmode := true;'))
 
         if self.ISOLATED_METHODS:
-            self.xact = self.con.transaction()
+            self.xact = self.con.try_transaction()
             self.loop.run_until_complete(self.xact.start())
 
         if self.SETUP_METHOD:
@@ -335,9 +346,9 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             if script:
                 # The setup is expected to contain a CREATE MIGRATION,
                 # which needs to be wrapped in a transaction.
-                tx = cls.con.transaction()
+                tx = cls.con.try_transaction()
                 cls.loop.run_until_complete(tx.start())
-                cls.loop.run_until_complete(cls.con.execute(script))
+                cls.loop.run_until_complete(tx.execute(script))
                 cls.loop.run_until_complete(tx.commit())
                 del tx
 
@@ -417,6 +428,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     cls.loop.run_until_complete(
                         cls.admin_conn.execute(script))
 
+            except Exception:
+                log.exception('error running teardown')
+                # skip the exception so that original error is shown instead
+                # of finalizer error
             finally:
                 try:
                     if cls.admin_conn is not None:

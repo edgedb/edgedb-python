@@ -38,7 +38,7 @@ class TestConUtils(unittest.TestCase):
                     'user': 'user',
                     'database': 'edgedb',
                 },
-                {},
+                {'wait_until_available': 30},
             )
         },
 
@@ -57,7 +57,7 @@ class TestConUtils(unittest.TestCase):
                     'password': 'passw',
                     'database': 'testdb'
                 },
-                {},
+                {'wait_until_available': 30},
             )
         },
 
@@ -83,7 +83,8 @@ class TestConUtils(unittest.TestCase):
                     'password': 'passw2',
                     'database': 'db2'
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -113,7 +114,8 @@ class TestConUtils(unittest.TestCase):
                     'database': 'db2',
                     'server_settings': {'ssl': 'False'},
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -136,6 +138,7 @@ class TestConUtils(unittest.TestCase):
                     'database': 'abcdef',
                 }, {
                     'command_timeout': 10,
+                    'wait_until_available': 30,
                 })
         },
 
@@ -148,7 +151,8 @@ class TestConUtils(unittest.TestCase):
                     'password': '123123',
                     'database': 'abcdef'
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -159,7 +163,8 @@ class TestConUtils(unittest.TestCase):
                     'database': 'db',
                     'user': 'user',
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -170,7 +175,8 @@ class TestConUtils(unittest.TestCase):
                     'database': 'db',
                     'user': 'user',
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -185,7 +191,8 @@ class TestConUtils(unittest.TestCase):
                     'database': 'db',
                     'user': 'foo',
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -199,7 +206,8 @@ class TestConUtils(unittest.TestCase):
                     'database': 'db',
                     'user': 'foo',
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -214,7 +222,8 @@ class TestConUtils(unittest.TestCase):
                     'database': 'db',
                     'user': 'foo',
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -234,7 +243,8 @@ class TestConUtils(unittest.TestCase):
                     'password': 'ask',
                     'database': 'db',
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -255,7 +265,8 @@ class TestConUtils(unittest.TestCase):
                     'password': 'ask',
                     'database': 'db',
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -266,7 +277,8 @@ class TestConUtils(unittest.TestCase):
                     'user': 'spam',
                     'database': 'dbname'
                 },
-                {})
+                {'wait_until_available': 30},
+            )
         },
 
         {
@@ -296,7 +308,7 @@ class TestConUtils(unittest.TestCase):
                     'user': 'user',
                     'database': 'edgedb',
                 },
-                {}
+                {'wait_until_available': 30},
             )
         },
 
@@ -309,7 +321,7 @@ class TestConUtils(unittest.TestCase):
                     'user': 'user',
                     'database': 'edgedb',
                 },
-                {}
+                {'wait_until_available': 30},
             )
         },
 
@@ -321,7 +333,7 @@ class TestConUtils(unittest.TestCase):
                     'user': 'user',
                     'database': 'edgedb',
                 },
-                {}
+                {'wait_until_available': 30},
             )
         },
     ]
@@ -390,7 +402,8 @@ class TestConUtils(unittest.TestCase):
                 dsn=dsn, host=host, port=port, user=user, password=password,
                 database=database, admin=admin,
                 timeout=timeout, command_timeout=command_timeout,
-                server_settings=server_settings)
+                server_settings=server_settings,
+                wait_until_available=30)
 
             params = {k: v for k, v in params._asdict().items()
                       if v is not None}
@@ -444,7 +457,7 @@ class TestConUtils(unittest.TestCase):
                 'result': (
                     [('abc', 5656)],
                     {'user': '__test__', 'database': 'edgedb'},
-                    {}
+                    {'wait_until_available': 30},
                 )
             })
 

@@ -24,6 +24,7 @@ from ._version import __version__
 from edgedb.datatypes.datatypes import Tuple, NamedTuple, EnumValue
 from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
 
+from .abstract import Executor, AsyncIOExecutor
 from .asyncio_con import async_connect, AsyncIOConnection
 from .asyncio_pool import create_async_pool, AsyncIOPool
 from .blocking_con import connect, BlockingIOConnection
@@ -46,6 +47,9 @@ from .errors import (
     UnexpectedMessageError,
     InputDataError,
     ResultCardinalityMismatchError,
+    CapabilityError,
+    UnsupportedCapabilityError,
+    DisabledCapabilityError,
     QueryError,
     InvalidSyntaxError,
     EdgeQLSyntaxError,
@@ -105,6 +109,10 @@ from .errors import (
     WarningMessage,
     ClientError,
     ClientConnectionError,
+    ClientConnectionFailedError,
+    ClientConnectionFailedTemporarilyError,
+    ClientConnectionTimeoutError,
+    ClientConnectionClosedError,
     InterfaceError,
     QueryArgumentError,
     MissingArgumentError,

@@ -11,7 +11,7 @@ Here are some ways to connect to an EdgeDB instance by a name:
    conn = await edgedb.async_connect('my_name')
    pool = await edgedb.create_async_pool('my_name')
 
-This usually refer to instances created by the command-line tool:
+This usually refers to instances created by the command-line tool:
 
 .. code-block:: shell
 

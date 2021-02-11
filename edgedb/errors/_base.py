@@ -79,10 +79,14 @@ class EdgeDBErrorMeta(Meta):
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     _code = None
+    tags = frozenset()
 
     def __init__(self, *args, **kwargs):
         self._attrs = {}
         super().__init__(*args, **kwargs)
+
+    def has_tag(self, tag):
+        return tag in self.tags
 
     @property
     def _position(self):
