@@ -196,7 +196,7 @@ class Cluster:
         conn_args['host'] = str(self._runstate_dir)
         conn_args['admin'] = True
         # startup of the database may take > 30 sec on github-actions
-        conn_args['wait_until_available'] = 120
+        conn_args['wait_until_available'] = 240
         conn = self.connect(**conn_args)
 
         try:
