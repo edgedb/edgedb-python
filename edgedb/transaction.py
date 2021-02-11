@@ -22,6 +22,7 @@ import typing
 
 from . import abstract
 from . import base_con
+from . import enums
 from . import errors
 from .datatypes import datatypes
 from .protocol import protocol
@@ -174,7 +175,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         self._connection._borrowed_for = base_con.BorrowReason.TRANSACTION
         self._connection_impl = self._connection._impl
         try:
-            await self._connection_impl.execute(query)
+            await self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             self._connection._borrowed_for = None
@@ -185,7 +186,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
     async def __commit(self):
         query = self._make_commit_query()
         try:
-            await self._connection_impl.execute(query)
+            await self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -199,7 +200,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
     async def __rollback(self):
         query = self._make_rollback_query()
         try:
-            await self._connection_impl.execute(query)
+            await self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -286,7 +287,8 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
             ... ''')
         """
-        await self._connection_impl._protocol.simple_query(query)
+        await self._connection_impl._protocol.simple_query(
+            query, enums.Capability.EXECUTE)
 
 
 class Transaction(BaseTransaction, abstract.Executor):
@@ -322,7 +324,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         self._connection._borrowed_for = base_con.BorrowReason.TRANSACTION
         self._connection_impl = self._connection._impl
         try:
-            self._connection_impl.execute(query)
+            self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             self._connection._borrowed_for = None
@@ -333,7 +335,7 @@ class Transaction(BaseTransaction, abstract.Executor):
     def __commit(self):
         query = self._make_commit_query()
         try:
-            self._connection_impl.execute(query)
+            self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -345,7 +347,7 @@ class Transaction(BaseTransaction, abstract.Executor):
     def __rollback(self):
         query = self._make_rollback_query()
         try:
-            self._connection_impl.execute(query)
+            self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -415,4 +417,5 @@ class Transaction(BaseTransaction, abstract.Executor):
         )
 
     def execute(self, query: str) -> None:
-        self._connection_impl._protocol.sync_simple_query(query)
+        self._connection_impl._protocol.sync_simple_query(
+            query, enums.Capability.EXECUTE)

@@ -29,6 +29,7 @@ from . import base_con
 from . import compat
 from . import con_utils
 from . import errors
+from . import enums
 from . import retry as _retry
 from . import transaction as _transaction
 from . import legacy_transaction
@@ -42,10 +43,12 @@ from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
 class _AsyncIOConnectionImpl:
 
-    def __init__(self):
+    def __init__(self, codecs_registry, query_cache):
         self._addr = None
         self._transport = None
         self._protocol = None
+        self._codecs_registry = codecs_registry
+        self._query_cache = query_cache
 
     def is_closed(self):
         transport = self._transport
@@ -128,8 +131,8 @@ class _AsyncIOConnectionImpl:
         self._protocol = pr
         self._addr = addr
 
-    async def execute(self, query):
-        await self._protocol.simple_query(query)
+    async def privileged_execute(self, query):
+        await self._protocol.simple_query(query, enums.Capability.ALL)
 
     def close(self):
         if self._protocol:
@@ -168,7 +171,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
     # overriden by connection pool
     async def _reconnect(self, single_attempt=False):
         assert not self._borrowed_for, self._borrowed_for
-        self._impl = _AsyncIOConnectionImpl()
+        self._impl = _AsyncIOConnectionImpl(
+            self._codecs_registry, self._query_cache)
         await self._impl.connect(self._loop, self._addrs,
                                  self._config, self._params,
                                  single_attempt=single_attempt,
@@ -346,7 +350,8 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
             raise base_con.borrow_error(self._borrowed_for)
         if not self._impl or self._impl.is_closed():
             await self._reconnect()
-        await self._impl._protocol.simple_query(query)
+        await self._impl._protocol.simple_query(
+            query, enums.Capability.EXECUTE)
 
     def transaction(
         self, *,

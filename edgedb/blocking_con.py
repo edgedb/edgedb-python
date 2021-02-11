@@ -26,6 +26,7 @@ import warnings
 from . import abstract
 from . import base_con
 from . import con_utils
+from . import enums
 from . import errors
 from . import transaction as _transaction
 from . import retry as _retry
@@ -39,9 +40,11 @@ from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
 class _BlockingIOConnectionImpl:
 
-    def __init__(self):
+    def __init__(self, codecs_registry, query_cache):
         self._addr = None
         self._protocol = None
+        self._codecs_registry = codecs_registry
+        self._query_cache = query_cache
 
     def connect(self, addrs, config, params, *,
                 single_attempt=False, connection):
@@ -132,8 +135,8 @@ class _BlockingIOConnectionImpl:
             sock.close()
             raise
 
-    def execute(self, query: str) -> None:
-        self._protocol.sync_simple_query(query)
+    def privileged_execute(self, query):
+        self._protocol.sync_simple_query(query, enums.Capability.ALL)
 
     def is_closed(self):
         proto = self._protocol
@@ -163,7 +166,8 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
 
     def _reconnect(self, single_attempt=False):
         assert not self._borrowed_for, self._borrowed_for
-        self._impl = _BlockingIOConnectionImpl()
+        self._impl = _BlockingIOConnectionImpl(
+            self._codecs_registry, self._query_cache)
         self._impl.connect(self._addrs, self._config, self._params,
                            single_attempt=single_attempt, connection=self)
         assert self._impl._protocol
@@ -319,7 +323,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         return self.query_one_json(query, *args, **kwargs)
 
     def execute(self, query: str) -> None:
-        self._get_protocol().sync_simple_query(query)
+        self._get_protocol().sync_simple_query(query, enums.Capability.EXECUTE)
 
     def transaction(self, *, isolation: str = None, readonly: bool = None,
                     deferrable: bool = None) -> legacy_transaction.Transaction:

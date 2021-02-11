@@ -49,6 +49,7 @@ from edgedb.pgproto cimport pgproto
 from edgedb.pgproto cimport hton
 from edgedb.pgproto.pgproto import UUID
 
+
 from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          int32_t, uint32_t, int64_t, uint64_t, \
                          UINT32_MAX
@@ -56,6 +57,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 from edgedb.datatypes cimport datatypes
 from . cimport cpythonx
 
+from edgedb import enums
 from edgedb import errors
 from edgedb import scram
 
@@ -525,7 +527,7 @@ cdef class SansIOProtocol:
         else:
             return result, attrs
 
-    async def simple_query(self, str query):
+    async def simple_query(self, str query, capabilities: enums.Capability):
         cdef:
             WriteBuffer buf
             char mtype
@@ -533,8 +535,17 @@ cdef class SansIOProtocol:
         self.ensure_connected()
         self.reset_status()
 
+
         buf = WriteBuffer.new_message(EXECUTE_SCRIPT_MSG)
-        buf.write_int16(0)  # no headers
+        cap_bytes = cpython.PyBytes_FromStringAndSize(NULL, sizeof(uint64_t))
+        hton.pack_int64(
+            cpython.PyBytes_AsString(cap_bytes),
+            <int64_t><uint64_t>capabilities,
+        )
+        self.write_headers(
+            buf,
+            {QUERY_OPT_ALLOW_CAPABILITIES: cap_bytes},
+        )
         buf.write_len_prefixed_utf8(query)
         self.write(buf.end_message())
 

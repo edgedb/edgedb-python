@@ -221,7 +221,7 @@ class AsyncIOTransaction(BaseTransaction):
 
         query = self._make_start_query()
         try:
-            await self._connection_impl.execute(query)
+            await self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -231,7 +231,7 @@ class AsyncIOTransaction(BaseTransaction):
     async def __commit(self):
         query = self._make_commit_query()
         try:
-            await self._connection_impl.execute(query)
+            await self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -241,7 +241,7 @@ class AsyncIOTransaction(BaseTransaction):
     async def __rollback(self):
         query = self._make_rollback_query()
         try:
-            await self._connection_impl.execute(query)
+            await self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -287,7 +287,7 @@ class Transaction(BaseTransaction):
         self._connection.ensure_connected()
         self._connection_impl = self._connection._impl
         try:
-            self._connection_impl.execute(query)
+            self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -297,7 +297,7 @@ class Transaction(BaseTransaction):
     def __commit(self):
         query = self._make_commit_query()
         try:
-            self._connection_impl.execute(query)
+            self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -307,7 +307,7 @@ class Transaction(BaseTransaction):
     def __rollback(self):
         query = self._make_rollback_query()
         try:
-            self._connection_impl.execute(query)
+            self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
