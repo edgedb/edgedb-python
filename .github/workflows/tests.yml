@@ -13,9 +13,9 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
-      max-parallel: 4
       matrix:
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.6, 3.7, 3.8, 3.9]
+        edgedb-version: [stable, nightly]
         os: [ubuntu-latest, macos-latest]
 
     steps:
@@ -34,17 +34,15 @@ jobs:
         version_line_pattern: |
           __version__\s*=\s*(?:['"])([[:PEP440:]])(?:['"])
 
-    - name: Install EdgeDB
-      env:
-        OS_NAME: ${{ matrix.os }}
-        SLOT: 1-alpha7-dev5259
       # If this is a release PR, skip tests.  They will be run
       # as part of the release process, and running them here
       # might interfere with the release automation due to
       # branch restrictions.
+    - name: Install EdgeDB
+      uses: edgedb/setup-edgedb@v1
       if: steps.release.outputs.version == 0
-      run: |
-        .github/workflows/install-edgedb.sh
+      with:
+        server-version: ${{ matrix.edgedb-version }}
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
@@ -56,12 +54,19 @@ jobs:
       if: steps.release.outputs.version == 0
       run: |
         pip install --upgrade setuptools pip wheel
-        pip download --dest=/tmp/deps .[test]
-        pip install -U --no-index --find-links=/tmp/deps /tmp/deps/*
+        pip install -e .[test]
 
     - name: Test
       if: steps.release.outputs.version == 0
-      env:
-        EDGEDB_CI_SLOT: 1-alpha7-dev5259
       run: |
-        make && make quicktest
+        python setup.py test
+
+  # This job exists solely to act as the test job aggregate to be
+  # targeted by branch policies.
+  regression-tests:
+    name: "Regression Tests"
+    needs: [test]
+    runs-on: ubuntu-20.04
+
+    steps:
+      - run: echo OK

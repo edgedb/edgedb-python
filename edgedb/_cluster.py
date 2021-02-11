@@ -94,10 +94,7 @@ class Cluster:
 
     @staticmethod
     def get_edgedb_server():
-        try:
-            return f'edgedb-server-{os.environ["EDGEDB_CI_SLOT"]}'
-        except KeyError:
-            return 'edgedb-server'
+        return 'edgedb-server'
 
     def get_status(self):
         data_dir = pathlib.Path(self._data_dir)
