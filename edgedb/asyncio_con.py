@@ -101,7 +101,7 @@ class _AsyncIOConnectionImpl:
                     if iteration == 1 or time.monotonic() < max_time:
                         continue
                     else:
-                        raise errors.ConnectionTimeoutError(
+                        raise errors.ClientConnectionTimeoutError(
                             f"connecting to {addr} failed in"
                             f" {config.connect_timeout} sec"
                         ) from e
