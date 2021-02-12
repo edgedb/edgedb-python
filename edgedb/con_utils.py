@@ -17,8 +17,10 @@
 #
 
 
+import errno
 import os
 import platform
+import re
 import typing
 import urllib.parse
 import warnings
@@ -29,6 +31,19 @@ from . import credentials
 
 
 EDGEDB_PORT = 5656
+ERRNO_RE = re.compile(r"\[Errno (\d+)\]")
+TEMPORARY_ERRORS = (
+    ConnectionAbortedError,
+    ConnectionRefusedError,
+    ConnectionResetError,
+    FileNotFoundError,
+)
+TEMPORARY_ERROR_CODES = frozenset({
+    errno.ECONNREFUSED,
+    errno.ECONNABORTED,
+    errno.ECONNRESET,
+    errno.ENOENT,
+})
 
 
 class ConnectionParameters(typing.NamedTuple):
@@ -376,3 +391,36 @@ def render_client_no_connection_error(prefix, addr, attempts, duration):
             f'\n\tTCP/IP connections on port {addr[1]}?'
         )
     return msg
+
+
+def _extract_errno(s):
+    """Extract multiple errnos from error string
+
+    When we connect to a host that has multiple underlying IP addresses, say
+    ``localhost`` having ``::1`` and ``127.0.0.1``, we get
+    ``OSError("Multiple exceptions:...")`` error without ``.errno`` attribute
+    set. There are multiple ones in the text, so we extract all of them.
+    """
+    result = []
+    for match in ERRNO_RE.finditer(s):
+        result.append(int(match.group(1)))
+    if result:
+        return result
+
+
+def wrap_error(e):
+    message = str(e)
+    if e.errno is None:
+        errnos = _extract_errno(message)
+    else:
+        errnos = [e.errno]
+
+    if errnos:
+        is_temp = any((code in TEMPORARY_ERROR_CODES for code in errnos))
+    else:
+        is_temp = isinstance(e, TEMPORARY_ERRORS)
+
+    if is_temp:
+        return errors.ClientConnectionFailedTemporarilyError(message)
+    else:
+        return errors.ClientConnectionFailedError(message)

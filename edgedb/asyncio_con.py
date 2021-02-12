@@ -18,9 +18,7 @@
 
 
 import asyncio
-import errno
 import random
-import re
 import socket
 import time
 import typing
@@ -40,30 +38,6 @@ from .protocol import asyncio_proto
 from .protocol import protocol
 from .protocol.protocol import CodecsRegistry as _CodecsRegistry
 from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
-
-
-ERRNO_RE = re.compile(r"\[Errno (\d+)\]")
-TEMPORARY_ERRORS = frozenset({
-    errno.ECONNREFUSED,
-    errno.ECONNABORTED,
-    errno.ECONNRESET,
-    errno.ENOENT,
-})
-
-
-def _extract_errno(s):
-    """Extract multiple errnos from error string
-
-    When we connect to a host that has multiple underlying IP addresses, say
-    ``localhost`` having ``::1`` and ``127.0.0.1``, we get
-    ``OSError("Multiple exceptions:...")`` error without ``.errno`` attribute
-    set. There are multiple ones in the text, so we extract all of them.
-    """
-    result = []
-    for match in ERRNO_RE.finditer(s):
-        result.append(int(match.group(1)))
-    if result:
-        return result
 
 
 class _AsyncIOConnectionImpl:
@@ -141,19 +115,15 @@ class _AsyncIOConnectionImpl:
             # All name resolution errors are considered temporary
             raise errors.ClientConnectionFailedTemporarilyError(str(e)) from e
         except OSError as e:
-            message = str(e)
-            if e.errno is None:
-                errnos = _extract_errno(message)
-            else:
-                errnos = [e.errno]
-            if any((code in TEMPORARY_ERRORS for code in errnos)):
-                err = errors.ClientConnectionFailedTemporarilyError(message)
-            else:
-                err = errors.ClientConnectionFailedError(message)
-            raise err from e
+            raise con_utils.wrap_error(e) from e
 
         pr.set_connection(connection)
-        await pr.connect()
+
+        try:
+            await pr.connect()
+        except OSError as e:
+            raise con_utils.wrap_error(e) from e
+
         self._transport = tr
         self._protocol = pr
         self._addr = addr
