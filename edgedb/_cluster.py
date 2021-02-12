@@ -94,7 +94,7 @@ class Cluster:
 
     @staticmethod
     def get_edgedb_server():
-        return 'edgedb-server'
+        return os.environ.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
 
     def get_status(self):
         data_dir = pathlib.Path(self._data_dir)
