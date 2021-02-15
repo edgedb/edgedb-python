@@ -28,6 +28,7 @@ import warnings
 
 from . import abstract
 from . import base_con
+from . import compat
 from . import con_utils
 from . import errors
 from . import retry as _retry
@@ -93,7 +94,7 @@ class _AsyncIOConnectionImpl:
         while True:
             for addr in addrs:
                 try:
-                    await asyncio.wait_for(
+                    await compat.wait_for(
                         self._connect_addr(loop, addr, params, connection),
                         config.connect_timeout,
                     )

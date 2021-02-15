@@ -23,6 +23,7 @@ import random
 
 import edgedb
 
+from edgedb import compat
 from edgedb import _testbase as tb
 from edgedb import asyncio_con
 from edgedb import asyncio_pool
@@ -311,9 +312,18 @@ class TestPool(tb.AsyncQueryTestCase):
             min_size=1, max_size=1,
         ) as pool:
 
+            async with pool.acquire() as con:
+                has_sleep = await con.query_one("""
+                    SELECT EXISTS(
+                        SELECT schema::Function FILTER .name = 'sys::_sleep'
+                    )
+                """)
+                if not has_sleep:
+                    self.skipTest("No sys::_sleep function")
+
             async def sleep_and_release():
                 async with pool.acquire() as con:
-                    await con.execute("SELECT sys::sleep(1)")
+                    await con.execute("SELECT sys::_sleep(1)")
 
             asyncio.ensure_future(sleep_and_release())
             await asyncio.sleep(0.5)
@@ -492,7 +502,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
         with self.assertRaises(asyncio.TimeoutError):
             await flag
-            await asyncio.wait_for(pool.aclose(), timeout=0.1)
+            await compat.wait_for(pool.aclose(), timeout=0.1)
 
         await task
 

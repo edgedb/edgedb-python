@@ -24,6 +24,7 @@ import warnings
 
 from . import abstract
 from . import asyncio_con
+from . import compat
 from . import errors
 from . import transaction as _transaction
 from . import retry as _retry
@@ -528,7 +529,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
         if timeout is None:
             return await _acquire_impl()
         else:
-            return await asyncio.wait_for(
+            return await compat.wait_for(
                 _acquire_impl(), timeout=timeout)
 
     async def release(self, connection):

@@ -21,12 +21,12 @@ import datetime
 import decimal
 import json
 import random
-import unittest
 import uuid
 
 import asyncio
 import edgedb
 
+from edgedb import compat
 from edgedb import _taskgroup as tg
 from edgedb import _testbase as tb
 
@@ -758,9 +758,12 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                 async with tg.TaskGroup() as g:
 
                     async def exec_to_fail():
-                        with self.assertRaises(ConnectionAbortedError):
-                            async with con2.try_transaction():
-                                await tx.query(
+                        with self.assertRaises((
+                            edgedb.ClientConnectionClosedError,
+                            ConnectionAbortedError,
+                        )):
+                            async with con2.try_transaction() as tx2:
+                                await tx2.query(
                                     'select sys::_advisory_lock(<int64>$0)',
                                     lock_key,
                                 )
@@ -820,7 +823,6 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
             await self.con.query_json('SELECT {"aaa", "bbb"}'),
             '["aaa", "bbb"]')
 
-    @unittest.skip  # not merged into edgedb yet
     async def test_json_elements(self):
         self.assertEqual(
             await self.con._fetchall_json_elements('SELECT {"aaa", "bbb"}'),
@@ -843,7 +845,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
             conn_before = con._impl
 
             with self.assertRaises(asyncio.TimeoutError):
-                await asyncio.wait_for(
+                await compat.wait_for(
                     con.query_one('SELECT sys::_sleep(10)'),
                     timeout=0.1)
 

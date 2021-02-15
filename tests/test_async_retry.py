@@ -21,6 +21,7 @@ import asyncio
 import logging
 
 import edgedb
+from edgedb import compat
 from edgedb import _testbase as tb
 
 log = logging.getLogger(__name__)
@@ -128,7 +129,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                 lock.release()
             return res
 
-        results = await asyncio.wait_for(asyncio.gather(
+        results = await compat.wait_for(asyncio.gather(
             transaction1(self.con),
             transaction1(con2),
             return_exceptions=True,
