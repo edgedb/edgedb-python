@@ -49,7 +49,7 @@ TEST_DEPENDENCIES = [
     'pycodestyle~=2.6.0',
     'pyflakes~=2.2.0',
     'flake8~=3.8.1',
-    'uvloop>=0.14.0;platform_system!="Windows"',
+    'uvloop>=0.15.1;platform_system!="Windows"',
 ]
 
 # Dependencies required to build documentation.
