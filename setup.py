@@ -39,7 +39,7 @@ from setuptools.command import build_py as setuptools_build_py
 from setuptools.command import sdist as setuptools_sdist
 
 
-CYTHON_DEPENDENCY = 'Cython==0.29.21'
+CYTHON_DEPENDENCY = 'Cython==0.29.14'
 
 # Minimal dependencies required to test edgedb.
 TEST_DEPENDENCIES = [
@@ -49,7 +49,6 @@ TEST_DEPENDENCIES = [
     'pycodestyle~=2.6.0',
     'pyflakes~=2.2.0',
     'flake8~=3.8.1',
-    'uvloop>=0.15.1;platform_system!="Windows"',
 ]
 
 # Dependencies required to build documentation.
