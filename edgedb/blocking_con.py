@@ -17,7 +17,6 @@
 #
 
 
-import errno
 import random
 import socket
 import time
@@ -36,14 +35,6 @@ from .datatypes import datatypes
 from .protocol import blocking_proto, protocol
 from .protocol.protocol import CodecsRegistry as _CodecsRegistry
 from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
-
-
-TEMPORARY_ERRORS = frozenset({
-    errno.ECONNREFUSED,
-    errno.ECONNABORTED,
-    errno.ECONNRESET,
-    errno.ENOENT,
-})
 
 
 class _BlockingIOConnectionImpl:
@@ -115,14 +106,7 @@ class _BlockingIOConnectionImpl:
                 err = errors.ClientConnectionFailedTemporarilyError(str(e))
                 raise err from e
             except OSError as e:
-                message = str(e)
-                if e.errno in TEMPORARY_ERRORS:
-                    err = errors.ClientConnectionFailedTemporarilyError(
-                        message
-                    )
-                else:
-                    err = errors.ClientConnectionFailedError(message)
-                raise err from e
+                raise con_utils.wrap_error(e) from e
 
             time_left = deadline - time.monotonic()
             if time_left <= 0:
@@ -134,9 +118,12 @@ class _BlockingIOConnectionImpl:
             proto = blocking_proto.BlockingIOProtocol(params, sock)
             proto.set_connection(connection)
 
-            sock.settimeout(time_left)
-            proto.sync_connect()
-            sock.settimeout(None)
+            try:
+                sock.settimeout(time_left)
+                proto.sync_connect()
+                sock.settimeout(None)
+            except OSError as e:
+                raise con_utils.wrap_error(e) from e
 
             self._protocol = proto
             self._addr = addr
