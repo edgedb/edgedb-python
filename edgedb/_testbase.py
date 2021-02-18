@@ -473,3 +473,8 @@ def gen_lock_key():
     global _lock_cnt
     _lock_cnt += 1
     return os.getpid() * 1000 + _lock_cnt
+
+
+if os.environ.get('USE_UVLOOP'):
+    import uvloop
+    uvloop.install()

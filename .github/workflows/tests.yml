@@ -17,6 +17,7 @@ jobs:
         python-version: [3.6, 3.7, 3.8, 3.9]
         edgedb-version: [stable, nightly]
         os: [ubuntu-latest, macos-latest]
+        loop: [asyncio, uvloop]
 
     steps:
     - uses: actions/checkout@v1
@@ -57,9 +58,14 @@ jobs:
         pip install -e .[test]
 
     - name: Test
-      if: steps.release.outputs.version == 0
+      if: steps.release.outputs.version == 0 && matrix.loop == 'asyncio'
       run: |
         python setup.py test
+
+    - name: Test under uvloop
+      if: steps.release.outputs.version == 0 && matrix.python-version >= '3.7' && matrix.loop == 'uvloop'
+      run: |
+        env USE_UVLOOP=1 python setup.py test
 
   # This job exists solely to act as the test job aggregate to be
   # targeted by branch policies.
