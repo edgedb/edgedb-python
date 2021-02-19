@@ -17,10 +17,17 @@
 #
 
 
+import socket
+
 import edgedb
 
-from edgedb import _cluster
 from edgedb import _testbase as tb
+
+
+def find_available_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(('127.0.0.1', 0))
+        return sock.getsockname()[1]
 
 
 class TestConnect(tb.AsyncQueryTestCase):
@@ -28,7 +35,7 @@ class TestConnect(tb.AsyncQueryTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.port = _cluster.find_available_port()
+        cls.port = find_available_port()
 
     async def test_connect_async_01(self):
         orig_conn_args = self.get_connect_args()

@@ -17,13 +17,11 @@
 #
 
 
-import errno
+import json
 import os
 import pathlib
-import random
 import re
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
@@ -43,31 +41,6 @@ def escape_string(s):
 
 def quote_literal(string):
     return "'" + escape_string(string) + "'"
-
-
-def find_available_port(port_range=(49152, 65535), max_tries=1000):
-    low, high = port_range
-
-    port = low
-    try_no = 0
-
-    while try_no < max_tries:
-        try_no += 1
-        port = random.randint(low, high)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.bind(('localhost', port))
-        except socket.error as e:
-            if e.errno == errno.EADDRINUSE:
-                continue
-        finally:
-            sock.close()
-
-        break
-    else:
-        port = None
-
-    return port
 
 
 class ClusterError(Exception):
@@ -136,29 +109,54 @@ class Cluster:
 
         self._init()
 
-    def start(self, wait=60, **settings):
-        port = settings.pop('port', None) or self._port
-        if port == 'dynamic':
-            port = find_available_port()
+    def start(self, wait=60, *, port: int=None, **settings):
+        if port is None:
+            port = self._port
 
-        self._effective_port = port
+        if port == 0:
+            cmd_port = 'auto'
+        else:
+            cmd_port = str(port)
 
         extra_args = ['--{}={}'.format(k.replace('_', '-'), v)
                       for k, v in settings.items()]
-        extra_args.append('--port={}'.format(self._effective_port))
+        extra_args.append(f'--port={cmd_port}')
+        if port == 0:
+            extra_args.append('--echo-runtime-info')
 
         env = os.environ.copy()
         # Make sure the PYTHONPATH of _this_ process does
         # not interfere with the server's.
         env.pop('PYTHONPATH', None)
-
         if self._env:
             env.update(self._env)
 
+        stdout = subprocess.DEVNULL
+        if port == 0:
+            stdout = subprocess.PIPE
+
         self._daemon_process = subprocess.Popen(
             self._edgedb_cmd + extra_args,
-            stdout=sys.stdout, stderr=sys.stderr,
-            env=env, cwd=str(self._data_dir))
+            stdout=stdout,
+            stderr=subprocess.DEVNULL,
+            env=env,
+            universal_newlines=True,
+            cwd=str(self._data_dir)
+        )
+
+        if port == 0:
+            while 1:
+                stdoutf = self._daemon_process.stdout
+                assert stdoutf is not None
+                line = stdoutf.readline()
+                if line.startswith('EDGEDB_SERVER_DATA:'):
+                    json_data = line[len('EDGEDB_SERVER_DATA:'):]
+                    data = json.loads(json_data)
+                    port = data['port']
+                    stdoutf.close()
+                    break
+
+        self._effective_port = port
 
     def stop(self, wait=60):
         if (
@@ -196,7 +194,7 @@ class Cluster:
         conn_args['host'] = str(self._runstate_dir)
         conn_args['admin'] = True
         # startup of the database may take > 30 sec on github-actions
-        conn_args['wait_until_available'] = 240
+        conn_args['wait_until_available'] = 120
         conn = self.connect(**conn_args)
 
         try:
