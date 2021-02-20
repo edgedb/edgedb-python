@@ -252,11 +252,11 @@ Connection
         .. code-block:: python
 
             async for tx in con.retry():
-                with tx:
-                    value = tx.query_one("SELECT Counter.value")
-                    tx.execute(
-                        "UPDATE Counter SET { value := <int64>$value",
-                        value=value,
+                async with tx:
+                    value = await tx.query_one("SELECT Counter.value")
+                    await tx.execute(
+                        "UPDATE Counter SET { value := <int64>$value }",
+                        value=value + 1,
                     )
 
         Note that we are executing queries on the ``tx`` object rather
@@ -279,17 +279,18 @@ Connection
 
         .. code-block:: python
 
-            with con.try_transaction() as tx:
-                value = tx.query_one("SELECT Counter.value")
-                tx.execute(
-                    "UPDATE Counter SET { value := <int64>$value",
-                    value=value,
+            async with con.try_transaction() as tx:
+                value = await tx.query_one("SELECT Counter.value")
+                await tx.execute(
+                    "UPDATE Counter SET { value := <int64>$value }",
+                    value=value + 1,
                 )
 
         Note that we are executing queries on the ``tx`` object,
-        rather than on the original connection `con`.
+        rather than on the original connection ``con``.
 
     .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
+
         **Deprecated**. Use :py:meth:`retry` or :py:meth:`try_transaction`.
 
         Create a :py:class:`AsyncIOTransaction` object.
@@ -554,9 +555,9 @@ Connection Pools
         .. code-block:: python
 
             async for tx in pool.retry():
-                with tx:
-                    value = tx.query_one("SELECT Counter.value")
-                    tx.execute(
+                async with tx:
+                    value = await tx.query_one("SELECT Counter.value")
+                    await tx.execute(
                         "UPDATE Counter SET { value := <int64>$value",
                         value=value,
                     )
@@ -581,9 +582,9 @@ Connection Pools
 
         .. code-block:: python
 
-            with pool.try_transaction() as tx:
-                value = tx.query_one("SELECT Counter.value")
-                tx.execute(
+            async with pool.try_transaction() as tx:
+                value = await tx.query_one("SELECT Counter.value")
+                await tx.execute(
                     "UPDATE Counter SET { value := <int64>$value",
                     value=value,
                 )
@@ -744,7 +745,7 @@ See also:
 
     .. py:coroutinemethod:: __anext__()
 
-        Yields `AsyncIOTransaction` object every time transaction has to
-        be repeated.
+        Yields :py:class:`AsyncIOTransaction` object every time transaction
+        has to be repeated.
 
 .. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
