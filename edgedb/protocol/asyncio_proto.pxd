@@ -28,6 +28,7 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
         object transport
 
         object connected_fut
+        object disconnected_fut
 
         object loop
         object msg_waiter

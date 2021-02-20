@@ -32,12 +32,17 @@ class TestProto(tb.SyncQueryTestCase):
             self.con.query_json('SELECT {"aaa", "bbb"}'),
             '["aaa", "bbb"]')
 
-    @unittest.skip  # not merged into edgedb yet
     def test_json_elements(self):
         self.assertEqual(
             self.con._fetchall_json_elements('SELECT {"aaa", "bbb"}'),
             edgedb.Set(['"aaa"', '"bbb"']))
 
+    # std::datetime is now in range of Python datetime,
+    # so another way to trigger codec failure is needed.
+    @unittest.skip("""
+        std::datetime is now in range of Python date,
+        so another way to trigger codec failure is needed.
+    """)
     async def test_proto_codec_error_recovery_01(self):
         for _ in range(5):  # execute a few times for OE
             with self.assertRaisesRegex(
@@ -58,6 +63,10 @@ class TestProto(tb.SyncQueryTestCase):
                 self.con.query('SELECT {"aaa", "bbb"}'),
                 ['aaa', 'bbb'])
 
+    @unittest.skip("""
+        std::date is now in range of Python date,
+        so another way to trigger codec failure is needed.
+    """)
     async def test_proto_codec_error_recovery_02(self):
         for _ in range(5):  # execute a few times for OE
             with self.assertRaisesRegex(

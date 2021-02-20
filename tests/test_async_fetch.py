@@ -760,7 +760,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                     async def exec_to_fail():
                         with self.assertRaises((
                             edgedb.ClientConnectionClosedError,
-                            ConnectionAbortedError,
+                            ConnectionResetError,
                         )):
                             async with con2.try_transaction() as tx2:
                                 await tx2.query(
@@ -771,7 +771,14 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                     g.create_task(exec_to_fail())
 
                     await asyncio.sleep(0.1)
-                    await con2.aclose()
+
+                    with self.assertRaises(asyncio.TimeoutError):
+                        # aclose() will ask the server nicely to disconnect,
+                        # but since the server is blocked on the lock,
+                        # aclose() will timeout and get cancelled, which,
+                        # in turn, will terminate the connection rudely,
+                        # and exec_to_fail() will get ConnectionResetError.
+                        await compat.wait_for(con2.aclose(), timeout=0.5)
 
             finally:
                 self.assertEqual(

@@ -51,12 +51,8 @@ class _AsyncIOConnectionImpl:
         self._query_cache = query_cache
 
     def is_closed(self):
-        transport = self._transport
         protocol = self._protocol
-        return not (
-            transport and not transport.is_closing() and
-            protocol and protocol.connected
-        )
+        return protocol is None or not protocol.connected
 
     async def connect(self, loop, addrs, config, params, *,
                       single_attempt=False, connection):
@@ -134,8 +130,18 @@ class _AsyncIOConnectionImpl:
     async def privileged_execute(self, query):
         await self._protocol.simple_query(query, enums.Capability.ALL)
 
-    def close(self):
-        if self._protocol:
+    async def aclose(self):
+        """Send graceful termination message wait for connection to drop."""
+        if not self.is_closed():
+            try:
+                self._protocol.terminate()
+                await self._protocol.wait_for_disconnect()
+            except (Exception, asyncio.CancelledError):
+                self.terminate()
+                raise
+
+    def terminate(self):
+        if not self.is_closed():
             self._protocol.abort()
 
 
@@ -374,12 +380,16 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
         return _transaction.AsyncIOTransaction(self)
 
     async def aclose(self) -> None:
-        self.terminate()
+        try:
+            await self._impl.aclose()
+        finally:
+            self._cleanup()
 
     def terminate(self) -> None:
-        if not self.is_closed():
-            self._impl.close()
-        self._cleanup()
+        try:
+            self._impl.terminate()
+        finally:
+            self._cleanup()
 
     def _set_proxy(self, proxy):
         if self._proxy is not None and proxy is not None:
