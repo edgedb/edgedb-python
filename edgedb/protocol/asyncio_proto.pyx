@@ -35,6 +35,7 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
         self.loop = loop
         self.transport = None
         self.connected_fut = loop.create_future()
+        self.disconnected_fut = None
 
         self.msg_waiter = None
 
@@ -76,6 +77,18 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
         if self.connected_fut is not None:
             await self.connected_fut
 
+    async def wait_for_disconnect(self):
+        if not self.connected:
+            return
+        else:
+            self.disconnected_fut = self.loop.create_future()
+            try:
+                await self.disconnected_fut
+            except ConnectionError:
+                pass
+            finally:
+                self.disconnected_fut = None
+
     def connection_made(self, transport):
         if self.transport is not None:
             raise RuntimeError('connection_made: invalid connection status')
@@ -88,10 +101,15 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
 
         if self.connected_fut is not None and not self.connected_fut.done():
             self.connected_fut.set_exception(ConnectionAbortedError())
-            return
+
+        if (
+            self.disconnected_fut is not None
+            and not self.disconnected_fut.done()
+        ):
+            self.disconnected_fut.set_exception(ConnectionResetError())
 
         if self.msg_waiter is not None and not self.msg_waiter.done():
-            self.msg_waiter.set_exception(ConnectionAbortedError())
+            self.msg_waiter.set_exception(ConnectionResetError())
             self.msg_waiter = None
 
         self.transport = None
