@@ -30,7 +30,7 @@ jobs:
       continue-on-error: true
       id: release
       with:
-        github_token: ${{ secrets.GITHUB_ALT_TOKEN }}
+        github_token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
         version_file: edgedb/_version.py
         version_line_pattern: |
           __version__\s*=\s*(?:['"])([[:PEP440:]])(?:['"])

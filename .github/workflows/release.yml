@@ -19,7 +19,7 @@ jobs:
       uses: edgedb/action-release/validate-pr@master
       id: checkver
       with:
-        github_token: ${{ secrets.GITHUB_ALT_TOKEN }}
+        github_token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
         require_team: Release Managers
         require_approval: no
         version_file: edgedb/_version.py
@@ -54,10 +54,10 @@ jobs:
         fetch-depth: 50
         submodules: true
 
-    - name: Set up Python 3.7
+    - name: Set up Python 3.9
       uses: actions/setup-python@v1
       with:
-        python-version: 3.7
+        python-version: 3.9
 
     - name: Build source distribution
       run: |
@@ -74,8 +74,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8]
-        os: [ubuntu-16.04, macos-10.14, windows-latest]
+        python-version: [3.6, 3.7, 3.8, 3.9]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
     - uses: actions/checkout@v1
@@ -112,7 +112,7 @@ jobs:
 
     - name: Test Wheels
       env:
-        PKG_VERSION: ${{ needs.validate-release-request.version }}
+        PKG_VERSION: ${{ needs.validate-release-request.outputs.version }}
       if: |
         !startsWith(matrix.os, 'windows')
         && !contains(github.event.pull_request.labels.*.name, 'skip wheel tests')
