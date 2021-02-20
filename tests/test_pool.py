@@ -33,6 +33,7 @@ class TestPool(tb.AsyncQueryTestCase):
     def create_pool(self, **kwargs):
         conargs = self.get_connect_args().copy()
         conargs["database"] = self.con.dbname
+        conargs["timeout"] = 120
         conargs.update(kwargs)
 
         return edgedb.create_async_pool(**conargs)
