@@ -265,7 +265,7 @@ Connection
 
     .. py:method:: raw_transaction()
 
-        Execute a non-retryable transaction.
+        Start a low-level transaction.
 
         Contrary to ``retrying_transaction()``, ``raw_transaction()``
         will not attempt to re-run the nested code block in case a retryable
