@@ -178,14 +178,14 @@ Below is an example of a connection pool usage:
 
 You can also acquire connection from the pool:
 
-    .. code-block:: python
+.. code-block:: python
 
-        async with pool.acquire() as conn:
-            result = await conn.query_one_json(
-                '''
-                    SELECT User {first_name, email, bio}
-                    FILTER .name = <str>$username
-                ''', username=username)
+    async with pool.acquire() as conn:
+        result = await conn.query_one_json(
+            '''
+                SELECT User {first_name, email, bio}
+                FILTER .name = <str>$username
+            ''', username=username)
 
 But if you have a bunch of tightly related queries it's better to use
 transactions.
