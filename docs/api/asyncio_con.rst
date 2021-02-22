@@ -236,7 +236,7 @@ Connection
 
     .. py:method:: retrying_transaction()
 
-        Open a retryable transaction loop.
+        Start a transaction with auto-retry semantics.
 
         This is the preferred method of initiating and running a database
         transaction in a robust fashion.  The ``retrying_transaction()``
