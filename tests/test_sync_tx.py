@@ -38,7 +38,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
     def test_sync_transaction_regular_01(self):
         self.assertIsNone(self.con._borrowed_for)
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         self.assertIsNone(self.con._borrowed_for)
 
         with self.assertRaises(ZeroDivisionError):
@@ -65,7 +65,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
     def test_sync_transaction_interface_errors(self):
         self.assertIsNone(self.con._top_xact)
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot start; .* already started'):
             with tr:
@@ -83,7 +83,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
         self.assertIsNone(self.con._top_xact)
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot manually commit.*with'):
             with tr:
@@ -91,7 +91,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
         self.assertIsNone(self.con._top_xact)
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot manually rollback.*with'):
             with tr:
@@ -99,38 +99,38 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
         self.assertIsNone(self.con._top_xact)
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot enter context:.*with'):
             with tr:
                 with tr:
                     pass
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             with tr:
                 self.con.query("SELECT 1")
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             with tr:
                 self.con.query_one("SELECT 1")
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             with tr:
                 self.con.query_json("SELECT 1")
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             with tr:
                 self.con.query_one_json("SELECT 1")
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             with tr:

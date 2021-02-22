@@ -61,7 +61,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
     '''
 
     def test_sync_retry_01(self):
-        for tx in self.con.retry():
+        for tx in self.con.retrying_transaction():
             with tx:
                 tx.execute('''
                     INSERT test::Counter {
@@ -71,7 +71,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
 
     def test_async_retry_02(self):
         with self.assertRaises(ZeroDivisionError):
-            for tx in self.con.retry():
+            for tx in self.con.retrying_transaction():
                 with tx:
                     tx.execute('''
                         INSERT test::Counter {
@@ -97,7 +97,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         iterations = 0
 
         def transaction1(con):
-            for tx in con.retry():
+            for tx in con.retrying_transaction():
                 nonlocal iterations
                 iterations += 1
                 with tx:
@@ -140,11 +140,11 @@ class TestSyncRetry(tb.SyncQueryTestCase):
     def test_sync_transaction_interface_errors(self):
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*the transaction is already started'):
-            for tx in self.con.retry():
+            for tx in self.con.retrying_transaction():
                 with tx:
                     tx.start()
 
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*Use `with transaction:`'):
-            for tx in self.con.retry():
+            for tx in self.con.retrying_transaction():
                 tx.start()

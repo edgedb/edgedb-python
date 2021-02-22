@@ -234,14 +234,15 @@ Connection
             If the results of *query* are desired, :py:meth:`query` or
             :py:meth:`query_one` should be used instead.
 
-    .. py:method:: retry()
+    .. py:method:: retrying_transaction()
 
         Open a retryable transaction loop.
 
         This is the preferred method of initiating and running a database
-        transaction in a robust fashion.  The ``retry()`` transaction loop will
-        attempt to re-execute the transaction loop body if a transient error
-        occurs, such as a network error or a transaction serialization error.
+        transaction in a robust fashion.  The ``retrying_transaction()``
+        transaction loop will attempt to re-execute the transaction loop
+        body if a transient error occurs, such as a network error or a
+        transaction serialization error.
 
         Returns an instance of :py:class:`AsyncIORetry`.
 
@@ -251,7 +252,7 @@ Connection
 
         .. code-block:: python
 
-            async for tx in con.retry():
+            async for tx in con.retrying_transaction():
                 async with tx:
                     value = await tx.query_one("SELECT Counter.value")
                     await tx.execute(
@@ -262,24 +263,25 @@ Connection
         Note that we are executing queries on the ``tx`` object rather
         than on the original connection.
 
-    .. py:method:: try_transaction()
+    .. py:method:: raw_transaction()
 
         Execute a non-retryable transaction.
 
-        Contrary to ``retry()``, ``try_transaction()`` will not attempt
-        to re-run the nested code block in case a retryable error happens.
+        Contrary to ``retrying_transaction()``, ``raw_transaction()``
+        will not attempt to re-run the nested code block in case a retryable
+        error happens.
 
-        This is a low-level API and it is advised to use the ``retry()``
-        method instead.
+        This is a low-level API and it is advised to use the
+        ``retrying_transaction()`` method instead.
 
-        A call to ``try_transaction()`` returns
+        A call to ``raw_transaction()`` returns
         :py:class:`AsyncIOTransaction`.
 
         Example:
 
         .. code-block:: python
 
-            async with con.try_transaction() as tx:
+            async with con.raw_transaction() as tx:
                 value = await tx.query_one("SELECT Counter.value")
                 await tx.execute(
                     "UPDATE Counter SET { value := <int64>$value }",
@@ -291,7 +293,8 @@ Connection
 
     .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
 
-        **Deprecated**. Use :py:meth:`retry` or :py:meth:`try_transaction`.
+        **Deprecated**. Use :py:meth:`retrying_transaction` or
+        :py:meth:`raw_transaction`.
 
         Create a :py:class:`AsyncIOTransaction` object.
 
@@ -364,12 +367,13 @@ Connection Pools
     APIs directly, without manually acquiring and releasing connections
     from the pool:
 
-    * :py:meth:`AsyncIOPool.retry()`
     * :py:meth:`AsyncIOPool.query()`
     * :py:meth:`AsyncIOPool.query_one()`
     * :py:meth:`AsyncIOPool.query_json()`
     * :py:meth:`AsyncIOPool.query_one_json()`
     * :py:meth:`AsyncIOPool.execute()`
+    * :py:meth:`AsyncIOPool.retrying_transaction()`
+    * :py:meth:`AsyncIOPool.raw_transaction()`
 
     .. code-block:: python
 
@@ -381,7 +385,7 @@ Connection Pools
     .. code-block:: python
 
         async with edgedb.create_async_pool(user='edgedb') as pool:
-            async for tx in pool.retry():
+            async for tx in pool.retrying_transaction():
                 async with tx:
                     await tx.query('SELECT {1, 2, 3}')
 
@@ -537,14 +541,15 @@ Connection Pools
         See :py:meth:`AsyncIOConnection.execute()
         <edgedb.AsyncIOConnection.execute>` for details.
 
-    .. py:method:: retry()
+    .. py:method:: retrying_transaction()
 
         Open a retryable transaction loop.
 
         This is the preferred method of initiating and running a database
-        transaction in a robust fashion.  The ``retry()`` transaction loop will
-        attempt to re-execute the transaction loop body if a transient error
-        occurs, such as a network error or a transaction serialization error.
+        transaction in a robust fashion.  The ``retrying_transaction()``
+        transaction loop will attempt to re-execute the transaction loop body
+        if a transient error occurs, such as a network error or a transaction
+        serialization error.
 
         Returns an instance of :py:class:`AsyncIORetry`.
 
@@ -554,7 +559,7 @@ Connection Pools
 
         .. code-block:: python
 
-            async for tx in pool.retry():
+            async for tx in pool.retrying_transaction():
                 async with tx:
                     value = await tx.query_one("SELECT Counter.value")
                     await tx.execute(
@@ -565,24 +570,25 @@ Connection Pools
         Note that we are executing queries on the ``tx`` object rather
         than on the original pool.
 
-    .. py:method:: try_transaction()
+    .. py:method:: raw_transaction()
 
         Execute a non-retryable transaction.
 
-        Contrary to ``retry()``, ``try_transaction()`` will not attempt
-        to re-run the nested code block in case a retryable error happens.
+        Contrary to ``retrying_transaction()``, ``raw_transaction()``
+        will not attempt to re-run the nested code block in case a retryable
+        error happens.
 
-        This is a low-level API and it is advised to use the ``retry()``
-        method instead.
+        This is a low-level API and it is advised to use the
+        ``retrying_transaction()`` method instead.
 
-        A call to ``try_transaction()`` returns
+        A call to ``raw_transaction()`` returns
         :py:class:`AsyncIOTransaction`.
 
         Example:
 
         .. code-block:: python
 
-            async with pool.try_transaction() as tx:
+            async with pool.raw_transaction() as tx:
                 value = await tx.query_one("SELECT Counter.value")
                 await tx.execute(
                     "UPDATE Counter SET { value := <int64>$value",
@@ -599,11 +605,11 @@ Transactions
 ============
 
 The most robust way to execute transactional code is to use
-the ``retry()`` loop API:
+the ``retrying_transaction()`` loop API:
 
 .. code-block:: python
 
-    async for tx in pool.retry():
+    async for tx in pool.retrying_transaction():
         async with tx:
             await tx.execute("INSERT User { name := 'Don' }")
 
@@ -611,13 +617,15 @@ Note that we execute queries on the ``tx`` object in the above
 example, rather than on the original connection pool ``pool``
 object.
 
-The ``retry()`` API guarantees that:
+The ``retrying_transaction()`` API guarantees that:
 
 1. Transactions are executed atomically;
 2. If a transaction is failed for any of the number of transient errors (i.e.
-   a network failure or a concurrent update error), the transaction would be retried;
-3. If any other, non-retryable exception occurs, the transaction is rolled back,
-   and the exception is propagated, immediately aborting the ``retry()`` block.
+   a network failure or a concurrent update error), the transaction would
+   be retried;
+3. If any other, non-retryable exception occurs, the transaction is rolled
+   back, and the exception is propagated, immediately aborting the
+   ``retrying_transaction()`` block.
 
 The key implication of retrying transactions is that the entire
 nested code block can be re-run, including any non-querying
@@ -625,7 +633,7 @@ Python code. Here is an example:
 
 .. code-block:: python
 
-    async for tx in pool.retry():
+    async for tx in pool.retrying_transaction():
         async with tx:
             user = await tx.fetch_one(
                 "SELECT User { email } FILTER .login = <str>$login",
@@ -658,10 +666,10 @@ negatively impact the performance of the DB server.
 See also:
 
 * RFC1004_
-* :py:meth:`AsyncIOPool.retry()`
-* :py:meth:`AsyncIOPool.try_transaction()`
-* :py:meth:`AsyncIOConnection.retry()`
-* :py:meth:`AsyncIOConnection.try_transaction()`
+* :py:meth:`AsyncIOPool.retrying_transaction()`
+* :py:meth:`AsyncIOPool.raw_transaction()`
+* :py:meth:`AsyncIOConnection.retrying_transaction()`
+* :py:meth:`AsyncIOConnection.raw_transaction()`
 
 
 .. py:class:: AsyncIOTransaction
@@ -669,7 +677,7 @@ See also:
     Represents a transaction or a savepoint block.
 
     Instances of this type are created by calling the
-    :py:meth:`AsyncIOConnection.try_transaction()` method.
+    :py:meth:`AsyncIOConnection.raw_transaction()` method.
 
 
     .. py:coroutinemethod:: start()
@@ -741,7 +749,8 @@ See also:
     Represents a wrapper that yields :py:class:`AsyncIOTransaction`
     object when iterating.
 
-    See :py:meth:`AsyncIOConnection.retry()` method for an example.
+    See :py:meth:`AsyncIOConnection.retrying_transaction()`
+    method for an example.
 
     .. py:coroutinemethod:: __anext__()
 

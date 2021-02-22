@@ -329,16 +329,16 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
                     deferrable: bool = None) -> legacy_transaction.Transaction:
         warnings.warn(
             'The "transaction()" method is deprecated and is scheduled to be '
-            'removed. Use the "retry()" or "try_transaction()" method '
-            'instead.',
+            'removed. Use the "retrying_transaction()" or "raw_transaction()" '
+            'method instead.',
             DeprecationWarning, 2)
         return legacy_transaction.Transaction(
             self, isolation, readonly, deferrable)
 
-    def try_transaction(self) -> _transaction.Transaction:
+    def raw_transaction(self) -> _transaction.Transaction:
         return _transaction.Transaction(self)
 
-    def retry(self) -> _retry.Retry:
+    def retrying_transaction(self) -> _retry.Retry:
         return _retry.Retry(self)
 
     def close(self) -> None:

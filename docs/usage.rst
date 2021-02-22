@@ -200,15 +200,15 @@ Transactions
 The most robust way to create a
 :ref:`transaction <edgedb-python-asyncio-api-transaction>` is ``retry`` method:
 
-* :py:meth:`AsyncIOPool.retry() <edgedb.AsyncIOPool.retry>`
-* :py:meth:`BlockingIOConnection.retry() <edgedb.BlockingIOConnection.retry>`
-* :py:meth:`AsyncIOConnection.retry() <edgedb.AsyncIOConnection.retry>`
+* :py:meth:`AsyncIOPool.retrying_transaction() <edgedb.AsyncIOPool.retrying_transaction>`
+* :py:meth:`BlockingIOConnection.retrying_transaction() <edgedb.BlockingIOConnection.retrying_transaction>`
+* :py:meth:`AsyncIOConnection.retrying_transaction() <edgedb.AsyncIOConnection.retrying_transaction>`
 
 Example:
 
 .. code-block:: python
 
-    for tx in connection.retry():
+    for tx in connection.retrying_transaction():
         with tx:
             tx.execute("INSERT User {name := 'Don'}")
 
@@ -216,7 +216,7 @@ or, if using the async API on connection pool:
 
 .. code-block:: python
 
-    async for tx in connection.retry():
+    async for tx in connection.retrying_transaction():
         async with tx:
             await tx.execute("INSERT User {name := 'Don'}")
 

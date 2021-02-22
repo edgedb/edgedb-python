@@ -749,7 +749,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         con2 = await self.connect(database=self.con.dbname)
 
-        async with self.con.try_transaction() as tx:
+        async with self.con.raw_transaction() as tx:
             await tx.query_one(
                 'select sys::_advisory_lock(<int64>$0)',
                 lock_key)
@@ -762,7 +762,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
                             edgedb.ClientConnectionClosedError,
                             ConnectionResetError,
                         )):
-                            async with con2.try_transaction() as tx2:
+                            async with con2.raw_transaction() as tx2:
                                 await tx2.query(
                                     'select sys::_advisory_lock(<int64>$0)',
                                     lock_key,
@@ -805,7 +805,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
-            async with self.con.try_transaction() as tx:
+            async with self.con.raw_transaction() as tx:
                 await tx.query_one('SELECT <MyEnum><str>$0', 'Oups')
 
         self.assertEqual(
@@ -818,7 +818,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
-            async with self.con.try_transaction() as tx:
+            async with self.con.raw_transaction() as tx:
                 await tx.query_one('SELECT <MyEnum>$0', 'Oups')
 
         with self.assertRaisesRegex(
