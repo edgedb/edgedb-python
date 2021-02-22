@@ -235,7 +235,7 @@ Connection
         Open a retryable transaction loop.
 
         This is the preferred method of initiating and running a database
-        transaction in a robust fashion.  The `retry()` transaction loop will
+        transaction in a robust fashion.  The ``retry()`` transaction loop will
         attempt to re-execute the transaction loop body if a transient error
         occurs, such as a network error or a transaction serialization error.
 
