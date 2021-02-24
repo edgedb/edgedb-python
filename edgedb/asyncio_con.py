@@ -367,16 +367,16 @@ class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
     ) -> legacy_transaction.AsyncIOTransaction:
         warnings.warn(
             'The "transaction()" method is deprecated and is scheduled to be '
-            'removed. Use the "retry()" or "try_transaction()" method '
-            'instead.',
+            'removed. Use the "retrying_transaction()" or "raw_transaction()" '
+            'method instead.',
             DeprecationWarning, 2)
         return legacy_transaction.AsyncIOTransaction(
             self, isolation, readonly, deferrable)
 
-    def retry(self) -> _retry.AsyncIORetry:
+    def retrying_transaction(self) -> _retry.AsyncIORetry:
         return _retry.AsyncIORetry(self)
 
-    def try_transaction(self) -> _transaction.AsyncIOTransaction:
+    def raw_transaction(self) -> _transaction.AsyncIOTransaction:
         return _transaction.AsyncIOTransaction(self)
 
     async def aclose(self) -> None:

@@ -38,7 +38,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
     async def test_async_transaction_regular_01(self):
         self.assertIsNone(self.con._borrowed_for)
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         self.assertIsNone(self.con._borrowed_for)
 
         with self.assertRaises(ZeroDivisionError):
@@ -75,7 +75,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
     async def test_async_transaction_interface_errors(self):
         self.assertIsNone(self.con._borrowed_for)
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot start; .* already started'):
             async with tr:
@@ -93,7 +93,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
         self.assertIsNone(self.con._borrowed_for)
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot manually commit.*async with'):
             async with tr:
@@ -101,7 +101,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
         self.assertIsNone(self.con._borrowed_for)
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot manually rollback.*async with'):
             async with tr:
@@ -109,38 +109,38 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
         self.assertIsNone(self.con._borrowed_for)
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot enter context:.*async with'):
             async with tr:
                 async with tr:
                     pass
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             async with tr:
                 await self.con.query("SELECT 1")
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             async with tr:
                 await self.con.query_one("SELECT 1")
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             async with tr:
                 await self.con.query_json("SELECT 1")
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             async with tr:
                 await self.con.query_one_json("SELECT 1")
 
-        tr = self.con.try_transaction()
+        tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             async with tr:

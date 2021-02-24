@@ -19,7 +19,7 @@
 This module provides support for legacy `connection.transaction()` method.
 
 This API is deprecated and will eventually be removed.
-Use `retry()` or `try_transaction()` instead.
+Use `retrying_transaction()` or `raw_transaction()` instead.
 """
 
 import enum

@@ -189,7 +189,7 @@ class TestPool(tb.AsyncQueryTestCase):
         pool = await self.create_pool(min_size=1, max_size=1)
 
         async with pool.acquire() as con:
-            txn = con.try_transaction()
+            txn = con.raw_transaction()
 
         self.assertIn("[released]", repr(con))
 
@@ -245,7 +245,7 @@ class TestPool(tb.AsyncQueryTestCase):
     async def test_pool_transaction(self):
         pool = await self.create_pool(min_size=1, max_size=1)
 
-        async with pool.try_transaction() as tx:
+        async with pool.raw_transaction() as tx:
             self.assertEqual(await tx.query_one("SELECT 7*8"), 56)
 
         await pool.aclose()
@@ -253,7 +253,7 @@ class TestPool(tb.AsyncQueryTestCase):
     async def test_pool_retry(self):
         pool = await self.create_pool(min_size=1, max_size=1)
 
-        async for tx in pool.retry():
+        async for tx in pool.retrying_transaction():
             async with tx:
                 self.assertEqual(await tx.query_one("SELECT 7*8"), 56)
 
@@ -403,7 +403,7 @@ class TestPool(tb.AsyncQueryTestCase):
         pool = await self.create_pool(min_size=1, max_size=1)
 
         async def iterate(con):
-            async with con.try_transaction() as tx:
+            async with con.raw_transaction() as tx:
                 for record in await tx.query("SELECT {1, 2, 3}"):
                     yield record
 
@@ -425,7 +425,7 @@ class TestPool(tb.AsyncQueryTestCase):
         pool = await self.create_pool(min_size=1, max_size=1)
 
         async def iterate(con):
-            async with con.try_transaction() as tx:
+            async with con.raw_transaction() as tx:
                 for record in await tx.query("SELECT {1, 2, 3}"):
                     yield record
 
@@ -457,7 +457,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
         with self.assertRaises(MyException):
             async with pool.acquire() as con:
-                async with con.try_transaction() as tx:
+                async with con.raw_transaction() as tx:
                     agen = iterate(tx)
                     try:
                         async for _ in agen:  # noqa
@@ -477,7 +477,7 @@ class TestPool(tb.AsyncQueryTestCase):
             nonlocal conn_released
 
             async with pool.acquire() as connection:
-                async with connection.try_transaction():
+                async with connection.raw_transaction():
                     flag.set_result(True)
                     await asyncio.sleep(0.1)
 

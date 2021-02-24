@@ -661,10 +661,10 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
     async def __aexit__(self, *exc):
         await self.aclose()
 
-    def try_transaction(self) -> _transaction.AsyncIOTransaction:
+    def raw_transaction(self) -> _transaction.AsyncIOTransaction:
         return _transaction.AsyncIOTransaction(self)
 
-    def retry(self) -> _retry.AsyncIORetry:
+    def retrying_transaction(self) -> _retry.AsyncIORetry:
         return _retry.AsyncIORetry(self)
 
 

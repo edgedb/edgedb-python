@@ -230,14 +230,15 @@ Connection
             If the results of *query* are desired, :py:meth:`query` or
             :py:meth:`query_one` should be used instead.
 
-    .. py:method:: retry()
+    .. py:method:: retrying_transaction()
 
         Open a retryable transaction loop.
 
         This is the preferred method of initiating and running a database
-        transaction in a robust fashion.  The ``retry()`` transaction loop will
-        attempt to re-execute the transaction loop body if a transient error
-        occurs, such as a network error or a transaction serialization error.
+        transaction in a robust fashion.  The ``retrying_transaction()``
+        transaction loop will attempt to re-execute the transaction loop body
+        if a transient error occurs, such as a network error or a transaction
+        serialization error.
 
         Returns an instance of :py:class:`Retry`.
 
@@ -247,7 +248,7 @@ Connection
 
         .. code-block:: python
 
-            for tx in con.retry():
+            for tx in con.retrying_transaction():
                 with tx:
                     value = tx.query_one("SELECT Counter.value")
                     tx.execute(
@@ -258,24 +259,25 @@ Connection
         Note that we are executing queries on the ``tx`` object rather
         than on the original connection.
 
-    .. py:method:: try_transaction()
+    .. py:method:: raw_transaction()
 
         Execute a non-retryable transaction.
 
-        Contrary to ``retry()``, ``try_transaction()`` will not attempt
-        to re-run the nested code block in case a retryable error happens.
+        Contrary to ``retrying_transaction()``, ``raw_transaction()``
+        will not attempt to re-run the nested code block in case a retryable
+        error happens.
 
-        This is a low-level API and it is advised to use the ``retry()``
-        method instead.
+        This is a low-level API and it is advised to use the
+        ``retrying_transaction()`` method instead.
 
-        A call to ``try_transaction()`` returns
+        A call to ``raw_transaction()`` returns
         :py:class:`AsyncIOTransaction`.
 
         Example:
 
         .. code-block:: python
 
-            with con.try_transaction() as tx:
+            with con.raw_transaction() as tx:
                 value = tx.query_one("SELECT Counter.value")
                 tx.execute(
                     "UPDATE Counter SET { value := <int64>$value }",
@@ -288,7 +290,8 @@ Connection
 
     .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
 
-        **Deprecated**. Use :py:meth:`retry` or :py:meth:`try_transaction`.
+        **Deprecated**. Use :py:meth:`retrying_transaction` or
+        :py:meth:`raw_transaction`.
 
         Create a :py:class:`Transaction` object.
 
@@ -322,11 +325,11 @@ Transactions
 ============
 
 The most robust way to execute transactional code is to use the
-``retry()`` loop API:
+``retrying_transaction()`` loop API:
 
 .. code-block:: python
 
-    for tx in pool.retry():
+    for tx in pool.retrying_transaction():
         with tx:
             tx.execute("INSERT User { name := 'Don' }")
 
@@ -334,7 +337,7 @@ Note that we execute queries on the ``tx`` object in the above
 example, rather than on the original connection pool ``pool``
 object.
 
-The ``retry()`` API guarantees that:
+The ``retrying_transaction()`` API guarantees that:
 
 1. Transactions are executed atomically;
 2. If a transaction is failed for any of the number of transient errors
@@ -342,7 +345,7 @@ The ``retry()`` API guarantees that:
    would be retried;
 3. If any other, non-retryable exception occurs, the transaction is
    rolled back, and the exception is propagated, immediately aborting the
-   ``retry()`` block.
+   ``retrying_transaction()`` block.
 
 The key implication of retrying transactions is that the entire
 nested code block can be re-run, including any non-querying
@@ -350,7 +353,7 @@ Python code. Here is an example:
 
 .. code-block:: python
 
-    for tx in pool.retry():
+    for tx in pool.retrying_transaction():
         with tx:
             user = tx.fetch_one(
                 "SELECT User { email } FILTER .login = <str>$login",
@@ -383,8 +386,8 @@ negatively impact the performance of the DB server.
 See also:
 
 * RFC1004_
-* :py:meth:`BlockingIOConnection.retry()`
-* :py:meth:`BlockingIOConnection.try_transaction()`
+* :py:meth:`BlockingIOConnection.retrying_transaction()`
+* :py:meth:`BlockingIOConnection.raw_transaction()`
 
 
 .. py:class:: Transaction()
@@ -419,7 +422,8 @@ See also:
     Represents a wrapper that yields :py:class:`Transaction`
     object when iterating.
 
-    See :py:meth:`BlockingIOConnection.retry()` method for an example.
+    See :py:meth:`BlockingIOConnection.retrying_transaction()` method for
+    an example.
 
     .. py:coroutinemethod:: __next__()
 

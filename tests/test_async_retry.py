@@ -64,7 +64,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
     '''
 
     async def test_async_retry_01(self):
-        async for tx in self.con.retry():
+        async for tx in self.con.retrying_transaction():
             async with tx:
                 await tx.execute('''
                     INSERT test::Counter {
@@ -74,7 +74,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
 
     async def test_async_retry_02(self):
         with self.assertRaises(ZeroDivisionError):
-            async for tx in self.con.retry():
+            async for tx in self.con.retrying_transaction():
                 async with tx:
                     await tx.execute('''
                         INSERT test::Counter {
@@ -97,7 +97,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
         iterations = 0
 
         async def transaction1(con):
-            async for tx in con.retry():
+            async for tx in con.retrying_transaction():
                 nonlocal iterations
                 iterations += 1
                 async with tx:
@@ -144,11 +144,11 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
     async def test_async_transaction_interface_errors(self):
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*the transaction is already started'):
-            async for tx in self.con.retry():
+            async for tx in self.con.retrying_transaction():
                 async with tx:
                     await tx.start()
 
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*Use `async with transaction:`'):
-            async for tx in self.con.retry():
+            async for tx in self.con.retrying_transaction():
                 await tx.start()
