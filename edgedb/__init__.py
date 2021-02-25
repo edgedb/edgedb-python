@@ -28,6 +28,8 @@ from .abstract import Executor, AsyncIOExecutor
 from .asyncio_con import async_connect, AsyncIOConnection
 from .asyncio_pool import create_async_pool, AsyncIOPool
 from .blocking_con import connect, BlockingIOConnection
+from .options import RetryCondition, IsolationLevel
+from .options import RetryOptions, TransactionOptions
 from .transaction import Transaction, AsyncIOTransaction
 
 from .errors._base import EdgeDBError, EdgeDBMessage

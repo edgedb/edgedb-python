@@ -49,6 +49,7 @@ class BaseConnection:
 
     def __init__(self, addrs, config, params, *,
                  codecs_registry=None, query_cache=None):
+        super().__init__()
         self._log_listeners = set()
         self._cleanup_listeners = set()
 

@@ -30,6 +30,7 @@ from . import compat
 from . import con_utils
 from . import errors
 from . import enums
+from . import options
 from . import retry as _retry
 from . import transaction as _transaction
 from . import legacy_transaction
@@ -145,7 +146,11 @@ class _AsyncIOConnectionImpl:
             self._protocol.abort()
 
 
-class AsyncIOConnection(base_con.BaseConnection, abstract.AsyncIOExecutor):
+class AsyncIOConnection(
+    base_con.BaseConnection,
+    abstract.AsyncIOExecutor,
+    options._OptionsMixin,
+):
 
     def __init__(self, loop, addrs, config, params, *,
                  codecs_registry, query_cache):

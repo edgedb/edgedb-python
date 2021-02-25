@@ -28,6 +28,7 @@ from . import base_con
 from . import con_utils
 from . import enums
 from . import errors
+from . import options
 from . import transaction as _transaction
 from . import retry as _retry
 from . import legacy_transaction
@@ -148,7 +149,11 @@ class _BlockingIOConnectionImpl:
             self._protocol.abort()
 
 
-class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
+class BlockingIOConnection(
+    base_con.BaseConnection,
+    abstract.Executor,
+    options._OptionsMixin,
+):
 
     def __init__(self, addrs, config, params, *,
                  codecs_registry, query_cache):

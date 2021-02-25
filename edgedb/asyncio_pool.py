@@ -26,8 +26,9 @@ from . import abstract
 from . import asyncio_con
 from . import compat
 from . import errors
-from . import transaction as _transaction
+from . import options
 from . import retry as _retry
+from . import transaction as _transaction
 
 from .datatypes import datatypes
 
@@ -221,7 +222,7 @@ class PoolConnectionHolder:
         self._pool._queue.put_nowait(self)
 
 
-class AsyncIOPool(abstract.AsyncIOExecutor):
+class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
     """A connection pool.
 
     Connection pool can be used to manage a set of connections to the database.
@@ -248,6 +249,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
                  on_connect,
                  connection_class,
                  **connect_kwargs):
+        super().__init__()
 
         loop = asyncio.get_event_loop()
         self._loop = loop
@@ -520,6 +522,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor):
                 # Record the timeout, as we will apply it by default
                 # in release().
                 ch._timeout = timeout
+                proxy._options = self._options
                 return proxy
 
         if self._closing:
