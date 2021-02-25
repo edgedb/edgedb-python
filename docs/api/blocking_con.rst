@@ -355,7 +355,7 @@ Python code. Here is an example:
 
     for tx in pool.retrying_transaction():
         with tx:
-            user = tx.fetch_one(
+            user = tx.query_one(
                 "SELECT User { email } FILTER .login = <str>$login",
                 login=login,
             )
@@ -363,7 +363,7 @@ Python code. Here is an example:
                 'https://service.local/email_info',
                 params=dict(email=user.email),
             )
-            user = tx.fetch_one('''
+            user = tx.query_one('''
                     UPDATE User FILTER .login = <str>$login
                     SET { email_info := <json>$data}
                 ''',
