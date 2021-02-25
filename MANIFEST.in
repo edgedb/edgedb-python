@@ -1,5 +1,5 @@
 recursive-include docs *.py *.rst
 recursive-include examples *.py
 recursive-include tests *.py *.pem *.json
-recursive-include edgedb *.pyx *.pxd *.pxi *.py *.c *.h
+recursive-include edgedb *.pyx *.pxd *.pxi *.py *.c *.h py.typed
 include LICENSE README.rst Makefile
