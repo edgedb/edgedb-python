@@ -12,12 +12,21 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash
+
     strategy:
       matrix:
         python-version: [3.6, 3.7, 3.8, 3.9]
         edgedb-version: [stable, nightly]
         os: [ubuntu-latest, macos-latest]
         loop: [asyncio, uvloop]
+        exclude:
+          # uvloop does not support Python 3.6
+          - loop: uvloop
+            python-version: 3.6
 
     steps:
     - uses: actions/checkout@v1
@@ -27,10 +36,10 @@ jobs:
 
     - name: Check if release PR.
       uses: edgedb/action-release/validate-pr@master
-      continue-on-error: true
       id: release
       with:
         github_token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
+        missing_version_ok: yes
         version_file: edgedb/_version.py
         version_line_pattern: |
           __version__\s*=\s*(?:['"])([[:PEP440:]])(?:['"])
@@ -58,14 +67,15 @@ jobs:
         pip install -e .[test]
 
     - name: Test
-      if: steps.release.outputs.version == 0 && matrix.loop == 'asyncio'
+      if: steps.release.outputs.version == 0
+      env:
+        LOOP_IMPL: ${{ matrix.loop }}
       run: |
-        python setup.py test
-
-    - name: Test under uvloop
-      if: steps.release.outputs.version == 0 && matrix.python-version >= '3.7' && matrix.loop == 'uvloop'
-      run: |
-        env USE_UVLOOP=1 python setup.py test
+        if [ "${LOOP_IMPL}" = "uvloop" ]; then
+            env USE_UVLOOP=1 python setup.py test
+        else
+            python setup.py test
+        fi
 
   # This job exists solely to act as the test job aggregate to be
   # targeted by branch policies.
