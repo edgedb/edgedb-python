@@ -73,15 +73,15 @@ class TestPool(tb.AsyncQueryTestCase):
         # Manual termination of pool connections releases the
         # pool item immediately.
         con.terminate()
-        self.assertIsNone(pool._holders[0]._con)
-        self.assertIsNone(pool._holders[0]._in_use)
+        self.assertIsNone(pool._impl._holders[0]._con)
+        self.assertIsNone(pool._impl._holders[0]._in_use)
 
         con = await pool.acquire()
         self.assertEqual(await con.query_one("SELECT 1"), 1)
 
         await con.aclose()
-        self.assertIsNone(pool._holders[0]._con)
-        self.assertIsNone(pool._holders[0]._in_use)
+        self.assertIsNone(pool._impl._holders[0]._con)
+        self.assertIsNone(pool._impl._holders[0]._in_use)
         # Calling release should not hurt.
         await pool.release(con)
 
@@ -516,7 +516,7 @@ class TestPool(tb.AsyncQueryTestCase):
         finally:
             await pool.release(con)
 
-        self.assertIsNone(pool._holders[0]._con)
+        self.assertIsNone(pool._impl._holders[0]._con)
         await pool.aclose()
 
     async def test_pool_init_race(self):

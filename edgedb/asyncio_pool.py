@@ -222,17 +222,7 @@ class PoolConnectionHolder:
         self._pool._queue.put_nowait(self)
 
 
-class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
-    """A connection pool.
-
-    Connection pool can be used to manage a set of connections to the database.
-    Connections are first acquired from the pool, then used, and then released
-    back to the pool.  Once a connection is released, it's reset to close all
-    open cursors and other resources *except* prepared statements.
-
-    Pools are created by calling :func:`~edgedb.asyncio_pool.create_pool`.
-    """
-
+class _AsyncIOPoolImpl:
     __slots__ = ('_queue', '_loop', '_minsize', '_maxsize', '_on_connect',
                  '_connect_args', '_connect_kwargs',
                  '_working_addr', '_working_config', '_working_params',
@@ -293,28 +283,6 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         self._on_connect = on_connect
         self._connect_args = connect_args
         self._connect_kwargs = connect_kwargs
-
-    @property
-    def min_size(self) -> int:
-        """Number of connection the pool was initialized with."""
-
-        return self._minsize
-
-    @property
-    def max_size(self) -> int:
-        """Max number of connections in the pool."""
-
-        return self._maxsize
-
-    @property
-    def free_size(self) -> int:
-        """Number of available connections in the pool."""
-
-        if self._queue is None:
-            # Queue has not been initialized yet
-            return self._maxsize
-
-        return self._queue.qsize()
 
     async def _async__init__(self):
         if self._initialized:
@@ -438,79 +406,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
 
         return con
 
-    async def query(self, query, *args, **kwargs):
-        async with self.acquire() as con:
-            return await con.query(query, *args, **kwargs)
-
-    async def query_one(self, query, *args, **kwargs):
-        async with self.acquire() as con:
-            return await con.query_one(query, *args, **kwargs)
-
-    async def query_json(self, query, *args, **kwargs):
-        async with self.acquire() as con:
-            return await con.query_json(query, *args, **kwargs)
-
-    async def query_one_json(self, query, *args, **kwargs):
-        async with self.acquire() as con:
-            return await con.query_one_json(query, *args, **kwargs)
-
-    async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
-        warnings.warn(
-            'The "fetchall()" method is deprecated and is scheduled to be '
-            'removed. Use the "query()" method instead.',
-            DeprecationWarning, 2)
-        return await self.query(query, *args, **kwargs)
-
-    async def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
-        warnings.warn(
-            'The "fetchone()" method is deprecated and is scheduled to be '
-            'removed. Use the "query_one()" method instead.',
-            DeprecationWarning, 2)
-        return await self.query_one(query, *args, **kwargs)
-
-    async def fetchall_json(self, query: str, *args, **kwargs) -> str:
-        warnings.warn(
-            'The "fetchall_json()" method is deprecated and is scheduled to '
-            'be removed. Use the "query_json()" method instead.',
-            DeprecationWarning, 2)
-        return await self.query_json(query, *args, **kwargs)
-
-    async def fetchone_json(self, query: str, *args, **kwargs) -> str:
-        warnings.warn(
-            'The "fetchone_json()" method is deprecated and is scheduled to '
-            'be removed. Use the "query_one_json()" method instead.',
-            DeprecationWarning, 2)
-        return await self.query_one_json(query, *args, **kwargs)
-
-    async def execute(self, query):
-        async with self.acquire() as con:
-            return await con.execute(query)
-
-    def acquire(self):
-        """Acquire a database connection from the pool.
-
-        :return: An instance of :class:`~edgedb.asyncio_con.AsyncIOConnection`.
-
-        Can be used in an ``await`` expression or with an ``async with`` block.
-
-        .. code-block:: python
-
-            async with pool.acquire() as con:
-                await con.execute(...)
-
-        Or:
-
-        .. code-block:: python
-
-            con = await pool.acquire()
-            try:
-                await con.execute(...)
-            finally:
-                await pool.release(con)
-        """
-        return PoolAcquireContext(self, timeout=None)
-
-    async def _acquire(self, timeout):
+    async def _acquire(self, timeout, options):
         async def _acquire_impl():
             ch = await self._queue.get()  # type: PoolConnectionHolder
             try:
@@ -522,7 +418,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
                 # Record the timeout, as we will apply it by default
                 # in release().
                 ch._timeout = timeout
-                proxy._options = self._options
+                proxy._options = options
                 return proxy
 
         if self._closing:
@@ -536,12 +432,6 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
                 _acquire_impl(), timeout=timeout)
 
     async def release(self, connection):
-        """Release a database connection back to the pool.
-
-        :param Connection connection:
-            A :class:`~edgedb.asyncio_con.AsyncIOConnection` object
-            to release.
-        """
 
         if not isinstance(connection, PoolConnection):
             raise errors.InterfaceError(
@@ -654,11 +544,192 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
             if ch._con is not None:
                 ch._con._drop_local_type_cache()
 
+
+class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
+    """A connection pool.
+
+    Connection pool can be used to manage a set of connections to the database.
+    Connections are first acquired from the pool, then used, and then released
+    back to the pool.  Once a connection is released, it's reset to close all
+    open cursors and other resources *except* prepared statements.
+
+    Pools are created by calling :func:`~edgedb.asyncio_pool.create_pool`.
+    """
+
+    __slots__ = ('_impl', '_options')
+
+    def __init__(self, *connect_args,
+                 min_size: int,
+                 max_size: int,
+                 on_acquire,
+                 on_release,
+                 on_connect,
+                 connection_class,
+                 **connect_kwargs):
+        super().__init__()
+        self._impl = _AsyncIOPoolImpl(
+            *connect_args,
+            min_size=min_size,
+            max_size=max_size,
+            on_acquire=on_acquire,
+            on_release=on_release,
+            on_connect=on_connect,
+            connection_class=connection_class,
+            **connect_kwargs,
+        )
+
+    @property
+    def min_size(self) -> int:
+        """Number of connection the pool was initialized with."""
+
+        return self._impl._minsize
+
+    @property
+    def max_size(self) -> int:
+        """Max number of connections in the pool."""
+
+        return self._impl._maxsize
+
+    @property
+    def free_size(self) -> int:
+        """Number of available connections in the pool."""
+
+        if self._impl._queue is None:
+            # Queue has not been initialized yet
+            return self._impl._maxsize
+
+        return self._impl._queue.qsize()
+
+    def set_connect_args(self, dsn=None, **connect_kwargs):
+        r"""Set the new connection arguments for this pool.
+
+        The new connection arguments will be used for all subsequent
+        new connection attempts.  Existing connections will remain until
+        they expire. Use AsyncIOPool.expire_connections() to expedite
+        the connection expiry.
+
+        :param str dsn:
+            Connection arguments specified using as a single string in
+            the following format:
+            ``edgedb://user:pass@host:port/database?option=value``.
+
+        :param \*\*connect_kwargs:
+            Keyword arguments for the :func:`~edgedb.asyncio_con.connect`
+            function.
+        """
+        self._impl.set_connect_args(dsn, **connect_kwargs)
+
+    async def query(self, query, *args, **kwargs):
+        async with self.acquire() as con:
+            return await con.query(query, *args, **kwargs)
+
+    async def query_one(self, query, *args, **kwargs):
+        async with self.acquire() as con:
+            return await con.query_one(query, *args, **kwargs)
+
+    async def query_json(self, query, *args, **kwargs):
+        async with self.acquire() as con:
+            return await con.query_json(query, *args, **kwargs)
+
+    async def query_one_json(self, query, *args, **kwargs):
+        async with self.acquire() as con:
+            return await con.query_one_json(query, *args, **kwargs)
+
+    async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
+        warnings.warn(
+            'The "fetchall()" method is deprecated and is scheduled to be '
+            'removed. Use the "query()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query(query, *args, **kwargs)
+
+    async def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
+        warnings.warn(
+            'The "fetchone()" method is deprecated and is scheduled to be '
+            'removed. Use the "query_one()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query_one(query, *args, **kwargs)
+
+    async def fetchall_json(self, query: str, *args, **kwargs) -> str:
+        warnings.warn(
+            'The "fetchall_json()" method is deprecated and is scheduled to '
+            'be removed. Use the "query_json()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query_json(query, *args, **kwargs)
+
+    async def fetchone_json(self, query: str, *args, **kwargs) -> str:
+        warnings.warn(
+            'The "fetchone_json()" method is deprecated and is scheduled to '
+            'be removed. Use the "query_one_json()" method instead.',
+            DeprecationWarning, 2)
+        return await self.query_one_json(query, *args, **kwargs)
+
+    async def execute(self, query):
+        async with self.acquire() as con:
+            return await con.execute(query)
+
+    def acquire(self):
+        """Acquire a database connection from the pool.
+
+        :return: An instance of :class:`~edgedb.asyncio_con.AsyncIOConnection`.
+
+        Can be used in an ``await`` expression or with an ``async with`` block.
+
+        .. code-block:: python
+
+            async with pool.acquire() as con:
+                await con.execute(...)
+
+        Or:
+
+        .. code-block:: python
+
+            con = await pool.acquire()
+            try:
+                await con.execute(...)
+            finally:
+                await pool.release(con)
+        """
+        return PoolAcquireContext(self, timeout=None, options=self._options)
+
+    async def release(self, connection):
+        """Release a database connection back to the pool.
+
+        :param Connection connection:
+            A :class:`~edgedb.asyncio_con.AsyncIOConnection` object
+            to release.
+        """
+        await self._impl.release(connection)
+
+    async def aclose(self):
+        """Attempt to gracefully close all connections in the pool.
+
+        Wait until all pool connections are released, close them and
+        shut down the pool.  If any error (including cancellation) occurs
+        in ``close()`` the pool will terminate by calling
+        AsyncIOPool.terminate() .
+
+        It is advisable to use :func:`python:asyncio.wait_for` to set
+        a timeout.
+        """
+        await self._impl.aclose()
+
+    def terminate(self):
+        """Terminate all connections in the pool."""
+        self._impl.terminate()
+
+    async def expire_connections(self):
+        """Expire all currently open connections.
+
+        Cause all currently open connections to get replaced on the
+        next AsyncIOPool.acquire() call.
+        """
+        await self._impl.expire_connections()
+
     def __await__(self):
-        return self._async__init__().__await__()
+        return self.__aenter__().__await__()
 
     async def __aenter__(self):
-        await self._async__init__()
+        await self._impl._async__init__()
         return self
 
     async def __aexit__(self, *exc):
@@ -675,7 +746,7 @@ class PoolAcquireContext:
 
     __slots__ = ('timeout', 'connection', 'done', 'pool')
 
-    def __init__(self, pool, timeout):
+    def __init__(self, pool, timeout, options):
         self.pool = pool
         self.timeout = timeout
         self.connection = None
@@ -684,7 +755,10 @@ class PoolAcquireContext:
     async def __aenter__(self):
         if self.connection is not None or self.done:
             raise errors.InterfaceError('a connection is already acquired')
-        self.connection = await self.pool._acquire(self.timeout)
+        self.connection = await self.pool._impl._acquire(
+            self.timeout,
+            self.pool._options,
+        )
         return self.connection
 
     async def __aexit__(self, *exc):
@@ -695,7 +769,10 @@ class PoolAcquireContext:
 
     def __await__(self):
         self.done = True
-        return self.pool._acquire(self.timeout).__await__()
+        return self.pool._impl._acquire(
+            self.timeout,
+            self.pool._options,
+        ).__await__()
 
 
 def create_async_pool(dsn=None, *,
