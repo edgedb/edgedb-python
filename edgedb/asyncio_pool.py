@@ -43,11 +43,11 @@ class PoolConnection(asyncio_con.AsyncIOConnection):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._holder = None
-        self._detached = False
+        self._inner._holder = None
+        self._inner._detached = False
 
     async def _reconnect(self, single_attempt=False):
-        if self._detached:
+        if self._inner._detached:
             # initial connection
             raise errors.InterfaceError(
                 "the underlying connection has been released back to the pool"
@@ -55,27 +55,23 @@ class PoolConnection(asyncio_con.AsyncIOConnection):
         return await super()._reconnect(single_attempt=single_attempt)
 
     def _detach(self):
-        new_conn = self.__class__(
-            self._loop, self._addrs, self._config, self._params,
-            codecs_registry=self._codecs_registry,
-            query_cache=self._query_cache)
-        impl = self._impl
-        holder = self._holder
-        self._impl = None
-        self._holder = None
-        self._detached = True
-        new_conn._impl = impl
-        new_conn._impl._protocol.set_connection(new_conn)
-        new_conn._holder = holder
+        new_conn = self._shallow_clone()
+        inner = self._inner
+        holder = inner._holder
+        inner._holder = None
+        inner._detached = True
+        new_conn._inner = self._inner._detach()
+        new_conn._inner._holder = holder
+        new_conn._inner._detached = False
         return new_conn
 
     def _cleanup(self):
-        if self._holder:
-            self._holder._release_on_close()
+        if self._inner._holder:
+            self._inner._holder._release_on_close()
         super()._cleanup()
 
     def __repr__(self):
-        if self._holder is None:
+        if self._inner._holder is None:
             return '<{classname} [released] {id:#x}>'.format(
                 classname=self.__class__.__name__, id=id(self))
         else:
@@ -106,8 +102,8 @@ class PoolConnectionHolder:
                 'connection already exists')
 
         self._con = await self._pool._get_new_connection()
-        assert self._con._holder is None
-        self._con._holder = self
+        assert self._con._inner._holder is None
+        self._con._inner._holder = self
         self._generation = self._pool._generation
 
     async def acquire(self) -> PoolConnection:
@@ -370,10 +366,10 @@ class _AsyncIOPoolImpl:
                 **self._connect_kwargs)
 
             self._working_addr = con.connected_addr()
-            self._working_config = con._config
-            self._working_params = con._params
-            self._codecs_registry = con._codecs_registry
-            self._query_cache = con._query_cache
+            self._working_config = con._inner._config
+            self._working_params = con._inner._params
+            self._codecs_registry = con._inner._codecs_registry
+            self._query_cache = con._inner._query_cache
 
         else:
             # We've connected before and have a resolved address,
@@ -439,7 +435,7 @@ class _AsyncIOPoolImpl:
                 f'{connection!r} does not belong to any connection pool'
             )
 
-        ch = connection._holder
+        ch = connection._inner._holder
         if ch is None:
             # Already released, do nothing.
             return

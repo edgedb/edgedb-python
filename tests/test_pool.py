@@ -124,17 +124,17 @@ class TestPool(tb.AsyncQueryTestCase):
         cons = set()
 
         async def on_acquire(con):
-            if con._impl not in cons:  # check underlying connection
+            if con._inner._impl not in cons:  # check underlying connection
                 raise RuntimeError("on_connect was not called")
 
         async def on_connect(con):
-            if con._impl in cons:  # check underlying connection
+            if con._inner._impl in cons:  # check underlying connection
                 raise RuntimeError("on_connect was called more than once")
-            cons.add(con._impl)
+            cons.add(con._inner._impl)
 
         async def user(pool):
             async with pool.acquire() as con:
-                if con._impl not in cons:
+                if con._inner._impl not in cons:
                     raise RuntimeError("init was not called")
 
         async with self.create_pool(
@@ -154,7 +154,7 @@ class TestPool(tb.AsyncQueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
                     "does not belong to any connection pool"):
-                await pool.release(con._impl)
+                await pool.release(con._inner._impl)
         finally:
             await pool.release(con)
             await pool.aclose()

@@ -45,13 +45,12 @@ def borrow_error(condition):
     raise errors.InterfaceError(BORROW_ERRORS[condition])
 
 
-class BaseConnection:
+class _InnerConnection:
 
     def __init__(self, addrs, config, params, *,
                  codecs_registry=None, query_cache=None):
         super().__init__()
         self._log_listeners = set()
-        self._cleanup_listeners = set()
 
         self._addrs = addrs
         self._config = config
@@ -68,9 +67,25 @@ class BaseConnection:
             self._query_cache = _QueryCodecsCache()
 
         self._top_xact = None
+        self._borrowed_for = None
+        self._impl = None
+
+    def _dispatch_log_message(self, msg):
+        for cb in self._log_listeners:
+            cb(self, msg)
+
+    def _on_log_message(self, msg):
+        if self._log_listeners:
+            self._dispatch_log_message(msg)
+
+    def _get_unique_id(self, prefix):
+        return f'_edgedb_{prefix}_{_uid_counter():x}_'
+
+
+class BaseConnection:
 
     def connected_addr(self):
-        return self._impl._addr
+        return self._inner._impl._addr
 
     def _set_type_codec(
         self,
@@ -87,28 +102,19 @@ class BaseConnection:
             format=format,
         )
 
-    def _dispatch_log_message(self, msg):
-        raise NotImplementedError
-
-    def _on_log_message(self, msg):
-        if self._log_listeners:
-            self._dispatch_log_message(msg)
-
-    def _get_unique_id(self, prefix):
-        return f'_edgedb_{prefix}_{_uid_counter():x}_'
-
     def _get_last_status(self) -> typing.Optional[str]:
-        if self._impl is None:
+        impl = self._inner._impl
+        if impl is None:
             return None
-        if self._impl._protocol is None:
+        if impl._protocol is None:
             return None
-        status = self._impl._protocol.last_status
+        status = impl._protocol.last_status
         if status is not None:
             status = status.decode()
         return status
 
     def _cleanup(self):
-        self._log_listeners.clear()
+        self._inner._log_listeners.clear()
 
     def add_log_listener(
         self: BaseConnection_T,
@@ -122,7 +128,7 @@ class BaseConnection:
             **connection**: a Connection the callback is registered with;
             **message**: the `edgedb.EdgeDBMessage` message.
         """
-        self._log_listeners.add(callback)
+        self._inner._log_listeners.add(callback)
 
     def remove_log_listener(
         self: BaseConnection_T,
@@ -130,11 +136,11 @@ class BaseConnection:
                                   None]
     ) -> None:
         """Remove a listening callback for log messages."""
-        self._log_listeners.discard(callback)
+        self._inner._log_listeners.discard(callback)
 
     @property
     def dbname(self) -> str:
-        return self._params.database
+        return self._inner._params.database
 
     def is_closed(self) -> bool:
         raise NotImplementedError
@@ -144,10 +150,10 @@ class BaseConnection:
 
         :return bool: True if inside transaction, False otherwise.
         """
-        return self._impl._protocol.is_in_transaction()
+        return self._inner._impl._protocol.is_in_transaction()
 
     def get_settings(self) -> typing.Dict[str, str]:
-        return self._impl._protocol.get_settings()
+        return self._inner._impl._protocol.get_settings()
 
 
 # Thread-safe "+= 1" counter.

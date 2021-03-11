@@ -1,3 +1,4 @@
+import abc
 import enum
 import random
 from collections import namedtuple
@@ -93,6 +94,10 @@ class _OptionsMixin:
     def __init__(self, *args, **kwargs):
         self._options = _Options.defaults()
         super().__init__(*args, **kwargs)
+
+    @abc.abstractmethod
+    def _shallow_clone(self):
+        pass
 
 
 class _Options:

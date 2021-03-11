@@ -169,16 +169,19 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             self._connection = self._owner
         else:
             self._connection = await self._owner.acquire()
-        if self._connection._borrowed_for:
-            raise base_con.borrow_error(self._connection._borrowed_for)
+        if self._connection._inner._borrowed_for:
+            raise base_con.borrow_error(self._connection._inner._borrowed_for)
         await self._connection.ensure_connected(single_attempt=single_connect)
-        self._connection._borrowed_for = base_con.BorrowReason.TRANSACTION
-        self._connection_impl = self._connection._impl
+        self._connection_inner = self._connection._inner
+        self._connection_impl = self._connection._inner._impl
+        self._connection_inner._borrowed_for = (
+            base_con.BorrowReason.TRANSACTION
+        )
         try:
             await self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
-            self._connection._borrowed_for = None
+            self._connection_inner._borrowed_for = None
             raise
         else:
             self._state = TransactionState.STARTED
@@ -193,7 +196,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         else:
             self._state = TransactionState.COMMITTED
         finally:
-            self._connection._borrowed_for = None
+            self._connection_inner._borrowed_for = None
             if self._connection is not self._owner:
                 await self._owner.release(self._connection)
 
@@ -207,7 +210,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         else:
             self._state = TransactionState.ROLLEDBACK
         finally:
-            self._connection._borrowed_for = None
+            self._connection_inner._borrowed_for = None
             if self._connection is not self._owner:
                 await self._owner.release(self._connection)
 
@@ -226,7 +229,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         await self.__rollback()
 
     async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        con = self._connection
+        con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -238,7 +241,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         return result
 
     async def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        con = self._connection
+        con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -251,7 +254,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         return result
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
-        con = self._connection
+        con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -263,7 +266,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         return result
 
     async def query_one_json(self, query: str, *args, **kwargs) -> str:
-        con = self._connection
+        con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -318,16 +321,19 @@ class Transaction(BaseTransaction, abstract.Executor):
     def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
         self._connection = self._owner  # no pools supported for blocking con
-        if self._connection._borrowed_for:
-            raise base_con.borrow_error(self._connection._borrowed_for)
+        if self._connection._inner._borrowed_for:
+            raise base_con.borrow_error(self._connection_inner._borrowed_for)
         self._connection.ensure_connected(single_attempt=single_connect)
-        self._connection._borrowed_for = base_con.BorrowReason.TRANSACTION
-        self._connection_impl = self._connection._impl
+        self._connection_inner = self._connection._inner
+        self._connection_inner._borrowed_for = (
+            base_con.BorrowReason.TRANSACTION
+        )
+        self._connection_impl = self._connection_inner._impl
         try:
             self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
-            self._connection._borrowed_for = None
+            self._connection_inner._borrowed_for = None
             raise
         else:
             self._state = TransactionState.STARTED
@@ -342,7 +348,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         else:
             self._state = TransactionState.COMMITTED
         finally:
-            self._connection._borrowed_for = None
+            self._connection_inner._borrowed_for = None
 
     def __rollback(self):
         query = self._make_rollback_query()
@@ -354,7 +360,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         else:
             self._state = TransactionState.ROLLEDBACK
         finally:
-            self._connection._borrowed_for = None
+            self._connection_inner._borrowed_for = None
 
     def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
@@ -371,7 +377,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         self.__rollback()
 
     def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        con = self._connection
+        con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
             args=args,
@@ -382,7 +388,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         )
 
     def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        con = self._connection
+        con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
             args=args,
@@ -394,7 +400,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         )
 
     def query_json(self, query: str, *args, **kwargs) -> str:
-        con = self._connection
+        con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
             args=args,
@@ -405,7 +411,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         )
 
     def query_one_json(self, query: str, *args, **kwargs) -> str:
-        con = self._connection
+        con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
             args=args,
