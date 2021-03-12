@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import itertools
 
 import edgedb
 
@@ -71,6 +72,40 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
         ''')
 
         self.assertEqual(result, [])
+
+    async def test_async_transaction_kinds(self):
+        isolations = [
+            None,
+            edgedb.IsolationLevel.Serializable,
+            edgedb.IsolationLevel.RepeatableRead,
+        ]
+        booleans = [None, True, False]
+        all = itertools.product(isolations, booleans, booleans)
+        for isolation, readonly, deferrable in all:
+            if (isolation, readonly, deferrable) == (None, None, None):
+                continue
+            con = self.con.with_transaction_options(
+                isolation=isolation,
+                readonly=readonly,
+                deferrable=deferrable,
+            )
+            async with con.raw_transaction():
+                pass
+            async for tx in con.retrying_transaction():
+                async with tx:
+                    pass
+            if not any(v is None for v in (isolation, readonly, deferrable)):
+                options = edgedb.TransactionOptions(
+                    isolation=isolation,
+                    readonly=readonly,
+                    deferrable=deferrable,
+                )
+                con = self.con.with_transaction_options(options)
+                async with con.raw_transaction():
+                    pass
+                async for tx in con.retrying_transaction():
+                    async with tx:
+                        pass
 
     async def test_async_transaction_interface_errors(self):
         self.assertIsNone(self.con._inner._borrowed_for)

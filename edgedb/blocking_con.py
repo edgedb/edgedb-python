@@ -358,7 +358,10 @@ class BlockingIOConnection(
             self, isolation, readonly, deferrable)
 
     def raw_transaction(self) -> _transaction.Transaction:
-        return _transaction.Transaction(self)
+        return _transaction.Transaction(
+            self,
+            self._options.transaction_options,
+        )
 
     def retrying_transaction(self) -> _retry.Retry:
         return _retry.Retry(self)

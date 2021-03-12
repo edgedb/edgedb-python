@@ -422,7 +422,10 @@ class AsyncIOConnection(
         return _retry.AsyncIORetry(self)
 
     def raw_transaction(self) -> _transaction.AsyncIOTransaction:
-        return _transaction.AsyncIOTransaction(self)
+        return _transaction.AsyncIOTransaction(
+            self,
+            self._options.transaction_options,
+        )
 
     async def aclose(self) -> None:
         try:

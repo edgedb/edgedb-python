@@ -24,6 +24,7 @@ from . import abstract
 from . import base_con
 from . import enums
 from . import errors
+from . import options
 from .datatypes import datatypes
 from .protocol import protocol
 
@@ -39,25 +40,13 @@ class TransactionState(enum.Enum):
     FAILED = 4
 
 
-ISOLATION_LEVELS = {'serializable', 'repeatable_read'}
-
-
 class BaseTransaction:
 
-    __slots__ = ('_connection', '_isolation', '_readonly', '_deferrable',
-                 '_state', '_managed')
+    __slots__ = ('_connection', '_options', '_state', '_managed')
 
-    def __init__(self, owner, isolation: str = None,
-                 readonly: bool = None, deferrable: bool = None):
-        if isolation is not None and isolation not in ISOLATION_LEVELS:
-            raise ValueError(
-                'isolation is expected to be either of {}, '
-                'got {!r}'.format(ISOLATION_LEVELS, isolation))
-
+    def __init__(self, owner, options: options.TransactionOptions):
         self._owner = owner
-        self._isolation = isolation
-        self._readonly = readonly
-        self._deferrable = deferrable
+        self._options = options
         self._state = TransactionState.NEW
         self._managed = False
 
@@ -92,24 +81,7 @@ class BaseTransaction:
             raise errors.InterfaceError(
                 'cannot start; the transaction is already started')
 
-        query = 'START TRANSACTION'
-
-        if self._isolation == 'repeatable_read':
-            query = 'START TRANSACTION ISOLATION REPEATABLE READ'
-        elif self._isolation == 'serializable':
-            query = 'START TRANSACTION ISOLATION SERIALIZABLE'
-
-        if self._readonly:
-            query += ' READ ONLY'
-        elif self._readonly is not None:
-            query += ' READ WRITE'
-        if self._deferrable:
-            query += ' DEFERRABLE'
-        elif self._deferrable is not None:
-            query += ' NOT DEFERRABLE'
-        query += ';'
-
-        return query
+        return self._options.start_transaction_query()
 
     def _make_commit_query(self):
         self.__check_state('commit')
@@ -122,13 +94,7 @@ class BaseTransaction:
     def __repr__(self):
         attrs = []
         attrs.append('state:{}'.format(self._state.name.lower()))
-
-        if self._isolation:
-            attrs.append(self._isolation)
-        if self._readonly:
-            attrs.append('readonly')
-        if self._deferrable:
-            attrs.append('deferrable')
+        attrs.append(repr(self._options))
 
         if self.__class__.__module__.startswith('edgedb.'):
             mod = 'edgedb'

@@ -7,7 +7,7 @@ from . import transaction as _transaction
 
 class AsyncIOIteration(_transaction.AsyncIOTransaction):
     def __init__(self, retry, owner, iteration):
-        super().__init__(owner)
+        super().__init__(owner, retry._options.transaction_options)
         self.__retry = retry
         self.__iteration = iteration
 
@@ -52,12 +52,12 @@ class BaseRetry:
         self._owner = owner
         self._iteration = 0
         self._done = False
-        self._retry_options = owner._options.retry_options
         self._next_backoff = 0
+        self._options = owner._options
 
     def _retry(self, exc):
         self._last_exception = exc
-        rule = self._retry_options.get_rule_for_exception(exc)
+        rule = self._options.retry_options.get_rule_for_exception(exc)
         if self._iteration >= rule.attempts:
             return False
         self._done = False
@@ -103,7 +103,7 @@ class Retry(BaseRetry):
 
 class Iteration(_transaction.Transaction):
     def __init__(self, retry, owner, iteration):
-        super().__init__(owner)
+        super().__init__(owner, retry._options.transaction_options)
         self.__retry = retry
         self.__iteration = iteration
 

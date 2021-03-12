@@ -732,7 +732,10 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         await self.aclose()
 
     def raw_transaction(self) -> _transaction.AsyncIOTransaction:
-        return _transaction.AsyncIOTransaction(self)
+        return _transaction.AsyncIOTransaction(
+            self,
+            self._options.transaction_options,
+        )
 
     def retrying_transaction(self) -> _retry.AsyncIORetry:
         return _retry.AsyncIORetry(self)
