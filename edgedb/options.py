@@ -72,7 +72,7 @@ class RetryOptions:
 
 
 class TransactionOptions:
-    """Options for `raw_transaction()` an `retrying_transaction()`"""
+    """Options for `raw_transaction()` and `retrying_transaction()`"""
     __slots__ = ['_isolation', '_readonly', '_deferrable']
 
     def __init__(
