@@ -17,27 +17,17 @@
 #
 
 
-import sys
-
-if sys.version_info < (3, 6):
-    # edgedb.NamedTuple() relies on ordered **kwargs.
-    raise RuntimeError('edgedb requires Python 3.6 or greater')
-
 import os
-import os.path
 import pathlib
 import re
 import subprocess
-
-# We use vanilla build_ext, to avoid importing Cython via
-# the setuptools version.
-from distutils import extension as distutils_extension
-from distutils.command import build_ext as distutils_build_ext
+import sys
 
 import setuptools
-from setuptools.command import build_py as setuptools_build_py
-from setuptools.command import sdist as setuptools_sdist
-
+from setuptools import Extension
+from setuptools.command.build_ext import build_ext as _build_ext
+from setuptools.command.build_py import build_py as _build_py
+from setuptools.command.sdist import sdist as _sdist
 
 CYTHON_DEPENDENCY = 'Cython==0.29.21'
 
@@ -66,7 +56,9 @@ EXTRA_DEPENDENCIES = {
     'dev': [
         CYTHON_DEPENDENCY,
         'pytest>=3.6.0',
-    ] + DOC_DEPENDENCIES + TEST_DEPENDENCIES
+    ]
+    + DOC_DEPENDENCIES
+    + TEST_DEPENDENCIES,
 }
 
 
@@ -75,29 +67,29 @@ LDFLAGS = []
 SYSTEM = sys.platform
 
 if SYSTEM != 'win32':
-    CFLAGS.extend(['-std=gnu99', '-fsigned-char', '-Wall',
-                   '-Wsign-compare', '-Wconversion'])
+    CFLAGS.extend(
+        ['-std=gnu99', '-fsigned-char', '-Wall', '-Wsign-compare', '-Wconversion']
+    )
 
 if SYSTEM == 'darwin':
     # Lots of warnings from the standard library on macOS 10.14
     CFLAGS.extend(['-Wno-nullability-completeness'])
 
-_ROOT = pathlib.Path(__file__).parent
+_ROOT = pathlib.Path(__file__).parent.resolve()
 
 
-with open(str(_ROOT / 'README.rst')) as f:
+with open(_ROOT / 'README.rst') as f:
     readme = f.read()
 
 
-with open(str(_ROOT / 'edgedb' / '_version.py')) as f:
+with open(_ROOT / 'edgedb' / '_version.py') as f:
     for line in f:
         if line.startswith('__version__ ='):
             _, _, version = line.partition('=')
             VERSION = version.strip(" \n'\"")
             break
     else:
-        raise RuntimeError(
-            'unable to read the version from edgedb/_version.py')
+        raise RuntimeError('unable to read the version from edgedb/_version.py')
 
 
 if (_ROOT / '.git').is_dir() and 'dev' in VERSION:
@@ -109,8 +101,9 @@ if (_ROOT / '.git').is_dir() and 'dev' in VERSION:
         if v is not None:
             env['PATH'] = v
 
-        git = subprocess.run(['git', 'rev-parse', 'HEAD'], env=env,
-                             cwd=str(_ROOT), stdout=subprocess.PIPE)
+        git = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'], env=env, cwd=_ROOT, stdout=subprocess.PIPE
+        )
         if git.returncode == 0:
             commitish = git.stdout.strip().decode('ascii')
         else:
@@ -122,31 +115,28 @@ if (_ROOT / '.git').is_dir() and 'dev' in VERSION:
 
 
 class VersionMixin:
-
     def _fix_version(self, filename):
         # Replace edgedb.__version__ with the actual version
         # of the distribution (possibly inferred from git).
 
-        with open(str(filename)) as f:
+        with open(filename) as f:
             content = f.read()
 
         version_re = r"(.*__version__\s*=\s*)'[^']+'(.*)"
         repl = r"\1'{}'\2".format(self.distribution.metadata.version)
         content = re.sub(version_re, repl, content)
 
-        with open(str(filename), 'w') as f:
+        with open(filename, 'w') as f:
             f.write(content)
 
 
-class sdist(setuptools_sdist.sdist, VersionMixin):
-
+class sdist(_sdist, VersionMixin):
     def make_release_tree(self, base_dir, files):
         super().make_release_tree(base_dir, files)
         self._fix_version(pathlib.Path(base_dir) / 'edgedb' / '_version.py')
 
 
-class build_py(setuptools_build_py.build_py, VersionMixin):
-
+class build_py(_build_py, VersionMixin):
     def build_module(self, module, module_file, package):
         outfile, copied = super().build_module(module, module_file, package)
 
@@ -156,15 +146,16 @@ class build_py(setuptools_build_py.build_py, VersionMixin):
         return outfile, copied
 
 
-class build_ext(distutils_build_ext.build_ext):
+class build_ext(_build_ext):
 
-    user_options = distutils_build_ext.build_ext.user_options + [
-        ('cython-always', None,
-            'run cythonize() even if .c files are present'),
-        ('cython-annotate', None,
-            'Produce a colorized HTML version of the Cython source.'),
-        ('cython-directives=', None,
-            'Cython compiler directives'),
+    user_options = _build_ext.user_options + [
+        ('cython-always', None, 'run cythonize() even if .c files are present'),
+        (
+            'cython-annotate',
+            None,
+            'Produce a colorized HTML version of the Cython source.',
+        ),
+        ('cython-directives=', None, 'Cython compiler directives'),
     ]
 
     def initialize_options(self):
@@ -179,7 +170,7 @@ class build_ext(distutils_build_ext.build_ext):
         if os.environ.get('EDGEDB_DEBUG'):
             self.cython_always = True
             self.cython_annotate = True
-            self.cython_directives = "linetrace=True"
+            self.cython_directives = 'linetrace=True'
             self.define = 'PG_DEBUG,CYTHON_TRACE,CYTHON_TRACE_NOGIL'
             self.debug = True
         else:
@@ -201,7 +192,7 @@ class build_ext(distutils_build_ext.build_ext):
         for extension in self.distribution.ext_modules:
             for i, sfile in enumerate(extension.sources):
                 if sfile.endswith('.pyx'):
-                    prefix, ext = os.path.splitext(sfile)
+                    prefix, _ = os.path.splitext(sfile)
                     cfile = prefix + '.c'
 
                     if os.path.exists(cfile) and not self.cython_always:
@@ -214,31 +205,10 @@ class build_ext(distutils_build_ext.build_ext):
                         need_cythonize = True
 
         if need_cythonize:
-            import pkg_resources
-
-            # Double check Cython presence in case setup_requires
-            # didn't go into effect (most likely because someone
-            # imported Cython before setup_requires injected the
-            # correct egg into sys.path.
-            try:
-                import Cython
-            except ImportError:
-                raise RuntimeError(
-                    'please install {} to compile edgedb from source'.format(
-                        CYTHON_DEPENDENCY))
-
-            cython_dep = pkg_resources.Requirement.parse(CYTHON_DEPENDENCY)
-            if Cython.__version__ not in cython_dep:
-                raise RuntimeError(
-                    'edgedb requires {}, got Cython=={}'.format(
-                        CYTHON_DEPENDENCY, Cython.__version__
-                    ))
 
             from Cython.Build import cythonize
 
-            directives = {
-                'language_level': '3'
-            }
+            directives = {'language_level': '3'}
             if self.cython_directives:
                 for directive in self.cython_directives.split(','):
                     k, _, v = directive.partition('=')
@@ -252,16 +222,16 @@ class build_ext(distutils_build_ext.build_ext):
             self.distribution.ext_modules[:] = cythonize(
                 self.distribution.ext_modules,
                 compiler_directives=directives,
-                annotate=self.cython_annotate)
+                annotate=self.cython_annotate,
+            )
 
-        super(build_ext, self).finalize_options()
+        super().finalize_options()
 
 
 INCLUDE_DIRS = [
     'edgedb/pgproto/',
     'edgedb/datatypes',
 ]
-
 
 setup_requires = []
 
@@ -270,16 +240,11 @@ if (not (_ROOT / 'edgedb' / 'protocol' / 'protocol.c').exists() or
     # No Cython output, require Cython to build.
     setup_requires.append(CYTHON_DEPENDENCY)
 
-
-with open(str(_ROOT / 'README.rst')) as f:
-    readme = f.read()
-
-
 setuptools.setup(
     name='edgedb',
     version=VERSION,
     description='EdgeDB Python driver',
-    long_description=readme,
+    long_description=(_ROOT / 'README.rst').read_text(encoding='utf-8'),
     platforms=['macOS', 'POSIX', 'Windows'],
     author='MagicStack Inc',
     author_email='hello@magic.io',
@@ -291,56 +256,60 @@ setuptools.setup(
     include_package_data=True,
     package_data={'edgedb': ['py.typed']},
     ext_modules=[
-        distutils_extension.Extension(
-            "edgedb.pgproto.pgproto",
-            ["edgedb/pgproto/pgproto.pyx"],
-            extra_compile_args=CFLAGS,
-            extra_link_args=LDFLAGS),
-
-        distutils_extension.Extension(
-            "edgedb.datatypes.datatypes",
-            ["edgedb/datatypes/args.c",
-             "edgedb/datatypes/record_desc.c",
-             "edgedb/datatypes/tuple.c",
-             "edgedb/datatypes/namedtuple.c",
-             "edgedb/datatypes/object.c",
-             "edgedb/datatypes/set.c",
-             "edgedb/datatypes/hash.c",
-             "edgedb/datatypes/array.c",
-             "edgedb/datatypes/link.c",
-             "edgedb/datatypes/linkset.c",
-             "edgedb/datatypes/repr.c",
-             "edgedb/datatypes/comp.c",
-             "edgedb/datatypes/datatypes.pyx"],
-            extra_compile_args=CFLAGS,
-            extra_link_args=LDFLAGS),
-
-        distutils_extension.Extension(
-            "edgedb.protocol.protocol",
-            ["edgedb/protocol/protocol.pyx"],
+        Extension(
+            'edgedb.pgproto.pgproto',
+            ['edgedb/pgproto/pgproto.pyx'],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
-            include_dirs=INCLUDE_DIRS),
-
-        distutils_extension.Extension(
-            "edgedb.protocol.asyncio_proto",
-            ["edgedb/protocol/asyncio_proto.pyx"],
+        ),
+        Extension(
+            'edgedb.datatypes.datatypes',
+            [
+                'edgedb/datatypes/args.c',
+                'edgedb/datatypes/record_desc.c',
+                'edgedb/datatypes/tuple.c',
+                'edgedb/datatypes/namedtuple.c',
+                'edgedb/datatypes/object.c',
+                'edgedb/datatypes/set.c',
+                'edgedb/datatypes/hash.c',
+                'edgedb/datatypes/array.c',
+                'edgedb/datatypes/link.c',
+                'edgedb/datatypes/linkset.c',
+                'edgedb/datatypes/repr.c',
+                'edgedb/datatypes/comp.c',
+                'edgedb/datatypes/datatypes.pyx',
+            ],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
-            include_dirs=INCLUDE_DIRS),
-
-        distutils_extension.Extension(
-            "edgedb.protocol.blocking_proto",
-            ["edgedb/protocol/blocking_proto.pyx"],
+        ),
+        Extension(
+            'edgedb.protocol.protocol',
+            ['edgedb/protocol/protocol.pyx'],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
-            include_dirs=INCLUDE_DIRS),
+            include_dirs=INCLUDE_DIRS,
+        ),
+        Extension(
+            'edgedb.protocol.asyncio_proto',
+            ['edgedb/protocol/asyncio_proto.pyx'],
+            extra_compile_args=CFLAGS,
+            extra_link_args=LDFLAGS,
+            include_dirs=INCLUDE_DIRS,
+        ),
+        Extension(
+            'edgedb.protocol.blocking_proto',
+            ['edgedb/protocol/blocking_proto.pyx'],
+            extra_compile_args=CFLAGS,
+            extra_link_args=LDFLAGS,
+            include_dirs=INCLUDE_DIRS,
+        ),
     ],
-    cmdclass={'build_ext': build_ext},
+    cmdclass={'sdist': sdist, 'build_py': build_py, 'build_ext': build_ext},
     test_suite='tests.suite',
     install_requires=[
-        'typing-extensions~=3.7.4',
+        'typing-extensions~=3.7.4;python_version<="3.8"',
     ],
+    python_requires='>=3.6',
     extras_require=EXTRA_DEPENDENCIES,
     setup_requires=setup_requires,
 )
