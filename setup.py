@@ -29,89 +29,100 @@ from setuptools.command.build_ext import build_ext as _build_ext
 from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.sdist import sdist as _sdist
 
-CYTHON_DEPENDENCY = 'Cython==0.29.21'
+CYTHON_DEPENDENCY = "Cython==0.29.21"
 
 # Minimal dependencies required to test edgedb.
 TEST_DEPENDENCIES = [
     # pycodestyle is a dependency of flake8, but it must be frozen because
     # their combination breaks too often
     # (example breakage: https://gitlab.com/pycqa/flake8/issues/427)
-    'pycodestyle~=2.6.0',
-    'pyflakes~=2.2.0',
-    'flake8~=3.8.1',
+    "pycodestyle~=2.6.0",
+    "pyflakes~=2.2.0",
+    "flake8~=3.8.1",
     'uvloop>=0.15.1; platform_system != "Windows" and python_version >= "3.7"',
 ]
 
 # Dependencies required to build documentation.
 DOC_DEPENDENCIES = [
-    'sphinx~=2.3.1',
-    'sphinxcontrib-asyncio~=0.2.0',
-    'sphinx_rtd_theme~=0.4.3',
+    "sphinx~=2.3.1",
+    "sphinxcontrib-asyncio~=0.2.0",
+    "sphinx_rtd_theme~=0.4.3",
 ]
 
 EXTRA_DEPENDENCIES = {
-    'docs': DOC_DEPENDENCIES,
-    'test': TEST_DEPENDENCIES,
+    "docs": DOC_DEPENDENCIES,
+    "test": TEST_DEPENDENCIES,
     # Dependencies required to develop edgedb.
-    'dev': [
+    "dev": [
         CYTHON_DEPENDENCY,
-        'pytest>=3.6.0',
+        "pytest>=3.6.0",
     ]
     + DOC_DEPENDENCIES
     + TEST_DEPENDENCIES,
 }
 
 
-CFLAGS = ['-O2']
+CFLAGS = ["-O2"]
 LDFLAGS = []
 SYSTEM = sys.platform
 
-if SYSTEM != 'win32':
+if SYSTEM != "win32":
     CFLAGS.extend(
-        ['-std=gnu99', '-fsigned-char', '-Wall', '-Wsign-compare', '-Wconversion']
+        [
+            "-std=gnu99",
+            "-fsigned-char",
+            "-Wall",
+            "-Wsign-compare",
+            "-Wconversion",
+        ]
     )
 
-if SYSTEM == 'darwin':
+if SYSTEM == "darwin":
     # Lots of warnings from the standard library on macOS 10.14
-    CFLAGS.extend(['-Wno-nullability-completeness'])
+    CFLAGS.extend(["-Wno-nullability-completeness"])
 
 _ROOT = pathlib.Path(__file__).parent.resolve()
 
 
-with open(_ROOT / 'README.rst') as f:
+with open(_ROOT / "README.rst") as f:
     readme = f.read()
 
 
-with open(_ROOT / 'edgedb' / '_version.py') as f:
+with open(_ROOT / "edgedb" / "_version.py") as f:
     for line in f:
-        if line.startswith('__version__ ='):
-            _, _, version = line.partition('=')
+        if line.startswith("__version__ ="):
+            _, _, version = line.partition("=")
             VERSION = version.strip(" \n'\"")
             break
     else:
-        raise RuntimeError('unable to read the version from edgedb/_version.py')
+        raise RuntimeError(
+            "unable to read the version from edgedb/_version.py"
+        )
 
 
-if (_ROOT / '.git').is_dir() and 'dev' in VERSION:
+if (_ROOT / ".git").is_dir() and "dev" in VERSION:
     # This is a git checkout, use git to
     # generate a precise version.
     def git_commitish():
         env = {}
-        v = os.environ.get('PATH')
+        v = os.environ.get("PATH")
         if v is not None:
-            env['PATH'] = v
+            env["PATH"] = v
 
         git = subprocess.run(
-            ['git', 'rev-parse', 'HEAD'], env=env, cwd=_ROOT, stdout=subprocess.PIPE
+            ["git", "rev-parse", "HEAD"],
+            env=env,
+            cwd=_ROOT,
+            stdout=subprocess.PIPE,
         )
         if git.returncode == 0:
-            commitish = git.stdout.strip().decode('ascii')
+            commitish = git.stdout.strip().decode("ascii")
         else:
-            commitish = 'unknown'
+            commitish = "unknown"
 
         return commitish
 
-    VERSION += '+' + git_commitish()[:7]
+    VERSION += "+" + git_commitish()[:7]
 
 
 class VersionMixin:
@@ -126,21 +137,21 @@ class VersionMixin:
         repl = r"\1'{}'\2".format(self.distribution.metadata.version)
         content = re.sub(version_re, repl, content)
 
-        with open(filename, 'w') as f:
+        with open(filename, "w") as f:
             f.write(content)
 
 
 class sdist(_sdist, VersionMixin):
     def make_release_tree(self, base_dir, files):
         super().make_release_tree(base_dir, files)
-        self._fix_version(pathlib.Path(base_dir) / 'edgedb' / '_version.py')
+        self._fix_version(pathlib.Path(base_dir) / "edgedb" / "_version.py")
 
 
 class build_py(_build_py, VersionMixin):
     def build_module(self, module, module_file, package):
         outfile, copied = super().build_module(module, module_file, package)
 
-        if module == '_version' and package == 'edgedb':
+        if module == "_version" and package == "edgedb":
             self._fix_version(outfile)
 
         return outfile, copied
@@ -149,29 +160,33 @@ class build_py(_build_py, VersionMixin):
 class build_ext(_build_ext):
 
     user_options = _build_ext.user_options + [
-        ('cython-always', None, 'run cythonize() even if .c files are present'),
         (
-            'cython-annotate',
+            "cython-always",
             None,
-            'Produce a colorized HTML version of the Cython source.',
+            "run cythonize() even if .c files are present",
         ),
-        ('cython-directives=', None, 'Cython compiler directives'),
+        (
+            "cython-annotate",
+            None,
+            "Produce a colorized HTML version of the Cython source.",
+        ),
+        ("cython-directives=", None, "Cython compiler directives"),
     ]
 
     def initialize_options(self):
         # initialize_options() may be called multiple times on the
         # same command object, so make sure not to override previously
         # set options.
-        if getattr(self, '_initialized', False):
+        if getattr(self, "_initialized", False):
             return
 
         super(build_ext, self).initialize_options()
 
-        if os.environ.get('EDGEDB_DEBUG'):
+        if os.environ.get("EDGEDB_DEBUG"):
             self.cython_always = True
             self.cython_annotate = True
-            self.cython_directives = 'linetrace=True'
-            self.define = 'PG_DEBUG,CYTHON_TRACE,CYTHON_TRACE_NOGIL'
+            self.cython_directives = "linetrace=True"
+            self.define = "PG_DEBUG,CYTHON_TRACE,CYTHON_TRACE_NOGIL"
             self.debug = True
         else:
             self.cython_always = False
@@ -183,7 +198,7 @@ class build_ext(_build_ext):
         # finalize_options() may be called multiple times on the
         # same command object, so make sure not to override previously
         # set options.
-        if getattr(self, '_initialized', False):
+        if getattr(self, "_initialized", False):
             return
 
         need_cythonize = self.cython_always
@@ -191,9 +206,9 @@ class build_ext(_build_ext):
 
         for extension in self.distribution.ext_modules:
             for i, sfile in enumerate(extension.sources):
-                if sfile.endswith('.pyx'):
+                if sfile.endswith(".pyx"):
                     prefix, _ = os.path.splitext(sfile)
-                    cfile = prefix + '.c'
+                    cfile = prefix + ".c"
 
                     if os.path.exists(cfile) and not self.cython_always:
                         extension.sources[i] = cfile
@@ -208,13 +223,13 @@ class build_ext(_build_ext):
 
             from Cython.Build import cythonize
 
-            directives = {'language_level': '3'}
+            directives = {"language_level": "3"}
             if self.cython_directives:
-                for directive in self.cython_directives.split(','):
-                    k, _, v = directive.partition('=')
-                    if v.lower() == 'false':
+                for directive in self.cython_directives.split(","):
+                    k, _, v = directive.partition("=")
+                    if v.lower() == "false":
                         v = False
-                    if v.lower() == 'true':
+                    if v.lower() == "true":
                         v = True
 
                     directives[k] = v
@@ -229,87 +244,89 @@ class build_ext(_build_ext):
 
 
 INCLUDE_DIRS = [
-    'edgedb/pgproto/',
-    'edgedb/datatypes',
+    "edgedb/pgproto/",
+    "edgedb/datatypes",
 ]
 
 setup_requires = []
 
-if (not (_ROOT / 'edgedb' / 'protocol' / 'protocol.c').exists() or
-        '--cython-always' in sys.argv):
+if (
+    not (_ROOT / "edgedb" / "protocol" / "protocol.c").exists()
+    or "--cython-always" in sys.argv
+):
     # No Cython output, require Cython to build.
     setup_requires.append(CYTHON_DEPENDENCY)
 
 setuptools.setup(
-    name='edgedb',
+    name="edgedb",
     version=VERSION,
-    description='EdgeDB Python driver',
-    long_description=(_ROOT / 'README.rst').read_text(encoding='utf-8'),
-    platforms=['macOS', 'POSIX', 'Windows'],
-    author='MagicStack Inc',
-    author_email='hello@magic.io',
-    url='https://github.com/edgedb/edgedb-python',
-    license='Apache License, Version 2.0',
-    packages=['edgedb'],
-    provides=['edgedb'],
+    description="EdgeDB Python driver",
+    long_description=(_ROOT / "README.rst").read_text(encoding="utf-8"),
+    platforms=["macOS", "POSIX", "Windows"],
+    author="MagicStack Inc",
+    author_email="hello@magic.io",
+    url="https://github.com/edgedb/edgedb-python",
+    license="Apache License, Version 2.0",
+    packages=["edgedb"],
+    provides=["edgedb"],
     zip_safe=False,
     include_package_data=True,
-    package_data={'edgedb': ['py.typed']},
+    package_data={"edgedb": ["py.typed"]},
     ext_modules=[
         Extension(
-            'edgedb.pgproto.pgproto',
-            ['edgedb/pgproto/pgproto.pyx'],
+            "edgedb.pgproto.pgproto",
+            ["edgedb/pgproto/pgproto.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
         ),
         Extension(
-            'edgedb.datatypes.datatypes',
+            "edgedb.datatypes.datatypes",
             [
-                'edgedb/datatypes/args.c',
-                'edgedb/datatypes/record_desc.c',
-                'edgedb/datatypes/tuple.c',
-                'edgedb/datatypes/namedtuple.c',
-                'edgedb/datatypes/object.c',
-                'edgedb/datatypes/set.c',
-                'edgedb/datatypes/hash.c',
-                'edgedb/datatypes/array.c',
-                'edgedb/datatypes/link.c',
-                'edgedb/datatypes/linkset.c',
-                'edgedb/datatypes/repr.c',
-                'edgedb/datatypes/comp.c',
-                'edgedb/datatypes/datatypes.pyx',
+                "edgedb/datatypes/args.c",
+                "edgedb/datatypes/record_desc.c",
+                "edgedb/datatypes/tuple.c",
+                "edgedb/datatypes/namedtuple.c",
+                "edgedb/datatypes/object.c",
+                "edgedb/datatypes/set.c",
+                "edgedb/datatypes/hash.c",
+                "edgedb/datatypes/array.c",
+                "edgedb/datatypes/link.c",
+                "edgedb/datatypes/linkset.c",
+                "edgedb/datatypes/repr.c",
+                "edgedb/datatypes/comp.c",
+                "edgedb/datatypes/datatypes.pyx",
             ],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
         ),
         Extension(
-            'edgedb.protocol.protocol',
-            ['edgedb/protocol/protocol.pyx'],
+            "edgedb.protocol.protocol",
+            ["edgedb/protocol/protocol.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
             include_dirs=INCLUDE_DIRS,
         ),
         Extension(
-            'edgedb.protocol.asyncio_proto',
-            ['edgedb/protocol/asyncio_proto.pyx'],
+            "edgedb.protocol.asyncio_proto",
+            ["edgedb/protocol/asyncio_proto.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
             include_dirs=INCLUDE_DIRS,
         ),
         Extension(
-            'edgedb.protocol.blocking_proto',
-            ['edgedb/protocol/blocking_proto.pyx'],
+            "edgedb.protocol.blocking_proto",
+            ["edgedb/protocol/blocking_proto.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
             include_dirs=INCLUDE_DIRS,
         ),
     ],
-    cmdclass={'sdist': sdist, 'build_py': build_py, 'build_ext': build_ext},
-    test_suite='tests.suite',
+    cmdclass={"sdist": sdist, "build_py": build_py, "build_ext": build_ext},
+    test_suite="tests.suite",
     install_requires=[
         'typing-extensions~=3.7.4;python_version<="3.8"',
     ],
-    python_requires='>=3.6',
+    python_requires=">=3.6",
     extras_require=EXTRA_DEPENDENCIES,
     setup_requires=setup_requires,
 )
