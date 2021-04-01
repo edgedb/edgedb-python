@@ -36,6 +36,7 @@ jobs:
 
     - name: Check if release PR.
       uses: edgedb/action-release/validate-pr@master
+      continue-on-error: true
       id: release
       with:
         github_token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
