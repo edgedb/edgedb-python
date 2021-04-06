@@ -21,6 +21,7 @@ import itertools
 import edgedb
 
 from edgedb import _testbase as tb
+from edgedb import TransactionOptions
 
 
 class TestAsyncTx(tb.AsyncQueryTestCase):
@@ -82,30 +83,19 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
         booleans = [None, True, False]
         all = itertools.product(isolations, booleans, booleans)
         for isolation, readonly, deferrable in all:
-            if (isolation, readonly, deferrable) == (None, None, None):
-                continue
-            con = self.con.with_transaction_options(
+            opt = dict(
                 isolation=isolation,
                 readonly=readonly,
                 deferrable=deferrable,
             )
+            # skip None
+            opt = {k: v for k, v in opt.items() if v is not None}
+            con = self.con.with_transaction_options(TransactionOptions(**opt))
             async with con.raw_transaction():
                 pass
             async for tx in con.retrying_transaction():
                 async with tx:
                     pass
-            if not any(v is None for v in (isolation, readonly, deferrable)):
-                options = edgedb.TransactionOptions(
-                    isolation=isolation,
-                    readonly=readonly,
-                    deferrable=deferrable,
-                )
-                con = self.con.with_transaction_options(options)
-                async with con.raw_transaction():
-                    pass
-                async for tx in con.retrying_transaction():
-                    async with tx:
-                        pass
 
     async def test_async_transaction_interface_errors(self):
         self.assertIsNone(self.con._inner._borrowed_for)
