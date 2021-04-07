@@ -15,7 +15,7 @@ def default_backoff(attempt):
 
 class RetryCondition:
     """Specific condition to retry on for fine-grained control"""
-    Conflict = enum.auto()
+    TransactionConflict = enum.auto()
     NetworkError = enum.auto()
 
 
@@ -62,9 +62,9 @@ class RetryOptions:
         res = default
         if overrides:
             if isinstance(exception, errors.TransactionConflictError):
-                res = overrides.get(RetryCondition.Conflict, default)
+                res = overrides.get(RetryCondition.TransactionConflict, res)
             elif isinstance(exception, errors.ClientError):
-                res = overrides.get(RetryCondition.NetworkError, default)
+                res = overrides.get(RetryCondition.NetworkError, res)
         return res
 
 
