@@ -76,6 +76,7 @@ __all__ = _base.__all__ + (  # type: ignore
     'CardinalityViolationError',
     'MissingRequiredError',
     'TransactionError',
+    'TransactionConflictError',
     'TransactionSerializationError',
     'TransactionDeadlockError',
     'ConfigurationError',
@@ -346,13 +347,18 @@ class TransactionError(ExecutionError):
     _code = 0x_05_03_00_00
 
 
-class TransactionSerializationError(TransactionError):
-    _code = 0x_05_03_00_01
+class TransactionConflictError(TransactionError):
+    _code = 0x_05_03_01_00
     tags = frozenset({SHOULD_RETRY})
 
 
-class TransactionDeadlockError(TransactionError):
-    _code = 0x_05_03_00_02
+class TransactionSerializationError(TransactionConflictError):
+    _code = 0x_05_03_01_01
+    tags = frozenset({SHOULD_RETRY})
+
+
+class TransactionDeadlockError(TransactionConflictError):
+    _code = 0x_05_03_01_02
     tags = frozenset({SHOULD_RETRY})
 
 

@@ -78,6 +78,11 @@ _FETCHONE_METHOD = {
 
 ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
 
+cdef dict OLD_ERROR_CODES = {
+    0x05_03_00_01: 0x05_03_01_01,  # TransactionSerializationError #2431
+    0x05_03_00_02: 0x05_03_01_02,  # TransactionDeadlockError      #2431
+}
+
 
 cdef class QueryCodecsCache:
 
@@ -897,8 +902,8 @@ cdef class SansIOProtocol:
                 self.parse_headers()
                 self.buffer.finish_message()
 
-                if (major != PROTO_VER_MAJOR or
-                        (major == 0 and minor != PROTO_VER_MINOR)):
+                if (major != PROTO_VER_MAJOR or (major == 0 and
+                        not PROTO_VER_MINOR_MIN <= minor <= PROTO_VER_MINOR)):
                     raise errors.ClientConnectionError(
                         f'the server requested an unsupported version of '
                         f'the protocol: {major}.{minor}'
@@ -1260,6 +1265,9 @@ cdef class SansIOProtocol:
         code = <uint32_t>self.buffer.read_int32()
         msg = self.buffer.read_len_prefixed_utf8()
         attrs = self.parse_headers()
+
+        # It's safe to always map error codes as we don't reuse them
+        code = OLD_ERROR_CODES.get(code, code)
 
         exc = errors.EdgeDBError._from_code(code, msg)
         exc._attrs = attrs

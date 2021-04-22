@@ -100,6 +100,7 @@ from .errors import (
     CardinalityViolationError,
     MissingRequiredError,
     TransactionError,
+    TransactionConflictError,
     TransactionSerializationError,
     TransactionDeadlockError,
     ConfigurationError,
