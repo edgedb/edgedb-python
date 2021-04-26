@@ -16,10 +16,12 @@
 # limitations under the License.
 #
 
+import itertools
 
 import edgedb
 
 from edgedb import _testbase as tb
+from edgedb import TransactionOptions
 
 
 class TestAsyncTx(tb.AsyncQueryTestCase):
@@ -37,13 +39,13 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
     '''
 
     async def test_async_transaction_regular_01(self):
-        self.assertIsNone(self.con._borrowed_for)
+        self.assertIsNone(self.con._inner._borrowed_for)
         tr = self.con.raw_transaction()
-        self.assertIsNone(self.con._borrowed_for)
+        self.assertIsNone(self.con._inner._borrowed_for)
 
         with self.assertRaises(ZeroDivisionError):
             async with tr as with_tr:
-                self.assertIs(self.con._borrowed_for, 'transaction')
+                self.assertIs(self.con._inner._borrowed_for, 'transaction')
 
                 with self.assertRaisesRegex(edgedb.InterfaceError,
                                             '.*is borrowed.*'):
@@ -61,7 +63,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
                 1 / 0
 
-        self.assertIsNone(self.con._borrowed_for)
+        self.assertIsNone(self.con._inner._borrowed_for)
 
         result = await self.con.query('''
             SELECT
@@ -72,8 +74,31 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
         self.assertEqual(result, [])
 
+    async def test_async_transaction_kinds(self):
+        isolations = [
+            None,
+            edgedb.IsolationLevel.Serializable,
+            edgedb.IsolationLevel.RepeatableRead,
+        ]
+        booleans = [None, True, False]
+        all = itertools.product(isolations, booleans, booleans)
+        for isolation, readonly, deferrable in all:
+            opt = dict(
+                isolation=isolation,
+                readonly=readonly,
+                deferrable=deferrable,
+            )
+            # skip None
+            opt = {k: v for k, v in opt.items() if v is not None}
+            con = self.con.with_transaction_options(TransactionOptions(**opt))
+            async with con.raw_transaction():
+                pass
+            async for tx in con.retrying_transaction():
+                async with tx:
+                    pass
+
     async def test_async_transaction_interface_errors(self):
-        self.assertIsNone(self.con._borrowed_for)
+        self.assertIsNone(self.con._inner._borrowed_for)
 
         tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -84,14 +109,14 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
         self.assertTrue(repr(tr).startswith(
             '<edgedb.AsyncIOTransaction state:rolledback'))
 
-        self.assertIsNone(self.con._borrowed_for)
+        self.assertIsNone(self.con._inner._borrowed_for)
 
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot start; .* already rolled back'):
             async with tr:
                 pass
 
-        self.assertIsNone(self.con._borrowed_for)
+        self.assertIsNone(self.con._inner._borrowed_for)
 
         tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -99,7 +124,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
             async with tr:
                 await tr.commit()
 
-        self.assertIsNone(self.con._borrowed_for)
+        self.assertIsNone(self.con._inner._borrowed_for)
 
         tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -107,7 +132,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
             async with tr:
                 await tr.rollback()
 
-        self.assertIsNone(self.con._borrowed_for)
+        self.assertIsNone(self.con._inner._borrowed_for)
 
         tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,

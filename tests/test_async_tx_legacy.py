@@ -37,13 +37,13 @@ class TestAsyncTxLegacy(tb.AsyncQueryTestCase):
     '''
 
     async def test_async_transaction_regular_01(self):
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
         tr = self.con.transaction()
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         with self.assertRaises(ZeroDivisionError):
             async with tr as with_tr:
-                self.assertIs(self.con._top_xact, tr)
+                self.assertIs(self.con._inner._top_xact, tr)
 
                 # We don't return the transaction object from __aenter__,
                 # to make it harder for people to use '.rollback()' and
@@ -58,7 +58,7 @@ class TestAsyncTxLegacy(tb.AsyncQueryTestCase):
 
                 1 / 0
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         result = await self.con.query('''
             SELECT
@@ -70,16 +70,16 @@ class TestAsyncTxLegacy(tb.AsyncQueryTestCase):
         self.assertEqual(result, [])
 
     async def test_async_transaction_nested_01(self):
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
         tr = self.con.transaction()
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         with self.assertRaises(ZeroDivisionError):
             async with tr:
-                self.assertIs(self.con._top_xact, tr)
+                self.assertIs(self.con._inner._top_xact, tr)
 
                 async with self.con.transaction():
-                    self.assertIs(self.con._top_xact, tr)
+                    self.assertIs(self.con._inner._top_xact, tr)
 
                     await self.con.execute('''
                         INSERT test::TransactionTest {
@@ -87,13 +87,13 @@ class TestAsyncTxLegacy(tb.AsyncQueryTestCase):
                         };
                     ''')
 
-                self.assertIs(self.con._top_xact, tr)
+                self.assertIs(self.con._inner._top_xact, tr)
 
                 with self.assertRaises(ZeroDivisionError):
                     in_tr = self.con.transaction()
                     async with in_tr:
 
-                        self.assertIs(self.con._top_xact, tr)
+                        self.assertIs(self.con._inner._top_xact, tr)
 
                         await self.con.execute('''
                             INSERT test::TransactionTest {
@@ -113,11 +113,11 @@ class TestAsyncTxLegacy(tb.AsyncQueryTestCase):
                 ''')
 
                 self.assertEqual(recs[0].name, 'TXTEST 1')
-                self.assertIs(self.con._top_xact, tr)
+                self.assertIs(self.con._inner._top_xact, tr)
 
                 1 / 0
 
-        self.assertIs(self.con._top_xact, None)
+        self.assertIs(self.con._inner._top_xact, None)
 
         recs = await self.con.query('''
             SELECT
@@ -154,7 +154,7 @@ class TestAsyncTxLegacy(tb.AsyncQueryTestCase):
                     pass
 
     async def test_async_transaction_interface_errors(self):
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         tr = self.con.transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -165,14 +165,14 @@ class TestAsyncTxLegacy(tb.AsyncQueryTestCase):
         self.assertTrue(repr(tr).startswith(
             '<edgedb.AsyncIOTransaction state:rolledback'))
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot start; .* already rolled back'):
             async with tr:
                 pass
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         tr = self.con.transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -180,7 +180,7 @@ class TestAsyncTxLegacy(tb.AsyncQueryTestCase):
             async with tr:
                 await tr.commit()
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         tr = self.con.transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -188,7 +188,7 @@ class TestAsyncTxLegacy(tb.AsyncQueryTestCase):
             async with tr:
                 await tr.rollback()
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         tr = self.con.transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,

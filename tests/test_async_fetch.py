@@ -849,7 +849,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         try:
             self.assertEqual(await con.query_one('SELECT 1'), 1)
 
-            conn_before = con._impl
+            conn_before = con._inner._impl
 
             with self.assertRaises(asyncio.TimeoutError):
                 await compat.wait_for(
@@ -858,7 +858,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
             await con.query('SELECT 2')
 
-            conn_after = con._impl
+            conn_after = con._inner._impl
             self.assertIsNot(conn_before, conn_after, "Reconnect expected")
         finally:
             await con.aclose()

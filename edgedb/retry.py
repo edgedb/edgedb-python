@@ -1,21 +1,13 @@
 import asyncio
-import random
 import time
 
 from . import errors
 from . import transaction as _transaction
 
 
-DEFAULT_MAX_ITERATIONS = 3
-
-
-def default_backoff(attempt):
-    return (2 ** attempt) * 0.1 + random.randrange(100) * 0.001
-
-
 class AsyncIOIteration(_transaction.AsyncIOTransaction):
     def __init__(self, retry, owner, iteration):
-        super().__init__(owner)
+        super().__init__(owner, retry._options.transaction_options)
         self.__retry = retry
         self.__iteration = iteration
 
@@ -60,14 +52,16 @@ class BaseRetry:
         self._owner = owner
         self._iteration = 0
         self._done = False
-        self._backoff = default_backoff
-        self._max_iterations = DEFAULT_MAX_ITERATIONS
+        self._next_backoff = 0
+        self._options = owner._options
 
     def _retry(self, exc):
         self._last_exception = exc
-        if self._iteration >= self._max_iterations:
+        rule = self._options.retry_options.get_rule_for_exception(exc)
+        if self._iteration >= rule.attempts:
             return False
         self._done = False
+        self._next_backoff = rule.backoff(self._iteration)
         return True
 
 
@@ -81,10 +75,8 @@ class AsyncIORetry(BaseRetry):
         # updating Retry.__next__.
         if self._done:
             raise StopAsyncIteration
-        assert self._iteration + 1 < self._max_iterations, \
-            f"Extra retry {self._iteration}/{self._max_iterations}"
-        if self._iteration > 0:
-            await asyncio.sleep(self._backoff(self._iteration))
+        if self._next_backoff:
+            await asyncio.sleep(self._next_backoff)
         self._done = True
         iteration = AsyncIOIteration(self, self._owner, self._iteration)
         self._iteration += 1
@@ -101,10 +93,8 @@ class Retry(BaseRetry):
         # updating AsyncIORetry.__anext__.
         if self._done:
             raise StopIteration
-        assert self._iteration + 1 < self._max_iterations, \
-            f"Extra retry {self._iteration}/{self._max_iterations}"
-        if self._iteration > 0:
-            time.sleep(self._backoff(self._iteration))
+        if self._next_backoff:
+            time.sleep(self._next_backoff)
         self._done = True
         iteration = Iteration(self, self._owner, self._iteration)
         self._iteration += 1
@@ -113,7 +103,7 @@ class Retry(BaseRetry):
 
 class Iteration(_transaction.Transaction):
     def __init__(self, retry, owner, iteration):
-        super().__init__(owner)
+        super().__init__(owner, retry._options.transaction_options)
         self.__retry = retry
         self.__iteration = iteration
 

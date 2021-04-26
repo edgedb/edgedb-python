@@ -22,6 +22,7 @@ from concurrent import futures
 
 import edgedb
 from edgedb import _testbase as tb
+from edgedb import RetryOptions
 
 
 class Barrier:
@@ -86,6 +87,16 @@ class TestSyncRetry(tb.SyncQueryTestCase):
             ''')
 
     def test_sync_retry_conflict(self):
+        self.execute_conflict('counter2')
+
+    def test_sync_conflict_no_retry(self):
+        with self.assertRaises(edgedb.TransactionSerializationError):
+            self.execute_conflict(
+                'counter3',
+                RetryOptions(attempts=1, backoff=edgedb.default_backoff)
+            )
+
+    def execute_conflict(self, name='counter2', options=None):
         con_args = self.get_connect_args().copy()
         con_args.update(database=self.get_database_name())
         con2 = edgedb.connect(**con_args)
@@ -117,7 +128,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                     res = tx.query_one('''
                         SELECT (
                             INSERT test::Counter {
-                                name := 'counter2',
+                                name := <str>$name,
                                 value := 1,
                             } UNLESS CONFLICT ON .name
                             ELSE (
@@ -125,12 +136,17 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                                 SET { value := .value + 1 }
                             )
                         ).value
-                    ''')
+                    ''', name=name)
                 lock.release()
             return res
 
+        con = self.con
+        if options:
+            con = con.with_retry_options(options)
+            con2 = con2.with_retry_options(options)
+
         with futures.ThreadPoolExecutor(2) as pool:
-            f1 = pool.submit(transaction1, self.con)
+            f1 = pool.submit(transaction1, con)
             f2 = pool.submit(transaction1, con2)
             results = {f1.result(), f2.result()}
 

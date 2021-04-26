@@ -28,6 +28,7 @@ from . import base_con
 from . import con_utils
 from . import enums
 from . import errors
+from . import options
 from . import transaction as _transaction
 from . import retry as _retry
 from . import legacy_transaction
@@ -148,36 +149,50 @@ class _BlockingIOConnectionImpl:
             self._protocol.abort()
 
 
-class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
+class BlockingIOConnection(
+    base_con.BaseConnection,
+    abstract.Executor,
+    options._OptionsMixin,
+):
 
     def __init__(self, addrs, config, params, *,
                  codecs_registry, query_cache):
-        super().__init__(addrs, config, params,
-                         codecs_registry=codecs_registry,
-                         query_cache=query_cache)
-        self._impl = None
-        self._borrowed_for = None
+        self._inner = base_con._InnerConnection(
+            addrs, config, params,
+            codecs_registry=codecs_registry,
+            query_cache=query_cache)
+        super().__init__()
+
+    def _shallow_clone(self):
+        if self._inner._borrowed_for:
+            raise base_con.borrow_error(self._inner._borrowed_for)
+        new_conn = self.__class__.__new__(self.__class__)
+        new_conn._inner = self._inner
+        return new_conn
 
     def ensure_connected(self, single_attempt=False):
-        if self._borrowed_for:
-            raise base_con.borrow_error(self._borrowed_for)
-        if not self._impl or self._impl.is_closed():
+        inner = self._inner
+        if inner._borrowed_for:
+            raise base_con.borrow_error(inner._borrowed_for)
+        if not inner._impl or inner._impl.is_closed():
             self._reconnect(single_attempt=single_attempt)
 
     def _reconnect(self, single_attempt=False):
-        assert not self._borrowed_for, self._borrowed_for
-        self._impl = _BlockingIOConnectionImpl(
-            self._codecs_registry, self._query_cache)
-        self._impl.connect(self._addrs, self._config, self._params,
-                           single_attempt=single_attempt, connection=self)
-        assert self._impl._protocol
+        inner = self._inner
+        assert not inner._borrowed_for, inner._borrowed_for
+        inner._impl = _BlockingIOConnectionImpl(
+            inner._codecs_registry, inner._query_cache)
+        inner._impl.connect(inner._addrs, inner._config, inner._params,
+                            single_attempt=single_attempt, connection=inner)
+        assert inner._impl._protocol
 
     def _get_protocol(self):
-        if self._borrowed_for:
-            raise base_con.borrow_error(self._borrowed_for)
-        if not self._impl or self._impl.is_closed():
+        inner = self._inner
+        if inner._borrowed_for:
+            raise base_con.borrow_error(inner._borrowed_for)
+        if not inner._impl or inner._impl.is_closed():
             self._reconnect()
-        return self._impl._protocol
+        return inner._impl._protocol
 
     def _dump(
         self,
@@ -201,7 +216,7 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         )
 
     def _dispatch_log_message(self, msg):
-        for cb in self._log_listeners:
+        for cb in self._inner._log_listeners:
             cb(self, msg)
 
     def _fetchall(
@@ -212,12 +227,13 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         __typenames__: bool=False,
         **kwargs,
     ) -> datatypes.Set:
+        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
+            reg=inner._codecs_registry,
+            qc=inner._query_cache,
             implicit_limit=__limit__,
             inline_typenames=__typenames__,
             io_format=protocol.IoFormat.BINARY,
@@ -230,66 +246,72 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
         __limit__: int=0,
         **kwargs,
     ) -> datatypes.Set:
+        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
+            reg=inner._codecs_registry,
+            qc=inner._query_cache,
             implicit_limit=__limit__,
             inline_typenames=False,
             io_format=protocol.IoFormat.JSON,
         )
 
     def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
+            reg=inner._codecs_registry,
+            qc=inner._query_cache,
             io_format=protocol.IoFormat.BINARY,
         )
 
     def query_one(self, query: str, *args, **kwargs) -> typing.Any:
+        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
+            reg=inner._codecs_registry,
+            qc=inner._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
 
     def query_json(self, query: str, *args, **kwargs) -> str:
+        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
+            reg=inner._codecs_registry,
+            qc=inner._query_cache,
             io_format=protocol.IoFormat.JSON,
         )
 
     def _fetchall_json_elements(
             self, query: str, *args, **kwargs) -> typing.List[str]:
+        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
+            reg=inner._codecs_registry,
+            qc=inner._query_cache,
             io_format=protocol.IoFormat.JSON_ELEMENTS,
         )
 
     def query_one_json(self, query: str, *args, **kwargs) -> str:
+        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
+            reg=inner._codecs_registry,
+            qc=inner._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.JSON,
         )
@@ -336,17 +358,20 @@ class BlockingIOConnection(base_con.BaseConnection, abstract.Executor):
             self, isolation, readonly, deferrable)
 
     def raw_transaction(self) -> _transaction.Transaction:
-        return _transaction.Transaction(self)
+        return _transaction.Transaction(
+            self,
+            self._options.transaction_options,
+        )
 
     def retrying_transaction(self) -> _retry.Retry:
         return _retry.Retry(self)
 
     def close(self) -> None:
         if not self.is_closed():
-            self._impl.close()
+            self._inner._impl.close()
 
     def is_closed(self) -> bool:
-        return self._impl is None or self._impl.is_closed()
+        return self._inner._impl is None or self._inner._impl.is_closed()
 
 
 def connect(dsn: str = None, *,

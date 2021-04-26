@@ -37,13 +37,13 @@ class TestSyncTxLegacy(tb.SyncQueryTestCase):
     '''
 
     def test_sync_transaction_regular_01(self):
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
         tr = self.con.transaction()
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         with self.assertRaises(ZeroDivisionError):
             with tr as with_tr:
-                self.assertIs(self.con._top_xact, tr)
+                self.assertIs(self.con._inner._top_xact, tr)
 
                 # We don't return the transaction object from __aenter__,
                 # to make it harder for people to use '.rollback()' and
@@ -58,7 +58,7 @@ class TestSyncTxLegacy(tb.SyncQueryTestCase):
 
                 1 / 0
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         result = self.con.query('''
             SELECT
@@ -70,16 +70,16 @@ class TestSyncTxLegacy(tb.SyncQueryTestCase):
         self.assertEqual(result, [])
 
     def test_sync_transaction_nested_01(self):
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
         tr = self.con.transaction()
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         with self.assertRaises(ZeroDivisionError):
             with tr:
-                self.assertIs(self.con._top_xact, tr)
+                self.assertIs(self.con._inner._top_xact, tr)
 
                 with self.con.transaction():
-                    self.assertIs(self.con._top_xact, tr)
+                    self.assertIs(self.con._inner._top_xact, tr)
 
                     self.con.execute('''
                         INSERT test::TransactionTest {
@@ -87,13 +87,13 @@ class TestSyncTxLegacy(tb.SyncQueryTestCase):
                         };
                     ''')
 
-                self.assertIs(self.con._top_xact, tr)
+                self.assertIs(self.con._inner._top_xact, tr)
 
                 with self.assertRaises(ZeroDivisionError):
                     in_tr = self.con.transaction()
                     with in_tr:
 
-                        self.assertIs(self.con._top_xact, tr)
+                        self.assertIs(self.con._inner._top_xact, tr)
 
                         self.con.query('''
                             INSERT test::TransactionTest {
@@ -114,11 +114,11 @@ class TestSyncTxLegacy(tb.SyncQueryTestCase):
 
                 self.assertEqual(len(recs), 1)
                 self.assertEqual(recs[0].name, 'TXTEST 1')
-                self.assertIs(self.con._top_xact, tr)
+                self.assertIs(self.con._inner._top_xact, tr)
 
                 1 / 0
 
-        self.assertIs(self.con._top_xact, None)
+        self.assertIs(self.con._inner._top_xact, None)
 
         recs = self.con.query('''
             SELECT
@@ -155,7 +155,7 @@ class TestSyncTxLegacy(tb.SyncQueryTestCase):
                     pass
 
     def test_sync_transaction_interface_errors(self):
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         tr = self.con.transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -166,14 +166,14 @@ class TestSyncTxLegacy(tb.SyncQueryTestCase):
         self.assertTrue(repr(tr).startswith(
             '<edgedb.Transaction state:rolledback'))
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'cannot start; .* already rolled back'):
             with tr:
                 pass
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         tr = self.con.transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -181,7 +181,7 @@ class TestSyncTxLegacy(tb.SyncQueryTestCase):
             with tr:
                 tr.commit()
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         tr = self.con.transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -189,7 +189,7 @@ class TestSyncTxLegacy(tb.SyncQueryTestCase):
             with tr:
                 tr.rollback()
 
-        self.assertIsNone(self.con._top_xact)
+        self.assertIsNone(self.con._inner._top_xact)
 
         tr = self.con.transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,

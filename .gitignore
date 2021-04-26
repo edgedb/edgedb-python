@@ -27,3 +27,4 @@ docs/_build
 /.mypy_cache
 /reflog.txt
 /edgedb/**/*.html
+/tmp

@@ -22,6 +22,7 @@ import logging
 
 import edgedb
 from edgedb import compat
+from edgedb import RetryOptions
 from edgedb import _testbase as tb
 
 log = logging.getLogger(__name__)
@@ -89,6 +90,16 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
             ''')
 
     async def test_async_retry_conflict(self):
+        await self.execute_conflict('counter2')
+
+    async def test_async_conflict_no_retry(self):
+        with self.assertRaises(edgedb.TransactionSerializationError):
+            await self.execute_conflict(
+                'counter3',
+                RetryOptions(attempts=1, backoff=edgedb.default_backoff)
+            )
+
+    async def execute_conflict(self, name='counter2', options=None):
         con2 = await self.connect(database=self.get_database_name())
         self.addCleanup(con2.aclose)
 
@@ -117,7 +128,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                     res = await tx.query_one('''
                         SELECT (
                             INSERT test::Counter {
-                                name := 'counter2',
+                                name := <str>$name,
                                 value := 1,
                             } UNLESS CONFLICT ON .name
                             ELSE (
@@ -125,18 +136,23 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                                 SET { value := .value + 1 }
                             )
                         ).value
-                    ''')
+                    ''', name=name)
                 lock.release()
             return res
 
+        con = self.con
+        if options:
+            con = con.with_retry_options(options)
+            con2 = con2.with_retry_options(options)
+
         results = await compat.wait_for(asyncio.gather(
-            transaction1(self.con),
+            transaction1(con),
             transaction1(con2),
             return_exceptions=True,
         ), 10)
         for e in results:
             if isinstance(e, BaseException):
-                log.exception("Coroutine exception", exc_info=e)
+                raise e
 
         self.assertEqual(set(results), {1, 2})
         self.assertEqual(iterations, 3)

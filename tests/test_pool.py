@@ -73,15 +73,15 @@ class TestPool(tb.AsyncQueryTestCase):
         # Manual termination of pool connections releases the
         # pool item immediately.
         con.terminate()
-        self.assertIsNone(pool._holders[0]._con)
-        self.assertIsNone(pool._holders[0]._in_use)
+        self.assertIsNone(pool._impl._holders[0]._con)
+        self.assertIsNone(pool._impl._holders[0]._in_use)
 
         con = await pool.acquire()
         self.assertEqual(await con.query_one("SELECT 1"), 1)
 
         await con.aclose()
-        self.assertIsNone(pool._holders[0]._con)
-        self.assertIsNone(pool._holders[0]._in_use)
+        self.assertIsNone(pool._impl._holders[0]._con)
+        self.assertIsNone(pool._impl._holders[0]._in_use)
         # Calling release should not hurt.
         await pool.release(con)
 
@@ -124,17 +124,17 @@ class TestPool(tb.AsyncQueryTestCase):
         cons = set()
 
         async def on_acquire(con):
-            if con._impl not in cons:  # check underlying connection
+            if con._inner._impl not in cons:  # check underlying connection
                 raise RuntimeError("on_connect was not called")
 
         async def on_connect(con):
-            if con._impl in cons:  # check underlying connection
+            if con._inner._impl in cons:  # check underlying connection
                 raise RuntimeError("on_connect was called more than once")
-            cons.add(con._impl)
+            cons.add(con._inner._impl)
 
         async def user(pool):
             async with pool.acquire() as con:
-                if con._impl not in cons:
+                if con._inner._impl not in cons:
                     raise RuntimeError("init was not called")
 
         async with self.create_pool(
@@ -154,7 +154,7 @@ class TestPool(tb.AsyncQueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
                     "does not belong to any connection pool"):
-                await pool.release(con._impl)
+                await pool.release(con._inner._impl)
         finally:
             await pool.release(con)
             await pool.aclose()
@@ -516,7 +516,7 @@ class TestPool(tb.AsyncQueryTestCase):
         finally:
             await pool.release(con)
 
-        self.assertIsNone(pool._holders[0]._con)
+        self.assertIsNone(pool._impl._holders[0]._con)
         await pool.aclose()
 
     async def test_pool_init_race(self):

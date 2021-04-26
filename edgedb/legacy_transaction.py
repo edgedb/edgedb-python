@@ -93,7 +93,7 @@ class BaseTransaction:
             raise errors.InterfaceError(
                 'cannot start; the transaction is already started')
 
-        con = self._connection
+        con = self._connection_inner
 
         if con._top_xact is None:
             con._top_xact = self
@@ -153,8 +153,8 @@ class BaseTransaction:
     def _make_commit_query(self):
         self.__check_state('commit')
 
-        if self._connection._top_xact is self:
-            self._connection._top_xact = None
+        if self._connection_inner._top_xact is self:
+            self._connection_inner._top_xact = None
 
         if self._nested:
             query = f'RELEASE SAVEPOINT {self._id};'
@@ -166,8 +166,8 @@ class BaseTransaction:
     def _make_rollback_query(self):
         self.__check_state('rollback')
 
-        if self._connection._top_xact is self:
-            self._connection._top_xact = None
+        if self._connection_inner._top_xact is self:
+            self._connection_inner._top_xact = None
 
         if self._nested:
             query = f'ROLLBACK TO SAVEPOINT {self._id};'
@@ -217,7 +217,8 @@ class AsyncIOTransaction(BaseTransaction):
     async def start(self) -> None:
         """Enter the transaction or savepoint block."""
         await self._connection.ensure_connected()
-        self._connection_impl = self._connection._impl
+        self._connection_inner = self._connection._inner
+        self._connection_impl = self._connection_inner._impl
 
         query = self._make_start_query()
         try:
@@ -283,9 +284,10 @@ class Transaction(BaseTransaction):
 
     def start(self) -> None:
         """Enter the transaction or savepoint block."""
-        query = self._make_start_query()
         self._connection.ensure_connected()
-        self._connection_impl = self._connection._impl
+        self._connection_inner = self._connection._inner
+        self._connection_impl = self._connection_inner._impl
+        query = self._make_start_query()
         try:
             self._connection_impl.privileged_execute(query)
         except BaseException:
