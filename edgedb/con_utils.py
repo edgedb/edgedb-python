@@ -25,6 +25,7 @@ import typing
 import urllib.parse
 import warnings
 import pathlib
+import hashlib
 
 from . import errors
 from . import credentials
@@ -120,6 +121,14 @@ def _parse_hostlist(hostlist, port):
     return hosts, port
 
 
+def _stash_path(path):
+    path = os.path.realpath(path)
+    hash = hashlib.sha1(path.encode('utf-8')).hexdigest()
+    base_name = os.path.basename(path)
+    dir_name = base_name + '-' + hash
+    return pathlib.Path.home() / '.edgedb' / 'projects' / dir_name
+
+
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                                 password, database, admin,
                                 connect_timeout, server_settings):
@@ -131,6 +140,30 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
             'removed. Admin socket should never be used in applications. '
             'Use command-line tool `edgedb` to setup proper credentials.',
             DeprecationWarning, 4)
+
+    if not (
+            dsn or host or port or
+            os.getenv("EDGEDB_HOST") or os.getenv("EDGEDB_PORT")
+    ):
+        instance_name = os.getenv("EDGEDB_INSTANCE")
+        if instance_name:
+            dsn = instance_name
+        else:
+            dir = os.getcwd()
+            if not os.path.exists(os.path.join(dir, 'edgedb.toml')):
+                raise errors.ClientConnectionError(
+                    f'no `edgedb.toml` found and '
+                    f'no connection options specified'
+                )
+            stash_dir = _stash_path(dir)
+            if os.path.exists(stash_dir):
+                with open(os.path.join(stash_dir, 'instance-name'), 'rt') as f:
+                    dsn = f.read().strip()
+            else:
+                raise errors.ClientConnectionError(
+                    f'Found `edgedb.toml` but the project is not initialized. '
+                    f'Run `edgedb project init`.'
+                )
 
     if dsn and dsn.startswith(("edgedb://", "edgedbadmin://")):
         parsed = urllib.parse.urlparse(dsn)
