@@ -123,6 +123,8 @@ def _parse_hostlist(hostlist, port):
 
 def _stash_path(path):
     path = os.path.realpath(path)
+    if _system == 'Windows' and not path.startswith('\\\\'):
+        path = '\\\\?\\' + path
     hash = hashlib.sha1(path.encode('utf-8')).hexdigest()
     base_name = os.path.basename(path)
     dir_name = base_name + '-' + hash
