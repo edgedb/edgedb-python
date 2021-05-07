@@ -125,10 +125,14 @@ def _stash_path(path):
     path = os.path.realpath(path)
     if _system == 'Windows' and not path.startswith('\\\\'):
         path = '\\\\?\\' + path
-    hash = hashlib.sha1(path.encode('utf-8')).hexdigest()
+    return _stash_path_raw(path, pathlib.Path.home())
+
+
+def _stash_path_raw(path, home):
+    hash = hashlib.sha1(str(path).encode('utf-8')).hexdigest()
     base_name = os.path.basename(path)
     dir_name = base_name + '-' + hash
-    return pathlib.Path.home() / '.edgedb' / 'projects' / dir_name
+    return home / '.edgedb' / 'projects' / dir_name
 
 
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,

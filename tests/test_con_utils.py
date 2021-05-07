@@ -18,8 +18,12 @@
 
 
 import contextlib
+import json
 import os
+import pathlib
+import tempfile
 import unittest
+from unittest import mock
 
 
 from edgedb import con_utils
@@ -464,3 +468,54 @@ class TestConUtils(unittest.TestCase):
     def test_connect_params(self):
         for testcase in self.TESTS:
             self.run_testcase(testcase)
+
+    def test_stash_path(self):
+        self.assertEqual(
+            con_utils._stash_path_raw(
+                "/home/user/work/project1",
+                pathlib.Path("/home/user"),
+            ),
+            pathlib.Path("/home/user/.edgedb/projects/project1-"
+                         "cf1c841351bf7f147d70dcb6203441cf77a05249"),
+        )
+
+    def test_project_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = os.path.realpath(tmp)
+            base = pathlib.Path(tmp)
+            home = base / 'home'
+            project = base / 'project'
+            projects = home / '.edgedb' / 'projects'
+            creds = home / '.edgedb' / 'credentials'
+            os.makedirs(projects)
+            os.makedirs(creds)
+            os.makedirs(project)
+            with open(project / 'edgedb.toml', 'wt') as f:
+                f.write('')  # app don't read toml file
+            with open(creds / 'inst1.json', 'wt') as f:
+                f.write(json.dumps({
+                    "host": "inst1.example.org",
+                    "port": 12323,
+                    "user": "inst1_user",
+                    "password": "passw1",
+                    "database": "inst1_db",
+                }))
+            stash_path = con_utils._stash_path_raw(project, home)
+            instance_file = stash_path / 'instance-name'
+            os.makedirs(stash_path)
+            with open(instance_file, 'wt') as f:
+                f.write('inst1')
+
+            with mock.patch('pathlib.Path.home', lambda: home), \
+                    mock.patch('os.getcwd', lambda: str(project)):
+                addrs, params, _config = con_utils.parse_connect_arguments(
+                    dsn=None, host=None, port=None, user=None, password=None,
+                    database=None, admin=None,
+                    timeout=10, command_timeout=None,
+                    server_settings=None,
+                    wait_until_available=30)
+
+        self.assertEqual(addrs, [('inst1.example.org', 12323)])
+        self.assertEqual(params.user, 'inst1_user')
+        self.assertEqual(params.password, 'passw1')
+        self.assertEqual(params.database, 'inst1_db')
