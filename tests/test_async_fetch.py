@@ -757,12 +757,15 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
             try:
                 async with tg.TaskGroup() as g:
 
+                    fut = asyncio.Future()
+
                     async def exec_to_fail():
                         with self.assertRaises((
                             edgedb.ClientConnectionClosedError,
                             ConnectionResetError,
                         )):
                             async with con2.raw_transaction() as tx2:
+                                fut.set_result(None)
                                 await tx2.query(
                                     'select sys::_advisory_lock(<int64>$0)',
                                     lock_key,
@@ -770,6 +773,7 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
 
                     g.create_task(exec_to_fail())
 
+                    await asyncio.wait_for(fut, 1)
                     await asyncio.sleep(0.1)
 
                     with self.assertRaises(asyncio.TimeoutError):
