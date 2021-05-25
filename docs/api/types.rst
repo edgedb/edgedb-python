@@ -40,6 +40,8 @@ The table below shows the correspondence between EdgeDB and Python types.
 | ``cal::local_datetime`` | offset-naive :py:class:`datetime.datetime \         |
 |                         | <python:datetime.datetime>`                         |
 +-------------------------+-----------------------------------------------------+
+| ``cal::relativedelta``  | :py:class:`edgedb.RelativeDelta`                    |
++-------------------------+-----------------------------------------------------+
 | ``datetime``            | offset-aware :py:class:`datetime.datetime \         |
 |                         | <python:datetime.datetime>`                         |
 +-------------------------+-----------------------------------------------------+
@@ -244,3 +246,24 @@ Arrays
         2
         >>> r == [1, 2, 3]
         True
+
+RelativeDelta
+=============
+
+.. py:class:: RelativeDelta()
+
+    An immutable value represeting an EdgeDB ``cal::relativedelta`` value.
+
+    .. code-block:: pycon
+
+        >>> import edgedb
+        >>> conn = edgedb.connect()
+        >>> r = conn.query_one('''SELECT <cal::relativedelta>"1 year 2 days"''')
+        >>> r
+        <edgedb.RelativeDelta "P1Y2D">
+        >>> r.months
+        12
+        >>> r.days
+        2
+        >>> r.microseconds
+        0

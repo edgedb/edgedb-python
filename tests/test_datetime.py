@@ -62,7 +62,7 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         ''', durs)
         self.assertEqual(list(durs_from_db), durs)
 
-    @unittest.expectedFailure  # no relative delta in edgedb yet
+    @unittest.expectedFailure
     async def test_relative_delta_01(self):
 
         delta_kwargs = [
@@ -121,4 +121,4 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         self.assertEqual(d1.months, 0)
         self.assertEqual(d1.microseconds, 1)
 
-        self.assertEqual(repr(d1), '<edgedb.RelativeDelta "00:00:00.000001">')
+        self.assertEqual(repr(d1), '<edgedb.RelativeDelta "PT0.000001S">')
