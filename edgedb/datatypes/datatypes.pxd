@@ -21,7 +21,7 @@ cimport cython
 cimport cpython
 
 
-include "./relative_delta.pxd"
+include "./relative_duration.pxd"
 include "./enum.pxd"
 
 

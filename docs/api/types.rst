@@ -12,56 +12,56 @@ types and vice versa.
 
 The table below shows the correspondence between EdgeDB and Python types.
 
-+-------------------------+-----------------------------------------------------+
-| EdgeDB Type             |  Python Type                                        |
-+=========================+=====================================================+
-| ``Set``                 | :py:class:`edgedb.Set`                              |
-+-------------------------+-----------------------------------------------------+
-| ``array<anytype>``      | :py:class:`edgedb.Array`                            |
-+-------------------------+-----------------------------------------------------+
-| ``anytuple``            | :py:class:`edgedb.Tuple` or                         |
-|                         | :py:class:`edgedb.NamedTuple`                       |
-+-------------------------+-----------------------------------------------------+
-| ``anyenum``             | :py:class:`str <python:str>`                        |
-+-------------------------+-----------------------------------------------------+
-| ``Object``              | :py:class:`edgedb.Object`                           |
-+-------------------------+-----------------------------------------------------+
-| ``bool``                | :py:class:`bool <python:bool>`                      |
-+-------------------------+-----------------------------------------------------+
-| ``bytes``               | :py:class:`bytes <python:bytes>`                    |
-+-------------------------+-----------------------------------------------------+
-| ``str``                 | :py:class:`str <python:str>`                        |
-+-------------------------+-----------------------------------------------------+
-| ``cal::local_date``     | :py:class:`datetime.date <python:datetime.date>`    |
-+-------------------------+-----------------------------------------------------+
-| ``cal::local_time``     | offset-naive :py:class:`datetime.time \             |
-|                         | <python:datetime.time>`                             |
-+-------------------------+-----------------------------------------------------+
-| ``cal::local_datetime`` | offset-naive :py:class:`datetime.datetime \         |
-|                         | <python:datetime.datetime>`                         |
-+-------------------------+-----------------------------------------------------+
-| ``cal::relativedelta``  | :py:class:`edgedb.RelativeDelta`                    |
-+-------------------------+-----------------------------------------------------+
-| ``datetime``            | offset-aware :py:class:`datetime.datetime \         |
-|                         | <python:datetime.datetime>`                         |
-+-------------------------+-----------------------------------------------------+
-| ``duration``            | :py:class:`datetime.timedelta \                     |
-|                         | <python:datetime.timedelta>`                        |
-+-------------------------+-----------------------------------------------------+
-| ``float32``,            | :py:class:`float <python:float>`                    |
-| ``float64``             |                                                     |
-+-------------------------+-----------------------------------------------------+
-| ``int16``,              | :py:class:`int <python:int>`                        |
-| ``int32``,              |                                                     |
-| ``int64``,              |                                                     |
-| ``bigint``              |                                                     |
-+-------------------------+-----------------------------------------------------+
-| ``decimal``             | :py:class:`Decimal <python:decimal.Decimal>`        |
-+-------------------------+-----------------------------------------------------+
-| ``json``                | :py:class:`str <python:str>`                        |
-+-------------------------+-----------------------------------------------------+
-| ``uuid``                | :py:class:`uuid.UUID <python:uuid.UUID>`            |
-+-------------------------+-----------------------------------------------------+
++----------------------------+-----------------------------------------------------+
+| EdgeDB Type                |  Python Type                                        |
++============================+=====================================================+
+| ``Set``                    | :py:class:`edgedb.Set`                              |
++----------------------------+-----------------------------------------------------+
+| ``array<anytype>``         | :py:class:`edgedb.Array`                            |
++----------------------------+-----------------------------------------------------+
+| ``anytuple``               | :py:class:`edgedb.Tuple` or                         |
+|                            | :py:class:`edgedb.NamedTuple`                       |
++----------------------------+-----------------------------------------------------+
+| ``anyenum``                | :py:class:`str <python:str>`                        |
++----------------------------+-----------------------------------------------------+
+| ``Object``                 | :py:class:`edgedb.Object`                           |
++----------------------------+-----------------------------------------------------+
+| ``bool``                   | :py:class:`bool <python:bool>`                      |
++----------------------------+-----------------------------------------------------+
+| ``bytes``                  | :py:class:`bytes <python:bytes>`                    |
++----------------------------+-----------------------------------------------------+
+| ``str``                    | :py:class:`str <python:str>`                        |
++----------------------------+-----------------------------------------------------+
+| ``cal::local_date``        | :py:class:`datetime.date <python:datetime.date>`    |
++----------------------------+-----------------------------------------------------+
+| ``cal::local_time``        | offset-naive :py:class:`datetime.time \             |
+|                            | <python:datetime.time>`                             |
++----------------------------+-----------------------------------------------------+
+| ``cal::local_datetime``    | offset-naive :py:class:`datetime.datetime \         |
+|                            | <python:datetime.datetime>`                         |
++----------------------------+-----------------------------------------------------+
+| ``cal::relative_duration`` | :py:class:`edgedb.RelativeDuration`                 |
++----------------------------+-----------------------------------------------------+
+| ``datetime``               | offset-aware :py:class:`datetime.datetime \         |
+|                            | <python:datetime.datetime>`                         |
++----------------------------+-----------------------------------------------------+
+| ``duration``               | :py:class:`datetime.timedelta \                     |
+|                            | <python:datetime.timedelta>`                        |
++----------------------------+-----------------------------------------------------+
+| ``float32``,               | :py:class:`float <python:float>`                    |
+| ``float64``                |                                                     |
++----------------------------+-----------------------------------------------------+
+| ``int16``,                 | :py:class:`int <python:int>`                        |
+| ``int32``,                 |                                                     |
+| ``int64``,                 |                                                     |
+| ``bigint``                 |                                                     |
++----------------------------+-----------------------------------------------------+
+| ``decimal``                | :py:class:`Decimal <python:decimal.Decimal>`        |
++----------------------------+-----------------------------------------------------+
+| ``json``                   | :py:class:`str <python:str>`                        |
++----------------------------+-----------------------------------------------------+
+| ``uuid``                   | :py:class:`uuid.UUID <python:uuid.UUID>`            |
++----------------------------+-----------------------------------------------------+
 
 .. note::
 
@@ -247,20 +247,20 @@ Arrays
         >>> r == [1, 2, 3]
         True
 
-RelativeDelta
-=============
+RelativeDuration
+================
 
-.. py:class:: RelativeDelta()
+.. py:class:: RelativeDuration()
 
-    An immutable value represeting an EdgeDB ``cal::relativedelta`` value.
+    An immutable value represeting an EdgeDB ``cal::relative_duration`` value.
 
     .. code-block:: pycon
 
         >>> import edgedb
         >>> conn = edgedb.connect()
-        >>> r = conn.query_one('''SELECT <cal::relativedelta>"1 year 2 days"''')
+        >>> r = conn.query_one('''SELECT <cal::relative_duration>"1 year 2 days"''')
         >>> r
-        <edgedb.RelativeDelta "P1Y2D">
+        <edgedb.RelativeDuration "P1Y2D">
         >>> r.months
         12
         >>> r.days

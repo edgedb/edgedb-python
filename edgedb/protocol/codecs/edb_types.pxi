@@ -27,5 +27,5 @@ TYPE_IDS = {
     'std::duration': uuid.UUID('00000000-0000-0000-0000-00000000010e'),
     'std::json': uuid.UUID('00000000-0000-0000-0000-00000000010f'),
     'std::bigint': uuid.UUID('00000000-0000-0000-0000-000000000110'),
-    'std::relativedelta': uuid.UUID('00000000-0000-0000-0000-000000000111'),
+    'std::relative_duration': uuid.UUID('00000000-0000-0000-0000-000000000111'),
 }

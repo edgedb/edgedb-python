@@ -20,7 +20,7 @@
 import decimal
 import uuid
 import datetime
-from edgedb.datatypes.datatypes import RelativeDelta
+from edgedb.datatypes import datatypes
 
 
 include "./edb_types.pxi"
@@ -400,7 +400,7 @@ cdef duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
     return datetime.timedelta(microseconds=microseconds)
 
 
-cdef relativedelta_encode(pgproto.CodecContext settings, WriteBuffer buf,
+cdef relative_duration_encode(pgproto.CodecContext settings, WriteBuffer buf,
                           object obj):
 
     cdef:
@@ -414,7 +414,7 @@ cdef relativedelta_encode(pgproto.CodecContext settings, WriteBuffer buf,
     buf.write_int32(months)
 
 
-cdef relativedelta_decode(pgproto.CodecContext settings, FRBuffer *buf):
+cdef relative_duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
     cdef:
         int32_t days
         int32_t months
@@ -424,7 +424,8 @@ cdef relativedelta_decode(pgproto.CodecContext settings, FRBuffer *buf):
     days = hton.unpack_int32(frb_read(buf, 4))
     months = hton.unpack_int32(frb_read(buf, 4))
 
-    return RelativeDelta(microseconds=microseconds, days=days, months=months)
+    return datatypes.RelativeDuration(
+        microseconds=microseconds, days=days, months=months)
 
 
 cdef checked_decimal_encode(
@@ -610,9 +611,9 @@ cdef register_base_scalar_codecs():
         pgproto.jsonb_decode)
 
     register_base_scalar_codec(
-        'std::relativedelta',
-        relativedelta_encode,
-        relativedelta_decode)
+        'std::relative_duration',
+        relative_duration_encode,
+        relative_duration_decode)
 
 
 register_base_scalar_codecs()
