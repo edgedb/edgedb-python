@@ -76,8 +76,8 @@ jobs:
     - name: Install Python Deps
       if: steps.release.outputs.version == 0
       run: |
-        pip install --upgrade setuptools pip wheel
-        pip install -e .[test]
+        python -m pip install --upgrade setuptools pip wheel
+        python -m pip install -e .[test]
 
     - name: Test
       if: steps.release.outputs.version == 0
