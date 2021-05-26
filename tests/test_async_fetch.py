@@ -750,9 +750,9 @@ class TestAsyncFetch(tb.AsyncQueryTestCase):
         con2 = await self.connect(database=self.con.dbname)
 
         async with self.con.raw_transaction() as tx:
-            await tx.query_one(
+            self.assertTrue(await tx.query_one(
                 'select sys::_advisory_lock(<int64>$0)',
-                lock_key)
+                lock_key))
 
             try:
                 async with tg.TaskGroup() as g:

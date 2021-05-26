@@ -26,10 +26,13 @@ import json
 import logging
 import os
 import re
+import subprocess
+import sys
+import tempfile
+import time
 import unittest
 
 import edgedb
-from edgedb import _cluster as edgedb_cluster
 
 
 log = logging.getLogger(__name__)
@@ -52,52 +55,80 @@ def silence_asyncio_long_exec_warning():
 _default_cluster = None
 
 
-def _init_cluster(data_dir=None, *, cleanup_atexit=True):
-    if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
-            not os.environ.get('EDGEDB_LOG_LEVEL')):
-        _env = {'EDGEDB_LOG_LEVEL': 'silent'}
-    else:
-        _env = {}
-
-    if data_dir is None:
-        cluster = edgedb_cluster.TempCluster(env=_env, testmode=True)
-        destroy = True
-    else:
-        cluster = edgedb_cluster.Cluster(data_dir=data_dir, env=_env)
-        destroy = False
-
-    if cluster.get_status() == 'not-initialized':
-        cluster.init()
-
-    cluster.start(port='dynamic')
-    cluster.set_superuser_password('test')
-
-    if cleanup_atexit:
-        atexit.register(_shutdown_cluster, cluster, destroy=destroy)
-
-    return cluster
-
-
 def _start_cluster(*, cleanup_atexit=True):
     global _default_cluster
 
-    if _default_cluster is None:
-        cluster_addr = os.environ.get('EDGEDB_TEST_CLUSTER_ADDR')
-        if cluster_addr:
-            conn_spec = json.loads(cluster_addr)
-            _default_cluster = edgedb_cluster.RunningCluster(**conn_spec)
+    if isinstance(_default_cluster, Exception):
+        # when starting a server fails
+        # don't retry starting one for every TestCase
+        # because repeating the failure can take a while
+        raise _default_cluster
+
+    if _default_cluster:
+        return _default_cluster
+
+    try:
+        tmpdir = tempfile.TemporaryDirectory()
+        status_file = os.path.join(tmpdir.name, 'server-status')
+
+        # if running on windows adjust the path for WSL
+        status_file_unix = (
+            re.sub(r'^([A-Z]):', lambda m: f'/mnt/{m.group(1)}', status_file)
+            .replace("\\", '/')
+            .lower()
+        )
+
+        args = [
+            os.environ.get('EDGEDB_SERVER_BINARY', 'edgedb-server'),
+            "--temp-dir",
+            "--testmode",
+            f"--emit-server-status={status_file_unix}",
+            "--port=auto",
+            "--auto-shutdown",
+            "--bootstrap-command=ALTER ROLE edgedb { SET password := 'test' }",
+        ]
+
+        if sys.platform == 'win32':
+            args = ['wsl', '-u', 'edgedb'] + args
+
+        env = os.environ.copy()
+        # Make sure the PYTHONPATH of _this_ process does
+        # not interfere with the server's.
+        env.pop('PYTHONPATH', None)
+
+        p = subprocess.Popen(args, env=env, cwd=tmpdir.name)
+
+        for i in range(250):
+            try:
+                with open(status_file, 'rb') as f:
+                    for line in f:
+                        if line.startswith(b'READY='):
+                            break
+                    else:
+                        raise RuntimeError('not ready')
+                break
+            except Exception:
+                time.sleep(1)
         else:
-            data_dir = os.environ.get('EDGEDB_TEST_DATA_DIR')
-            _default_cluster = _init_cluster(
-                data_dir=data_dir, cleanup_atexit=cleanup_atexit)
+            raise RuntimeError('server status file not found')
+
+        data = json.loads(line.split(b'READY=')[1])
+        con = edgedb.connect(
+            host='localhost', port=data['port'], password='test')
+        _default_cluster = {
+            'proc': p,
+            'con': con,
+            'con_args': {
+                'host': 'localhost',
+                'port': data['port'],
+            }
+        }
+        atexit.register(con.close)
+    except Exception as e:
+        _default_cluster = e
+        raise e
 
     return _default_cluster
-
-
-def _shutdown_cluster(cluster, *, destroy=True):
-    cluster.stop()
-    if destroy:
-        cluster.destroy()
 
 
 class TestCaseMeta(type(unittest.TestCase)):
@@ -255,9 +286,7 @@ class ConnectedTestCaseMixin:
                          database='edgedb',
                          user='edgedb',
                          password='test'):
-        if cluster is None:
-            cluster = cls.cluster
-        conargs = cluster.get_connect_args().copy()
+        conargs = cls.cluster['con_args'].copy()
         conargs.update(dict(user=user,
                             password=password,
                             database=database))
