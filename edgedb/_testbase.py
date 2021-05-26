@@ -18,6 +18,7 @@
 
 
 import asyncio
+import atexit
 import contextlib
 import functools
 import inspect
@@ -72,7 +73,7 @@ def _start_cluster(*, cleanup_atexit=True):
 
         # if running on windows adjust the path for WSL
         status_file_unix = (
-            status_file.replace('C:', '/mnt/c')
+            re.sub(r'^([A-Z]):', lambda m: f'/mnt/{m.group(1)}', status_file)
             .replace("\\", '/')
             .lower()
         )
@@ -83,6 +84,7 @@ def _start_cluster(*, cleanup_atexit=True):
             "--testmode",
             f"--emit-server-status={status_file_unix}",
             "--port=auto",
+            "--auto-shutdown",
             "--bootstrap-command=ALTER ROLE edgedb { SET password := 'test' }",
         ]
 
@@ -111,14 +113,17 @@ def _start_cluster(*, cleanup_atexit=True):
             raise RuntimeError('server status file not found')
 
         data = json.loads(line.split(b'READY=')[1])
-
+        con = edgedb.connect(
+            host='localhost', port=data['port'], password='test')
         _default_cluster = {
             'proc': p,
+            'con': con,
             'con_args': {
                 'host': 'localhost',
                 'port': data['port'],
             }
         }
+        atexit.register(con.close)
     except Exception as e:
         _default_cluster = e
         raise e
