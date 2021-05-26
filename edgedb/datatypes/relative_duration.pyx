@@ -28,7 +28,7 @@ DEF MAX_INTERVAL_PRECISION  = 6
 
 
 @cython.final
-cdef class RelativeDelta:
+cdef class RelativeDuration:
 
     def __init__(self, *, int64_t microseconds=0,
                  int32_t days=0, int32_t months=0):
@@ -37,20 +37,20 @@ cdef class RelativeDelta:
         self.months = months
 
     def __eq__(self, other):
-        if type(other) is not RelativeDelta:
+        if type(other) is not RelativeDuration:
             return NotImplemented
 
         return (
-            self.microseconds == (<RelativeDelta>other).microseconds and
-            self.days == (<RelativeDelta>other).days and
-            self.months == (<RelativeDelta>other).months
+            self.microseconds == (<RelativeDuration>other).microseconds and
+            self.days == (<RelativeDuration>other).days and
+            self.months == (<RelativeDuration>other).months
         )
 
     def __hash__(self):
-        return hash((RelativeDelta, self.microseconds, self.days, self.months))
+        return hash((RelativeDuration, self.microseconds, self.days, self.months))
 
     def __repr__(self):
-        return f'<edgedb.RelativeDelta "{self}">'
+        return f'<edgedb.RelativeDuration "{self}">'
 
     @cython.cdivision(True)
     def __str__(self):
@@ -69,6 +69,9 @@ cdef class RelativeDelta:
             bint is_before = False
             bint is_first = True
 
+        if not self.months and not self.days and not time:
+            return 'PT0S'
+
         tfrac = time / <int64_t>USECS_PER_HOUR
         time -= tfrac * <int64_t>USECS_PER_HOUR
         hour = tfrac
@@ -82,52 +85,42 @@ cdef class RelativeDelta:
         sec = time / USECS_PER_SEC
         fsec = time - sec * USECS_PER_SEC
 
-        if year:
-            buf.append('{}{}{} year{}'.format(
-                '' if is_first else ' ',
-                '+' if is_before and year > 0 else '',
-                year,
-                's' if year != 1 else ''))
+        buf.append('P')
 
-            is_first = False
-            is_before = year < 0
+        if year:
+            buf.append(f'{year}Y')
 
         if mon:
-            buf.append('{}{}{} month{}'.format(
-                '' if is_first else ' ',
-                '+' if is_before and mon > 0 else '',
-                mon,
-                's' if mon != 1 else ''))
-
-            is_first = False
-            is_before = mon < 0
+            buf.append(f'{mon}M')
 
         if self.days:
-            buf.append('{}{}{} day{}'.format(
-                '' if is_first else ' ',
-                '+' if is_before and self.days > 0 else '',
-                self.days,
-                's' if self.days != 1 else ''))
+            buf.append(f'{self.days}D')
 
-            is_first = False
-            is_before = self.days < 0
+        if not self.microseconds:
+            return ''.join(buf)
 
-        if is_first or hour != 0 or min != 0 or sec != 0 or fsec != 0:
-            neg = hour < 0 or min < 0 or sec < 0 or fsec < 0
-            buf.append('{}{}{:0>2}:{:0>2}:{:0>2}'.format(
-                '' if is_first else ' ',
-                '-' if neg else ('+' if is_before else ''),
-                abs(hour), abs(min), abs(sec)))
+        buf.append('T')
 
-            fsec = abs(fsec)
+        if hour:
+            buf.append(f'{hour}H')
+
+        if min:
+            buf.append(f'{min}M')
+
+        if sec or fsec:
+            sign = '-' if min < 0 or fsec < 0 else ''
+            buf.append(f'{sign}{abs(sec)}')
+
             if fsec:
-                buf.append(f'.{fsec:0>6}'.rstrip('0'))
+                buf.append(f'.{abs(fsec):0>6}'.rstrip('0'))
+
+            buf.append('S')
 
         return ''.join(buf)
 
 
 cdef new_duration(int64_t microseconds, int32_t days, int32_t months):
-    cdef RelativeDelta dur = RelativeDelta.__new__(RelativeDelta)
+    cdef RelativeDuration dur = RelativeDuration.__new__(RelativeDuration)
 
     dur.microseconds = microseconds
     dur.days = days

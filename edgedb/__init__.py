@@ -21,7 +21,7 @@
 
 from ._version import __version__
 
-from edgedb.datatypes.datatypes import Tuple, NamedTuple, EnumValue
+from edgedb.datatypes.datatypes import Tuple, NamedTuple, EnumValue, RelativeDuration
 from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
 
 from .abstract import Executor, AsyncIOExecutor

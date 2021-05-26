@@ -20,7 +20,7 @@
 cimport cython
 cimport cpython
 
-include "./relative_delta.pyx"
+include "./relative_duration.pyx"
 include "./enum.pyx"
 
 

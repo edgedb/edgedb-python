@@ -22,7 +22,7 @@ import unittest
 from datetime import timedelta
 
 from edgedb import _testbase as tb
-from edgedb.datatypes.datatypes import RelativeDelta
+from edgedb.datatypes.datatypes import RelativeDuration
 
 
 class TestDatetimeTypes(tb.SyncQueryTestCase):
@@ -62,8 +62,8 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         ''', durs)
         self.assertEqual(list(durs_from_db), durs)
 
-    @unittest.expectedFailure  # no relative delta in edgedb yet
-    async def test_relative_delta_01(self):
+    @unittest.expectedFailure
+    async def test_relative_duration_01(self):
 
         delta_kwargs = [
             dict(),
@@ -87,28 +87,28 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
                 )
             )
 
-        durs = [RelativeDelta(**d) for d in delta_kwargs]
+        durs = [RelativeDuration(**d) for d in delta_kwargs]
 
-        # Test that RelativeDelta.__str__ formats the
-        # same as <str><cal::relativedelta>
+        # Test that RelativeDuration.__str__ formats the
+        # same as <str><cal::relative_duration>
         durs_as_text = self.con.query('''
-            WITH args := array_unpack(<array<cal::relativedelta>>$0)
+            WITH args := array_unpack(<array<cal::relative_duration>>$0)
             SELECT <str>args;
         ''', durs)
 
         # Test encode/decode roundtrip
         durs_from_db = self.con.query('''
-            WITH args := array_unpack(<array<cal::relativedelta>>$0)
+            WITH args := array_unpack(<array<cal::relative_duration>>$0)
             SELECT args;
         ''', durs)
 
         self.assertEqual(durs_as_text, [str(d) for d in durs])
         self.assertEqual(list(durs_from_db), durs)
 
-    async def test_relativedelta_02(self):
-        d1 = RelativeDelta(microseconds=1)
-        d2 = RelativeDelta(microseconds=2)
-        d3 = RelativeDelta(microseconds=1)
+    async def test_relative_duration_02(self):
+        d1 = RelativeDuration(microseconds=1)
+        d2 = RelativeDuration(microseconds=2)
+        d3 = RelativeDuration(microseconds=1)
 
         self.assertNotEqual(d1, d2)
         self.assertEqual(d1, d3)
@@ -121,4 +121,4 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         self.assertEqual(d1.months, 0)
         self.assertEqual(d1.microseconds, 1)
 
-        self.assertEqual(repr(d1), '<edgedb.RelativeDelta "00:00:00.000001">')
+        self.assertEqual(repr(d1), '<edgedb.RelativeDuration "PT0.000001S">')
