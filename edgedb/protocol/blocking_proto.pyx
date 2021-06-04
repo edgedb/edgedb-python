@@ -29,6 +29,19 @@ from . cimport protocol
 DEF RECV_BUF = 65536
 
 
+cdef _iter_coroutine(coro):
+    try:
+        coro.send(None)
+    except StopIteration as ex:
+        if ex.args:
+            result = ex.args[0]
+        else:
+            result = None
+    finally:
+        coro.close()
+    return result
+
+
 cdef class BlockingIOProtocol(protocol.SansIOProtocol):
 
     def __init__(self, con_params, sock):
@@ -72,37 +85,25 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
     async def wait_for_connect(self):
         return True
 
-    cdef _iter_coroutine(self, coro):
-        try:
-            coro.send(None)
-        except StopIteration as ex:
-            if ex.args:
-                result = ex.args[0]
-            else:
-                result = None
-        finally:
-            coro.close()
-        return result
-
     def sync_connect(self):
-        return self._iter_coroutine(self.connect())
+        return _iter_coroutine(self.connect())
 
     def sync_execute_anonymous(self, *args, **kwargs):
-        result, _headers = self._iter_coroutine(
+        result, _headers = _iter_coroutine(
             self.execute_anonymous(*args, **kwargs),
         )
         # don't expose headers to blocking client for now
         return result
 
     def sync_simple_query(self, *args, **kwargs):
-        return self._iter_coroutine(self.simple_query(*args, **kwargs))
+        return _iter_coroutine(self.simple_query(*args, **kwargs))
 
     def sync_dump(self, *, header_callback, block_callback):
         async def header_wrapper(data):
             header_callback(data)
         async def block_wrapper(data):
             block_callback(data)
-        return self._iter_coroutine(self.dump(header_wrapper, block_wrapper))
+        return _iter_coroutine(self.dump(header_wrapper, block_wrapper))
 
     def sync_restore(self, *, header, data_gen):
         async def wrapper():
@@ -113,5 +114,38 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
                     return
                 yield block
 
-        return self._iter_coroutine(self.restore(
-            header, wrapper()))
+        return _iter_coroutine(self.restore(header, wrapper()))
+
+
+cdef class BlockingIOUpgradeProtocol(protocol.HttpUpgradeProtocol):
+
+    def __init__(self, sock):
+        protocol.HttpUpgradeProtocol.__init__(self)
+        self.sock = sock
+
+    cdef write(self, data):
+        self.sock.send(data)
+
+    async def wait_for_response(self):
+        while not self.message_completed:
+            data = self.sock.recv(RECV_BUF)
+            if not data:
+                raise ConnectionAbortedError
+            self.feed_data(data)
+
+    def abort(self):
+        if self.sock is not None:
+            self.sock.close()
+            self.sock = None
+
+    def sync_upgrade(self, factory):
+        return _iter_coroutine(self.upgrade(factory))
+
+    def _upgrade(self, factory, remaining_data):
+        proto = factory()
+        if remaining_data:
+            proto.buffer.feed_data(remaining_data)
+        return proto
+
+    async def wait_for_connect(self):
+        pass

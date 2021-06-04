@@ -132,3 +132,14 @@ cdef class SansIOProtocol:
     )
 
     cdef ensure_connected(self)
+
+
+cdef class HttpUpgradeProtocol:
+
+    cdef:
+        object parser
+        object protocol
+        bint message_completed
+        object remaining_data
+
+    cdef write(self, data)

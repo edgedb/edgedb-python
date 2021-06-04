@@ -88,6 +88,7 @@ jobs:
             env USE_UVLOOP=1 python setup.py test
         else
             python setup.py test
+            env EDGEDB_DISABLE_HTTP_UPGRADE=1 python setup.py test
         fi
 
   # This job exists solely to act as the test job aggregate to be

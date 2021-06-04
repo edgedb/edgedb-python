@@ -27,4 +27,8 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
     cdef:
         readonly object sock
 
-    cdef _iter_coroutine(self, coro)
+
+cdef class BlockingIOUpgradeProtocol(protocol.HttpUpgradeProtocol):
+
+    cdef:
+        readonly object sock

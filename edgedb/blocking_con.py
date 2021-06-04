@@ -17,6 +17,7 @@
 #
 
 
+import functools
 import random
 import socket
 import time
@@ -90,10 +91,7 @@ class _BlockingIOConnectionImpl:
             iteration += 1
             time.sleep(0.01 + random.random() * 0.2)
 
-    def _connect_addr(self, addr, config, params, connection):
-        timeout = config.connect_timeout
-        deadline = time.monotonic() + timeout
-
+    def _connect_addr_sock(self, addr, timeout):
         if isinstance(addr, str):
             # UNIX socket
             sock = socket.socket(socket.AF_UNIX)
@@ -112,14 +110,57 @@ class _BlockingIOConnectionImpl:
             except OSError as e:
                 raise con_utils.wrap_error(e) from e
 
+            if not isinstance(addr, str):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+            return sock
+
+        except Exception:
+            sock.close()
+            raise
+
+    def _connect_addr(self, addr, config, params, connection):
+        timeout = config.connect_timeout
+        deadline = time.monotonic() + timeout
+        factory = functools.partial(
+            blocking_proto.BlockingIOProtocol, params
+        )
+
+        sock = self._connect_addr_sock(addr, timeout)
+        try:
             time_left = deadline - time.monotonic()
             if time_left <= 0:
                 raise TimeoutError
 
-            if not isinstance(addr, str):
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            # Try to upgrade the protocol to the EdgeDB binary protocol
+            proto = blocking_proto.BlockingIOUpgradeProtocol(sock)
+            try:
+                sock.settimeout(time_left)
+                proto = proto.sync_upgrade(lambda: factory(sock))
+            except OSError as e:
+                raise con_utils.wrap_error(e) from e
 
-            proto = blocking_proto.BlockingIOProtocol(params, sock)
+            time_left = deadline - time.monotonic()
+            if time_left <= 0:
+                raise TimeoutError
+        except Exception:
+            sock.close()
+            raise
+
+        if not proto:
+            # We're probably talking to an old EdgeDB server that doesn't
+            # support HTTP upgrade; retry with the binary protocol directly
+            sock.close()
+            sock = self._connect_addr_sock(addr, time_left)
+
+        try:
+            if not proto:
+                time_left = deadline - time.monotonic()
+                if time_left <= 0:
+                    raise TimeoutError
+
+                proto = factory(sock)
+
             proto.set_connection(connection)
 
             try:

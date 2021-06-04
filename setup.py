@@ -339,6 +339,7 @@ setuptools.setup(
     cmdclass={'build_ext': build_ext},
     test_suite='tests.suite',
     install_requires=[
+        'httptools~=0.2',
         'typing-extensions~=3.7.4',
     ],
     extras_require=EXTRA_DEPENDENCIES,

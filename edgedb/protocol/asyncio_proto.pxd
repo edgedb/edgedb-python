@@ -32,3 +32,11 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
 
         object loop
         object msg_waiter
+
+
+cdef class AsyncIOUpgradeProtocol(protocol.HttpUpgradeProtocol):
+
+    cdef:
+        object waiter
+        object transport
+        object connected_fut

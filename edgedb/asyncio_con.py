@@ -100,11 +100,7 @@ class _AsyncIOConnectionImpl:
             iteration += 1
             await asyncio.sleep(0.01 + random.random() * 0.2)
 
-    async def _connect_addr(self, loop, addr, params, connection):
-
-        factory = lambda: asyncio_proto.AsyncIOProtocol(
-            params, loop)
-
+    async def _connect_addr_transport(self, loop, addr, factory):
         try:
             if isinstance(addr, str):
                 # UNIX socket
@@ -116,6 +112,21 @@ class _AsyncIOConnectionImpl:
             raise errors.ClientConnectionFailedTemporarilyError(str(e)) from e
         except OSError as e:
             raise con_utils.wrap_error(e) from e
+        return tr, pr
+
+    async def _connect_addr(self, loop, addr, params, connection):
+        tr, pr = await self._connect_addr_transport(
+            loop, addr, lambda: asyncio_proto.AsyncIOUpgradeProtocol(loop)
+        )
+
+        # Try to upgrade the protocol to the EdgeDB binary protocol
+        factory = lambda: asyncio_proto.AsyncIOProtocol(params, loop)
+        pr = await pr.upgrade(factory)
+
+        if not pr:
+            # We're probably talking to an old EdgeDB server that doesn't
+            # support HTTP upgrade; retry with the binary protocol directly
+            tr, pr = await self._connect_addr_transport(loop, addr, factory)
 
         pr.set_connection(connection._inner)
 

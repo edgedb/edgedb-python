@@ -120,6 +120,9 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
     def resume_writing(self):
         pass
 
+    def eof_received(self):
+        pass
+
     def data_received(self, data):
         self.buffer.feed_data(data)
 
@@ -129,5 +132,83 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
             self.msg_waiter.set_result(True)
             self.msg_waiter = None
 
-    def eof_received(self):
+
+cdef class AsyncIOUpgradeProtocol(protocol.HttpUpgradeProtocol):
+
+    def __init__(self, loop):
+        protocol.HttpUpgradeProtocol.__init__(self)
+        self.waiter = loop.create_future()
+        self.connected_fut = loop.create_future()
+        self.transport = None
+
+    def connection_made(self, transport):
+        self.transport = transport
+        self.connected_fut.set_result(True)
+        self.connected_fut = None
+
+    def data_received(self, data):
+        if self.transport is None or self.waiter.done():
+            raise RuntimeError(
+                "Unexpected data received in AsyncIOUpgradeProtocol"
+            )
+
+        try:
+            self.feed_data(data)
+        except Exception as e:
+            self.transport.pause_reading()
+            self.waiter.set_exception(e)
+        else:
+            if self.message_completed:
+                self.transport.pause_reading()
+                self.waiter.set_result(True)
+
+    def pause_writing(self):
         pass
+
+    def resume_writing(self):
+        pass
+
+    def eof_received(self):
+        # TODO: feed EOF to the parser
+        pass
+
+    def connection_lost(self, exc):
+        self.transport = None
+        if self.connected_fut is not None and not self.connected_fut.done():
+            self.connected_fut.set_exception(ConnectionAbortedError())
+        if not self.waiter.done():
+            self.waiter.set_exception(ConnectionResetError())
+
+    def abort(self):
+        if self.transport is not None:
+            self.transport.close()
+            self.transport = None
+
+    async def wait_for_response(self):
+        try:
+            await self.waiter
+        except asyncio.CancelledError:
+            try:
+                self.abort()
+            finally:
+                raise
+
+    def _upgrade(self, factory, remaining_data):
+        transport, self.transport = self.transport, None
+        if transport is not None:
+            proto = factory()
+            transport.set_protocol(proto)
+            proto.connection_made(transport)
+            if remaining_data:
+                proto.data_received(remaining_data)
+            transport.resume_reading()
+            return proto
+
+    async def wait_for_connect(self):
+        if self.connected_fut is not None:
+            await self.connected_fut
+
+    cdef write(self, data):
+        if self.transport is None:
+            raise ConnectionAbortedError
+        self.transport.write(data)

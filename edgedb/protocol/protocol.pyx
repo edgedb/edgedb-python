@@ -30,6 +30,8 @@ import types
 import typing
 import weakref
 
+import httptools
+
 from edgedb.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
@@ -1272,6 +1274,62 @@ cdef class SansIOProtocol:
         exc = errors.EdgeDBError._from_code(code, msg)
         exc._attrs = attrs
         return exc
+
+
+cdef class HttpUpgradeProtocol:
+
+    def __init__(self):
+        self.parser = httptools.HttpResponseParser(self)
+        self.protocol = None
+        self.message_completed = False
+        self.remaining_data = None
+
+    def on_message_complete(self):
+        self.message_completed = True
+
+    async def wait_for_response(self):
+        raise NotImplementedError
+
+    def abort(self):
+        raise NotImplementedError
+
+    def _upgrade(self, factory, remaining_data):
+        raise NotImplementedError
+
+    async def wait_for_connect(self):
+        raise NotImplementedError
+
+    cdef write(self, data):
+        raise NotImplementedError
+
+    def on_header(self, name, value):
+        name = name.lower()
+        if name == b'upgrade':
+            self.protocol = value
+
+    def feed_data(self, data):
+        try:
+            self.parser.feed_data(data)
+        except httptools.HttpParserUpgrade as upgrade:
+            self.remaining_data = data[upgrade.args[0]:]
+            raise
+
+    async def upgrade(self, factory):
+        await self.wait_for_connect()
+        self.write(
+            b'OPTIONS * HTTP/1.1\r\n'
+            b'Upgrade: edgedb-binary\r\n'
+            b'Connection: Upgrade\r\n'
+            b'\r\n'
+        )
+        try:
+            await self.wait_for_response()
+        except httptools.HttpParserUpgrade:
+            if self.protocol == b'edgedb-binary':
+                return self._upgrade(factory, self.remaining_data)
+        except httptools.HttpParserError as ex:
+            pass
+        self.abort()
 
 
 ## etc
