@@ -500,14 +500,15 @@ class TestConUtils(unittest.TestCase):
                     "password": "passw1",
                     "database": "inst1_db",
                 }))
-            stash_path = con_utils._stash_path_raw(project, home)
-            instance_file = stash_path / 'instance-name'
-            os.makedirs(stash_path)
-            with open(instance_file, 'wt') as f:
-                f.write('inst1')
 
             with mock.patch('pathlib.Path.home', lambda: home), \
                     mock.patch('os.getcwd', lambda: str(project)):
+                stash_path = con_utils._stash_path(project)
+                instance_file = stash_path / 'instance-name'
+                os.makedirs(stash_path)
+                with open(instance_file, 'wt') as f:
+                    f.write('inst1')
+
                 addrs, params, _config = con_utils.parse_connect_arguments(
                     dsn=None, host=None, port=None, user=None, password=None,
                     database=None, admin=None,
