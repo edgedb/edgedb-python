@@ -98,7 +98,7 @@ def _start_cluster(*, cleanup_atexit=True):
 
         p = subprocess.Popen(args, env=env, cwd=tmpdir.name)
 
-        for i in range(250):
+        for _ in range(250):
             try:
                 with open(status_file, 'rb') as f:
                     for line in f:

@@ -48,6 +48,7 @@ TEST_DEPENDENCIES = [
     # (example breakage: https://gitlab.com/pycqa/flake8/issues/427)
     'pycodestyle~=2.6.0',
     'pyflakes~=2.2.0',
+    'flake8-bugbear~=21.4.3',
     'flake8~=3.8.1',
     'uvloop>=0.15.1; platform_system != "Windows" and python_version >= "3.7"',
 ]
