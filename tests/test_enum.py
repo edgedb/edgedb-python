@@ -57,22 +57,22 @@ class TestEnum(tb.AsyncQueryTestCase):
         self.assertGreaterEqual(ct_white, ct_white)
 
         with self.assertRaises(TypeError):
-            ct_red < 'red'
+            _ = ct_red < 'red'
         with self.assertRaises(TypeError):
-            ct_red > 'red'
+            _ = ct_red > 'red'
         with self.assertRaises(TypeError):
-            ct_red <= 'red'
+            _ = ct_red <= 'red'
         with self.assertRaises(TypeError):
-            ct_red >= 'red'
+            _ = ct_red >= 'red'
 
         with self.assertRaises(TypeError):
-            ct_red < c_red
+            _ = ct_red < c_red
         with self.assertRaises(TypeError):
-            ct_red > c_red
+            _ = ct_red > c_red
         with self.assertRaises(TypeError):
-            ct_red <= c_red
+            _ = ct_red <= c_red
         with self.assertRaises(TypeError):
-            ct_red >= c_red
+            _ = ct_red >= c_red
 
         self.assertNotEqual(hash(ct_red), hash(c_red))
         self.assertNotEqual(hash(ct_red), hash('red'))

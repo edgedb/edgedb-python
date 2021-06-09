@@ -184,7 +184,7 @@ print()
 u = std_UUID(bytes=ubytes)
 st = time.monotonic()
 for _ in range(N):
-    u == TEST_UUID
+    _ = u == TEST_UUID
 std_total = time.monotonic() - st
 print(f'std_UUID() ==:\t\t  {std_total:.4f}')
 
@@ -192,6 +192,6 @@ print(f'std_UUID() ==:\t\t  {std_total:.4f}')
 u = c_UUID(ubytes)
 st = time.monotonic()
 for _ in range(N):
-    u == TEST_CUUID
+    _ = u == TEST_CUUID
 c_total = time.monotonic() - st
 print(f'c_UUID() ==:\t\t* {c_total:.4f} ({std_total / c_total:.2f}x)')
