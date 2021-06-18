@@ -34,8 +34,9 @@ cdef class CodecsRegistry:
         LRUMapping codecs
         dict base_codec_overrides
 
-    cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list)
-    cdef BaseCodec build_codec(self, bytes spec)
+    cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list,
+                                protocol_version)
+    cdef BaseCodec build_codec(self, bytes spec, protocol_version)
 
     cdef has_codec(self, bytes type_id)
     cdef BaseCodec get_codec(self, bytes type_id)

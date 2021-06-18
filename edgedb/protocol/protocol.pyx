@@ -132,7 +132,7 @@ cdef class SansIOProtocol:
 
         self.server_settings = {}
         self.reset_status()
-        self.protocol_version = (PROTO_VER_MAJOR, 0)
+        self.protocol_version = (PROTO_VER_MAJOR, PROTO_VER_MINOR)
 
     cdef reset_status(self):
         self.last_status = None
@@ -909,7 +909,7 @@ cdef class SansIOProtocol:
                         f'the protocol: {major}.{minor}'
                     )
 
-                self.protocol_version = (PROTO_VER_MAJOR, minor)
+                self.protocol_version = (major, minor)
 
             elif mtype == AUTH_REQUEST_MSG:
                 # Authentication...
@@ -1125,7 +1125,7 @@ cdef class SansIOProtocol:
             if reg.has_codec(type_id):
                 in_dc = reg.get_codec(type_id)
             else:
-                in_dc = reg.build_codec(type_data)
+                in_dc = reg.build_codec(type_data, self.protocol_version)
 
             type_id = self.buffer.read_bytes(16)
             type_data = self.buffer.read_len_prefixed_bytes()
@@ -1133,7 +1133,7 @@ cdef class SansIOProtocol:
             if reg.has_codec(type_id):
                 out_dc = reg.get_codec(type_id)
             else:
-                out_dc = reg.build_codec(type_data)
+                out_dc = reg.build_codec(type_data, self.protocol_version)
         finally:
             self.buffer.finish_message()
 

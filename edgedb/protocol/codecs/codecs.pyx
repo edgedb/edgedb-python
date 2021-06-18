@@ -78,7 +78,8 @@ cdef class CodecsRegistry:
             decoder,
         )
 
-    cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list):
+    cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list,
+                                protocol_version):
         cdef:
             uint8_t t = <uint8_t>(frb_read(spec, 1)[0])
             bytes tid = frb_read(spec, 16)[:16]
@@ -89,7 +90,6 @@ cdef class CodecsRegistry:
             int32_t dim_len
             BaseCodec res
             BaseCodec sub_codec
-
 
         res = self.codecs.get(tid, None)
         if res is None:
@@ -104,7 +104,11 @@ cdef class CodecsRegistry:
             elif t == CTYPE_SHAPE:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
                 for i in range(els):
-                    frb_read(spec, 1)
+                    # flags
+                    if protocol_version >= (0, 11):
+                        frb_read(spec, 4)
+                    else:
+                        frb_read(spec, 1)
                     str_len = hton.unpack_uint32(frb_read(spec, 4))
                     # read the <str> (`str_len` bytes) and <pos> (2 bytes)
                     frb_read(spec, str_len + 2)
@@ -165,7 +169,10 @@ cdef class CodecsRegistry:
             names = cpython.PyTuple_New(els)
             flags = cpython.PyTuple_New(els)
             for i in range(els):
-                flag = <uint8_t>frb_read(spec, 1)[0]
+                if protocol_version >= (0, 11):
+                    flag = hton.unpack_uint32(frb_read(spec, 4))
+                else:
+                    flag = <uint8_t>frb_read(spec, 1)[0]
 
                 str_len = hton.unpack_uint32(frb_read(spec, 4))
                 name = cpythonx.PyUnicode_FromStringAndSize(
@@ -281,7 +288,7 @@ cdef class CodecsRegistry:
 
         raise LookupError
 
-    cdef BaseCodec build_codec(self, bytes spec):
+    cdef BaseCodec build_codec(self, bytes spec, protocol_version):
         cdef:
             FRBuffer buf
             BaseCodec res
@@ -294,7 +301,7 @@ cdef class CodecsRegistry:
 
         codecs_list = []
         while frb_get_len(&buf):
-            res = self._build_codec(&buf, codecs_list)
+            res = self._build_codec(&buf, codecs_list, protocol_version)
             if res is None:
                 # An annotation; ignore.
                 continue
