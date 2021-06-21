@@ -132,7 +132,7 @@ cdef class SansIOProtocol:
 
         self.server_settings = {}
         self.reset_status()
-        self.protocol_version = (PROTO_VER_MAJOR, PROTO_VER_MINOR)
+        self.protocol_version = (PROTO_VER_MAJOR, 0)
 
     cdef reset_status(self):
         self.last_status = None
