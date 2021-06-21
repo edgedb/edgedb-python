@@ -104,11 +104,11 @@ cdef class CodecsRegistry:
             elif t == CTYPE_SHAPE:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
                 for i in range(els):
-                    # flags
                     if protocol_version >= (0, 11):
-                        frb_read(spec, 4)
+                        frb_read(spec, 4)  # flags
+                        frb_read(spec, 1)  # cardinality
                     else:
-                        frb_read(spec, 1)
+                        frb_read(spec, 1)  # flags
                     str_len = hton.unpack_uint32(frb_read(spec, 4))
                     # read the <str> (`str_len` bytes) and <pos> (2 bytes)
                     frb_read(spec, str_len + 2)
@@ -170,9 +170,10 @@ cdef class CodecsRegistry:
             flags = cpython.PyTuple_New(els)
             for i in range(els):
                 if protocol_version >= (0, 11):
-                    flag = hton.unpack_uint32(frb_read(spec, 4))
+                    flag = hton.unpack_uint32(frb_read(spec, 4))  # flags
+                    frb_read(spec, 1)  # cardinality
                 else:
-                    flag = <uint8_t>frb_read(spec, 1)[0]
+                    flag = <uint8_t>frb_read(spec, 1)[0]  # flags
 
                 str_len = hton.unpack_uint32(frb_read(spec, 4))
                 name = cpythonx.PyUnicode_FromStringAndSize(

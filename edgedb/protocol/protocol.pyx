@@ -872,6 +872,7 @@ cdef class SansIOProtocol:
         handshake_buf = WriteBuffer.new_message(CLIENT_HANDSHAKE_MSG)
         handshake_buf.write_int16(PROTO_VER_MAJOR)
         handshake_buf.write_int16(PROTO_VER_MINOR)
+        self.protocol_version = (PROTO_VER_MAJOR, PROTO_VER_MINOR)
 
         # params
         params = {
