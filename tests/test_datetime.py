@@ -18,10 +18,10 @@
 
 
 import random
-import unittest
 from datetime import timedelta
 
 from edgedb import _testbase as tb
+from edgedb import errors
 from edgedb.datatypes.datatypes import RelativeDuration
 
 
@@ -62,8 +62,11 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         ''', durs)
         self.assertEqual(list(durs_from_db), durs)
 
-    @unittest.expectedFailure
     async def test_relative_duration_01(self):
+        try:
+            self.con.query("SELECT <cal::relative_duration>'1y'")
+        except errors.InvalidReferenceError:
+            self.skipTest("feature not implemented")
 
         delta_kwargs = [
             dict(),
