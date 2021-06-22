@@ -340,7 +340,7 @@ setuptools.setup(
     cmdclass={'build_ext': build_ext},
     test_suite='tests.suite',
     install_requires=[
-        'typing-extensions~=3.7.4',
+        'typing-extensions>=3.10.0',
     ],
     extras_require=EXTRA_DEPENDENCIES,
     setup_requires=setup_requires,
