@@ -43,11 +43,18 @@ class TestFlake8(unittest.TestCase):
         for subdir in ['edgedb', 'tests']:  # ignore any top-level test files
             try:
                 subprocess.run(
-                    [sys.executable, '-m', 'flake8', '--config', config_path],
+                    [
+                        sys.executable,
+                        "-m",
+                        "flake8",
+                        "--config",
+                        config_path,
+                        subdir,
+                    ],
                     check=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    cwd=os.path.join(edgepath, subdir))
+                    cwd=edgepath)
             except subprocess.CalledProcessError as ex:
                 output = ex.output.decode()
                 raise AssertionError(
