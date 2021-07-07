@@ -28,6 +28,7 @@ from unittest import mock
 
 from edgedb import con_utils
 from edgedb import errors
+from edgedb import platform
 
 
 class TestConUtils(unittest.TestCase):
@@ -475,8 +476,8 @@ class TestConUtils(unittest.TestCase):
                 "/home/user/work/project1",
                 pathlib.Path("/home/user"),
             ),
-            pathlib.Path("/home/user/.edgedb/projects/project1-"
-                         "cf1c841351bf7f147d70dcb6203441cf77a05249"),
+            platform.config_dir() / "projects/project1-"
+            "cf1c841351bf7f147d70dcb6203441cf77a05249",
         )
 
     def test_project_config(self):
@@ -501,7 +502,8 @@ class TestConUtils(unittest.TestCase):
                     "database": "inst1_db",
                 }))
 
-            with mock.patch('pathlib.Path.home', lambda: home), \
+            with mock.patch('edgedb.platform.config_dir',
+                            lambda: home / '.edgedb'), \
                     mock.patch('os.getcwd', lambda: str(project)):
                 stash_path = con_utils._stash_path(project)
                 instance_file = stash_path / 'instance-name'

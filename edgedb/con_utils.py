@@ -19,7 +19,6 @@
 
 import errno
 import os
-import platform
 import re
 import typing
 import urllib.parse
@@ -29,6 +28,7 @@ import hashlib
 
 from . import errors
 from . import credentials
+from . import platform
 
 
 EDGEDB_PORT = 5656
@@ -61,9 +61,6 @@ class ClientConfiguration(typing.NamedTuple):
     connect_timeout: float
     command_timeout: float
     wait_until_available: float
-
-
-_system = platform.uname().system
 
 
 def _validate_port_spec(hosts, port):
@@ -123,7 +120,7 @@ def _parse_hostlist(hostlist, port):
 
 def _stash_path(path):
     path = os.path.realpath(path)
-    if _system == 'Windows' and not path.startswith('\\\\'):
+    if platform.IS_WINDOWS and not path.startswith('\\\\'):
         path = '\\\\?\\' + path
     return _stash_path_raw(path, pathlib.Path.home())
 
@@ -132,7 +129,7 @@ def _stash_path_raw(path, home):
     hash = hashlib.sha1(str(path).encode('utf-8')).hexdigest()
     base_name = os.path.basename(path)
     dir_name = base_name + '-' + hash
-    return home / '.edgedb' / 'projects' / dir_name
+    return platform.config_dir() / 'projects' / dir_name
 
 
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,
@@ -284,7 +281,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
             host, port = _parse_hostlist(hostspec, port)
 
     if not host:
-        if _system == 'Windows' or using_credentials:
+        if platform.IS_WINDOWS or using_credentials:
             host = []
         else:
             host = ['/run/edgedb', '/var/run/edgedb']

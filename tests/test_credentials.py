@@ -24,11 +24,12 @@ import unittest
 from unittest import mock
 
 from edgedb import credentials
+from edgedb import platform
 
 
 class TestCredentials(unittest.TestCase):
     def tearDown(self):
-        importlib.reload(credentials)
+        importlib.reload(platform)
 
     def test_credentials_read(self):
         creds = credentials.read_credentials(
@@ -81,7 +82,7 @@ class TestCredentials(unittest.TestCase):
     @mock.patch("sys.platform", "darwin")
     @mock.patch("pathlib.Path.home")
     def test_get_credentials_path_macos(self, home_method):
-        importlib.reload(credentials)
+        importlib.reload(platform)
         home_method.return_value = pathlib.PurePosixPath("/Users/edgedb")
         self.assertEqual(
             str(credentials.get_credentials_path("test")),
@@ -93,7 +94,7 @@ class TestCredentials(unittest.TestCase):
     @mock.patch("pathlib.Path", pathlib.PureWindowsPath)
     @mock.patch("ctypes.windll", create=True)
     def test_get_credentials_path_win(self, windll):
-        importlib.reload(credentials)
+        importlib.reload(platform)
 
         def get_folder_path(_a, _b, _c, _d, path_buf):
             path_buf.value = r"c:\Users\edgedb\AppData\Local"
@@ -114,7 +115,7 @@ class TestCredentials(unittest.TestCase):
         os.environ, {"XDG_CONFIG_HOME": "/home/edgedb/.config"}, clear=True
     )
     def test_get_credentials_path_linux_xdg(self):
-        importlib.reload(credentials)
+        importlib.reload(platform)
         self.assertEqual(
             str(credentials.get_credentials_path("test")),
             "/home/edgedb/.config/edgedb/credentials/test.json",
@@ -125,7 +126,7 @@ class TestCredentials(unittest.TestCase):
     @mock.patch("pathlib.PurePosixPath.home", create=True)
     @mock.patch.dict(os.environ, {}, clear=True)
     def test_get_credentials_path_linux_no_xdg(self, home_method):
-        importlib.reload(credentials)
+        importlib.reload(platform)
         home_method.return_value = pathlib.PurePosixPath("/home/edgedb")
         self.assertEqual(
             str(credentials.get_credentials_path("test")),

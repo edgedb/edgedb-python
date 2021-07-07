@@ -1,6 +1,5 @@
 import os
 import pathlib
-import sys
 import typing
 import json
 
@@ -8,6 +7,8 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
+
+from . import platform
 
 
 class RequiredCredentials(TypedDict, total=True):
@@ -21,30 +22,8 @@ class Credentials(RequiredCredentials, total=False):
     database: typing.Optional[str]
 
 
-if sys.platform == "darwin":
-    def config_dir() -> pathlib.Path:
-        return (
-            pathlib.Path.home() / "Library" / "Application Support" / "edgedb"
-        )
-elif sys.platform == "win32":
-    import ctypes
-    from ctypes import windll
-
-    def config_dir() -> pathlib.Path:
-        path_buf = ctypes.create_unicode_buffer(255)
-        csidl = 28  # CSIDL_LOCAL_APPDATA
-        windll.shell32.SHGetFolderPathW(0, csidl, 0, 0, path_buf)
-        return pathlib.Path(path_buf.value) / "EdgeDB" / "config"
-else:
-    def config_dir() -> pathlib.Path:
-        xdg_conf_dir = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", "."))
-        if not xdg_conf_dir.is_absolute():
-            xdg_conf_dir = pathlib.Path.home() / ".config"
-        return xdg_conf_dir / "edgedb"
-
-
 def get_credentials_path(instance_name: str) -> pathlib.Path:
-    return config_dir() / "credentials" / (instance_name + ".json")
+    return platform.config_dir() / "credentials" / (instance_name + ".json")
 
 
 def read_credentials(path: os.PathLike) -> Credentials:
