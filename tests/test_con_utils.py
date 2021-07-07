@@ -28,7 +28,6 @@ from unittest import mock
 
 from edgedb import con_utils
 from edgedb import errors
-from edgedb import platform
 
 
 class TestConUtils(unittest.TestCase):
@@ -474,10 +473,10 @@ class TestConUtils(unittest.TestCase):
         self.assertEqual(
             con_utils._stash_path_raw(
                 "/home/user/work/project1",
-                pathlib.Path("/home/user"),
+                pathlib.Path("/home/user/.config/edgedb"),
             ),
-            platform.config_dir() / "projects/project1-"
-            "cf1c841351bf7f147d70dcb6203441cf77a05249",
+            pathlib.Path("/home/user/.config/edgedb/projects/project1-"
+                         "cf1c841351bf7f147d70dcb6203441cf77a05249"),
         )
 
     def test_project_config(self):

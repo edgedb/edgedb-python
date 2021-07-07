@@ -84,11 +84,21 @@ class TestCredentials(unittest.TestCase):
     def test_get_credentials_path_macos(self, home_method):
         importlib.reload(platform)
         home_method.return_value = pathlib.PurePosixPath("/Users/edgedb")
-        self.assertEqual(
-            str(credentials.get_credentials_path("test")),
-            "/Users/edgedb/Library/Application Support/"
-            "edgedb/credentials/test.json",
-        )
+        with mock.patch(
+            "pathlib.PurePosixPath.exists", lambda x: True, create=True,
+        ):
+            self.assertEqual(
+                str(credentials.get_credentials_path("test")),
+                "/Users/edgedb/Library/Application Support/"
+                "edgedb/credentials/test.json",
+            )
+        with mock.patch(
+            "pathlib.PurePosixPath.exists", lambda x: False, create=True,
+        ):
+            self.assertEqual(
+                str(credentials.get_credentials_path("test")),
+                "/Users/edgedb/.edgedb/credentials/test.json",
+            )
 
     @mock.patch("sys.platform", "win32")
     @mock.patch("pathlib.Path", pathlib.PureWindowsPath)
@@ -102,11 +112,25 @@ class TestCredentials(unittest.TestCase):
         windll.shell32 = mock.Mock()
         windll.shell32.SHGetFolderPathW = get_folder_path
 
-        self.assertEqual(
-            str(credentials.get_credentials_path("test")),
-            r"c:\Users\edgedb\AppData\Local"
-            r"\EdgeDB\config\credentials\test.json",
-        )
+        with mock.patch(
+            "pathlib.PureWindowsPath.exists", lambda x: True, create=True
+        ):
+            self.assertEqual(
+                str(credentials.get_credentials_path("test")),
+                r"c:\Users\edgedb\AppData\Local"
+                r"\EdgeDB\config\credentials\test.json",
+            )
+        with mock.patch(
+            "pathlib.PureWindowsPath.exists", lambda x: False, create=True
+        ), mock.patch(
+            'pathlib.PureWindowsPath.home',
+            lambda: pathlib.PureWindowsPath(r"c:\Users\edgedb"),
+            create=True,
+        ):
+            self.assertEqual(
+                str(credentials.get_credentials_path("test")),
+                r"c:\Users\edgedb\.edgedb\credentials\test.json",
+            )
 
     @mock.patch("sys.platform", "linux2")
     @mock.patch("pathlib.Path", pathlib.PurePosixPath)
@@ -116,10 +140,23 @@ class TestCredentials(unittest.TestCase):
     )
     def test_get_credentials_path_linux_xdg(self):
         importlib.reload(platform)
-        self.assertEqual(
-            str(credentials.get_credentials_path("test")),
-            "/home/edgedb/.config/edgedb/credentials/test.json",
-        )
+        with mock.patch(
+            "pathlib.PurePosixPath.exists", lambda x: True, create=True
+        ):
+            self.assertEqual(
+                str(credentials.get_credentials_path("test")),
+                "/home/edgedb/.config/edgedb/credentials/test.json",
+            )
+        with mock.patch(
+            "pathlib.PurePosixPath.exists", lambda x: False, create=True
+        ):
+            pathlib.PurePosixPath.home.return_value = pathlib.PurePosixPath(
+                "/home/edgedb"
+            )
+            self.assertEqual(
+                str(credentials.get_credentials_path("test")),
+                "/home/edgedb/.edgedb/credentials/test.json",
+            )
 
     @mock.patch("sys.platform", "linux2")
     @mock.patch("pathlib.Path", pathlib.PurePosixPath)
@@ -128,7 +165,18 @@ class TestCredentials(unittest.TestCase):
     def test_get_credentials_path_linux_no_xdg(self, home_method):
         importlib.reload(platform)
         home_method.return_value = pathlib.PurePosixPath("/home/edgedb")
-        self.assertEqual(
-            str(credentials.get_credentials_path("test")),
-            "/home/edgedb/.config/edgedb/credentials/test.json",
-        )
+
+        with mock.patch(
+            "pathlib.PurePosixPath.exists", lambda x: True, create=True
+        ):
+            self.assertEqual(
+                str(credentials.get_credentials_path("test")),
+                "/home/edgedb/.config/edgedb/credentials/test.json",
+            )
+        with mock.patch(
+            "pathlib.PurePosixPath.exists", lambda x: False, create=True
+        ):
+            self.assertEqual(
+                str(credentials.get_credentials_path("test")),
+                "/home/edgedb/.edgedb/credentials/test.json",
+            )
