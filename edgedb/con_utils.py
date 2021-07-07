@@ -259,8 +259,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
             )
 
         using_credentials = True
-        path = (pathlib.Path.home() /
-                '.edgedb' / 'credentials' / (dsn + '.json'))
+        path = credentials.get_credentials_path(dsn)
         try:
             creds = credentials.read_credentials(path)
         except Exception as e:
