@@ -378,6 +378,8 @@ class TestConUtils(unittest.TestCase):
         host = testcase.get('host')
         password = testcase.get('password')
         database = testcase.get('database')
+        tls_cert_file = testcase.get('tls_cert_file')
+        tls_verify_hostname = testcase.get('tls_verify_hostname')
         admin = testcase.get('admin')
         timeout = testcase.get('timeout')
         command_timeout = testcase.get('command_timeout')
@@ -405,6 +407,8 @@ class TestConUtils(unittest.TestCase):
             addrs, params, config = con_utils.parse_connect_arguments(
                 dsn=dsn, host=host, port=port, user=user, password=password,
                 database=database, admin=admin,
+                tls_cert_file=tls_cert_file,
+                tls_verify_hostname=tls_verify_hostname,
                 timeout=timeout, command_timeout=command_timeout,
                 server_settings=server_settings,
                 wait_until_available=30)
@@ -413,6 +417,7 @@ class TestConUtils(unittest.TestCase):
                       if v is not None}
             config = {k: v for k, v in config._asdict().items()
                       if v is not None}
+            params.pop('ssl_ctx', None)
 
             result = (addrs, params, config)
 
@@ -515,6 +520,7 @@ class TestConUtils(unittest.TestCase):
                 addrs, params, _config = con_utils.parse_connect_arguments(
                     dsn=None, host=None, port=None, user=None, password=None,
                     database=None, admin=None,
+                    tls_cert_file=None, tls_verify_hostname=None,
                     timeout=10, command_timeout=None,
                     server_settings=None,
                     wait_until_available=30)

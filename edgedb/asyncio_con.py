@@ -18,8 +18,10 @@
 
 
 import asyncio
+import functools
 import random
 import socket
+import ssl
 import time
 import typing
 import warnings
@@ -102,15 +104,31 @@ class _AsyncIOConnectionImpl:
 
     async def _connect_addr(self, loop, addr, params, connection):
 
-        factory = lambda: asyncio_proto.AsyncIOProtocol(
-            params, loop)
+        factory = functools.partial(
+            asyncio_proto.AsyncIOProtocol, params, loop
+        )
 
         try:
             if isinstance(addr, str):
                 # UNIX socket
                 tr, pr = await loop.create_unix_connection(factory, addr)
             else:
-                tr, pr = await loop.create_connection(factory, *addr)
+                try:
+                    tr, pr = await loop.create_connection(
+                        factory, *addr, ssl=params.ssl_ctx
+                    )
+                except ssl.CertificateError as e:
+                    raise con_utils.wrap_error(e) from e
+                except ssl.SSLError as e:
+                    if e.reason == 'CERTIFICATE_VERIFY_FAILED':
+                        raise con_utils.wrap_error(e) from e
+                    tr, pr = await loop.create_connection(
+                        functools.partial(factory, tls_compat=True), *addr
+                    )
+                else:
+                    con_utils.check_alpn_protocol(
+                        tr.get_extra_info('ssl_object')
+                    )
         except socket.gaierror as e:
             # All name resolution errors are considered temporary
             raise errors.ClientConnectionFailedTemporarilyError(str(e)) from e
@@ -484,6 +502,8 @@ async def async_connect(dsn: str = None, *,
                         user: str = None, password: str = None,
                         admin: bool = None,
                         database: str = None,
+                        tls_cert_file: str = None,
+                        tls_verify_hostname: bool = None,
                         connection_class=None,
                         wait_until_available: int = 30,
                         timeout: int = 10) -> AsyncIOConnection:
@@ -496,6 +516,7 @@ async def async_connect(dsn: str = None, *,
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         database=database, admin=admin, timeout=timeout,
+        tls_cert_file=tls_cert_file, tls_verify_hostname=tls_verify_hostname,
         wait_until_available=wait_until_available,
 
         # ToDos
