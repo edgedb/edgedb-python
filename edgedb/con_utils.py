@@ -124,9 +124,7 @@ def _stash_path(path):
     hash = hashlib.sha1(str(path).encode('utf-8')).hexdigest()
     base_name = os.path.basename(path)
     dir_name = base_name + '-' + hash
-    return platform.search_config_dir(
-        lambda config_dir: config_dir / 'projects' / dir_name
-    )
+    return platform.search_config_dir('projects', dir_name)
 
 
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,

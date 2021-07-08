@@ -27,6 +27,18 @@ from edgedb import credentials
 from edgedb import platform
 
 
+class _MockExists:
+    def __init__(self):
+        self.called = False
+
+    def __call__(self, *args, **kwargs):
+        if self.called:
+            return True
+        else:
+            self.called = True
+            return False
+
+
 class TestCredentials(unittest.TestCase):
     def tearDown(self):
         importlib.reload(platform)
@@ -93,7 +105,7 @@ class TestCredentials(unittest.TestCase):
                 "edgedb/credentials/test.json",
             )
         with mock.patch(
-            "pathlib.PurePosixPath.exists", lambda x: False, create=True,
+            "pathlib.PurePosixPath.exists", _MockExists(), create=True,
         ):
             self.assertEqual(
                 str(credentials.get_credentials_path("test")),
@@ -121,7 +133,7 @@ class TestCredentials(unittest.TestCase):
                 r"\EdgeDB\config\credentials\test.json",
             )
         with mock.patch(
-            "pathlib.PureWindowsPath.exists", lambda x: False, create=True
+            "pathlib.PureWindowsPath.exists", _MockExists(), create=True
         ), mock.patch(
             'pathlib.PureWindowsPath.home',
             lambda: pathlib.PureWindowsPath(r"c:\Users\edgedb"),
@@ -148,7 +160,7 @@ class TestCredentials(unittest.TestCase):
                 "/home/edgedb/.config/edgedb/credentials/test.json",
             )
         with mock.patch(
-            "pathlib.PurePosixPath.exists", lambda x: False, create=True
+            "pathlib.PurePosixPath.exists", _MockExists(), create=True
         ):
             pathlib.PurePosixPath.home.return_value = pathlib.PurePosixPath(
                 "/home/edgedb"
@@ -174,7 +186,7 @@ class TestCredentials(unittest.TestCase):
                 "/home/edgedb/.config/edgedb/credentials/test.json",
             )
         with mock.patch(
-            "pathlib.PurePosixPath.exists", lambda x: False, create=True
+            "pathlib.PurePosixPath.exists", _MockExists(), create=True
         ):
             self.assertEqual(
                 str(credentials.get_credentials_path("test")),

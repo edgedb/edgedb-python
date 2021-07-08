@@ -1,3 +1,4 @@
+import functools
 import os
 import pathlib
 import sys
@@ -36,8 +37,16 @@ def old_config_dir() -> pathlib.Path:
     return pathlib.Path.home() / ".edgedb"
 
 
-def search_config_dir(sub_path_func):
-    rv = sub_path_func(config_dir())
+def search_config_dir(*suffix):
+    rv = functools.reduce(lambda p1, p2: p1 / p2, [config_dir(), *suffix])
     if rv.exists():
         return rv
-    return sub_path_func(old_config_dir())
+
+    fallback = functools.reduce(
+        lambda p1, p2: p1 / p2, [old_config_dir(), *suffix]
+    )
+    if fallback.exists():
+        return fallback
+
+    # None of the searched files exists, return the new path.
+    return rv
