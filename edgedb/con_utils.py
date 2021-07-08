@@ -121,14 +121,12 @@ def _stash_path(path):
     path = os.path.realpath(path)
     if platform.IS_WINDOWS and not path.startswith('\\\\'):
         path = '\\\\?\\' + path
-    return _stash_path_raw(path, platform.config_dir())
-
-
-def _stash_path_raw(path, conf_dir):
     hash = hashlib.sha1(str(path).encode('utf-8')).hexdigest()
     base_name = os.path.basename(path)
     dir_name = base_name + '-' + hash
-    return conf_dir / 'projects' / dir_name
+    return platform.search_config_dir(
+        lambda config_dir: config_dir / 'projects' / dir_name
+    )
 
 
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,

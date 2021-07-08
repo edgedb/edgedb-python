@@ -3,7 +3,7 @@ import pathlib
 import sys
 
 if sys.platform == "darwin":
-    def _config_dir() -> pathlib.Path:
+    def config_dir() -> pathlib.Path:
         return (
             pathlib.Path.home() / "Library" / "Application Support" / "edgedb"
         )
@@ -14,7 +14,7 @@ elif sys.platform == "win32":
     import ctypes
     from ctypes import windll
 
-    def _config_dir() -> pathlib.Path:
+    def config_dir() -> pathlib.Path:
         path_buf = ctypes.create_unicode_buffer(255)
         csidl = 28  # CSIDL_LOCAL_APPDATA
         windll.shell32.SHGetFolderPathW(0, csidl, 0, 0, path_buf)
@@ -23,7 +23,7 @@ elif sys.platform == "win32":
     IS_WINDOWS = True
 
 else:
-    def _config_dir() -> pathlib.Path:
+    def config_dir() -> pathlib.Path:
         xdg_conf_dir = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", "."))
         if not xdg_conf_dir.is_absolute():
             xdg_conf_dir = pathlib.Path.home() / ".config"
@@ -32,8 +32,12 @@ else:
     IS_WINDOWS = False
 
 
-def config_dir() -> pathlib.Path:
-    conf_dir = _config_dir()
-    if not conf_dir.exists():
-        conf_dir = pathlib.Path.home() / ".edgedb"
-    return conf_dir
+def old_config_dir() -> pathlib.Path:
+    return pathlib.Path.home() / ".edgedb"
+
+
+def search_config_dir(sub_path_func):
+    rv = sub_path_func(config_dir())
+    if rv.exists():
+        return rv
+    return sub_path_func(old_config_dir())

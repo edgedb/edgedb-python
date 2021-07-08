@@ -23,7 +23,10 @@ class Credentials(RequiredCredentials, total=False):
 
 
 def get_credentials_path(instance_name: str) -> pathlib.Path:
-    return platform.config_dir() / "credentials" / (instance_name + ".json")
+    return platform.search_config_dir(
+        lambda config_dir:
+        config_dir / "credentials" / (instance_name + ".json")
+    )
 
 
 def read_credentials(path: os.PathLike) -> Credentials:
