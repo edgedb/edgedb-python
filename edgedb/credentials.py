@@ -20,6 +20,8 @@ class Credentials(RequiredCredentials, total=False):
     host: typing.Optional[str]
     password: typing.Optional[str]
     database: typing.Optional[str]
+    tls_cert_data: typing.Optional[str]
+    tls_verify_hostname: typing.Optional[bool]
 
 
 def get_credentials_path(instance_name: str) -> pathlib.Path:
@@ -72,5 +74,17 @@ def validate_credentials(data: dict) -> Credentials:
         if not isinstance(password, str):
             raise ValueError("`password` must be a string")
         result['password'] = password
+
+    cert_data = data.get('tls_cert_data')
+    if cert_data is not None:
+        if not isinstance(cert_data, str):
+            raise ValueError("`tls_cert_data` must be a string")
+        result['tls_cert_data'] = cert_data
+
+    verify = data.get('tls_verify_hostname')
+    if verify is not None:
+        if not isinstance(verify, bool):
+            raise ValueError("`tls_verify_hostname` must be a bool")
+        result['tls_verify_hostname'] = verify
 
     return result

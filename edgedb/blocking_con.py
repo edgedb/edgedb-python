@@ -19,6 +19,7 @@
 
 import random
 import socket
+import ssl
 import time
 import typing
 import warnings
@@ -93,6 +94,7 @@ class _BlockingIOConnectionImpl:
     def _connect_addr(self, addr, config, params, connection):
         timeout = config.connect_timeout
         deadline = time.monotonic() + timeout
+        tls_compat = False
 
         if isinstance(addr, str):
             # UNIX socket
@@ -105,6 +107,39 @@ class _BlockingIOConnectionImpl:
 
             try:
                 sock.connect(addr)
+
+                if not isinstance(addr, str):
+                    time_left = deadline - time.monotonic()
+                    if time_left <= 0:
+                        raise TimeoutError
+
+                    # Upgrade to TLS
+                    if params.ssl_ctx.check_hostname:
+                        server_hostname = addr[0]
+                    else:
+                        server_hostname = None
+                    sock.settimeout(time_left)
+                    try:
+                        sock = params.ssl_ctx.wrap_socket(
+                            sock, server_hostname=server_hostname
+                        )
+                    except ssl.CertificateError as e:
+                        raise con_utils.wrap_error(e) from e
+                    except ssl.SSLError as e:
+                        if e.reason == 'CERTIFICATE_VERIFY_FAILED':
+                            raise con_utils.wrap_error(e) from e
+
+                        # Retry in plain text
+                        time_left = deadline - time.monotonic()
+                        if time_left <= 0:
+                            raise TimeoutError
+                        sock.close()
+                        sock = socket.socket(socket.AF_INET)
+                        sock.settimeout(time_left)
+                        sock.connect(addr)
+                        tls_compat = True
+                    else:
+                        con_utils.check_alpn_protocol(sock)
             except socket.gaierror as e:
                 # All name resolution errors are considered temporary
                 err = errors.ClientConnectionFailedTemporarilyError(str(e))
@@ -119,7 +154,9 @@ class _BlockingIOConnectionImpl:
             if not isinstance(addr, str):
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-            proto = blocking_proto.BlockingIOProtocol(params, sock)
+            proto = blocking_proto.BlockingIOProtocol(
+                params, sock, tls_compat
+            )
             proto.set_connection(connection)
 
             try:
@@ -379,6 +416,8 @@ def connect(dsn: str = None, *,
             user: str = None, password: str = None,
             admin: bool = None,
             database: str = None,
+            tls_cert_file: str = None,
+            tls_verify_hostname: bool = None,
             timeout: int = 10,
             wait_until_available: int = 30) -> BlockingIOConnection:
 
@@ -387,6 +426,7 @@ def connect(dsn: str = None, *,
         database=database, admin=admin,
         timeout=timeout,
         wait_until_available=wait_until_available,
+        tls_cert_file=tls_cert_file, tls_verify_hostname=tls_verify_hostname,
 
         # ToDos
         command_timeout=None,

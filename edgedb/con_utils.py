@@ -20,6 +20,7 @@
 import errno
 import os
 import re
+import ssl
 import typing
 import urllib.parse
 import warnings
@@ -53,6 +54,7 @@ class ConnectionParameters(typing.NamedTuple):
     database: str
     connect_timeout: float
     server_settings: typing.Mapping[str, str]
+    ssl_ctx: ssl.SSLContext
 
 
 class ClientConfiguration(typing.NamedTuple):
@@ -127,10 +129,26 @@ def _stash_path(path):
     return platform.search_config_dir('projects', dir_name)
 
 
+def _parse_verify_hostname(val: str) -> typing.Optional[bool]:
+    val = val.lower()
+    if val in {"1", "yes", "true", "y", "t", "on"}:
+        return True
+    elif val in {"0", "no", "false", "n", "f", "off"}:
+        return False
+    elif val in {"default", "d"}:
+        return None
+    else:
+        raise ValueError(
+            "tls_verify_hostname can only be one of yes/no/default"
+        )
+
+
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                                 password, database, admin,
+                                tls_cert_file, tls_verify_hostname,
                                 connect_timeout, server_settings):
     using_credentials = False
+    tls_cert_data = None
 
     if admin:
         warnings.warn(
@@ -238,6 +256,16 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                 if password is None:
                     password = val
 
+            if 'tls_cert_file' in query:
+                val = query.pop('tls_cert_file')
+                if tls_cert_file is None:
+                    tls_cert_file = val
+
+            if 'tls_verify_hostname' in query:
+                val = query.pop('tls_verify_hostname')
+                if tls_verify_hostname is None:
+                    tls_verify_hostname = _parse_verify_hostname(val)
+
             if query:
                 if server_settings is None:
                     server_settings = query
@@ -269,6 +297,10 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
             password = creds['password']
         if database is None and 'database' in creds:
             database = creds['database']
+        if tls_cert_file is None and 'tls_cert_data' in creds:
+            tls_cert_data = creds['tls_cert_data']
+        if tls_verify_hostname is None and 'tls_verify_hostname' in creds:
+            tls_verify_hostname = creds['tls_verify_hostname']
 
     if not host:
         hostspec = os.environ.get('EDGEDB_HOST')
@@ -360,18 +392,39 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
             'server_settings is expected to be None or '
             'a Dict[str, str]')
 
+    if admin:
+        ssl_ctx = None
+    else:
+        ssl_ctx = ssl.SSLContext()
+        ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+        if tls_cert_file or tls_cert_data:
+            ssl_ctx.load_verify_locations(
+                cafile=tls_cert_file, cadata=tls_cert_data
+            )
+            if tls_verify_hostname is None:
+                tls_verify_hostname = False
+        else:
+            ssl_ctx.load_default_certs(ssl.Purpose.SERVER_AUTH)
+            if tls_verify_hostname is None:
+                tls_verify_hostname = True
+        ssl_ctx.check_hostname = tls_verify_hostname
+        ssl_ctx.set_alpn_protocols(['edgedb-binary'])
+
     params = ConnectionParameters(
         user=user,
         password=password,
         database=database,
         connect_timeout=connect_timeout,
-        server_settings=server_settings)
+        server_settings=server_settings,
+        ssl_ctx=ssl_ctx,
+    )
 
     return addrs, params
 
 
 def parse_connect_arguments(*, dsn, host, port, user, password,
                             database, admin,
+                            tls_cert_file, tls_verify_hostname,
                             timeout, command_timeout, wait_until_available,
                             server_settings):
 
@@ -392,6 +445,7 @@ def parse_connect_arguments(*, dsn, host, port, user, password,
         dsn=dsn, host=host, port=port, user=user,
         password=password, admin=admin,
         database=database, connect_timeout=timeout,
+        tls_cert_file=tls_cert_file, tls_verify_hostname=tls_verify_hostname,
         server_settings=server_settings,
     )
 
@@ -402,6 +456,13 @@ def parse_connect_arguments(*, dsn, host, port, user, password,
     )
 
     return addrs, params, config
+
+
+def check_alpn_protocol(ssl_obj):
+    if ssl_obj.selected_alpn_protocol() != 'edgedb-binary':
+        raise errors.ClientConnectionFailedError(
+            "The server doesn't support the edgedb-binary protocol."
+        )
 
 
 def render_client_no_connection_error(prefix, addr, attempts, duration):
