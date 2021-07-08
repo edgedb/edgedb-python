@@ -1,4 +1,5 @@
 import os
+import pathlib
 import typing
 import json
 
@@ -6,6 +7,8 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
+
+from . import platform
 
 
 class RequiredCredentials(TypedDict, total=True):
@@ -17,6 +20,10 @@ class Credentials(RequiredCredentials, total=False):
     host: typing.Optional[str]
     password: typing.Optional[str]
     database: typing.Optional[str]
+
+
+def get_credentials_path(instance_name: str) -> pathlib.Path:
+    return platform.search_config_dir("credentials", instance_name + ".json")
 
 
 def read_credentials(path: os.PathLike) -> Credentials:

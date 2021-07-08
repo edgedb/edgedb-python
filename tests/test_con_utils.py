@@ -469,13 +469,15 @@ class TestConUtils(unittest.TestCase):
         for testcase in self.TESTS:
             self.run_testcase(testcase)
 
+    @mock.patch("edgedb.platform.config_dir",
+                lambda: pathlib.Path("/home/user/.config/edgedb"))
+    @mock.patch("edgedb.platform.IS_WINDOWS", False)
+    @mock.patch("pathlib.Path.exists", lambda p: True)
+    @mock.patch("os.path.realpath", lambda p: p)
     def test_stash_path(self):
         self.assertEqual(
-            con_utils._stash_path_raw(
-                "/home/user/work/project1",
-                pathlib.Path("/home/user"),
-            ),
-            pathlib.Path("/home/user/.edgedb/projects/project1-"
+            con_utils._stash_path("/home/user/work/project1"),
+            pathlib.Path("/home/user/.config/edgedb/projects/project1-"
                          "cf1c841351bf7f147d70dcb6203441cf77a05249"),
         )
 
@@ -501,7 +503,8 @@ class TestConUtils(unittest.TestCase):
                     "database": "inst1_db",
                 }))
 
-            with mock.patch('pathlib.Path.home', lambda: home), \
+            with mock.patch('edgedb.platform.config_dir',
+                            lambda: home / '.edgedb'), \
                     mock.patch('os.getcwd', lambda: str(project)):
                 stash_path = con_utils._stash_path(project)
                 instance_file = stash_path / 'instance-name'
