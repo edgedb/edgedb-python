@@ -341,6 +341,7 @@ setuptools.setup(
     test_suite='tests.suite',
     install_requires=[
         'typing-extensions>=3.10.0',
+        'certifi>=2021.5.30; platform_system == "Windows"',
     ],
     extras_require=EXTRA_DEPENDENCIES,
     setup_requires=setup_requires,
