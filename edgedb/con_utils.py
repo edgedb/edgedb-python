@@ -405,6 +405,9 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                 tls_verify_hostname = False
         else:
             ssl_ctx.load_default_certs(ssl.Purpose.SERVER_AUTH)
+            if platform.IS_WINDOWS:
+                import certifi
+                ssl_ctx.load_verify_locations(cafile=certifi.where())
             if tls_verify_hostname is None:
                 tls_verify_hostname = True
         ssl_ctx.check_hostname = tls_verify_hostname
