@@ -129,17 +129,15 @@ def _stash_path(path):
     return platform.search_config_dir('projects', dir_name)
 
 
-def _parse_verify_hostname(val: str) -> typing.Optional[bool]:
+def _parse_verify_hostname(val: str) -> bool:
     val = val.lower()
     if val in {"1", "yes", "true", "y", "t", "on"}:
         return True
     elif val in {"0", "no", "false", "n", "f", "off"}:
         return False
-    elif val in {"default", "d"}:
-        return None
     else:
         raise ValueError(
-            "tls_verify_hostname can only be one of yes/no/default"
+            "tls_verify_hostname can only be one of yes/no"
         )
 
 
