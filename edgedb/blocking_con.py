@@ -416,7 +416,7 @@ def connect(dsn: str = None, *,
             user: str = None, password: str = None,
             admin: bool = None,
             database: str = None,
-            tls_cert_file: str = None,
+            tls_ca_file: str = None,
             tls_verify_hostname: bool = None,
             timeout: int = 10,
             wait_until_available: int = 30) -> BlockingIOConnection:
@@ -426,7 +426,7 @@ def connect(dsn: str = None, *,
         database=database, admin=admin,
         timeout=timeout,
         wait_until_available=wait_until_available,
-        tls_cert_file=tls_cert_file, tls_verify_hostname=tls_verify_hostname,
+        tls_ca_file=tls_ca_file, tls_verify_hostname=tls_verify_hostname,
 
         # ToDos
         command_timeout=None,
