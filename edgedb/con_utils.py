@@ -145,10 +145,10 @@ def _parse_verify_hostname(val: str) -> typing.Optional[bool]:
 
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                                 password, database, admin,
-                                tls_cert_file, tls_verify_hostname,
+                                tls_ca_file, tls_verify_hostname,
                                 connect_timeout, server_settings):
     using_credentials = False
-    tls_cert_data = None
+    tls_ca_data = None
 
     if admin:
         warnings.warn(
@@ -256,10 +256,10 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                 if password is None:
                     password = val
 
-            if 'tls_cert_file' in query:
-                val = query.pop('tls_cert_file')
-                if tls_cert_file is None:
-                    tls_cert_file = val
+            if 'tls_ca_file' in query:
+                val = query.pop('tls_ca_file')
+                if tls_ca_file is None:
+                    tls_ca_file = val
 
             if 'tls_verify_hostname' in query:
                 val = query.pop('tls_verify_hostname')
@@ -297,8 +297,8 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
             password = creds['password']
         if database is None and 'database' in creds:
             database = creds['database']
-        if tls_cert_file is None and 'tls_cert_data' in creds:
-            tls_cert_data = creds['tls_cert_data']
+        if tls_ca_file is None and 'tls_cert_data' in creds:
+            tls_ca_data = creds['tls_cert_data']
         if tls_verify_hostname is None and 'tls_verify_hostname' in creds:
             tls_verify_hostname = creds['tls_verify_hostname']
 
@@ -397,9 +397,9 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
     else:
         ssl_ctx = ssl.SSLContext()
         ssl_ctx.verify_mode = ssl.CERT_REQUIRED
-        if tls_cert_file or tls_cert_data:
+        if tls_ca_file or tls_ca_data:
             ssl_ctx.load_verify_locations(
-                cafile=tls_cert_file, cadata=tls_cert_data
+                cafile=tls_ca_file, cadata=tls_ca_data
             )
             if tls_verify_hostname is None:
                 tls_verify_hostname = False
@@ -427,7 +427,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
 
 def parse_connect_arguments(*, dsn, host, port, user, password,
                             database, admin,
-                            tls_cert_file, tls_verify_hostname,
+                            tls_ca_file, tls_verify_hostname,
                             timeout, command_timeout, wait_until_available,
                             server_settings):
 
@@ -448,7 +448,7 @@ def parse_connect_arguments(*, dsn, host, port, user, password,
         dsn=dsn, host=host, port=port, user=user,
         password=password, admin=admin,
         database=database, connect_timeout=timeout,
-        tls_cert_file=tls_cert_file, tls_verify_hostname=tls_verify_hostname,
+        tls_ca_file=tls_ca_file, tls_verify_hostname=tls_verify_hostname,
         server_settings=server_settings,
     )
 

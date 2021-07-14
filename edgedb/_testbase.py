@@ -113,15 +113,14 @@ def _start_cluster(*, cleanup_atexit=True):
             raise RuntimeError('server status file not found')
 
         data = json.loads(line.split(b'READY=')[1])
-        con = edgedb.connect(
-            host='localhost', port=data['port'], password='test')
+        con_args = dict(host='localhost', port=data['port'])
+        if 'tls_cert_file' in data:
+            con_args['tls_ca_file'] = data['tls_cert_file']
+        con = edgedb.connect(password='test', **con_args)
         _default_cluster = {
             'proc': p,
             'con': con,
-            'con_args': {
-                'host': 'localhost',
-                'port': data['port'],
-            }
+            'con_args': con_args,
         }
         atexit.register(con.close)
     except Exception as e:

@@ -502,7 +502,7 @@ async def async_connect(dsn: str = None, *,
                         user: str = None, password: str = None,
                         admin: bool = None,
                         database: str = None,
-                        tls_cert_file: str = None,
+                        tls_ca_file: str = None,
                         tls_verify_hostname: bool = None,
                         connection_class=None,
                         wait_until_available: int = 30,
@@ -516,7 +516,7 @@ async def async_connect(dsn: str = None, *,
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         database=database, admin=admin, timeout=timeout,
-        tls_cert_file=tls_cert_file, tls_verify_hostname=tls_verify_hostname,
+        tls_ca_file=tls_ca_file, tls_verify_hostname=tls_verify_hostname,
         wait_until_available=wait_until_available,
 
         # ToDos
