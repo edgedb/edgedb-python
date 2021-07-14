@@ -96,7 +96,18 @@ def _start_cluster(*, cleanup_atexit=True):
         # not interfere with the server's.
         env.pop('PYTHONPATH', None)
 
-        p = subprocess.Popen(args, env=env, cwd=tmpdir.name)
+        if env.get('EDGEDB_DEBUG_SERVER'):
+            server_stdout = None
+        else:
+            server_stdout = subprocess.DEVNULL
+
+        p = subprocess.Popen(
+            args,
+            env=env,
+            cwd=tmpdir.name,
+            stdout=server_stdout,
+            stderr=subprocess.STDOUT,
+        )
 
         for _ in range(250):
             try:
