@@ -78,8 +78,9 @@ def _start_cluster(*, cleanup_atexit=True):
             .lower()
         )
 
+        edgedb_server = os.environ.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
         args = [
-            os.environ.get('EDGEDB_SERVER_BINARY', 'edgedb-server'),
+            edgedb_server,
             "--temp-dir",
             "--testmode",
             f"--emit-server-status={status_file_unix}",
@@ -87,6 +88,10 @@ def _start_cluster(*, cleanup_atexit=True):
             "--auto-shutdown",
             "--bootstrap-command=ALTER ROLE edgedb { SET password := 'test' }",
         ]
+        if "--generate-self-signed-cert" in subprocess.getoutput(
+            [edgedb_server, "--help"],
+        ):
+            args.append("--generate-self-signed-cert")
 
         if sys.platform == 'win32':
             args = ['wsl', '-u', 'edgedb'] + args
