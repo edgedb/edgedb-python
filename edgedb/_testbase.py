@@ -85,6 +85,7 @@ def _start_cluster(*, cleanup_atexit=True):
             f"--emit-server-status={status_file_unix}",
             "--port=auto",
             "--auto-shutdown",
+            "--generate-self-signed-cert",
             "--bootstrap-command=ALTER ROLE edgedb { SET password := 'test' }",
         ]
 
