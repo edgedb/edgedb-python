@@ -88,8 +88,8 @@ def _start_cluster(*, cleanup_atexit=True):
             "--auto-shutdown",
             "--bootstrap-command=ALTER ROLE edgedb { SET password := 'test' }",
         ]
-        if "--generate-self-signed-cert" in subprocess.check_output(
-            [edgedb_server, "--help"], text=True
+        if "--generate-self-signed-cert" in subprocess.getoutput(
+            [edgedb_server, "--help"],
         ):
             args.append("--generate-self-signed-cert")
 
