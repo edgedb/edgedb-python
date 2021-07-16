@@ -78,7 +78,12 @@ def _start_cluster(*, cleanup_atexit=True):
             .lower()
         )
 
-        edgedb_server = os.environ.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
+        env = os.environ.copy()
+        # Make sure the PYTHONPATH of _this_ process does
+        # not interfere with the server's.
+        env.pop('PYTHONPATH', None)
+
+        edgedb_server = env.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
         args = [
             edgedb_server,
             "--temp-dir",
@@ -91,18 +96,20 @@ def _start_cluster(*, cleanup_atexit=True):
 
         help_args = [edgedb_server, "--help"]
         if sys.platform == 'win32':
-            help_args = ['wsl', '-u', 'edgedb'] + args
+            help_args = ['wsl', '-u', 'edgedb'] + help_args
 
-        if "--generate-self-signed-cert" in subprocess.getoutput(help_args):
+        if "--generate-self-signed-cert" in subprocess.run(
+            help_args,
+            universal_newlines=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+            cwd=tmpdir.name,
+        ).stdout:
             args.append("--generate-self-signed-cert")
 
         if sys.platform == 'win32':
             args = ['wsl', '-u', 'edgedb'] + args
-
-        env = os.environ.copy()
-        # Make sure the PYTHONPATH of _this_ process does
-        # not interfere with the server's.
-        env.pop('PYTHONPATH', None)
 
         if env.get('EDGEDB_DEBUG_SERVER'):
             server_stdout = None
