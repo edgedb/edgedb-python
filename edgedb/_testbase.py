@@ -143,6 +143,7 @@ def _start_cluster(*, cleanup_atexit=True):
         if 'tls_cert_file' in data:
             con_args['tls_ca_file'] = data['tls_cert_file']
             if sys.platform == 'win32':
+                print('before', con_args['tls_ca_file'])
                 con_args['tls_ca_file'] = (
                     re.sub(
                         r'^/mnt/([a-z])',
@@ -150,6 +151,7 @@ def _start_cluster(*, cleanup_atexit=True):
                         con_args['tls_ca_file'],
                     ).replace("/", "\\")
                 )
+                print('after', con_args['tls_ca_file'])
 
         con = edgedb.connect(password='test', **con_args)
         _default_cluster = {
