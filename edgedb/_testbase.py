@@ -52,6 +52,14 @@ def silence_asyncio_long_exec_warning():
         logger.removeFilter(flt)
 
 
+def _get_wsl_path(win_path):
+    return (
+        re.sub(r'^([A-Z]):', lambda m: f'/mnt/{m.group(1)}', win_path)
+        .replace("\\", '/')
+        .lower()
+    )
+
+
 _default_cluster = None
 
 
@@ -72,13 +80,14 @@ def _start_cluster(*, cleanup_atexit=True):
         status_file = os.path.join(tmpdir.name, 'server-status')
 
         # if running on windows adjust the path for WSL
-        status_file_unix = (
-            re.sub(r'^([A-Z]):', lambda m: f'/mnt/{m.group(1)}', status_file)
-            .replace("\\", '/')
-            .lower()
-        )
+        status_file_unix = _get_wsl_path(status_file)
 
-        edgedb_server = os.environ.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
+        env = os.environ.copy()
+        # Make sure the PYTHONPATH of _this_ process does
+        # not interfere with the server's.
+        env.pop('PYTHONPATH', None)
+
+        edgedb_server = env.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
         args = [
             edgedb_server,
             "--temp-dir",
@@ -91,18 +100,20 @@ def _start_cluster(*, cleanup_atexit=True):
 
         help_args = [edgedb_server, "--help"]
         if sys.platform == 'win32':
-            help_args = ['wsl', '-u', 'edgedb'] + args
+            help_args = ['wsl', '-u', 'edgedb'] + help_args
 
-        if "--generate-self-signed-cert" in subprocess.getoutput(help_args):
+        if "--generate-self-signed-cert" in subprocess.run(
+            help_args,
+            universal_newlines=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+            cwd=tmpdir.name,
+        ).stdout:
             args.append("--generate-self-signed-cert")
 
         if sys.platform == 'win32':
             args = ['wsl', '-u', 'edgedb'] + args
-
-        env = os.environ.copy()
-        # Make sure the PYTHONPATH of _this_ process does
-        # not interfere with the server's.
-        env.pop('PYTHONPATH', None)
 
         if env.get('EDGEDB_DEBUG_SERVER'):
             server_stdout = None
@@ -134,13 +145,34 @@ def _start_cluster(*, cleanup_atexit=True):
         data = json.loads(line.split(b'READY=')[1])
         con_args = dict(host='localhost', port=data['port'])
         if 'tls_cert_file' in data:
-            con_args['tls_ca_file'] = data['tls_cert_file']
+            if sys.platform == 'win32':
+                con_args['tls_ca_file'] = os.path.join(
+                    tmpdir.name, "edbtlscert.pem"
+                )
+                subprocess.check_call(
+                    [
+                        'wsl',
+                        '-u',
+                        'edgedb',
+                        'cp',
+                        data['tls_cert_file'],
+                        _get_wsl_path(con_args['tls_ca_file'])
+                    ]
+                )
+            else:
+                con_args['tls_ca_file'] = data['tls_cert_file']
+
         con = edgedb.connect(password='test', **con_args)
         _default_cluster = {
             'proc': p,
             'con': con,
             'con_args': con_args,
         }
+
+        if 'tls_cert_file' in data:
+            # Keep the temp dir which we also copied the cert from WSL
+            _default_cluster['_tmpdir'] = tmpdir
+
         atexit.register(con.close)
     except Exception as e:
         _default_cluster = e
