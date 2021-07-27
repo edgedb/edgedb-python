@@ -1112,7 +1112,7 @@ cdef class SansIOProtocol:
             (<NamedTupleCodec>in_dc).encode_kwargs(buf, kwargs)
 
         else:
-            if type(in_dc) is not TupleCodec:
+            if type(in_dc) is not TupleCodec and args:
                 raise errors.QueryArgumentError(
                     'expected named arguments, got positional arguments')
             in_dc.encode(buf, args)
