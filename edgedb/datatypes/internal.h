@@ -23,6 +23,8 @@
 
 #include <stddef.h> /* For offsetof */
 
+#include <Python.h>
+
 #include "datatypes.h"
 
 
@@ -52,5 +54,14 @@ int _EdgeGeneric_RenderItems(_PyUnicodeWriter *,
 PyObject * _EdgeGeneric_RichCompareValues(PyObject **, Py_ssize_t,
                                           PyObject **, Py_ssize_t,
                                           int);
+
+
+#ifndef _PyList_CAST
+#  define _PyList_CAST(op) (assert(PyList_Check(op)), (PyListObject *)(op))
+#endif
+
+#ifndef _PyList_ITEMS
+#  define _PyList_ITEMS(op) (_PyList_CAST(op)->ob_item)
+#endif
 
 #endif
