@@ -107,6 +107,7 @@ class _AsyncIOConnectionImpl:
         factory = functools.partial(
             asyncio_proto.AsyncIOProtocol, params, loop
         )
+        tr = None
 
         try:
             if isinstance(addr, str):
@@ -134,13 +135,23 @@ class _AsyncIOConnectionImpl:
             raise errors.ClientConnectionFailedTemporarilyError(str(e)) from e
         except OSError as e:
             raise con_utils.wrap_error(e) from e
+        except Exception:
+            if tr is not None:
+                tr.close()
+            raise
 
         pr.set_connection(connection._inner)
 
         try:
             await pr.connect()
         except OSError as e:
+            if tr is not None:
+                tr.close()
             raise con_utils.wrap_error(e) from e
+        except Exception:
+            if tr is not None:
+                tr.close()
+            raise
 
         self._transport = tr
         self._protocol = pr
@@ -155,6 +166,13 @@ class _AsyncIOConnectionImpl:
             try:
                 self._protocol.terminate()
                 await self._protocol.wait_for_disconnect()
+
+                # With asyncio on CPython 3.10 or lower, a normal exit
+                # (connection closed by peer) cannot set the transport._closed
+                # properly, leading to false ResourceWarning. Let's fix that by
+                # closing the transport again.
+                if not self._transport.is_closing():
+                    self._transport.close()
             except (Exception, asyncio.CancelledError):
                 self.terminate()
                 raise
