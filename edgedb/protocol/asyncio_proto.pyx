@@ -112,6 +112,12 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
             self.msg_waiter.set_exception(ConnectionResetError())
             self.msg_waiter = None
 
+        # With asyncio sslproto on CPython 3.10 or lower, a normal exit
+        # (connection closed by peer) cannot set the transport._closed
+        # properly, leading to false ResourceWarning. Let's fix that by
+        # closing the transport again.
+        if not self.transport.is_closing():
+            self.transport.close()
         self.transport = None
 
     def pause_writing(self):

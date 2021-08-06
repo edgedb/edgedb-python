@@ -166,13 +166,6 @@ class _AsyncIOConnectionImpl:
             try:
                 self._protocol.terminate()
                 await self._protocol.wait_for_disconnect()
-
-                # With asyncio on CPython 3.10 or lower, a normal exit
-                # (connection closed by peer) cannot set the transport._closed
-                # properly, leading to false ResourceWarning. Let's fix that by
-                # closing the transport again.
-                if not self._transport.is_closing():
-                    self._transport.close()
             except (Exception, asyncio.CancelledError):
                 self.terminate()
                 raise
