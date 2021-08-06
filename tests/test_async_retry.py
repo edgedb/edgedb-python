@@ -84,7 +84,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                     ''')
                     1 / 0
         with self.assertRaises(edgedb.NoDataError):
-            await self.con.query_one('''
+            await self.con.query_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
             ''')
@@ -125,7 +125,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                     await barrier.ready()
 
                     await lock.acquire()
-                    res = await tx.query_one('''
+                    res = await tx.query_single('''
                         SELECT (
                             INSERT test::Counter {
                                 name := <str>$name,

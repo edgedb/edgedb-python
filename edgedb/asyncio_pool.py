@@ -619,17 +619,17 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         async with self.acquire() as con:
             return await con.query(query, *args, **kwargs)
 
-    async def query_one(self, query, *args, **kwargs):
+    async def query_single(self, query, *args, **kwargs):
         async with self.acquire() as con:
-            return await con.query_one(query, *args, **kwargs)
+            return await con.query_single(query, *args, **kwargs)
 
     async def query_json(self, query, *args, **kwargs):
         async with self.acquire() as con:
             return await con.query_json(query, *args, **kwargs)
 
-    async def query_one_json(self, query, *args, **kwargs):
+    async def query_single_json(self, query, *args, **kwargs):
         async with self.acquire() as con:
-            return await con.query_one_json(query, *args, **kwargs)
+            return await con.query_single_json(query, *args, **kwargs)
 
     async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
         warnings.warn(
@@ -641,9 +641,9 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
     async def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
         warnings.warn(
             'The "fetchone()" method is deprecated and is scheduled to be '
-            'removed. Use the "query_one()" method instead.',
+            'removed. Use the "query_single()" method instead.',
             DeprecationWarning, 2)
-        return await self.query_one(query, *args, **kwargs)
+        return await self.query_single(query, *args, **kwargs)
 
     async def fetchall_json(self, query: str, *args, **kwargs) -> str:
         warnings.warn(
@@ -655,9 +655,9 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
     async def fetchone_json(self, query: str, *args, **kwargs) -> str:
         warnings.warn(
             'The "fetchone_json()" method is deprecated and is scheduled to '
-            'be removed. Use the "query_one_json()" method instead.',
+            'be removed. Use the "query_single_json()" method instead.',
             DeprecationWarning, 2)
-        return await self.query_one_json(query, *args, **kwargs)
+        return await self.query_single_json(query, *args, **kwargs)
 
     async def execute(self, query):
         async with self.acquire() as con:

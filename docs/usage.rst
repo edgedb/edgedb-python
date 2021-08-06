@@ -150,7 +150,7 @@ Below is an example of a connection pool usage:
         username = int(request.match_info.get('name'))
 
         # Execute the query on any pool connection
-        result = await pool.query_one_json(
+        result = await pool.query_single_json(
             '''
                 SELECT User {first_name, email, bio}
                 FILTER .name = <str>$username
@@ -181,7 +181,7 @@ You can also acquire connection from the pool:
 .. code-block:: python
 
     async with pool.acquire() as conn:
-        result = await conn.query_one_json(
+        result = await conn.query_single_json(
             '''
                 SELECT User {first_name, email, bio}
                 FILTER .name = <str>$username

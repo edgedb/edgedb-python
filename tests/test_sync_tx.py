@@ -141,7 +141,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             with tr:
-                self.con.query_one("SELECT 1")
+                self.con.query_single("SELECT 1")
 
         tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,
@@ -153,7 +153,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*is borrowed.*'):
             with tr:
-                self.con.query_one_json("SELECT 1")
+                self.con.query_single_json("SELECT 1")
 
         tr = self.con.raw_transaction()
         with self.assertRaisesRegex(edgedb.InterfaceError,

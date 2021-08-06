@@ -70,10 +70,10 @@ include "./codecs/codecs.pyx"
 cpython.datetime.import_datetime()
 
 
-_FETCHONE_METHOD = {
-    IoFormat.JSON: 'query_one_json',
+_QUERY_SINGLE_METHOD = {
+    IoFormat.JSON: 'query_single_json',
     IoFormat.JSON_ELEMENTS: '_fetchall_json_elements',
-    IoFormat.BINARY: 'query_one',
+    IoFormat.BINARY: 'query_single',
 }
 
 ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
@@ -325,7 +325,7 @@ cdef class SansIOProtocol:
             raise exc
 
         if expect_one and cardinality == CARDINALITY_NOT_APPLICABLE:
-            methname = _FETCHONE_METHOD[io_format]
+            methname = _QUERY_SINGLE_METHOD[io_format]
             raise errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
                 f'does not return any data')
@@ -525,7 +525,7 @@ cdef class SansIOProtocol:
         if re_exec:
             assert new_cardinality is not None
             if expect_one and new_cardinality == CARDINALITY_NOT_APPLICABLE:
-                methname = _FETCHONE_METHOD[io_format]
+                methname = _QUERY_SINGLE_METHOD[io_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
@@ -644,7 +644,7 @@ cdef class SansIOProtocol:
             out_dc = <BaseCodec>codecs[2]
 
             if expect_one and has_na_cardinality:
-                methname = _FETCHONE_METHOD[io_format]
+                methname = _QUERY_SINGLE_METHOD[io_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
@@ -669,7 +669,7 @@ cdef class SansIOProtocol:
             if ret:
                 return ret[0], attrs
             else:
-                methname = _FETCHONE_METHOD[io_format]
+                methname = _QUERY_SINGLE_METHOD[io_format]
                 raise errors.NoDataError(
                     f'query executed via {methname}() returned no data')
         else:
@@ -1237,7 +1237,7 @@ cdef class SansIOProtocol:
 
     cdef _amend_parse_error(self, exc, IoFormat io_format, bint expect_one):
         if expect_one and exc.get_code() == result_cardinality_mismatch_code:
-            methname = _FETCHONE_METHOD[io_format]
+            methname = _QUERY_SINGLE_METHOD[io_format]
             new_exc = errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
                 f'returns a multiset')

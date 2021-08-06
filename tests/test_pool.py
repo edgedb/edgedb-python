@@ -45,7 +45,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
                 async def worker():
                     con = await pool.acquire()
-                    self.assertEqual(await con.query_one("SELECT 1"), 1)
+                    self.assertEqual(await con.query_single("SELECT 1"), 1)
                     await pool.release(con)
 
                 tasks = [worker() for _ in range(n)]
@@ -59,7 +59,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
                     async def worker():
                         con = await pool.acquire()
-                        self.assertEqual(await con.query_one("SELECT 1"), 1)
+                        self.assertEqual(await con.query_single("SELECT 1"), 1)
                         await pool.release(con)
 
                     tasks = [worker() for _ in range(n)]
@@ -77,7 +77,7 @@ class TestPool(tb.AsyncQueryTestCase):
         self.assertIsNone(pool._impl._holders[0]._in_use)
 
         con = await pool.acquire()
-        self.assertEqual(await con.query_one("SELECT 1"), 1)
+        self.assertEqual(await con.query_single("SELECT 1"), 1)
 
         await con.aclose()
         self.assertIsNone(pool._impl._holders[0]._con)
@@ -94,13 +94,13 @@ class TestPool(tb.AsyncQueryTestCase):
 
                 async def worker():
                     async with pool.acquire() as con:
-                        self.assertEqual(await con.query_one("SELECT 1"), 1)
+                        self.assertEqual(await con.query_single("SELECT 1"), 1)
 
                     self.assertEqual(await pool.query('SELECT 1'), [1])
-                    self.assertEqual(await pool.query_one('SELECT 1'), 1)
+                    self.assertEqual(await pool.query_single('SELECT 1'), 1)
                     self.assertEqual(await pool.query_json('SELECT 1'), '[1]')
                     self.assertEqual(
-                        await pool.query_one_json('SELECT 1'), '1')
+                        await pool.query_single_json('SELECT 1'), '1')
 
                 tasks = [worker() for _ in range(n)]
                 await asyncio.gather(*tasks)
@@ -194,7 +194,7 @@ class TestPool(tb.AsyncQueryTestCase):
         self.assertIn("[released]", repr(con))
 
         for meth in (
-            "query_one",
+            "query_single",
             "query",
             "execute",
         ):
@@ -246,7 +246,7 @@ class TestPool(tb.AsyncQueryTestCase):
         pool = await self.create_pool(min_size=1, max_size=1)
 
         async with pool.raw_transaction() as tx:
-            self.assertEqual(await tx.query_one("SELECT 7*8"), 56)
+            self.assertEqual(await tx.query_single("SELECT 7*8"), 56)
 
         await pool.aclose()
 
@@ -255,7 +255,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
         async for tx in pool.retrying_transaction():
             async with tx:
-                self.assertEqual(await tx.query_one("SELECT 7*8"), 56)
+                self.assertEqual(await tx.query_single("SELECT 7*8"), 56)
 
         await pool.aclose()
 
@@ -305,7 +305,7 @@ class TestPool(tb.AsyncQueryTestCase):
                 self.assertTrue(last_con.is_closed())
 
                 async with pool.acquire() as con:
-                    self.assertEqual(await con.query_one("select 1"), 1)
+                    self.assertEqual(await con.query_single("select 1"), 1)
                     self.assertEqual(cons, ["error", con])
 
     async def test_pool_no_acquire_deadlock(self):
@@ -314,7 +314,7 @@ class TestPool(tb.AsyncQueryTestCase):
         ) as pool:
 
             async with pool.acquire() as con:
-                has_sleep = await con.query_one("""
+                has_sleep = await con.query_single("""
                     SELECT EXISTS(
                         SELECT schema::Function FILTER .name = 'sys::_sleep'
                     )
@@ -330,7 +330,7 @@ class TestPool(tb.AsyncQueryTestCase):
             await asyncio.sleep(0.5)
 
             async with pool.acquire() as con:
-                await con.query_one("SELECT 1")
+                await con.query_single("SELECT 1")
 
     async def test_pool_config_persistence(self):
         N = 100
@@ -340,13 +340,13 @@ class TestPool(tb.AsyncQueryTestCase):
             async def foo(self):
                 return 42
 
-            async def query_one(self, query):
-                res = await super().query_one(query)
+            async def query_single(self, query):
+                res = await super().query_single(query)
                 return res + 1
 
         async def test(pool):
             async with pool.acquire() as con:
-                self.assertEqual(await con.query_one("SELECT 1"), 2)
+                self.assertEqual(await con.query_single("SELECT 1"), 2)
                 self.assertEqual(await con.foo(), 42)
                 self.assertTrue(isinstance(con, MyConnection))
                 cons.add(con)
@@ -369,10 +369,10 @@ class TestPool(tb.AsyncQueryTestCase):
             self.assertEqual(list(r), [i])
             return 1
 
-        async def test_query_one(pool):
+        async def test_query_single(pool):
             i = random.randint(0, 20)
             await asyncio.sleep(random.random() / 100)
-            r = await pool.query_one("SELECT {}".format(i))
+            r = await pool.query_single("SELECT {}".format(i))
             self.assertEqual(r, i)
             return 1
 
@@ -390,7 +390,7 @@ class TestPool(tb.AsyncQueryTestCase):
 
         methods = [
             test_query,
-            test_query_one,
+            test_query_single,
             test_execute,
         ]
 
@@ -544,7 +544,7 @@ class TestPool(tb.AsyncQueryTestCase):
             edgedb.InterfaceError, r"being initialized, but not yet ready"
         ):
 
-            await pool.query_one("SELECT 1")
+            await pool.query_single("SELECT 1")
 
         await pool_task
         await pool.aclose()

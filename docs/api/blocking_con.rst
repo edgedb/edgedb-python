@@ -103,7 +103,7 @@ Connection
 
         >>> import edgedb
         >>> con = edgedb.connect(user='edgedeb')
-        >>> con.query_one('SELECT 1 + 1')
+        >>> con.query_single('SELECT 1 + 1')
         {2}
 
 
@@ -130,7 +130,7 @@ Connection
         Note that positional and named query arguments cannot be mixed.
 
 
-    .. py:method:: query_one(query, *args, **kwargs)
+    .. py:method:: query_single(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element.
 
@@ -175,7 +175,7 @@ Connection
             more appropriate type, such as ``Decimal``.
 
 
-    .. py:method:: query_one_json(query, *args, **kwargs)
+    .. py:method:: query_single_json(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element in JSON.
 
@@ -228,7 +228,7 @@ Connection
 
         .. note::
             If the results of *query* are desired, :py:meth:`query` or
-            :py:meth:`query_one` should be used instead.
+            :py:meth:`query_single` should be used instead.
 
     .. py:method:: retrying_transaction()
 
@@ -250,7 +250,7 @@ Connection
 
             for tx in con.retrying_transaction():
                 with tx:
-                    value = tx.query_one("SELECT Counter.value")
+                    value = tx.query_single("SELECT Counter.value")
                     tx.execute(
                         "UPDATE Counter SET { value := <int64>$value }",
                         value=value + 1,
@@ -278,7 +278,7 @@ Connection
         .. code-block:: python
 
             with con.raw_transaction() as tx:
-                value = tx.query_one("SELECT Counter.value")
+                value = tx.query_single("SELECT Counter.value")
                 tx.execute(
                     "UPDATE Counter SET { value := <int64>$value }",
                     value=value + 1,
@@ -355,7 +355,7 @@ Python code. Here is an example:
 
     for tx in pool.retrying_transaction():
         with tx:
-            user = tx.query_one(
+            user = tx.query_single(
                 "SELECT User { email } FILTER .login = <str>$login",
                 login=login,
             )
@@ -363,7 +363,7 @@ Python code. Here is an example:
                 'https://service.local/email_info',
                 params=dict(email=user.email),
             )
-            user = tx.query_one('''
+            user = tx.query_single('''
                     UPDATE User FILTER .login = <str>$login
                     SET { email_info := <json>$data}
                 ''',

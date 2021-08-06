@@ -23,7 +23,7 @@ import edgedb
 from edgedb import _testbase as tb
 
 
-class TestSyncFetch(tb.SyncQueryTestCase):
+class TestSyncQuery(tb.SyncQueryTestCase):
 
     ISOLATED_METHODS = False
 
@@ -122,49 +122,49 @@ class TestSyncFetch(tb.SyncQueryTestCase):
             self.con.query('SELECT "HELLO"'),
             ["HELLO"])
 
-    def test_sync_fetch_single_command_01(self):
+    def test_sync_query_single_command_01(self):
         r = self.con.query('''
-            CREATE TYPE test::server_fetch_single_command_01 {
-                CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
+            CREATE TYPE test::server_query_single_command_01 {
+                CREATE REQUIRED PROPERTY server_query_single_command_01 ->
                     std::str;
             };
         ''')
         self.assertEqual(r, [])
 
         r = self.con.query('''
-            DROP TYPE test::server_fetch_single_command_01;
+            DROP TYPE test::server_query_single_command_01;
         ''')
         self.assertEqual(r, [])
 
         r = self.con.query('''
-            CREATE TYPE test::server_fetch_single_command_01 {
-                CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
+            CREATE TYPE test::server_query_single_command_01 {
+                CREATE REQUIRED PROPERTY server_query_single_command_01 ->
                     std::str;
             };
         ''')
         self.assertEqual(r, [])
 
         r = self.con.query('''
-            DROP TYPE test::server_fetch_single_command_01;
+            DROP TYPE test::server_query_single_command_01;
         ''')
         self.assertEqual(r, [])
 
         r = self.con.query_json('''
-            CREATE TYPE test::server_fetch_single_command_01 {
-                CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
+            CREATE TYPE test::server_query_single_command_01 {
+                CREATE REQUIRED PROPERTY server_query_single_command_01 ->
                     std::str;
             };
         ''')
         self.assertEqual(r, '[]')
 
         r = self.con.query_json('''
-            DROP TYPE test::server_fetch_single_command_01;
+            DROP TYPE test::server_query_single_command_01;
         ''')
         self.assertEqual(r, '[]')
 
         self.assertTrue(self.con._get_last_status().startswith('DROP'))
 
-    def test_sync_fetch_single_command_02(self):
+    def test_sync_query_single_command_02(self):
         r = self.con.query('''
             SET MODULE default;
         ''')
@@ -180,8 +180,10 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         ''')
         self.assertEqual(r, [])
 
-        with self.assertRaisesRegex(edgedb.InterfaceError, r'query_one\(\)'):
-            self.con.query_one('''
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'query_single\(\)'):
+            self.con.query_single('''
                 SET ALIAS bar AS MODULE std;
             ''')
 
@@ -200,7 +202,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         ''')
         self.assertEqual(r, '[]')
 
-    def test_sync_fetch_single_command_03(self):
+    def test_sync_query_single_command_03(self):
         qs = [
             'START TRANSACTION',
             'DECLARE SAVEPOINT t0',
@@ -214,15 +216,15 @@ class TestSyncFetch(tb.SyncQueryTestCase):
         for _ in range(3):
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'cannot be executed with query_one\(\).*'
+                    r'cannot be executed with query_single\(\).*'
                     r'not return'):
-                self.con.query_one('START TRANSACTION')
+                self.con.query_single('START TRANSACTION')
 
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'cannot be executed with query_one_json\(\).*'
+                    r'cannot be executed with query_single_json\(\).*'
                     r'not return'):
-                self.con.query_one_json('START TRANSACTION')
+                self.con.query_single_json('START TRANSACTION')
 
         for _ in range(3):
             for q in qs:
@@ -235,17 +237,17 @@ class TestSyncFetch(tb.SyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'cannot be executed with query_one\(\).*'
+                r'cannot be executed with query_single\(\).*'
                 r'not return'):
-            self.con.query_one('START TRANSACTION')
+            self.con.query_single('START TRANSACTION')
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'cannot be executed with query_one_json\(\).*'
+                r'cannot be executed with query_single_json\(\).*'
                 r'not return'):
-            self.con.query_one_json('START TRANSACTION')
+            self.con.query_single_json('START TRANSACTION')
 
-    def test_sync_fetch_single_command_04(self):
+    def test_sync_query_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
             self.con.query('''
@@ -255,7 +257,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            self.con.query_one('''
+            self.con.query_single('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
@@ -270,7 +272,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
     def test_sync_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
-                self.con.query_one(
+                self.con.query_single(
                     'select ()'),
                 ())
 
@@ -280,7 +282,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
                 edgedb.Set([(1,)]))
 
             self.assertEqual(
-                self.con.query_one(
+                self.con.query_single(
                     'select <array<int64>>[]'),
                 [])
 
@@ -301,12 +303,12 @@ class TestSyncFetch(tb.SyncQueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'query cannot be executed with query_one\('):
-                self.con.query_one('SELECT {1, 2}')
+                    r'query cannot be executed with query_single\('):
+                self.con.query_single('SELECT {1, 2}')
 
             with self.assertRaisesRegex(edgedb.NoDataError,
-                                        r'\bquery_one_json\('):
-                self.con.query_one_json('SELECT <int64>{}')
+                                        r'\bquery_single_json\('):
+                self.con.query_single_json('SELECT <int64>{}')
 
     def test_sync_basic_datatypes_02(self):
         self.assertEqual(
@@ -344,7 +346,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
 
             self.assertEqual(
                 json.loads(
-                    self.con.query_one_json(
+                    self.con.query_single_json(
                         'select ["a", "b"]')),
                 ["a", "b"])
 
@@ -369,7 +371,7 @@ class TestSyncFetch(tb.SyncQueryTestCase):
                 [])
 
             with self.assertRaises(edgedb.NoDataError):
-                self.con.query_one_json('SELECT <int64>{}')
+                self.con.query_single_json('SELECT <int64>{}')
 
     def test_sync_args_01(self):
         self.assertEqual(

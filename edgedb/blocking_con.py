@@ -306,7 +306,7 @@ class BlockingIOConnection(
             io_format=protocol.IoFormat.BINARY,
         )
 
-    def query_one(self, query: str, *args, **kwargs) -> typing.Any:
+    def query_single(self, query: str, *args, **kwargs) -> typing.Any:
         inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
@@ -341,7 +341,7 @@ class BlockingIOConnection(
             io_format=protocol.IoFormat.JSON_ELEMENTS,
         )
 
-    def query_one_json(self, query: str, *args, **kwargs) -> str:
+    def query_single_json(self, query: str, *args, **kwargs) -> str:
         inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
@@ -360,12 +360,19 @@ class BlockingIOConnection(
             DeprecationWarning, 2)
         return self.query(query, *args, **kwargs)
 
+    def query_one(self, query: str, *args, **kwargs) -> typing.Any:
+        warnings.warn(
+            'The "query_one()" method is deprecated and is scheduled to be '
+            'removed. Use the "query_single()" method instead.',
+            DeprecationWarning, 2)
+        return self.query_single(query, *args, **kwargs)
+
     def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
         warnings.warn(
             'The "fetchone()" method is deprecated and is scheduled to be '
-            'removed. Use the "query_one()" method instead.',
+            'removed. Use the "query_single()" method instead.',
             DeprecationWarning, 2)
-        return self.query_one(query, *args, **kwargs)
+        return self.query_single(query, *args, **kwargs)
 
     def fetchall_json(self, query: str, *args, **kwargs) -> str:
         warnings.warn(
@@ -374,12 +381,19 @@ class BlockingIOConnection(
             DeprecationWarning, 2)
         return self.query_json(query, *args, **kwargs)
 
+    def query_one_json(self, query: str, *args, **kwargs) -> str:
+        warnings.warn(
+            'The "query_one_json()" method is deprecated and is scheduled to '
+            'be removed. Use the "query_single_json()" method instead.',
+            DeprecationWarning, 2)
+        return self.query_single_json(query, *args, **kwargs)
+
     def fetchone_json(self, query: str, *args, **kwargs) -> str:
         warnings.warn(
             'The "fetchone_json()" method is deprecated and is scheduled to '
-            'be removed. Use the "query_one_json()" method instead.',
+            'be removed. Use the "query_single_json()" method instead.',
             DeprecationWarning, 2)
-        return self.query_one_json(query, *args, **kwargs)
+        return self.query_single_json(query, *args, **kwargs)
 
     def execute(self, query: str) -> None:
         self._get_protocol().sync_simple_query(query, enums.Capability.EXECUTE)
