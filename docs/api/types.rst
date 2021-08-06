@@ -113,7 +113,7 @@ Objects
 
         >>> import edgedb
         >>> conn = edgedb.connect()
-        >>> r = conn.query_one('''
+        >>> r = conn.query_single('''
         ...     SELECT schema::ObjectType {name}
         ...     FILTER .name = 'std::Object'
         ...     LIMIT 1''')
@@ -134,7 +134,7 @@ Objects
 
           >>> import edgedb
           >>> conn = edgedb.connect()
-          >>> r = conn.query_one('''
+          >>> r = conn.query_single('''
           ...     SELECT schema::Property {name, annotations: {name, @value}}
           ...     FILTER .name = 'listen_port'
           ...            AND .source.name = 'cfg::Config'
@@ -190,7 +190,7 @@ Tuples
 
         >>> import edgedb
         >>> conn = edgedb.connect()
-        >>> r = conn.query_one('''SELECT (1, 'a', [3])''')
+        >>> r = conn.query_single('''SELECT (1, 'a', [3])''')
         >>> r
         (1, 'a', [3])
         >>> len(r)
@@ -215,7 +215,7 @@ Named Tuples
 
         >>> import edgedb
         >>> conn = edgedb.connect()
-        >>> r = conn.query_one('''SELECT (a := 1, b := 'a', c := [3])''')
+        >>> r = conn.query_single('''SELECT (a := 1, b := 'a', c := [3])''')
         >>> r
         (a := 1, b := 'a', c := [3])
         >>> r.b
@@ -237,7 +237,7 @@ Arrays
 
         >>> import edgedb
         >>> conn = edgedb.connect()
-        >>> r = conn.query_one('''SELECT [1, 2, 3]''')
+        >>> r = conn.query_single('''SELECT [1, 2, 3]''')
         >>> r
         [1, 2, 3]
         >>> len(r)
@@ -258,7 +258,7 @@ RelativeDuration
 
         >>> import edgedb
         >>> conn = edgedb.connect()
-        >>> r = conn.query_one('''SELECT <cal::relative_duration>"1 year 2 days"''')
+        >>> r = conn.query_single('''SELECT <cal::relative_duration>"1 year 2 days"''')
         >>> r
         <edgedb.RelativeDuration "P1Y2D">
         >>> r.months

@@ -206,7 +206,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         )
         return result
 
-    async def query_one(self, query: str, *args, **kwargs) -> typing.Any:
+    async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
         con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
@@ -231,7 +231,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         )
         return result
 
-    async def query_one_json(self, query: str, *args, **kwargs) -> str:
+    async def query_single_json(self, query: str, *args, **kwargs) -> str:
         con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
@@ -353,7 +353,7 @@ class Transaction(BaseTransaction, abstract.Executor):
             io_format=protocol.IoFormat.BINARY,
         )
 
-    def query_one(self, query: str, *args, **kwargs) -> typing.Any:
+    def query_single(self, query: str, *args, **kwargs) -> typing.Any:
         con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
@@ -376,7 +376,7 @@ class Transaction(BaseTransaction, abstract.Executor):
             io_format=protocol.IoFormat.JSON,
         )
 
-    def query_one_json(self, query: str, *args, **kwargs) -> str:
+    def query_single_json(self, query: str, *args, **kwargs) -> str:
         con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,

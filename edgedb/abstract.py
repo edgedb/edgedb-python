@@ -15,7 +15,7 @@ class ReadOnlyExecutor(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def query_one(self, query: str, *args, **kwargs) -> typing.Any:
+    def query_single(self, query: str, *args, **kwargs) -> typing.Any:
         ...
 
     @abc.abstractmethod
@@ -23,7 +23,7 @@ class ReadOnlyExecutor(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def query_one_json(self, query: str, *args, **kwargs) -> str:
+    def query_single_json(self, query: str, *args, **kwargs) -> str:
         ...
 
     # TODO(tailhook) add *args, **kwargs, when they are supported
@@ -44,7 +44,7 @@ class AsyncIOReadOnlyExecutor(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def query_one(self, query: str, *args, **kwargs) -> typing.Any:
+    async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
         ...
 
     @abc.abstractmethod
@@ -52,7 +52,7 @@ class AsyncIOReadOnlyExecutor(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def query_one_json(self, query: str, *args, **kwargs) -> str:
+    async def query_single_json(self, query: str, *args, **kwargs) -> str:
         ...
 
     # TODO(tailhook) add *args, **kwargs, when they are supported

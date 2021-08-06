@@ -105,7 +105,7 @@ Connection
         >>> import edgedb
         >>> async def main():
         ...     con = await edgedb.async_connect(user='edgedeb')
-        ...     print(await con.query_one('SELECT 1 + 1'))
+        ...     print(await con.query_single('SELECT 1 + 1'))
         ...
         >>> asyncio.run(main())
         {2}
@@ -134,7 +134,7 @@ Connection
         Note that positional and named query arguments cannot be mixed.
 
 
-    .. py:coroutinemethod:: query_one(query, *args, **kwargs)
+    .. py:coroutinemethod:: query_single(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element.
 
@@ -179,7 +179,7 @@ Connection
             more appropriate type, such as ``Decimal``.
 
 
-    .. py:coroutinemethod:: query_one_json(query, *args, **kwargs)
+    .. py:coroutinemethod:: query_single_json(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element in JSON.
 
@@ -232,7 +232,7 @@ Connection
 
         .. note::
             If the results of *query* are desired, :py:meth:`query` or
-            :py:meth:`query_one` should be used instead.
+            :py:meth:`query_single` should be used instead.
 
     .. py:method:: retrying_transaction()
 
@@ -254,7 +254,7 @@ Connection
 
             async for tx in con.retrying_transaction():
                 async with tx:
-                    value = await tx.query_one("SELECT Counter.value")
+                    value = await tx.query_single("SELECT Counter.value")
                     await tx.execute(
                         "UPDATE Counter SET { value := <int64>$value }",
                         value=value + 1,
@@ -282,7 +282,7 @@ Connection
         .. code-block:: python
 
             async with con.raw_transaction() as tx:
-                value = await tx.query_one("SELECT Counter.value")
+                value = await tx.query_single("SELECT Counter.value")
                 await tx.execute(
                     "UPDATE Counter SET { value := <int64>$value }",
                     value=value + 1,
@@ -368,9 +368,9 @@ Connection Pools
     from the pool:
 
     * :py:meth:`AsyncIOPool.query()`
-    * :py:meth:`AsyncIOPool.query_one()`
+    * :py:meth:`AsyncIOPool.query_single()`
     * :py:meth:`AsyncIOPool.query_json()`
-    * :py:meth:`AsyncIOPool.query_one_json()`
+    * :py:meth:`AsyncIOPool.query_single_json()`
     * :py:meth:`AsyncIOPool.execute()`
     * :py:meth:`AsyncIOPool.retrying_transaction()`
     * :py:meth:`AsyncIOPool.raw_transaction()`
@@ -505,14 +505,14 @@ Connection Pools
         See :py:meth:`AsyncIOConnection.query()
         <edgedb.AsyncIOConnection.query>` for details.
 
-    .. py:coroutinemethod:: query_one(query, *args, **kwargs)
+    .. py:coroutinemethod:: query_single(query, *args, **kwargs)
 
         Acquire a connection and use it to run a singleton-returning query
         and return its element. The temporary connection is automatically
         returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.query_one()
-        <edgedb.AsyncIOConnection.query_one>` for details.
+        See :py:meth:`AsyncIOConnection.query_single()
+        <edgedb.AsyncIOConnection.query_single>` for details.
 
     .. py:coroutinemethod:: query_json(query, *args, **kwargs)
 
@@ -523,14 +523,14 @@ Connection Pools
         See :py:meth:`AsyncIOConnection.query_json()
         <edgedb.AsyncIOConnection.query_json>` for details.
 
-    .. py:coroutinemethod:: query_one_json(query, *args, **kwargs)
+    .. py:coroutinemethod:: query_single_json(query, *args, **kwargs)
 
         Acquire a connection and use it to run a singleton-returning
         query and return its element in JSON. The temporary connection is
         automatically returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.query_one_json()
-        <edgedb.AsyncIOConnection.query_one_json>` for details.
+        See :py:meth:`AsyncIOConnection.query_single_json()
+        <edgedb.AsyncIOConnection.query_single_json>` for details.
 
     .. py:coroutinemethod:: execute(query)
 
@@ -561,7 +561,7 @@ Connection Pools
 
             async for tx in pool.retrying_transaction():
                 async with tx:
-                    value = await tx.query_one("SELECT Counter.value")
+                    value = await tx.query_single("SELECT Counter.value")
                     await tx.execute(
                         "UPDATE Counter SET { value := <int64>$value",
                         value=value,
@@ -589,7 +589,7 @@ Connection Pools
         .. code-block:: python
 
             async with pool.raw_transaction() as tx:
-                value = await tx.query_one("SELECT Counter.value")
+                value = await tx.query_single("SELECT Counter.value")
                 await tx.execute(
                     "UPDATE Counter SET { value := <int64>$value",
                     value=value,
@@ -635,7 +635,7 @@ Python code. Here is an example:
 
     async for tx in pool.retrying_transaction():
         async with tx:
-            user = await tx.query_one(
+            user = await tx.query_single(
                 "SELECT User { email } FILTER .login = <str>$login",
                 login=login,
             )
@@ -643,7 +643,7 @@ Python code. Here is an example:
                 'https://service.local/email_info',
                 params=dict(email=user.email),
             )
-            user = await tx.query_one('''
+            user = await tx.query_single('''
                     UPDATE User FILTER .login = <str>$login
                     SET { email_info := <json>$data}
                 ''',
@@ -707,14 +707,14 @@ See also:
         See :py:meth:`AsyncIOConnection.query()
         <edgedb.AsyncIOConnection.query>` for details.
 
-    .. py:coroutinemethod:: query_one(query, *args, **kwargs)
+    .. py:coroutinemethod:: query_single(query, *args, **kwargs)
 
         Acquire a connection and use it to run a singleton-returning query
         and return its element. The temporary connection is automatically
         returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.query_one()
-        <edgedb.AsyncIOConnection.query_one>` for details.
+        See :py:meth:`AsyncIOConnection.query_single()
+        <edgedb.AsyncIOConnection.query_single>` for details.
 
     .. py:coroutinemethod:: query_json(query, *args, **kwargs)
 
@@ -725,14 +725,14 @@ See also:
         See :py:meth:`AsyncIOConnection.query_json()
         <edgedb.AsyncIOConnection.query_json>` for details.
 
-    .. py:coroutinemethod:: query_one_json(query, *args, **kwargs)
+    .. py:coroutinemethod:: query_single_json(query, *args, **kwargs)
 
         Acquire a connection and use it to run a singleton-returning
         query and return its element in JSON. The temporary connection is
         automatically returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.query_one_json()
-        <edgedb.AsyncIOConnection.query_one_json>` for details.
+        See :py:meth:`AsyncIOConnection.query_single_json()
+        <edgedb.AsyncIOConnection.query_single_json>` for details.
 
     .. py:coroutinemethod:: execute(query)
 

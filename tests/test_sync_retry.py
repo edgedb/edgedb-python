@@ -81,7 +81,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                     ''')
                     1 / 0
         with self.assertRaises(edgedb.NoDataError):
-            self.con.query_one('''
+            self.con.query_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
             ''')
@@ -125,7 +125,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                     barrier.ready()
 
                     lock.acquire()
-                    res = tx.query_one('''
+                    res = tx.query_single('''
                         SELECT (
                             INSERT test::Counter {
                                 name := <str>$name,
