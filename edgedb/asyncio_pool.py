@@ -685,6 +685,10 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
             finally:
                 await pool.release(con)
         """
+        warnings.warn(
+            'The "acquire()" method is deprecated and is scheduled to be '
+            'removed. Use the query methods on AsyncIOPool instead.',
+            DeprecationWarning, 2)
         return PoolAcquireContext(self, timeout=None, options=self._options)
 
     async def release(self, connection):
@@ -694,6 +698,10 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
             A :class:`~edgedb.asyncio_con.AsyncIOConnection` object
             to release.
         """
+        warnings.warn(
+            'The "release()" method is deprecated and is scheduled to be '
+            'removed. Use the query methods on AsyncIOPool instead.',
+            DeprecationWarning, 2)
         await self._impl.release(connection)
 
     async def aclose(self):

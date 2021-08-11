@@ -351,10 +351,16 @@ Connection Pools
         Max number of connections in the pool.
 
     :param on_acquire:
+        **Deprecated**. Use the qurery methods on :py:class:`Pool` instead
+        of acquiring a connection.
+
         A coroutine to prepare a connection right before it is returned
         from :py:meth:`Pool.acquire() <edgedb.AsyncIOPool.acquire>`.
 
     :param on_release:
+        **Deprecated**. Use the qurery methods on :py:class:`Pool` instead
+        of acquiring a connection.
+
         A coroutine called when a connection is about to be released
         to the pool.
 
@@ -389,39 +395,21 @@ Connection Pools
                 async with tx:
                     await tx.query('SELECT {1, 2, 3}')
 
-    To hold on to a specific connection object, use the ``pool.acquire()`` API:
-
-    .. code-block:: python
-
-        async with edgedb.create_async_pool(user='edgedb') as pool:
-            async with pool.acquire() as con:
-                await con.query('SELECT {1, 2, 3}')
-
-    Or directly ``await``:
-
-    .. code-block:: python
-
-        pool = await edgedb.create_async_pool(user='edgedb')
-        con = await pool.acquire()
-        try:
-            await con.query('SELECT {1, 2, 3}')
-        finally:
-            await pool.release(con)
-
 
 .. py:class:: AsyncIOPool()
 
     A connection pool.
 
-    A connection pool can be used to manage a set of connections to the database.
-    Connections are first acquired from the pool, then used, and then released
-    back to the pool.  Once a connection is released, it's reset to close all
-    open cursors and other resources *except* prepared statements.
+    A connection pool can be used in a similar manaer as a single connection
+    except that the pool is safe for concurrent use.
 
     Pools are created by calling
     :py:func:`~edgedb.create_async_pool`.
 
     .. py:coroutinemethod:: acquire()
+
+        **Deprecated**. Use the qurery methods on :py:class:`Pool` instead
+        of acquiring a connection.
 
         Acquire a database connection from the pool.
 
@@ -445,6 +433,9 @@ Connection Pools
                 await pool.release(con)
 
     .. py:coroutinemethod:: release(connection)
+
+        **Deprecated**. Use the qurery methods on :py:class:`Pool` instead
+        of acquiring a connection.
 
         Release a database connection back to the pool.
 
