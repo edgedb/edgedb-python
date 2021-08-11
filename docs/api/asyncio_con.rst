@@ -400,7 +400,7 @@ Connection Pools
 
     A connection pool.
 
-    A connection pool can be used in a similar manaer as a single connection
+    A connection pool can be used in a similar manner as a single connection
     except that the pool is safe for concurrent use.
 
     Pools are created by calling
