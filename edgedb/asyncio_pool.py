@@ -687,7 +687,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         """
         warnings.warn(
             'The "acquire()" method is deprecated and is scheduled to be '
-            'removed. Use the query methods on AsyncIOPool instead.',
+            'removed. Use the query methods on Pool instead.',
             DeprecationWarning, 2)
         return PoolAcquireContext(self, timeout=None, options=self._options)
 
