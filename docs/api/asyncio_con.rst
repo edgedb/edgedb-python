@@ -351,15 +351,17 @@ Connection Pools
         Max number of connections in the pool.
 
     :param on_acquire:
-        **Deprecated**. Use the qurery methods on :py:class:`Pool` instead
-        of acquiring a connection.
+        **Deprecated**. Use the query methods on
+        :py:class:`Pool <edgedb.AsyncIOPool>` instead of
+        acquiring a connection.
 
         A coroutine to prepare a connection right before it is returned
         from :py:meth:`Pool.acquire() <edgedb.AsyncIOPool.acquire>`.
 
     :param on_release:
-        **Deprecated**. Use the qurery methods on :py:class:`Pool` instead
-        of acquiring a connection.
+        **Deprecated**. Use the query methods on
+        :py:class:`Pool <edgedb.AsyncIOPool>` instead of
+        acquiring a connection.
 
         A coroutine called when a connection is about to be released
         to the pool.
@@ -408,8 +410,9 @@ Connection Pools
 
     .. py:coroutinemethod:: acquire()
 
-        **Deprecated**. Use the qurery methods on :py:class:`Pool` instead
-        of acquiring a connection.
+        **Deprecated**. Use the query methods on
+        :py:class:`Pool <edgedb.AsyncIOPool>` instead of
+        acquiring a connection.
 
         Acquire a database connection from the pool.
 
@@ -434,8 +437,9 @@ Connection Pools
 
     .. py:coroutinemethod:: release(connection)
 
-        **Deprecated**. Use the qurery methods on :py:class:`Pool` instead
-        of acquiring a connection.
+        **Deprecated**. Use the query methods on
+        :py:class:`Pool <edgedb.AsyncIOPool>` instead of
+        acquiring a connection.
 
         Release a database connection back to the pool.
 
