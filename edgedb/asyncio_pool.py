@@ -700,7 +700,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         """
         warnings.warn(
             'The "release()" method is deprecated and is scheduled to be '
-            'removed. Use the query methods on AsyncIOPool instead.',
+            'removed. Use the query methods on Pool instead.',
             DeprecationWarning, 2)
         await self._impl.release(connection)
 
