@@ -616,19 +616,19 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         self._impl.set_connect_args(dsn, **connect_kwargs)
 
     async def query(self, query, *args, **kwargs):
-        async with self.acquire() as con:
+        async with self._acquire() as con:
             return await con.query(query, *args, **kwargs)
 
     async def query_single(self, query, *args, **kwargs):
-        async with self.acquire() as con:
+        async with self._acquire() as con:
             return await con.query_single(query, *args, **kwargs)
 
     async def query_json(self, query, *args, **kwargs):
-        async with self.acquire() as con:
+        async with self._acquire() as con:
             return await con.query_json(query, *args, **kwargs)
 
     async def query_single_json(self, query, *args, **kwargs):
-        async with self.acquire() as con:
+        async with self._acquire() as con:
             return await con.query_single_json(query, *args, **kwargs)
 
     async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
@@ -660,7 +660,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         return await self.query_single_json(query, *args, **kwargs)
 
     async def execute(self, query):
-        async with self.acquire() as con:
+        async with self._acquire() as con:
             return await con.execute(query)
 
     def acquire(self):
@@ -689,6 +689,9 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
             'The "acquire()" method is deprecated and is scheduled to be '
             'removed. Use the query methods on Pool instead.',
             DeprecationWarning, 2)
+        return self._acquire()
+
+    def _acquire(self):
         return PoolAcquireContext(self, timeout=None, options=self._options)
 
     async def release(self, connection):
@@ -702,6 +705,9 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
             'The "release()" method is deprecated and is scheduled to be '
             'removed. Use the query methods on Pool instead.',
             DeprecationWarning, 2)
+        return await self._release(connection)
+
+    async def _release(self, connection):
         await self._impl.release(connection)
 
     async def aclose(self):
@@ -772,7 +778,7 @@ class PoolAcquireContext:
         self.done = True
         con = self.connection
         self.connection = None
-        await self.pool.release(con)
+        await self.pool._release(con)
 
     def __await__(self):
         self.done = True
