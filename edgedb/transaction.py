@@ -134,7 +134,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         if isinstance(self._owner, base_con.BaseConnection):
             self._connection = self._owner
         else:
-            self._connection = await self._owner.acquire()
+            self._connection = await self._owner._acquire()
         if self._connection._inner._borrowed_for:
             raise base_con.borrow_error(self._connection._inner._borrowed_for)
         await self._connection.ensure_connected(single_attempt=single_connect)
@@ -164,7 +164,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         finally:
             self._connection_inner._borrowed_for = None
             if self._connection is not self._owner:
-                await self._owner.release(self._connection)
+                await self._owner._release(self._connection)
 
     async def __rollback(self):
         query = self._make_rollback_query()
@@ -178,7 +178,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         finally:
             self._connection_inner._borrowed_for = None
             if self._connection is not self._owner:
-                await self._owner.release(self._connection)
+                await self._owner._release(self._connection)
 
     async def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
