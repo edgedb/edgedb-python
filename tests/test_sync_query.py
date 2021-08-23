@@ -399,17 +399,20 @@ class TestSyncQuery(tb.SyncQueryTestCase):
             self.con.query('select <int64>$0 + <int64>$bar;')
 
     def test_sync_mismatched_args_01(self):
+        # XXX: remove (?:keyword )? once protocol version 0.12 is stable
         with self.assertRaisesRegex(
                 edgedb.QueryArgumentError,
-                r"expected {'a'} keyword arguments, got {'[bc]', '[bc]'}, "
+                r"expected {'a'} (?:keyword )?arguments, "
+                "got {'[bc]', '[bc]'}, "
                 r"missed {'a'}, extra {'[bc]', '[bc]'}"):
 
             self.con.query("""SELECT <int64>$a;""", b=1, c=2)
 
     def test_sync_mismatched_args_02(self):
+        # XXX: remove (?:keyword )? once protocol version 0.12 is stable
         with self.assertRaisesRegex(
                 edgedb.QueryArgumentError,
-                r"expected {'[ab]', '[ab]'} keyword arguments, "
+                r"expected {'[ab]', '[ab]'} (?:keyword )?arguments, "
                 r"got {'[acd]', '[acd]', '[acd]'}, "
                 r"missed {'b'}, extra {'[cd]', '[cd]'}"):
 
@@ -418,26 +421,29 @@ class TestSyncQuery(tb.SyncQueryTestCase):
             """, a=1, c=2, d=3)
 
     def test_sync_mismatched_args_03(self):
+        # XXX: remove (?:keyword )? once protocol version 0.12 is stable
         with self.assertRaisesRegex(
                 edgedb.QueryArgumentError,
-                "expected {'a'} keyword arguments, got {'b'}, "
+                "expected {'a'} (?:keyword )?arguments, got {'b'}, "
                 "missed {'a'}, extra {'b'}"):
 
             self.con.query("""SELECT <int64>$a;""", b=1)
 
     def test_sync_mismatched_args_04(self):
+        # XXX: remove (?:keyword )? once protocol version 0.12 is stable
         with self.assertRaisesRegex(
                 edgedb.QueryArgumentError,
-                r"expected {'[ab]', '[ab]'} keyword arguments, "
+                r"expected {'[ab]', '[ab]'} (?:keyword )?arguments, "
                 r"got {'a'}, "
                 r"missed {'b'}"):
 
             self.con.query("""SELECT <int64>$a + <int64>$b;""", a=1)
 
     def test_sync_mismatched_args_05(self):
+        # XXX: remove (?:keyword )? once protocol version 0.12 is stable
         with self.assertRaisesRegex(
                 edgedb.QueryArgumentError,
-                r"expected {'a'} keyword arguments, "
+                r"expected {'a'} (?:keyword )?arguments, "
                 r"got {'[ab]', '[ab]'}, "
                 r"extra {'b'}"):
 
