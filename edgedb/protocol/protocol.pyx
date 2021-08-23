@@ -1104,18 +1104,29 @@ cdef class SansIOProtocol:
             in_dc.encode(buf, ())
             return
 
-        if kwargs:
-            if type(in_dc) is not NamedTupleCodec:
+        if self.protocol_version >= (0, 12):
+            if type(in_dc) is not ObjectCodec:
                 raise errors.QueryArgumentError(
-                    'expected positional arguments, got named arguments')
+                    'unexpected query argument codec')
 
-            (<NamedTupleCodec>in_dc).encode_kwargs(buf, kwargs)
+            if args:
+                kwargs = {str(i): v for i, v in enumerate(args)}
 
+            (<ObjectCodec>in_dc).encode_args(buf, kwargs)
+            return
         else:
-            if type(in_dc) is not TupleCodec and args:
-                raise errors.QueryArgumentError(
-                    'expected named arguments, got positional arguments')
-            in_dc.encode(buf, args)
+            if kwargs:
+                if type(in_dc) is not NamedTupleCodec:
+                    raise errors.QueryArgumentError(
+                        'expected positional arguments, got named arguments')
+
+                (<NamedTupleCodec>in_dc).encode_kwargs(buf, kwargs)
+
+            else:
+                if type(in_dc) is not TupleCodec and args:
+                    raise errors.QueryArgumentError(
+                        'expected named arguments, got positional arguments')
+                in_dc.encode(buf, args)
 
     cdef parse_describe_type_message(self, CodecsRegistry reg):
         assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG

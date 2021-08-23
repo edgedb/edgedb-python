@@ -20,5 +20,7 @@
 @cython.final
 cdef class ObjectCodec(BaseNamedRecordCodec):
 
+    cdef encode_args(self, WriteBuffer buf, dict obj)
+
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple names, tuple flags, tuple codecs)
