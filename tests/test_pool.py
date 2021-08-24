@@ -27,6 +27,7 @@ from edgedb import compat
 from edgedb import _testbase as tb
 from edgedb import asyncio_con
 from edgedb import asyncio_pool
+from edgedb import errors
 
 
 class TestPool(tb.AsyncQueryTestCase):
@@ -566,3 +567,89 @@ class TestPool(tb.AsyncQueryTestCase):
         self.assertEqual(pool.free_size, max_size)
 
         await pool.aclose()
+
+    async def _test_connection_broken(self, executor, broken_evt):
+        self.assertEqual(await executor.query_single("SELECT 123"), 123)
+        broken_evt.set()
+        with self.assertRaises(errors.ClientConnectionClosedError):
+            await executor.query_single("SELECT 123")
+        broken_evt.clear()
+        self.assertEqual(await executor.query_single("SELECT 123"), 123)
+
+        tested = False
+        async for tx in executor.retrying_transaction():
+            async with tx:
+                self.assertEqual(await tx.query_single("SELECT 123"), 123)
+                if tested:
+                    break
+                tested = True
+                broken_evt.set()
+                try:
+                    await tx.query_single("SELECT 123")
+                except errors.ClientConnectionClosedError:
+                    broken_evt.clear()
+                    raise
+                else:
+                    self.fail("ConnectionError not raised!")
+
+    async def test_pool_connection_broken(self):
+        con_args = self.get_connect_args()
+        broken = asyncio.Event()
+        done = asyncio.Event()
+
+        async def proxy(r: asyncio.StreamReader, w: asyncio.StreamWriter):
+            while True:
+                reader = self.loop.create_task(r.read(65536))
+                waiter = self.loop.create_task(broken.wait())
+                await asyncio.wait(
+                    [reader, waiter],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if waiter.done():
+                    reader.cancel()
+                    w.close()
+                    break
+                else:
+                    waiter.cancel()
+                    data = await reader
+                    if not data:
+                        break
+                    w.write(data)
+
+        async def cb(r: asyncio.StreamReader, w: asyncio.StreamWriter):
+            ur, uw = await asyncio.open_connection(
+                con_args['host'], con_args['port']
+            )
+            done.clear()
+            task = self.loop.create_task(proxy(r, uw))
+            try:
+                await proxy(ur, w)
+            finally:
+                try:
+                    await task
+                finally:
+                    done.set()
+
+        server = await asyncio.start_server(
+            cb, '127.0.0.1', 0
+        )
+        port = server.sockets[0].getsockname()[1]
+        pool = await self.create_pool(
+            host='127.0.0.1', port=port, min_size=0, max_size=1
+        )
+        conargs = self.get_connect_args().copy()
+        conargs["database"] = self.con.dbname
+        conargs["timeout"] = 120
+        conargs["host"] = "127.0.0.1"
+        conargs["port"] = port
+        conn = await edgedb.async_connect(**conargs)
+        try:
+            await self._test_connection_broken(conn, broken)
+            await self._test_connection_broken(pool, broken)
+        finally:
+            server.close()
+            await server.wait_closed()
+            await asyncio.wait_for(pool.aclose(), 5)
+            await asyncio.wait_for(conn.aclose(), 1)
+            broken.set()
+            await done.wait()
