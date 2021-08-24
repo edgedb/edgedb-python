@@ -105,29 +105,8 @@ class BaseTransaction:
             mod, self.__class__.__name__, ' '.join(attrs), id(self))
 
 
-class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
+class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
     __slots__ = ()
-
-    async def __aenter__(self):
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot enter context: already in an `async with` block')
-        self._managed = True
-        await self.start()
-        return self
-
-    async def __aexit__(self, extype, ex, tb):
-        try:
-            if extype is not None:
-                await self.__rollback()
-            else:
-                await self.__commit()
-        finally:
-            self._managed = False
-
-    async def start(self) -> None:
-        """Enter the transaction or savepoint block."""
-        await self._start()
 
     async def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
@@ -152,7 +131,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         else:
             self._state = TransactionState.STARTED
 
-    async def __commit(self):
+    async def _commit(self):
         query = self._make_commit_query()
         try:
             await self._connection_impl.privileged_execute(query)
@@ -166,7 +145,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             if self._connection is not self._owner:
                 await self._owner._release(self._connection)
 
-    async def __rollback(self):
+    async def _rollback(self):
         query = self._make_rollback_query()
         try:
             await self._connection_impl.privileged_execute(query)
@@ -180,21 +159,11 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             if self._connection is not self._owner:
                 await self._owner._release(self._connection)
 
-    async def commit(self) -> None:
-        """Exit the transaction or savepoint block and commit changes."""
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot manually commit from within an `async with` block')
-        await self.__commit()
-
-    async def rollback(self) -> None:
-        """Exit the transaction or savepoint block and rollback changes."""
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot manually rollback from within an `async with` block')
-        await self.__rollback()
+    async def _ensure_transaction(self):
+        pass
 
     async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+        await self._ensure_transaction()
         con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
@@ -207,6 +176,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         return result
 
     async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+        await self._ensure_transaction()
         con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
@@ -220,6 +190,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         return result
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
+        await self._ensure_transaction()
         con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
@@ -232,6 +203,7 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         return result
 
     async def query_single_json(self, query: str, *args, **kwargs) -> str:
+        await self._ensure_transaction()
         con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
@@ -256,33 +228,52 @@ class AsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
             ... ''')
         """
+        await self._ensure_transaction()
         await self._connection_impl._protocol.simple_query(
             query, enums.Capability.EXECUTE)
 
 
-class Transaction(BaseTransaction, abstract.Executor):
+class AsyncIOTransaction(BaseAsyncIOTransaction):
     __slots__ = ()
 
-    def __enter__(self):
+    async def __aenter__(self):
         if self._managed:
             raise errors.InterfaceError(
-                'cannot enter context: already in a `with` block')
+                'cannot enter context: already in an `async with` block')
         self._managed = True
-        self.start()
+        await self.start()
         return self
 
-    def __exit__(self, extype, ex, tb):
+    async def __aexit__(self, extype, ex, tb):
         try:
             if extype is not None:
-                self.__rollback()
+                await self._rollback()
             else:
-                self.__commit()
+                await self._commit()
         finally:
             self._managed = False
 
-    def start(self) -> None:
+    async def start(self) -> None:
         """Enter the transaction or savepoint block."""
-        self._start()
+        await self._start()
+
+    async def commit(self) -> None:
+        """Exit the transaction or savepoint block and commit changes."""
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot manually commit from within an `async with` block')
+        await self._commit()
+
+    async def rollback(self) -> None:
+        """Exit the transaction or savepoint block and rollback changes."""
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot manually rollback from within an `async with` block')
+        await self._rollback()
+
+
+class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
+    __slots__ = ()
 
     def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
@@ -304,7 +295,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         else:
             self._state = TransactionState.STARTED
 
-    def __commit(self):
+    def _commit(self):
         query = self._make_commit_query()
         try:
             self._connection_impl.privileged_execute(query)
@@ -316,7 +307,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         finally:
             self._connection_inner._borrowed_for = None
 
-    def __rollback(self):
+    def _rollback(self):
         query = self._make_rollback_query()
         try:
             self._connection_impl.privileged_execute(query)
@@ -328,21 +319,11 @@ class Transaction(BaseTransaction, abstract.Executor):
         finally:
             self._connection_inner._borrowed_for = None
 
-    def commit(self) -> None:
-        """Exit the transaction or savepoint block and commit changes."""
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot manually commit from within a `with` block')
-        self.__commit()
-
-    def rollback(self) -> None:
-        """Exit the transaction or savepoint block and rollback changes."""
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot manually rollback from within a `with` block')
-        self.__rollback()
+    def _ensure_transaction(self):
+        pass
 
     def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+        self._ensure_transaction()
         con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
@@ -354,6 +335,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         )
 
     def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+        self._ensure_transaction()
         con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
@@ -366,6 +348,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         )
 
     def query_json(self, query: str, *args, **kwargs) -> str:
+        self._ensure_transaction()
         con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
@@ -377,6 +360,7 @@ class Transaction(BaseTransaction, abstract.Executor):
         )
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
+        self._ensure_transaction()
         con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
@@ -389,5 +373,43 @@ class Transaction(BaseTransaction, abstract.Executor):
         )
 
     def execute(self, query: str) -> None:
+        self._ensure_transaction()
         self._connection_impl._protocol.sync_simple_query(
             query, enums.Capability.EXECUTE)
+
+
+class Transaction(BaseBlockingIOTransaction):
+    def __enter__(self):
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot enter context: already in a `with` block')
+        self._managed = True
+        self.start()
+        return self
+
+    def __exit__(self, extype, ex, tb):
+        try:
+            if extype is not None:
+                self._rollback()
+            else:
+                self._commit()
+        finally:
+            self._managed = False
+
+    def start(self) -> None:
+        """Enter the transaction or savepoint block."""
+        self._start()
+
+    def commit(self) -> None:
+        """Exit the transaction or savepoint block and commit changes."""
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot manually commit from within a `with` block')
+        self._commit()
+
+    def rollback(self) -> None:
+        """Exit the transaction or savepoint block and rollback changes."""
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot manually rollback from within a `with` block')
+        self._rollback()

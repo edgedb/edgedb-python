@@ -19,9 +19,11 @@
 import asyncio
 
 import logging
+import unittest.mock
 
 import edgedb
 from edgedb import compat
+from edgedb import errors
 from edgedb import RetryOptions
 from edgedb import _testbase as tb
 
@@ -88,6 +90,54 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
             ''')
+
+    async def test_async_retry_begin(self):
+        patcher = unittest.mock.patch("edgedb.retry.AsyncIOIteration._start")
+        _start = patcher.start()
+
+        def cleanup():
+            try:
+                patcher.stop()
+            except RuntimeError:
+                pass
+
+        self.addCleanup(cleanup)
+
+        _start.side_effect = errors.BackendUnavailableError()
+
+        with self.assertRaises(errors.BackendUnavailableError):
+            async for tx in self.con.retrying_transaction():
+                async with tx:
+                    await tx.execute('''
+                        INSERT test::Counter {
+                            name := 'counter_retry_begin'
+                        };
+                    ''')
+        with self.assertRaises(edgedb.NoDataError):
+            await self.con.query_single('''
+                SELECT test::Counter
+                FILTER .name = 'counter_retry_begin'
+            ''')
+
+        async def recover_after_first_error(*_, **__):
+            patcher.stop()
+            raise errors.BackendUnavailableError()
+
+        _start.side_effect = recover_after_first_error
+        call_count = _start.call_count
+
+        async for tx in self.con.retrying_transaction():
+            async with tx:
+                await tx.execute('''
+                    INSERT test::Counter {
+                        name := 'counter_retry_begin'
+                    };
+                ''')
+        self.assertEqual(_start.call_count, call_count + 1)
+        await self.con.query_single('''
+            SELECT test::Counter
+            FILTER .name = 'counter_retry_begin'
+        ''')
 
     async def test_async_retry_conflict(self):
         await self.execute_conflict('counter2')
@@ -158,13 +208,39 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
         self.assertEqual(iterations, 3)
 
     async def test_async_transaction_interface_errors(self):
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*the transaction is already started'):
+        with self.assertRaisesRegex(
+            AttributeError,
+            "'AsyncIOIteration' object has no attribute 'start'",
+        ):
             async for tx in self.con.retrying_transaction():
                 async with tx:
                     await tx.start()
 
+        with self.assertRaisesRegex(
+            AttributeError,
+            "'AsyncIOIteration' object has no attribute 'rollback'",
+        ):
+            async for tx in self.con.retrying_transaction():
+                async with tx:
+                    await tx.rollback()
+
+        with self.assertRaisesRegex(
+            AttributeError,
+            "'AsyncIOIteration' object has no attribute 'start'",
+        ):
+            async for tx in self.con.retrying_transaction():
+                await tx.start()
+
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*Use `async with transaction:`'):
             async for tx in self.con.retrying_transaction():
-                await tx.start()
+                await tx.execute("SELECT 123")
+
+        with self.assertRaisesRegex(
+            edgedb.InterfaceError,
+            r"already in an `async with` block",
+        ):
+            async for tx in self.con.retrying_transaction():
+                async with tx:
+                    async with tx:
+                        pass

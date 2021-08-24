@@ -5,23 +5,40 @@ from . import errors
 from . import transaction as _transaction
 
 
-class AsyncIOIteration(_transaction.AsyncIOTransaction):
+class AsyncIOIteration(_transaction.BaseAsyncIOTransaction):
     def __init__(self, retry, owner, iteration):
         super().__init__(owner, retry._options.transaction_options)
         self.__retry = retry
         self.__iteration = iteration
+        self.__started = False
 
-    async def start(self):
+    async def _ensure_transaction(self):
         if not self._managed:
             raise errors.InterfaceError(
                 "Only managed retriable transactions are supported. "
                 "Use `async with transaction:`"
             )
-        await self._start(single_connect=self.__iteration != 0)
+        if not self.__started:
+            self.__started = True
+            await self._start(single_connect=self.__iteration != 0)
+
+    async def __aenter__(self):
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot enter context: already in an `async with` block')
+        self._managed = True
+        return self
 
     async def __aexit__(self, extype, ex, tb):
+        self._managed = False
+        if not self.__started:
+            return False
+
         try:
-            await super().__aexit__(extype, ex, tb)
+            if extype is not None:
+                await self._rollback()
+            else:
+                await self._commit()
         except errors.EdgeDBError as err:
             if ex is None:
                 # On commit we don't know if commit is succeeded before the
@@ -101,23 +118,40 @@ class Retry(BaseRetry):
         return iteration
 
 
-class Iteration(_transaction.Transaction):
+class Iteration(_transaction.BaseBlockingIOTransaction):
     def __init__(self, retry, owner, iteration):
         super().__init__(owner, retry._options.transaction_options)
         self.__retry = retry
         self.__iteration = iteration
+        self.__started = False
 
-    def start(self):
+    def _ensure_transaction(self):
         if not self._managed:
             raise errors.InterfaceError(
                 "Only managed retriable transactions are supported. "
                 "Use `with transaction:`"
             )
-        self._start(single_connect=self.__iteration != 0)
+        if not self.__started:
+            self.__started = True
+            self._start(single_connect=self.__iteration != 0)
+
+    def __enter__(self):
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot enter context: already in a `with` block')
+        self._managed = True
+        return self
 
     def __exit__(self, extype, ex, tb):
+        self._managed = False
+        if not self.__started:
+            return False
+
         try:
-            super().__exit__(extype, ex, tb)
+            if extype is not None:
+                self._rollback()
+            else:
+                self._commit()
         except errors.EdgeDBError as err:
             if ex is None:
                 # On commit we don't know if commit is succeeded before the
