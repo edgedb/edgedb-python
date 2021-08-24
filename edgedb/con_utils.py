@@ -393,7 +393,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
     if admin:
         ssl_ctx = None
     else:
-        ssl_ctx = ssl.SSLContext()
+        ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_ctx.verify_mode = ssl.CERT_REQUIRED
         if tls_ca_file or tls_ca_data:
             ssl_ctx.load_verify_locations(
