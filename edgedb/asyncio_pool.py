@@ -146,8 +146,12 @@ class PoolConnectionHolder:
                 'a free connection holder')
 
         if self._con.is_closed():
-            # When closing, pool connections perform the necessary
-            # cleanup, so we don't have to do anything else here.
+            # This is usually the case when the connection is broken rather
+            # than closed by the user, so we need to call _release_on_close()
+            # here to release the holder back to the queue, because
+            # self._con._cleanup() was never called. On the other hand, it is
+            # safe to call self._release() twice - the second call is no-op.
+            self._release_on_close()
             return
 
         self._timeout = None

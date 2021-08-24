@@ -19,6 +19,7 @@
 
 import asyncio
 
+from edgedb import errors
 from edgedb.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
@@ -109,7 +110,7 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
             self.disconnected_fut.set_exception(ConnectionResetError())
 
         if self.msg_waiter is not None and not self.msg_waiter.done():
-            self.msg_waiter.set_exception(ConnectionResetError())
+            self.msg_waiter.set_exception(errors.ClientConnectionClosedError())
             self.msg_waiter = None
 
         if self.transport is not None:
