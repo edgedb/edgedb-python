@@ -23,6 +23,9 @@ class AsyncIOIteration(_transaction.BaseAsyncIOTransaction):
             await self._start(single_connect=self.__iteration != 0)
 
     async def __aenter__(self):
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot enter context: already in an `async with` block')
         self._managed = True
         return self
 
@@ -133,6 +136,9 @@ class Iteration(_transaction.BaseBlockingIOTransaction):
             self._start(single_connect=self.__iteration != 0)
 
     def __enter__(self):
+        if self._managed:
+            raise errors.InterfaceError(
+                'cannot enter context: already in a `with` block')
         self._managed = True
         return self
 

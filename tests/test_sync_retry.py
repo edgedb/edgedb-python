@@ -231,3 +231,12 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                                     r'.*Use `with transaction:`'):
             for tx in self.con.retrying_transaction():
                 tx.execute("SELECT 123")
+
+        with self.assertRaisesRegex(
+            edgedb.InterfaceError,
+            r"already in a `with` block",
+        ):
+            for tx in self.con.retrying_transaction():
+                with tx:
+                    with tx:
+                        pass

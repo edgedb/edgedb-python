@@ -235,3 +235,12 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                                     r'.*Use `async with transaction:`'):
             async for tx in self.con.retrying_transaction():
                 await tx.execute("SELECT 123")
+
+        with self.assertRaisesRegex(
+            edgedb.InterfaceError,
+            r"already in an `async with` block",
+        ):
+            async for tx in self.con.retrying_transaction():
+                async with tx:
+                    async with tx:
+                        pass
