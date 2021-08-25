@@ -42,10 +42,15 @@ class TransactionState(enum.Enum):
 
 class BaseTransaction:
 
-    __slots__ = ('_connection', '_options', '_state', '_managed')
+    __slots__ = ('_connection', '_pool', '_options', '_state', '_managed')
 
     def __init__(self, owner, options: options.TransactionOptions):
-        self._owner = owner
+        if isinstance(owner, base_con.BaseConnection):
+            self._connection = owner
+            self._pool = None
+        else:
+            self._connection = None
+            self._pool = owner
         self._options = options
         self._state = TransactionState.NEW
         self._managed = False
@@ -110,10 +115,8 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
-        if isinstance(self._owner, base_con.BaseConnection):
-            self._connection = self._owner
-        else:
-            self._connection = await self._owner._acquire()
+        if self._pool is not None:
+            self._connection = await self._pool._acquire()
         if self._connection._inner._borrowed_for:
             raise base_con.borrow_error(self._connection._inner._borrowed_for)
         await self._connection.ensure_connected(single_attempt=single_connect)
@@ -142,8 +145,8 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             self._state = TransactionState.COMMITTED
         finally:
             self._connection_inner._borrowed_for = None
-            if self._connection is not self._owner:
-                await self._owner._release(self._connection)
+            if self._pool is not None:
+                await self._pool._release(self._connection)
 
     async def _rollback(self):
         query = self._make_rollback_query()
@@ -156,8 +159,8 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             self._state = TransactionState.ROLLEDBACK
         finally:
             self._connection_inner._borrowed_for = None
-            if self._connection is not self._owner:
-                await self._owner._release(self._connection)
+            if self._pool is not None:
+                await self._pool._release(self._connection)
 
     async def _ensure_transaction(self):
         pass
@@ -277,9 +280,9 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
 
     def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
-        self._connection = self._owner  # no pools supported for blocking con
+        # no pools supported for blocking con
         if self._connection._inner._borrowed_for:
-            raise base_con.borrow_error(self._connection_inner._borrowed_for)
+            raise base_con.borrow_error(self._connection._inner._borrowed_for)
         self._connection.ensure_connected(single_attempt=single_connect)
         self._connection_inner = self._connection._inner
         self._connection_inner._borrowed_for = (
