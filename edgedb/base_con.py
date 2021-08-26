@@ -87,6 +87,9 @@ class BaseConnection:
     def connected_addr(self):
         return self._inner._impl._addr
 
+    def _clear_codecs_cache(self):
+        self._inner._codecs_registry.clear_cache()
+
     def _set_type_codec(
         self,
         typeid: uuid.UUID,
@@ -95,7 +98,7 @@ class BaseConnection:
         decoder: typing.Callable[[typing.Any], typing.Any],
         format: str
     ):
-        self._codecs_registry.set_type_codec(
+        self._inner._codecs_registry.set_type_codec(
             typeid,
             encoder=encoder,
             decoder=decoder,

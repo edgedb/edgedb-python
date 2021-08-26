@@ -67,7 +67,7 @@ def create_object_factory(**pointers):
 
         flags += (flag,)
 
-    desc = EdgeRecordDesc_New(names, flags)
+    desc = EdgeRecordDesc_New(names, flags, <object>NULL)
     size = len(pointers)
 
     def factory(*items):
@@ -83,12 +83,16 @@ def create_object_factory(**pointers):
     return factory
 
 
-cdef record_desc_new(object names, object flags):
-    return EdgeRecordDesc_New(names, flags)
+cdef record_desc_new(object names, object flags, object cards):
+    return EdgeRecordDesc_New(names, flags, cards)
 
 
 cdef record_desc_pointer_name(object desc, Py_ssize_t pos):
     return EdgeRecordDesc_PointerName(desc, pos)
+
+
+cdef record_desc_pointer_card(object desc, Py_ssize_t pos):
+    return EdgeRecordDesc_PointerCardinality(desc, pos)
 
 
 cdef tuple_new(Py_ssize_t size):

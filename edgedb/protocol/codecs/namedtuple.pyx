@@ -31,12 +31,13 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
             int32_t elem_len
             BaseCodec elem_codec
             FRBuffer elem_buf
+            tuple fields_codecs = (<BaseRecordCodec>self).fields_codecs
 
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
 
-        if elem_count != len(self.fields_codecs):
+        if elem_count != len(fields_codecs):
             raise RuntimeError(
-                f'cannot decode NamedTuple: expected {len(self.fields_codecs)} '
+                f'cannot decode NamedTuple: expected {len(fields_codecs)} '
                 f'elements, got {elem_count}')
 
         result = datatypes.namedtuple_new(self.descriptor)
@@ -48,7 +49,7 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
             if elem_len == -1:
                 elem = None
             else:
-                elem_codec = <BaseCodec>self.fields_codecs[i]
+                elem_codec = <BaseCodec>fields_codecs[i]
                 elem = elem_codec.decode(
                     frb_slice_from(&elem_buf, buf, elem_len))
                 if frb_get_len(&elem_buf):
@@ -61,6 +62,8 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
         return result
 
     cdef encode_kwargs(self, WriteBuffer buf, dict obj):
+        # Compatibility with old protocols. The 0.12 protocol
+        # uses `ObjectCodec.encode_args()`.
         cdef:
             WriteBuffer elem_data
             Py_ssize_t objlen
@@ -111,7 +114,7 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
         codec.tid = tid
         codec.name = 'NamedTuple'
         codec.descriptor = datatypes.record_desc_new(
-            fields_names, <object>NULL)
+            fields_names, <object>NULL, <object>NULL)
         codec.fields_codecs = fields_codecs
 
         return codec

@@ -47,6 +47,10 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         DROP TYPE test::Tmp;
     '''
 
+    def setUp(self):
+        super().setUp()
+        self.con._clear_codecs_cache()
+
     async def test_async_parse_error_recover_01(self):
         for _ in range(2):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
@@ -490,6 +494,39 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             await self.con.query_single(
                 'select <datetime>$0;',
                 date)
+
+    async def _test_async_args_05(self):  # XXX move to edgedb/edgedb
+        # Argument's cardinality must affect the input type ID hash.
+        # If the cardinality isn't accounted, the first query's input
+        # codec would be cached and then used for the second query,
+        # which would make it fail.
+
+        self.assertEqual(
+            await self.con.query('select <int32>$a', a=1),
+            [1]
+        )
+        self.assertEqual(
+            await self.con.query('select <optional int32>$a', a=None),
+            []
+        )
+
+    async def _test_async_args_06(self):  # XXX move to edgedb/edgedb
+        # A version of test_async_args_05.
+        # Also tests that argument cardinality is enforced on the
+        # client side too.
+
+        self.assertEqual(
+            await self.con.query('select <optional int32>$a', a=1),
+            [1]
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidArgumentError,
+                r'argument \$a is required, but received None'):
+            self.assertEqual(
+                await self.con.query('select <int32>$a', a=None),
+                []
+            )
 
     async def test_async_mismatched_args_01(self):
         # XXX: remove (?:keyword )? once protocol version 0.12 is stable

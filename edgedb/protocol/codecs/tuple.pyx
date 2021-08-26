@@ -28,12 +28,13 @@ cdef class TupleCodec(BaseRecordCodec):
             int32_t elem_len
             BaseCodec elem_codec
             FRBuffer elem_buf
+            tuple fields_codecs = (<BaseRecordCodec>self).fields_codecs
 
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
 
-        if elem_count != len(self.fields_codecs):
+        if elem_count != len(fields_codecs):
             raise RuntimeError(
-                f'cannot decode Tuple: expected {len(self.fields_codecs)} '
+                f'cannot decode Tuple: expected {len(fields_codecs)} '
                 f'elements, got {elem_count}')
 
         result = datatypes.tuple_new(elem_count)
@@ -45,7 +46,7 @@ cdef class TupleCodec(BaseRecordCodec):
             if elem_len == -1:
                 elem = None
             else:
-                elem_codec = <BaseCodec>self.fields_codecs[i]
+                elem_codec = <BaseCodec>fields_codecs[i]
                 elem = elem_codec.decode(
                     frb_slice_from(&elem_buf, buf, elem_len))
                 if frb_get_len(&elem_buf):

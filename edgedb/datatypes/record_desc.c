@@ -30,7 +30,7 @@ record_desc_dealloc(EdgeRecordDescObject *o)
     PyObject_GC_UnTrack(o);
     Py_CLEAR(o->index);
     Py_CLEAR(o->names);
-    PyMem_RawFree(o->posbits);
+    PyMem_RawFree(o->descs);
     PyObject_GC_Del(o);
 }
 
@@ -48,18 +48,20 @@ record_desc_tp_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     if (args == NULL ||
             PyTuple_Size(args) < 1 ||
-            PyTuple_Size(args) > 2 ||
+            PyTuple_Size(args) > 3 ||
             (kwds != NULL && PyDict_Size(kwds)))
     {
         PyErr_SetString(
             PyExc_TypeError,
-            "RecordDescriptor accepts one to two positional arguments");
+            "RecordDescriptor accepts one to three positional arguments");
         return NULL;
     }
 
     return EdgeRecordDesc_New(
         PyTuple_GET_ITEM(args, 0),
-        PyTuple_Size(args) == 2 ? PyTuple_GET_ITEM(args, 1) : NULL);
+        PyTuple_Size(args) >= 2 ? PyTuple_GET_ITEM(args, 1) : NULL,
+        PyTuple_Size(args) >= 3 ? PyTuple_GET_ITEM(args, 2) : NULL
+    );
 }
 
 
@@ -153,7 +155,7 @@ record_desc_is_implicit(EdgeRecordDescObject *o, PyObject *arg) {
         case L_LINK:
         case L_LINKPROP:
         case L_PROPERTY:
-            if (o->posbits[pos] & EDGE_POINTER_IS_IMPLICIT) {
+            if (o->descs[pos].flags & EDGE_POINTER_IS_IMPLICIT) {
                 Py_RETURN_TRUE;
             }
             else {
@@ -199,7 +201,7 @@ PyTypeObject EdgeRecordDesc_Type = {
 
 
 PyObject *
-EdgeRecordDesc_New(PyObject *names, PyObject *flags)
+EdgeRecordDesc_New(PyObject *names, PyObject *flags, PyObject *cards)
 {
     EdgeRecordDescObject *o;
 
@@ -238,6 +240,22 @@ EdgeRecordDesc_New(PyObject *names, PyObject *flags)
         }
     }
 
+    if (cards != NULL) {
+        if (!PyTuple_CheckExact(cards)) {
+            PyErr_SetString(
+                PyExc_TypeError,
+                "RecordDescriptor requires a tuple as its third argument");
+            return NULL;
+        }
+        if (Py_SIZE(cards) != size) {
+            PyErr_SetString(
+                PyExc_TypeError,
+                "RecordDescriptor the cards tuple to be the same "
+                "length as the names tuple");
+            return NULL;
+        }
+    }
+
     Py_ssize_t idpos = -1;
 
     PyObject *index = PyDict_New();
@@ -245,8 +263,9 @@ EdgeRecordDesc_New(PyObject *names, PyObject *flags)
         return NULL;
     }
 
-    uint8_t *bits = (uint8_t *)PyMem_RawCalloc((size_t)size, sizeof(uint8_t));
-    if (bits == NULL) {
+    EdgeRecordFieldDesc *descs = (EdgeRecordFieldDesc *)PyMem_RawCalloc(
+        (size_t)size, sizeof(EdgeRecordFieldDesc));
+    if (descs == NULL) {
         PyErr_NoMemory();
         return NULL;
     }
@@ -266,16 +285,38 @@ EdgeRecordDesc_New(PyObject *names, PyObject *flags)
             }
 
             PyObject *flag = PyTuple_GET_ITEM(flags, i);
-            long flag_long = PyLong_AsLong(flag);
-            if (flag_long == -1) {
+            int32_t flag_long = (int32_t)PyLong_AsLong(flag);
+            if (flag_long == -1 && PyErr_Occurred()) {
                 goto fail;
             }
-            if ((unsigned long)flag_long > 128) {
-                PyErr_Format(PyExc_OverflowError,
-                             "invalid name flag %d", flag_long);
+            descs[i].flags = (uint32_t)flag_long;
+        }
+
+        if (cards != NULL) {
+            if (PyUnicode_CompareWithASCIIString(key, "id") == 0) {
+                idpos = i;
+            }
+
+            PyObject *card = PyTuple_GET_ITEM(cards, i);
+            int32_t card_long = (int32_t)PyLong_AsLong(card);
+            if (card_long == -1 && PyErr_Occurred()) {
                 goto fail;
             }
-            bits[i] = (uint8_t)flag_long;
+
+            EdgeFieldCardinality cast_card = UNKNOWN;
+            switch (card_long) {
+                case 0x6e: cast_card = NO_RESULT; break;
+                case 0x6f: cast_card = AT_MOST_ONE; break;
+                case 0x41: cast_card = ONE; break;
+                case 0x6d: cast_card = MANY; break;
+                case 0x4d: cast_card = AT_LEAST_ONE; break;
+                default: {
+                    PyErr_Format(PyExc_OverflowError,
+                                "invalid cardinality %d", card_long);
+                    goto fail;
+                }
+            }
+            descs[i].cardinality = cast_card;
         }
 
         PyObject *num = PyLong_FromLong(i);
@@ -299,7 +340,7 @@ EdgeRecordDesc_New(PyObject *names, PyObject *flags)
         goto fail;
     }
 
-    o->posbits = bits;
+    o->descs = descs;
 
     o->index = index;
 
@@ -313,7 +354,7 @@ EdgeRecordDesc_New(PyObject *names, PyObject *flags)
     return (PyObject *)o;
 
 fail:
-    PyMem_RawFree(bits);
+    PyMem_RawFree(descs);
     return NULL;
 }
 
@@ -347,10 +388,10 @@ EdgeRecordDesc_Lookup(PyObject *ob, PyObject *key, Py_ssize_t *pos)
     assert(res_long < d->size);
     *pos = res_long;
 
-    if (d->posbits[res_long] & EDGE_POINTER_IS_LINKPROP) {
+    if (d->descs[res_long].flags & EDGE_POINTER_IS_LINKPROP) {
         return L_LINKPROP;
     }
-    else if (d->posbits[res_long] & EDGE_POINTER_IS_LINK) {
+    else if (d->descs[res_long].flags & EDGE_POINTER_IS_LINK) {
         return L_LINK;
     }
     else {
@@ -387,6 +428,22 @@ EdgeRecordDesc_IDPos(PyObject *ob)
 }
 
 
+EdgeFieldCardinality
+EdgeRecordDesc_PointerCardinality(PyObject *ob, Py_ssize_t pos)
+{
+    if (!EdgeRecordDesc_Check(ob)) {
+        PyErr_BadInternalCall();
+        return -1;
+    }
+    EdgeRecordDescObject *o = (EdgeRecordDescObject *)ob;
+    if (pos < 0 || pos >= o->size) {
+        PyErr_SetNone(PyExc_IndexError);
+        return -1;
+    }
+    return o->descs[pos].cardinality;
+}
+
+
 int
 EdgeRecordDesc_PointerIsLinkProp(PyObject *ob, Py_ssize_t pos)
 {
@@ -399,7 +456,7 @@ EdgeRecordDesc_PointerIsLinkProp(PyObject *ob, Py_ssize_t pos)
         PyErr_SetNone(PyExc_IndexError);
         return -1;
     }
-    return o->posbits[pos] & EDGE_POINTER_IS_LINKPROP;
+    return o->descs[pos].flags & EDGE_POINTER_IS_LINKPROP;
 }
 
 int
@@ -414,7 +471,7 @@ EdgeRecordDesc_PointerIsLink(PyObject *ob, Py_ssize_t pos)
         PyErr_SetNone(PyExc_IndexError);
         return -1;
     }
-    return o->posbits[pos] & EDGE_POINTER_IS_LINK;
+    return o->descs[pos].flags & EDGE_POINTER_IS_LINK;
 }
 
 int
@@ -429,7 +486,7 @@ EdgeRecordDesc_PointerIsImplicit(PyObject *ob, Py_ssize_t pos)
         PyErr_SetNone(PyExc_IndexError);
         return -1;
     }
-    return o->posbits[pos] & EDGE_POINTER_IS_IMPLICIT;
+    return o->descs[pos].flags & EDGE_POINTER_IS_IMPLICIT;
 }
 
 Py_ssize_t
@@ -461,8 +518,8 @@ EdgeRecordDesc_List(PyObject *ob, uint8_t include_mask, uint8_t exclude_mask)
     }
 
     for (Py_ssize_t i = 0; i < o->size; i++) {
-        if ((include_mask == 0xFF || (o->posbits[i] & include_mask)) &&
-                (exclude_mask == 0 || !(o->posbits[i] & exclude_mask)))
+        if ((include_mask == 0xFF || (o->descs[i].flags & include_mask)) &&
+                (exclude_mask == 0 || !(o->descs[i].flags & exclude_mask)))
         {
             PyObject *name = PyTuple_GetItem(o->names, i);
             if (name == NULL) {

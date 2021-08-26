@@ -38,11 +38,25 @@ extern PyTypeObject EdgeRecordDesc_Type;
 
 #define EdgeRecordDesc_Check(d) (Py_TYPE(d) == &EdgeRecordDesc_Type)
 
+typedef enum {
+    UNKNOWN = 0,
+    NO_RESULT,
+    AT_MOST_ONE,
+    ONE,
+    MANY,
+    AT_LEAST_ONE
+} EdgeFieldCardinality;
+
+typedef struct {
+    uint32_t flags;
+    EdgeFieldCardinality cardinality;
+} EdgeRecordFieldDesc;
+
 typedef struct {
     PyObject_HEAD
     PyObject *index;
     PyObject *names;
-    uint8_t *posbits;
+    EdgeRecordFieldDesc *descs;
     Py_ssize_t idpos;
     Py_ssize_t size;
 } EdgeRecordDescObject;
@@ -56,13 +70,14 @@ typedef enum {
 } edge_attr_lookup_t;
 
 PyObject * EdgeRecordDesc_InitType(void);
-PyObject * EdgeRecordDesc_New(PyObject *, PyObject *);
+PyObject * EdgeRecordDesc_New(PyObject *, PyObject *, PyObject *);
 PyObject * EdgeRecordDesc_PointerName(PyObject *, Py_ssize_t);
 Py_ssize_t EdgeRecordDesc_IDPos(PyObject *ob);
 
 int EdgeRecordDesc_PointerIsLinkProp(PyObject *, Py_ssize_t);
 int EdgeRecordDesc_PointerIsLink(PyObject *, Py_ssize_t);
 int EdgeRecordDesc_PointerIsImplicit(PyObject *, Py_ssize_t);
+EdgeFieldCardinality EdgeRecordDesc_PointerCardinality(PyObject *, Py_ssize_t);
 
 Py_ssize_t EdgeRecordDesc_GetSize(PyObject *);
 edge_attr_lookup_t EdgeRecordDesc_Lookup(PyObject *, PyObject *, Py_ssize_t *);

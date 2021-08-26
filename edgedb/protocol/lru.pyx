@@ -85,3 +85,6 @@ cdef class LRUMapping:
 
     def __iter__(self):
         return iter(self._dict)
+
+    def clear(self):
+        self._dict.clear()

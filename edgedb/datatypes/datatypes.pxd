@@ -31,9 +31,19 @@ cdef extern from "datatypes.h":
     int EDGE_POINTER_IS_LINKPROP
     int EDGE_POINTER_IS_LINK
 
+    ctypedef enum EdgeFieldCardinality:
+        UNKNOWN
+        NO_RESULT
+        AT_MOST_ONE
+        ONE
+        MANY
+        AT_LEAST_ONE
+
     object EdgeRecordDesc_InitType()
-    object EdgeRecordDesc_New(object, object)
+    object EdgeRecordDesc_New(object, object, object)
     object EdgeRecordDesc_PointerName(object, Py_ssize_t pos)
+    EdgeFieldCardinality EdgeRecordDesc_PointerCardinality(
+        object, Py_ssize_t pos)
 
     object EdgeTuple_InitType()
     object EdgeTuple_New(Py_ssize_t)
@@ -63,8 +73,9 @@ cdef extern from "datatypes.h":
     object EdgeLinkSet_InitType()
 
 
-cdef record_desc_new(object names, object flags)
+cdef record_desc_new(object names, object flags, object cards)
 cdef record_desc_pointer_name(object desc, Py_ssize_t pos)
+cdef record_desc_pointer_card(object desc, Py_ssize_t pos)
 cdef tuple_new(Py_ssize_t size)
 cdef tuple_set(object tuple, Py_ssize_t pos, object elem)
 cdef namedtuple_new(object desc)

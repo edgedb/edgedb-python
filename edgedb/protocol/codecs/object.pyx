@@ -29,24 +29,31 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             Py_ssize_t objlen
             Py_ssize_t i
             BaseCodec sub_codec
+            descriptor = (<BaseNamedRecordCodec>self).descriptor
 
         self._check_encoder()
 
         objlen = len(obj)
         if objlen != len(self.fields_codecs):
-            print(type(obj), len(obj), obj)
             raise self._make_missing_args_error_message(obj)
 
         elem_data = WriteBuffer.new()
         for i in range(objlen):
-            name = datatypes.record_desc_pointer_name(self.descriptor, i)
+            name = datatypes.record_desc_pointer_name(descriptor, i)
             try:
                 arg = obj[name]
             except KeyError:
                 raise self._make_missing_args_error_message(obj) from None
 
+            card = datatypes.record_desc_pointer_card(descriptor, i)
+
             elem_data.write_int32(0)  # reserved bytes
             if arg is None:
+                if card in {datatypes.EdgeFieldCardinality.ONE,
+                            datatypes.EdgeFieldCardinality.AT_LEAST_ONE}:
+                    raise errors.InvalidArgumentError(
+                        f'argument ${name} is required, but received None'
+                    )
                 elem_data.write_int32(-1)
             else:
                 sub_codec = <BaseCodec>(self.fields_codecs[i])
@@ -65,10 +72,12 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
         buf.write_buffer(elem_data)
 
     def _make_missing_args_error_message(self, args):
+        cdef descriptor = (<BaseNamedRecordCodec>self).descriptor
+
         required_args = set()
 
         for i in range(len(self.fields_codecs)):
-            name = datatypes.record_desc_pointer_name(self.descriptor, i)
+            name = datatypes.record_desc_pointer_name(descriptor, i)
             required_args.add(name)
 
         passed_args = set(args.keys())
@@ -96,15 +105,17 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             int32_t elem_len
             BaseCodec elem_codec
             FRBuffer elem_buf
+            tuple fields_codecs = (<BaseRecordCodec>self).fields_codecs
+            descriptor = (<BaseNamedRecordCodec>self).descriptor
 
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
 
-        if elem_count != len(self.fields_codecs):
+        if elem_count != len(fields_codecs):
             raise RuntimeError(
-                f'cannot decode Object: expected {len(self.fields_codecs)} '
+                f'cannot decode Object: expected {len(fields_codecs)} '
                 f'elements, got {elem_count}')
 
-        result = datatypes.object_new(self.descriptor)
+        result = datatypes.object_new(descriptor)
 
         for i in range(elem_count):
             frb_read(buf, 4)  # reserved
@@ -113,7 +124,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             if elem_len == -1:
                 elem = None
             else:
-                elem_codec = <BaseCodec>self.fields_codecs[i]
+                elem_codec = <BaseCodec>fields_codecs[i]
                 elem = elem_codec.decode(
                     frb_slice_from(&elem_buf, buf, elem_len))
                 if frb_get_len(&elem_buf):
@@ -126,7 +137,8 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
         return result
 
     @staticmethod
-    cdef BaseCodec new(bytes tid, tuple names, tuple flags, tuple codecs):
+    cdef BaseCodec new(bytes tid, tuple names, tuple flags, tuple cards,
+                       tuple codecs):
         cdef:
             ObjectCodec codec
 
@@ -134,7 +146,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
 
         codec.tid = tid
         codec.name = 'Object'
-        codec.descriptor = datatypes.record_desc_new(names, flags)
+        codec.descriptor = datatypes.record_desc_new(names, flags, cards)
         codec.fields_codecs = codecs
 
         return codec

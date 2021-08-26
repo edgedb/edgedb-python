@@ -28,10 +28,10 @@ from edgedb import introspect
 class TestRecordDesc(unittest.TestCase):
 
     def test_recorddesc_1(self):
-        with self.assertRaisesRegex(TypeError, 'one to two positional'):
+        with self.assertRaisesRegex(TypeError, 'one to three positional'):
             private._RecordDescriptor()
 
-        with self.assertRaisesRegex(TypeError, 'one to two positional'):
+        with self.assertRaisesRegex(TypeError, 'one to three positional'):
             private._RecordDescriptor(t=1)
 
         with self.assertRaisesRegex(TypeError, 'requires a tuple'):
