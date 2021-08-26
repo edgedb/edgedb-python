@@ -180,7 +180,7 @@ namedtuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     }
     Py_CLEAR(kwargs_iter);
 
-    desc = EdgeRecordDesc_New(keys_tup, NULL);
+    desc = EdgeRecordDesc_New(keys_tup, NULL, NULL);
     if (desc == NULL) {
         goto fail;
     }

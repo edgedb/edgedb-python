@@ -62,6 +62,10 @@ cdef class CodecsRegistry:
         self.codecs = LRUMapping(maxsize=cache_size)
         self.base_codec_overrides = {}
 
+    def clear_cache(self):
+        self.codecs.clear()
+        self.codecs_build_cache.clear()
+
     def set_type_codec(self, typeid, *, encoder, decoder, format):
         if format != 'python':
             raise ValueError('"python" is the only valid format')
@@ -168,12 +172,14 @@ cdef class CodecsRegistry:
             codecs = cpython.PyTuple_New(els)
             names = cpython.PyTuple_New(els)
             flags = cpython.PyTuple_New(els)
+            cards = cpython.PyTuple_New(els)
             for i in range(els):
                 if protocol_version >= (0, 11):
                     flag = hton.unpack_uint32(frb_read(spec, 4))  # flags
-                    frb_read(spec, 1)  # cardinality
+                    cardinality = <uint8_t>frb_read(spec, 1)[0]
                 else:
                     flag = <uint8_t>frb_read(spec, 1)[0]  # flags
+                    cardinality = 0
 
                 str_len = hton.unpack_uint32(frb_read(spec, 4))
                 name = cpythonx.PyUnicode_FromStringAndSize(
@@ -190,7 +196,10 @@ cdef class CodecsRegistry:
                 cpython.Py_INCREF(flag)
                 cpython.PyTuple_SetItem(flags, i, flag)
 
-            res = ObjectCodec.new(tid, names, flags, codecs)
+                cpython.Py_INCREF(cardinality)
+                cpython.PyTuple_SetItem(cards, i, cardinality)
+
+            res = ObjectCodec.new(tid, names, flags, cards, codecs)
 
         elif t == CTYPE_BASE_SCALAR:
             if tid in self.base_codec_overrides:

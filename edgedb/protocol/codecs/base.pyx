@@ -26,6 +26,8 @@ cdef uint64_t RECORD_ENCODER_INVALID = 1 << 1
 cdef bytes NULL_CODEC_ID = b'\x00' * 16
 cdef bytes EMPTY_TUPLE_CODEC_ID = TYPE_IDS.get('empty-tuple').bytes
 
+EMPTY_RECORD_DATA = b'\x00\x00\x00\x04\x00\x00\x00\x00'
+
 
 cdef class BaseCodec:
 
@@ -97,7 +99,7 @@ cdef class EmptyTupleCodec(BaseCodec):
             raise RuntimeError(
                 f'cannot encode empty Tuple: expected 0 elements, '
                 f'got {len(obj)}')
-        buf.write_bytes(b'\x00\x00\x00\x04\x00\x00\x00\x00')
+        buf.write_bytes(EMPTY_RECORD_DATA)
 
     cdef decode(self, FRBuffer *buf):
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
@@ -152,7 +154,7 @@ cdef class BaseRecordCodec(BaseCodec):
 
         objlen = len(obj)
         if objlen == 0:
-            buf.write_bytes(b'\x00\x00\x00\x04\x00\x00\x00\x00')
+            buf.write_bytes(EMPTY_RECORD_DATA)
             return
 
         if objlen > _MAXINT32:

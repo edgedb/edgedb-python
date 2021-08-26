@@ -1095,16 +1095,20 @@ cdef class SansIOProtocol:
                 'either positional or named arguments are supported; '
                 'not both')
 
-        if type(in_dc) is EmptyTupleCodec:
-            if args:
-                raise errors.QueryArgumentError(
-                    'expected no positional arguments')
-            if kwargs:
-                raise errors.QueryArgumentError('expected no named arguments')
-            in_dc.encode(buf, ())
-            return
-
         if self.protocol_version >= (0, 12):
+            if type(in_dc) in {NullCodec, EmptyTupleCodec}:
+                # TODO: drop EmptyTupleCodec when 1.0 RC1 is released.
+                # It's only here because 0.12 protocol is only
+                # partially implemented in edgedb@master right now.
+                if args:
+                    raise errors.QueryArgumentError(
+                        'expected no positional arguments')
+                if kwargs:
+                    raise errors.QueryArgumentError(
+                        'expected no named arguments')
+                buf.write_bytes(EMPTY_RECORD_DATA)
+                return
+
             if type(in_dc) is not ObjectCodec:
                 raise errors.QueryArgumentError(
                     'unexpected query argument codec')
@@ -1115,6 +1119,16 @@ cdef class SansIOProtocol:
             (<ObjectCodec>in_dc).encode_args(buf, kwargs)
             return
         else:
+            if type(in_dc) is EmptyTupleCodec:
+                if args:
+                    raise errors.QueryArgumentError(
+                        'expected no positional arguments')
+                if kwargs:
+                    raise errors.QueryArgumentError(
+                        'expected no named arguments')
+                buf.write_bytes(EMPTY_RECORD_DATA)
+                return
+
             if kwargs:
                 if type(in_dc) is not NamedTupleCodec:
                     raise errors.QueryArgumentError(
