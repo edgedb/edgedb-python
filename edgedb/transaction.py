@@ -42,15 +42,26 @@ class TransactionState(enum.Enum):
 
 class BaseTransaction:
 
-    __slots__ = ('_connection', '_pool', '_options', '_state', '_managed')
+    __slots__ = (
+        '_connection',
+        '_connection_inner',
+        '_connection_impl',
+        '_pool',
+        '_options',
+        '_state',
+        '_managed',
+    )
 
     def __init__(self, owner, options: options.TransactionOptions):
         if isinstance(owner, base_con.BaseConnection):
             self._connection = owner
+            self._connection_inner = owner._inner
             self._pool = None
         else:
             self._connection = None
+            self._connection_inner = None
             self._pool = owner
+        self._connection_impl = None
         self._options = options
         self._state = TransactionState.NEW
         self._managed = False
@@ -97,14 +108,14 @@ class BaseTransaction:
         return 'ROLLBACK;'
 
     def _borrow(self):
-        inner = self._connection._inner
+        inner = self._connection_inner
         if inner._borrowed_for:
             raise base_con.borrow_error(inner._borrowed_for)
         inner._borrowed_for = base_con.BorrowReason.TRANSACTION
 
     def _maybe_return(self):
-        if self._connection is not None:
-            self._connection._inner._borrowed_for = None
+        if self._connection_inner is not None:
+            self._connection_inner._borrowed_for = None
 
     def __repr__(self):
         attrs = []
@@ -127,8 +138,10 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         query = self._make_start_query()
         if self._pool is not None:
             self._connection = await self._pool._acquire()
-        await self._connection.ensure_connected(single_attempt=single_connect)
-        self._connection_inner = self._connection._inner
+            self._connection_inner = self._connection._inner
+        inner = self._connection_inner
+        if not inner._impl or inner._impl.is_closed():
+            await self._connection._reconnect(single_attempt=single_connect)
         self._connection_impl = self._connection._inner._impl
         try:
             await self._connection_impl.privileged_execute(query)
@@ -288,7 +301,9 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
     def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
         # no pools supported for blocking con
-        self._connection.ensure_connected(single_attempt=single_connect)
+        inner = self._connection_inner
+        if not inner._impl or inner._impl.is_closed():
+            self._connection._reconnect(single_attempt=single_connect)
         self._connection_inner = self._connection._inner
         self._connection_impl = self._connection_inner._impl
         try:

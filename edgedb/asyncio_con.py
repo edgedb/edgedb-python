@@ -233,6 +233,8 @@ class AsyncIOConnection(
 
     async def ensure_connected(self, *, single_attempt=False):
         inner = self._inner
+        if inner._borrowed_for:
+            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             await self._reconnect(single_attempt=single_attempt)
 

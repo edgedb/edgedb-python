@@ -167,3 +167,9 @@ class TestSyncTx(tb.SyncQueryTestCase):
                                     r'.*is borrowed.*'):
             with tr:
                 self.con.execute("SELECT 1")
+
+        tr = self.con.raw_transaction()
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*is borrowed.*'):
+            with tr:
+                self.con.ensure_connected()
