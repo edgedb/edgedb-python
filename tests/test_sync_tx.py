@@ -64,7 +64,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
         self.assertEqual(result, [])
 
-    async def test_async_transaction_kinds(self):
+    async def test_sync_transaction_kinds(self):
         isolations = [
             None,
             edgedb.IsolationLevel.Serializable,
@@ -81,8 +81,15 @@ class TestSyncTx(tb.SyncQueryTestCase):
             # skip None
             opt = {k: v for k, v in opt.items() if v is not None}
             con = self.con.with_transaction_options(TransactionOptions(**opt))
-            with con.raw_transaction():
-                pass
+            try:
+                with con.raw_transaction() as tx:
+                    tx.execute(
+                        'INSERT test::TransactionTest {name := "test"}')
+            except edgedb.TransactionError:
+                self.assertTrue(readonly)
+            else:
+                self.assertFalse(readonly)
+
             for tx in con.retrying_transaction():
                 with tx:
                     pass
