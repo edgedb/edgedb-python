@@ -185,8 +185,8 @@ class _Options:
 
     def with_transaction_options(self, options: TransactionOptions):
         return _Options(
+            self._retry_options,
             options,
-            self._transaction_options,
         )
 
     @classmethod
