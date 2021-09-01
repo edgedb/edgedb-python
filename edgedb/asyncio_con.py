@@ -241,7 +241,6 @@ class AsyncIOConnection(
     # overriden by connection pool
     async def _reconnect(self, single_attempt=False):
         inner = self._inner
-        assert not inner._borrowed_for, inner._borrowed_for
         inner._impl = _AsyncIOConnectionImpl(
             inner._codecs_registry, inner._query_cache)
         await inner._impl.connect(inner._loop, inner._addrs,
@@ -261,7 +260,7 @@ class AsyncIOConnection(
     ) -> datatypes.Set:
         inner = self._inner
         if inner._borrowed_for:
-            raise base_con.borrow_error(self._inner._borrowed_for)
+            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             await self._reconnect()
         result, _ = await inner._impl._protocol.execute_anonymous(

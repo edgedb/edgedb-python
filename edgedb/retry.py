@@ -21,17 +21,31 @@ class AsyncIOIteration(_transaction.BaseAsyncIOTransaction):
         if not self.__started:
             self.__started = True
             await self._start(single_connect=self.__iteration != 0)
+            if self._pool is not None:
+                # Having a pool means we just acquired the connection in
+                # _start() - let's mark it as borrowed for transaction anyways
+                # just in case the connection is somehow accessed separately.
+                self._borrow()
 
     async def __aenter__(self):
         if self._managed:
             raise errors.InterfaceError(
                 'cannot enter context: already in an `async with` block')
         self._managed = True
+        if self._pool is None:
+            # Borrow the connection for transaction now if it's not on a pool,
+            # because that means we already have the connection now, and
+            # further use of the connection like this should be prevented:
+            #     async for tx in conn.retrying_transaction():
+            #         async with tx:
+            #             await conn.query("...")  # <- wrong use after borrow
+            self._borrow()
         return self
 
     async def __aexit__(self, extype, ex, tb):
         self._managed = False
         if not self.__started:
+            self._maybe_return()
             return False
 
         try:
@@ -140,11 +154,13 @@ class Iteration(_transaction.BaseBlockingIOTransaction):
             raise errors.InterfaceError(
                 'cannot enter context: already in a `with` block')
         self._managed = True
+        self._borrow()
         return self
 
     def __exit__(self, extype, ex, tb):
         self._managed = False
         if not self.__started:
+            self._maybe_return()
             return False
 
         try:

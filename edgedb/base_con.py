@@ -83,6 +83,7 @@ class _InnerConnection:
 
 
 class BaseConnection:
+    _inner: _InnerConnection
 
     def connected_addr(self):
         return self._inner._impl._addr

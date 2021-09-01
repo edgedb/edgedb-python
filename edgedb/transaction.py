@@ -42,10 +42,26 @@ class TransactionState(enum.Enum):
 
 class BaseTransaction:
 
-    __slots__ = ('_connection', '_options', '_state', '_managed')
+    __slots__ = (
+        '_connection',
+        '_connection_inner',
+        '_connection_impl',
+        '_pool',
+        '_options',
+        '_state',
+        '_managed',
+    )
 
     def __init__(self, owner, options: options.TransactionOptions):
-        self._owner = owner
+        if isinstance(owner, base_con.BaseConnection):
+            self._connection = owner
+            self._connection_inner = owner._inner
+            self._pool = None
+        else:
+            self._connection = None
+            self._connection_inner = None
+            self._pool = owner
+        self._connection_impl = None
         self._options = options
         self._state = TransactionState.NEW
         self._managed = False
@@ -91,6 +107,16 @@ class BaseTransaction:
         self.__check_state('rollback')
         return 'ROLLBACK;'
 
+    def _borrow(self):
+        inner = self._connection_inner
+        if inner._borrowed_for:
+            raise base_con.borrow_error(inner._borrowed_for)
+        inner._borrowed_for = base_con.BorrowReason.TRANSACTION
+
+    def _maybe_return(self):
+        if self._connection_inner is not None:
+            self._connection_inner._borrowed_for = None
+
     def __repr__(self):
         attrs = []
         attrs.append('state:{}'.format(self._state.name.lower()))
@@ -110,54 +136,50 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
-        if isinstance(self._owner, base_con.BaseConnection):
-            self._connection = self._owner
-        else:
-            self._connection = await self._owner._acquire()
-        if self._connection._inner._borrowed_for:
-            raise base_con.borrow_error(self._connection._inner._borrowed_for)
-        await self._connection.ensure_connected(single_attempt=single_connect)
-        self._connection_inner = self._connection._inner
+        if self._pool is not None:
+            self._connection = await self._pool._acquire()
+            self._connection_inner = self._connection._inner
+        inner = self._connection_inner
+        if not inner._impl or inner._impl.is_closed():
+            await self._connection._reconnect(single_attempt=single_connect)
         self._connection_impl = self._connection._inner._impl
-        self._connection_inner._borrowed_for = (
-            base_con.BorrowReason.TRANSACTION
-        )
         try:
             await self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
-            self._connection_inner._borrowed_for = None
             raise
         else:
             self._state = TransactionState.STARTED
 
     async def _commit(self):
-        query = self._make_commit_query()
         try:
-            await self._connection_impl.privileged_execute(query)
-        except BaseException:
-            self._state = TransactionState.FAILED
-            raise
-        else:
-            self._state = TransactionState.COMMITTED
+            query = self._make_commit_query()
+            try:
+                await self._connection_impl.privileged_execute(query)
+            except BaseException:
+                self._state = TransactionState.FAILED
+                raise
+            else:
+                self._state = TransactionState.COMMITTED
         finally:
-            self._connection_inner._borrowed_for = None
-            if self._connection is not self._owner:
-                await self._owner._release(self._connection)
+            self._maybe_return()
+            if self._pool is not None:
+                await self._pool._release(self._connection)
 
     async def _rollback(self):
-        query = self._make_rollback_query()
         try:
-            await self._connection_impl.privileged_execute(query)
-        except BaseException:
-            self._state = TransactionState.FAILED
-            raise
-        else:
-            self._state = TransactionState.ROLLEDBACK
+            query = self._make_rollback_query()
+            try:
+                await self._connection_impl.privileged_execute(query)
+            except BaseException:
+                self._state = TransactionState.FAILED
+                raise
+            else:
+                self._state = TransactionState.ROLLEDBACK
         finally:
-            self._connection_inner._borrowed_for = None
-            if self._connection is not self._owner:
-                await self._owner._release(self._connection)
+            self._maybe_return()
+            if self._pool is not None:
+                await self._pool._release(self._connection)
 
     async def _ensure_transaction(self):
         pass
@@ -256,6 +278,7 @@ class AsyncIOTransaction(BaseAsyncIOTransaction):
     async def start(self) -> None:
         """Enter the transaction or savepoint block."""
         await self._start()
+        self._borrow()
 
     async def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""
@@ -277,47 +300,45 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
 
     def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
-        self._connection = self._owner  # no pools supported for blocking con
-        if self._connection._inner._borrowed_for:
-            raise base_con.borrow_error(self._connection_inner._borrowed_for)
-        self._connection.ensure_connected(single_attempt=single_connect)
+        # no pools supported for blocking con
+        inner = self._connection_inner
+        if not inner._impl or inner._impl.is_closed():
+            self._connection._reconnect(single_attempt=single_connect)
         self._connection_inner = self._connection._inner
-        self._connection_inner._borrowed_for = (
-            base_con.BorrowReason.TRANSACTION
-        )
         self._connection_impl = self._connection_inner._impl
         try:
             self._connection_impl.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
-            self._connection_inner._borrowed_for = None
             raise
         else:
             self._state = TransactionState.STARTED
 
     def _commit(self):
-        query = self._make_commit_query()
         try:
-            self._connection_impl.privileged_execute(query)
-        except BaseException:
-            self._state = TransactionState.FAILED
-            raise
-        else:
-            self._state = TransactionState.COMMITTED
+            query = self._make_commit_query()
+            try:
+                self._connection_impl.privileged_execute(query)
+            except BaseException:
+                self._state = TransactionState.FAILED
+                raise
+            else:
+                self._state = TransactionState.COMMITTED
         finally:
-            self._connection_inner._borrowed_for = None
+            self._maybe_return()
 
     def _rollback(self):
-        query = self._make_rollback_query()
         try:
-            self._connection_impl.privileged_execute(query)
-        except BaseException:
-            self._state = TransactionState.FAILED
-            raise
-        else:
-            self._state = TransactionState.ROLLEDBACK
+            query = self._make_rollback_query()
+            try:
+                self._connection_impl.privileged_execute(query)
+            except BaseException:
+                self._state = TransactionState.FAILED
+                raise
+            else:
+                self._state = TransactionState.ROLLEDBACK
         finally:
-            self._connection_inner._borrowed_for = None
+            self._maybe_return()
 
     def _ensure_transaction(self):
         pass
@@ -399,6 +420,7 @@ class Transaction(BaseBlockingIOTransaction):
     def start(self) -> None:
         """Enter the transaction or savepoint block."""
         self._start()
+        self._borrow()
 
     def commit(self) -> None:
         """Exit the transaction or savepoint block and commit changes."""

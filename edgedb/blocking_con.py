@@ -216,7 +216,6 @@ class BlockingIOConnection(
 
     def _reconnect(self, single_attempt=False):
         inner = self._inner
-        assert not inner._borrowed_for, inner._borrowed_for
         inner._impl = _BlockingIOConnectionImpl(
             inner._codecs_registry, inner._query_cache)
         inner._impl.connect(inner._addrs, inner._config, inner._params,
