@@ -260,6 +260,19 @@ class TestPool(tb.AsyncQueryTestCase):
 
         await pool.aclose()
 
+    async def test_pool_options(self):
+        pool = await self.create_pool(min_size=1, max_size=1)
+
+        pool.with_transaction_options(edgedb.TransactionOptions(readonly=True))
+        pool.with_retry_options(
+            edgedb.RetryOptions(attempts=1, backoff=edgedb.default_backoff)
+        )
+        async for tx in pool.retrying_transaction():
+            async with tx:
+                self.assertEqual(await tx.query_single("SELECT 7*8"), 56)
+
+        await pool.aclose()
+
     def test_pool_init_run_until_complete(self):
         pool_init = self.create_pool()
         pool = self.loop.run_until_complete(pool_init)

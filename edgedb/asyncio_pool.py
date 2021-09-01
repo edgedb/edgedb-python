@@ -758,6 +758,12 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
     def retrying_transaction(self) -> _retry.AsyncIORetry:
         return _retry.AsyncIORetry(self)
 
+    def _shallow_clone(self):
+        new_pool = self.__class__.__new__(self.__class__)
+        new_pool._options = self._options
+        new_pool._impl = self._impl
+        return new_pool
+
 
 class PoolAcquireContext:
 
