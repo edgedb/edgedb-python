@@ -170,3 +170,9 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
                                     r'.*is borrowed.*'):
             async with tr:
                 await self.con.execute("SELECT 1")
+
+        tr = self.con.raw_transaction()
+        with self.assertRaisesRegex(edgedb.InterfaceError,
+                                    r'.*is borrowed.*'):
+            async with tr:
+                await self.con.ensure_connected()

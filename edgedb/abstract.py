@@ -10,6 +10,8 @@ __all__ = ('Executor', 'AsyncIOExecutor')
 class ReadOnlyExecutor(abc.ABC):
     """Subclasses can execute *at least* read-only queries"""
 
+    __slots__ = ()
+
     @abc.abstractmethod
     def query(self, query: str, *args, **kwargs) -> datatypes.Set:
         ...
@@ -35,9 +37,13 @@ class ReadOnlyExecutor(abc.ABC):
 class Executor(ReadOnlyExecutor):
     """Subclasses can execute both read-only and modification queries"""
 
+    __slots__ = ()
+
 
 class AsyncIOReadOnlyExecutor(abc.ABC):
     """Subclasses can execute *at least* read-only queries"""
+
+    __slots__ = ()
 
     @abc.abstractmethod
     async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
@@ -63,3 +69,5 @@ class AsyncIOReadOnlyExecutor(abc.ABC):
 
 class AsyncIOExecutor(AsyncIOReadOnlyExecutor):
     """Subclasses can execute both read-only and modification queries"""
+
+    __slots__ = ()
