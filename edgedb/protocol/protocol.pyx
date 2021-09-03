@@ -1095,8 +1095,10 @@ cdef class SansIOProtocol:
                 'either positional or named arguments are supported; '
                 'not both')
 
+        in_dc_type = type(in_dc)
+
         if self.protocol_version >= (0, 12):
-            if type(in_dc) in {NullCodec, EmptyTupleCodec}:
+            if in_dc_type in {NullCodec, EmptyTupleCodec}:
                 # TODO: drop EmptyTupleCodec when 1.0 RC1 is released.
                 # It's only here because 0.12 protocol is only
                 # partially implemented in edgedb@master right now.
@@ -1106,10 +1108,15 @@ cdef class SansIOProtocol:
                 if kwargs:
                     raise errors.QueryArgumentError(
                         'expected no named arguments')
-                buf.write_bytes(EMPTY_RECORD_DATA)
+
+                if in_dc_type is NullCodec:
+                    buf.write_bytes(EMPTY_NULL_DATA)
+                else:
+                    buf.write_bytes(EMPTY_RECORD_DATA)
+
                 return
 
-            if type(in_dc) is not ObjectCodec:
+            if in_dc_type is not ObjectCodec:
                 raise errors.QueryArgumentError(
                     'unexpected query argument codec')
 
@@ -1119,7 +1126,7 @@ cdef class SansIOProtocol:
             (<ObjectCodec>in_dc).encode_args(buf, kwargs)
             return
         else:
-            if type(in_dc) is EmptyTupleCodec:
+            if in_dc_type is EmptyTupleCodec:
                 if args:
                     raise errors.QueryArgumentError(
                         'expected no positional arguments')
@@ -1130,14 +1137,14 @@ cdef class SansIOProtocol:
                 return
 
             if kwargs:
-                if type(in_dc) is not NamedTupleCodec:
+                if in_dc_type is not NamedTupleCodec:
                     raise errors.QueryArgumentError(
                         'expected positional arguments, got named arguments')
 
                 (<NamedTupleCodec>in_dc).encode_kwargs(buf, kwargs)
 
             else:
-                if type(in_dc) is not TupleCodec and args:
+                if in_dc_type is not TupleCodec and args:
                     raise errors.QueryArgumentError(
                         'expected named arguments, got positional arguments')
                 in_dc.encode(buf, args)
