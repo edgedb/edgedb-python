@@ -22,7 +22,8 @@ from edgedb.pgproto.pgproto cimport (
     ReadBuffer,
 )
 
-
+from .. import con_utils
+from .. import errors
 from . cimport protocol
 
 
@@ -43,13 +44,22 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
             self.sock = None
 
     cdef write(self, WriteBuffer buf):
-        self.sock.send(buf)
+        try:
+            self.sock.send(buf)
+        except OSError as e:
+            self.connected = False
+            raise con_utils.wrap_error(e) from e
 
     async def wait_for_message(self):
         while not self.buffer.take_message():
-            data = self.sock.recv(RECV_BUF)
+            try:
+                data = self.sock.recv(RECV_BUF)
+            except OSError as e:
+                self.connected = False
+                raise con_utils.wrap_error(e) from e
             if not data:
-                raise ConnectionAbortedError
+                self.connected = False
+                raise errors.ClientConnectionClosedError()
             self.buffer.feed_data(data)
 
     async def try_recv_eagerly(self):
@@ -61,11 +71,15 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
             while not self.buffer.take_message():
                 data = self.sock.recv(RECV_BUF)
                 if not data:
-                    raise ConnectionAbortedError
+                    self.connected = False
+                    raise errors.ClientConnectionClosedError()
                 self.buffer.feed_data(data)
         except BlockingIOError:
             # No data in the socket net buffer.
             return
+        except OSError as e:
+            self.connected = False
+            raise con_utils.wrap_error(e) from e
         finally:
             self.sock.settimeout(None)
 

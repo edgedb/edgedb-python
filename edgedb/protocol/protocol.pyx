@@ -853,7 +853,7 @@ cdef class SansIOProtocol:
     def terminate(self):
         try:
             self.write(WriteBuffer.new_message(TERMINATE_MSG).end_message())
-        except ConnectionError:
+        except errors.ClientConnectionError:
             pass
 
     async def connect(self):

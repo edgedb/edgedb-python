@@ -49,7 +49,7 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
 
     cdef write(self, WriteBuffer buf):
         if self.transport is None:
-            raise ConnectionAbortedError
+            raise errors.ClientConnectionFailedTemporarilyError()
         self.transport.write(memoryview(buf))
 
     async def wait_for_message(self):
