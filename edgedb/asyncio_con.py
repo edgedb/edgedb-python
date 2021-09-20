@@ -522,9 +522,9 @@ class AsyncIOConnection(
 
 
 async def async_connect(dsn: str = None, *,
+                        credentils_file: str = None,
                         host: str = None, port: int = None,
                         user: str = None, password: str = None,
-                        admin: bool = None,
                         database: str = None,
                         tls_ca_file: str = None,
                         tls_verify_hostname: bool = None,
@@ -537,9 +537,9 @@ async def async_connect(dsn: str = None, *,
     if connection_class is None:
         connection_class = AsyncIOConnection
 
-    addrs, params, config = con_utils.parse_connect_arguments(
-        dsn=dsn, host=host, port=port, user=user, password=password,
-        database=database, admin=admin, timeout=timeout,
+    connect_config, client_config = con_utils.parse_connect_arguments(
+        dsn=dsn, credentials_file=credentils_file, host=host, port=port,
+        user=user, password=password, database=database, timeout=timeout,
         tls_ca_file=tls_ca_file, tls_verify_hostname=tls_verify_hostname,
         wait_until_available=wait_until_available,
 
@@ -548,7 +548,7 @@ async def async_connect(dsn: str = None, *,
         server_settings=None)
 
     connection = connection_class(
-        loop, addrs, config, params,
+        loop, [connect_config.address], client_config, connect_config,
         codecs_registry=_CodecsRegistry(),
         query_cache=_QueryCodecsCache(),
     )
