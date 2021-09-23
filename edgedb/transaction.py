@@ -193,6 +193,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             kwargs=kwargs,
             reg=con._codecs_registry,
             qc=con._query_cache,
+            capabilities_cache=con._capabilities_cache,
             io_format=protocol.IoFormat.BINARY,
         )
         return result
@@ -206,6 +207,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             kwargs=kwargs,
             reg=con._codecs_registry,
             qc=con._query_cache,
+            capabilities_cache=con._capabilities_cache,
             expect_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
@@ -220,6 +222,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             kwargs=kwargs,
             reg=con._codecs_registry,
             qc=con._query_cache,
+            capabilities_cache=con._capabilities_cache,
             io_format=protocol.IoFormat.JSON,
         )
         return result
@@ -233,6 +236,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             kwargs=kwargs,
             reg=con._codecs_registry,
             qc=con._query_cache,
+            capabilities_cache=con._capabilities_cache,
             expect_one=True,
             io_format=protocol.IoFormat.JSON,
         )
@@ -352,6 +356,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             kwargs=kwargs,
             reg=con._codecs_registry,
             qc=con._query_cache,
+            capabilities_cache=con._capabilities_cache,
             io_format=protocol.IoFormat.BINARY,
         )
 
@@ -364,6 +369,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             kwargs=kwargs,
             reg=con._codecs_registry,
             qc=con._query_cache,
+            capabilities_cache=con._capabilities_cache,
             expect_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
@@ -377,6 +383,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             kwargs=kwargs,
             reg=con._codecs_registry,
             qc=con._query_cache,
+            capabilities_cache=con._capabilities_cache,
             io_format=protocol.IoFormat.JSON,
         )
 
@@ -389,6 +396,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             kwargs=kwargs,
             reg=con._codecs_registry,
             qc=con._query_cache,
+            capabilities_cache=con._capabilities_cache,
             expect_one=True,
             io_format=protocol.IoFormat.JSON,
         )

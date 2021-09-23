@@ -117,6 +117,38 @@ cdef class QueryCodecsCache:
         )
 
 
+cdef class CapabilitiesCache:
+
+    def __init__(self, *, cache_size=1000):
+        self.headers = LRUMapping(maxsize=cache_size)
+
+    def get(
+        self, str query, IoFormat io_format,
+        int implicit_limit, bint inline_typenames, bint inline_typeids,
+        bint expect_one
+    ):
+        key = (
+            query, io_format, implicit_limit, inline_typenames, inline_typeids,
+            expect_one
+        )
+        return self.headers.get(key, None)
+
+    cdef set(
+        self, str query, IoFormat io_format,
+        int implicit_limit, bint inline_typenames, bint inline_typeids,
+        bint expect_one, dict headers,
+    ):
+        capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
+        if capabilities is None:
+            return
+
+        key = (
+            query, io_format, implicit_limit, inline_typenames, inline_typeids,
+            expect_one
+        )
+        self.headers[key] = int.from_bytes(capabilities, 'big')
+
+
 cdef class SansIOProtocol:
 
     def __init__(self, con_params, tls_compat):
@@ -218,6 +250,7 @@ cdef class SansIOProtocol:
         query: str,
         *,
         reg: CodecsRegistry,
+        capabilities_cache: CapabilitiesCache,
         io_format: IoFormat=IoFormat.BINARY,
         expect_one: bint=False,
         implicit_limit: int=0,
@@ -261,6 +294,8 @@ cdef class SansIOProtocol:
             try:
                 if mtype == PREPARE_COMPLETE_MSG:
                     attrs = self.parse_headers()
+                    capabilities_cache.set(query, io_format, implicit_limit, inline_typenames,
+                            inline_typeids, expect_one, attrs)
                     cardinality = self.buffer.read_byte()
                     in_type_id = self.buffer.read_bytes(16)
                     out_type_id = self.buffer.read_bytes(16)
@@ -303,7 +338,7 @@ cdef class SansIOProtocol:
 
                 try:
                     if mtype == STMT_DATA_DESC_MSG:
-                        cardinality, in_dc, out_dc = \
+                        cardinality, in_dc, out_dc, _ = \
                             self.parse_describe_type_message(reg)
 
                     elif mtype == ERROR_RESPONSE_MSG:
@@ -420,6 +455,7 @@ cdef class SansIOProtocol:
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
+        capabilities_cache: CapabilitiesCache,
         io_format: object,
         expect_one: bint,
         implicit_limit: int,
@@ -467,7 +503,7 @@ cdef class SansIOProtocol:
             try:
                 if mtype == STMT_DATA_DESC_MSG:
                     # our in/out type spec is out-dated
-                    new_cardinality, in_dc, out_dc = \
+                    new_cardinality, in_dc, out_dc, headers = \
                         self.parse_describe_type_message(reg)
                     qc.set(
                         query,
@@ -478,6 +514,14 @@ cdef class SansIOProtocol:
                         expect_one,
                         new_cardinality == CARDINALITY_NOT_APPLICABLE,
                         in_dc, out_dc)
+                    capabilities_cache.set(
+                        query,
+                        io_format,
+                        implicit_limit,
+                        inline_typenames,
+                        inline_typeids,
+                        expect_one,
+                        headers)
                     re_exec = True
 
                 elif mtype == DATA_MSG:
@@ -591,6 +635,7 @@ cdef class SansIOProtocol:
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
+        capabilities_cache: CapabilitiesCache,
         io_format: object,
         expect_one: bint = False,
         implicit_limit: int = 0,
@@ -612,6 +657,7 @@ cdef class SansIOProtocol:
             codecs = await self._parse(
                 query,
                 reg=reg,
+                capabilities_cache=capabilities_cache,
                 io_format=io_format,
                 expect_one=expect_one,
                 implicit_limit=implicit_limit,
@@ -655,6 +701,7 @@ cdef class SansIOProtocol:
                 kwargs=kwargs,
                 reg=reg,
                 qc=qc,
+                capabilities_cache=capabilities_cache,
                 io_format=io_format,
                 expect_one=expect_one,
                 implicit_limit=implicit_limit,
@@ -1156,7 +1203,7 @@ cdef class SansIOProtocol:
             bytes type_id
             bytes cardinality
 
-        self.ignore_headers()
+        headers = self.parse_headers()
 
         try:
             cardinality = self.buffer.read_byte()
@@ -1179,7 +1226,7 @@ cdef class SansIOProtocol:
         finally:
             self.buffer.finish_message()
 
-        return cardinality, in_dc, out_dc
+        return cardinality, in_dc, out_dc, headers
 
     cdef parse_data_messages(self, BaseCodec out_dc, result):
         cdef:

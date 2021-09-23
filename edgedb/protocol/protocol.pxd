@@ -80,6 +80,15 @@ cdef class QueryCodecsCache:
              BaseCodec in_type, BaseCodec out_type)
 
 
+cdef class CapabilitiesCache:
+    cdef:
+        LRUMapping headers
+
+    cdef set(self, str query, IoFormat io_format,
+             int implicit_limit, bint inline_typenames, bint inline_typeids,
+             bint expect_one, dict headers)
+
+
 cdef class SansIOProtocol:
 
     cdef:
