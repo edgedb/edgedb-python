@@ -442,7 +442,7 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
 
 def _parse_dsn_into_config(
     resolved_config: ResolvedConnectConfig,
-    dsn: tuple[str, str]
+    dsn: typing.Tuple[str, str]
 ):
     dsn_str, source = dsn
 
