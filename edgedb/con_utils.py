@@ -394,7 +394,6 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
         ssl_ctx = None
     else:
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_ctx.verify_mode = ssl.CERT_REQUIRED
         if tls_ca_file or tls_ca_data:
             ssl_ctx.load_verify_locations(
                 cafile=tls_ca_file, cadata=tls_ca_data
@@ -408,7 +407,13 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                 ssl_ctx.load_verify_locations(cafile=certifi.where())
             if tls_verify_hostname is None:
                 tls_verify_hostname = True
-        ssl_ctx.check_hostname = tls_verify_hostname
+        if os.environ.get("EDGEDB_INSECURE_DEV_MODE"):
+            ssl_ctx.check_hostname = False
+            # CERT_NONE must be set after clearing check_hostname
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+        else:
+            ssl_ctx.check_hostname = tls_verify_hostname
+            ssl_ctx.verify_mode = ssl.CERT_REQUIRED
         ssl_ctx.set_alpn_protocols(['edgedb-binary'])
 
     params = ConnectionParameters(
