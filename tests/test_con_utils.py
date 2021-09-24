@@ -20,6 +20,7 @@
 import contextlib
 import json
 import os
+import sys
 import pathlib
 import tempfile
 import unittest
@@ -32,315 +33,38 @@ from edgedb import errors
 
 class TestConUtils(unittest.TestCase):
 
-    TESTS = [
-        {
-            'user': 'user',
-            'host': 'localhost',
-            'result': (
-                [("localhost", 5656)],
-                {
-                    'user': 'user',
-                    'database': 'edgedb',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'env': {
-                'EDGEDB_USER': 'user',
-                'EDGEDB_DATABASE': 'testdb',
-                'EDGEDB_PASSWORD': 'passw',
-                'EDGEDB_HOST': 'host',
-                'EDGEDB_PORT': '123'
-            },
-            'result': (
-                [('host', 123)],
-                {
-                    'user': 'user',
-                    'password': 'passw',
-                    'database': 'testdb'
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'env': {
-                'EDGEDB_USER': 'user',
-                'EDGEDB_DATABASE': 'testdb',
-                'EDGEDB_PASSWORD': 'passw',
-                'EDGEDB_HOST': 'host',
-                'EDGEDB_PORT': '123'
-            },
-
-            'host': 'host2',
-            'port': '456',
-            'user': 'user2',
-            'password': 'passw2',
-            'database': 'db2',
-
-            'result': (
-                [('host2', 456)],
-                {
-                    'user': 'user2',
-                    'password': 'passw2',
-                    'database': 'db2'
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'env': {
-                'EDGEDB_USER': 'user',
-                'EDGEDB_DATABASE': 'testdb',
-                'EDGEDB_PASSWORD': 'passw',
-                'EDGEDB_HOST': 'host',
-                'EDGEDB_PORT': '123',
-                'PGSSLMODE': 'prefer'
-            },
-
-            'dsn': 'edgedb://user3:123123@localhost/abcdef',
-
-            'host': 'host2',
-            'port': '456',
-            'user': 'user2',
-            'password': 'passw2',
-            'database': 'db2',
-            'server_settings': {'ssl': 'False'},
-
-            'result': (
-                [('host2', 456)],
-                {
-                    'user': 'user2',
-                    'password': 'passw2',
-                    'database': 'db2',
-                    'server_settings': {'ssl': 'False'},
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'env': {
-                'EDGEDB_USER': 'user',
-                'EDGEDB_DATABASE': 'testdb',
-                'EDGEDB_PASSWORD': 'passw',
-                'EDGEDB_HOST': 'host',
-                'EDGEDB_PORT': '123',
-            },
-
-            'dsn': 'edgedb://user3:123123@localhost:5555/abcdef',
-            'command_timeout': 10,
-
-            'result': (
-                [('localhost', 5555)],
-                {
-                    'user': 'user3',
-                    'password': '123123',
-                    'database': 'abcdef',
-                }, {
-                    'command_timeout': 10,
-                    'wait_until_available': 30,
-                })
-        },
-
-        {
-            'dsn': 'edgedb://user3:123123@localhost:5555/abcdef',
-            'result': (
-                [('localhost', 5555)],
-                {
-                    'user': 'user3',
-                    'password': '123123',
-                    'database': 'abcdef'
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'dsn': 'edgedb://user@host1,host2/db',
-            'result': (
-                [('host1', 5656), ('host2', 5656)],
-                {
-                    'database': 'db',
-                    'user': 'user',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'dsn': 'edgedb://user@host1:1111,host2:2222/db',
-            'result': (
-                [('host1', 1111), ('host2', 2222)],
-                {
-                    'database': 'db',
-                    'user': 'user',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'env': {
-                'EDGEDB_HOST': 'host1:1111,host2:2222',
-                'EDGEDB_USER': 'foo',
-            },
-            'dsn': 'edgedb:///db',
-            'result': (
-                [('host1', 1111), ('host2', 2222)],
-                {
-                    'database': 'db',
-                    'user': 'foo',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'env': {
-                'EDGEDB_USER': 'foo',
-            },
-            'dsn': 'edgedb:///db?host=host1:1111,host2:2222',
-            'result': (
-                [('host1', 1111), ('host2', 2222)],
-                {
-                    'database': 'db',
-                    'user': 'foo',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'env': {
-                'EDGEDB_USER': 'foo',
-            },
-            'dsn': 'edgedb:///db',
-            'host': ['host1', 'host2'],
-            'result': (
-                [('host1', 5656), ('host2', 5656)],
-                {
-                    'database': 'db',
-                    'user': 'foo',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'dsn': 'edgedb://user3:123123@localhost:5555/'
-                   'abcdef?param=sss&param=123&host=testhost&user=testuser'
-                   '&port=2222&database=testdb',
-            'host': '127.0.0.1',
-            'port': '888',
-            'user': 'me',
-            'password': 'ask',
-            'database': 'db',
-            'result': (
-                [('127.0.0.1', 888)],
-                {
-                    'server_settings': {'param': '123'},
-                    'user': 'me',
-                    'password': 'ask',
-                    'database': 'db',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'dsn': 'edgedb://user3:123123@localhost:5555/'
-                   'abcdef?param=sss&param=123&host=testhost&user=testuser'
-                   '&port=2222&database=testdb',
-            'host': '127.0.0.1',
-            'port': '888',
-            'user': 'me',
-            'password': 'ask',
-            'database': 'db',
-            'server_settings': {'aa': 'bb'},
-            'result': (
-                [('127.0.0.1', 888)],
-                {
-                    'server_settings': {'aa': 'bb', 'param': '123'},
-                    'user': 'me',
-                    'password': 'ask',
-                    'database': 'db',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'dsn': 'edgedb:///dbname?host=/unix_sock/test&user=spam',
-            'result': (
-                [os.path.join('/unix_sock/test', '.s.EDGEDB.5656')],
-                {
-                    'user': 'spam',
-                    'database': 'dbname'
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'dsn': 'pq:///dbname?host=/unix_sock/test&user=spam',
-            'error': (
-                ValueError,
-                "dsn "
-                "'pq:///dbname\\?host=/unix_sock/test&user=spam' "
-                "is neither a edgedb:// URI nor valid instance name"
-            )
-        },
-
-        {
-            'dsn': 'edgedb://host1,host2,host3/db',
-            'port': [111, 222],
-            'error': (
-                errors.InterfaceError,
-                'could not match 2 port numbers to 3 hosts'
-            )
-        },
-
-        {
-            'dsn': 'edgedb://user@?port=56226&host=%2Ftmp',
-            'result': (
-                [os.path.join('/tmp', '.s.EDGEDB.56226')],
-                {
-                    'user': 'user',
-                    'database': 'edgedb',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'dsn': 'edgedb://user@?host=%2Ftmp',
-            'admin': True,
-            'result': (
-                [os.path.join('/tmp', '.s.EDGEDB.admin.5656')],
-                {
-                    'user': 'user',
-                    'database': 'edgedb',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-
-        {
-            'dsn': 'edgedbadmin://user@?host=%2Ftmp',
-            'result': (
-                [os.path.join('/tmp', '.s.EDGEDB.admin.5656')],
-                {
-                    'user': 'user',
-                    'database': 'edgedb',
-                },
-                {'wait_until_available': 30},
-            )
-        },
-    ]
+    error_mapping = {
+        'credentials_file_not_found': (
+            RuntimeError, 'cannot read credentials'),
+        'project_not_initialised': (
+            errors.ClientConnectionError,
+            'Found `edgedb.toml` but the project is not initialized'),
+        'no_options_or_toml': (
+            errors.ClientConnectionError,
+            'no `edgedb.toml` found and no connection options specified'),
+        'invalid_credentials_file': (
+            RuntimeError, 'cannot read credentials'),
+        'invalid_instance_name': (ValueError, 'invalid instance name'),
+        'invalid_dsn': (ValueError, 'invalid DSN'),
+        'unix_socket_unsupported': (
+            ValueError, 'unix socket paths not supported'),
+        'invalid_host': (ValueError, 'invalid host'),
+        'invalid_port': (ValueError, 'invalid port'),
+        'invalid_user': (ValueError, 'invalid user'),
+        'invalid_database': (ValueError, 'invalid database'),
+        'multiple_compound_env': (
+            errors.ClientConnectionError,
+            'Cannot have more than one of the following connection '
+            + 'environment variables'),
+        'multiple_compound_opts': (
+            errors.ClientConnectionError,
+            'Cannot have more than one of the following connection options'),
+        'env_not_found': (
+            ValueError, 'environment variable ".*" doesn\'t exist'),
+        'file_not_found': (FileNotFoundError, 'No such file or directory'),
+        'invalid_tls_verify_hostname': (
+            ValueError, 'tls_verify_hostname can only be one of yes/no')
+    }
 
     @contextlib.contextmanager
     def environ(self, **kwargs):
@@ -372,61 +96,114 @@ class TestConUtils(unittest.TestCase):
                     'EDGEDB_DATABASE': None, 'PGSSLMODE': None}
         test_env.update(env)
 
-        dsn = testcase.get('dsn')
-        user = testcase.get('user')
-        port = testcase.get('port')
-        host = testcase.get('host')
-        password = testcase.get('password')
-        database = testcase.get('database')
-        tls_ca_file = testcase.get('tls_ca_file')
-        tls_verify_hostname = testcase.get('tls_verify_hostname')
-        admin = testcase.get('admin')
-        timeout = testcase.get('timeout')
-        command_timeout = testcase.get('command_timeout')
-        server_settings = testcase.get('server_settings')
+        fs = testcase.get('fs')
 
-        expected = testcase.get('result')
+        opts = testcase.get('opts', {})
+        dsn = opts.get('dsn')
+        credentials_file = opts.get('credentialsFile')
+        host = opts.get('host')
+        port = opts.get('port')
+        database = opts.get('database')
+        user = opts.get('user')
+        password = opts.get('password')
+        tls_ca_file = opts.get('tlsCAFile')
+        tls_verify_hostname = opts.get('tlsVerifyHostname')
+        server_settings = opts.get('serverSettings')
+
+        other_opts = testcase.get('other_opts', {})
+        timeout = other_opts.get('timeout')
+        command_timeout = other_opts.get('command_timeout')
+
+        expected = (testcase.get('result'), testcase.get('other_results'))
         expected_error = testcase.get('error')
-        if expected is None and expected_error is None:
+        if expected_error and expected_error.get('type'):
+            expected_error = self.error_mapping.get(expected_error.get('type'))
+            if not expected_error:
+                raise RuntimeError(
+                    f"unknown error type: {testcase.get('error').get('type')}")
+
+        if expected[0] is None and expected_error is None:
             raise RuntimeError(
                 'invalid test case: either "result" or "error" key '
                 'has to be specified')
-        if expected is not None and expected_error is not None:
+        if expected[0] is not None and expected_error is not None:
             raise RuntimeError(
                 'invalid test case: either "result" or "error" key '
                 'has to be specified, got both')
 
         result = None
         with contextlib.ExitStack() as es:
-            es.enter_context(self.subTest(dsn=dsn, env=env))
+            es.enter_context(self.subTest(dsn=dsn, env=env, opts=opts))
             es.enter_context(self.environ(**test_env))
+
+            if fs:
+                cwd = fs.get('cwd')
+                homedir = fs.get('homedir')
+                files = fs.get('files')
+                if cwd:
+                    es.enter_context(mock.patch('os.getcwd', lambda: cwd))
+                if homedir:
+                    es.enter_context(
+                        mock.patch(
+                            'pathlib.Path.home', lambda: pathlib.Path(homedir)
+                        )
+                    )
+                if files:
+                    es.enter_context(
+                        mock.patch(
+                            'os.path.exists',
+                            lambda filepath: str(filepath) in files
+                        )
+                    )
+
+                    def mocked_open(filepath, *args, **kwargs):
+                        if str(filepath) in files:
+                            return mock.mock_open(
+                                read_data=files.get(str(filepath))
+                            )()
+                        raise FileNotFoundError(
+                            f"[Errno 2] No such file or directory: " +
+                            f"'{filepath}'"
+                        )
+                    es.enter_context(mock.patch('builtins.open', mocked_open))
 
             if expected_error:
                 es.enter_context(self.assertRaisesRegex(*expected_error))
 
-            addrs, params, config = con_utils.parse_connect_arguments(
-                dsn=dsn, host=host, port=port, user=user, password=password,
-                database=database, admin=admin,
+            connect_config, client_config = con_utils.parse_connect_arguments(
+                dsn=dsn, credentials_file=credentials_file,
+                host=host, port=port, database=database,
+                user=user, password=password,
                 tls_ca_file=tls_ca_file,
                 tls_verify_hostname=tls_verify_hostname,
                 timeout=timeout, command_timeout=command_timeout,
                 server_settings=server_settings,
                 wait_until_available=30)
 
-            params = {k: v for k, v in params._asdict().items()
-                      if v is not None}
-            config = {k: v for k, v in config._asdict().items()
-                      if v is not None}
-            params.pop('ssl_ctx', None)
+            result = (
+                {
+                    'address': [
+                        connect_config.address[0], connect_config.address[1]
+                    ],
+                    'database': connect_config.database,
+                    'user': connect_config.user,
+                    'password': connect_config.password,
+                    'tlsCAData': connect_config._tls_ca_data,
+                    'tlsVerifyHostname': connect_config.tls_verify_hostname,
+                    'serverSettings': connect_config.server_settings
+                }, {
+                    k: v for k, v in client_config._asdict().items()
+                    if v is not None
+                } if testcase.get('other_results') else None
+            )
 
-            result = (addrs, params, config)
-
-        if expected is not None:
-            for k, v in expected[1].items():
-                # If `expected` contains a type, allow that to "match" any
-                # instance of that type that `result` may contain.
-                if isinstance(v, type) and isinstance(result[1].get(k), v):
-                    result[1][k] = v
+        if expected[0] is not None:
+            if (expected[1]):
+                for k, v in expected[1].items():
+                    # If `expected` contains a type, allow that to "match" any
+                    # instance of that type that `result` may contain.
+                    if isinstance(v, type) and isinstance(result[1].get(k), v):
+                        result[1][k] = v
             self.assertEqual(expected, result, 'Testcase: {}'.format(testcase))
 
     def test_test_connect_params_environ(self):
@@ -460,19 +237,39 @@ class TestConUtils(unittest.TestCase):
         with self.environ(EDGEDB_PORT='777'):
             self.run_testcase({
                 'env': {
-                    'EDGEDB_USER': '__test__'
+                    'EDGEDB_HOST': 'abc'
                 },
-                'host': 'abc',
-                'result': (
-                    [('abc', 5656)],
-                    {'user': '__test__', 'database': 'edgedb'},
-                    {'wait_until_available': 30},
-                )
+                'opts': {
+                    'user': '__test__',
+                },
+                'result': {
+                    'address': ['abc', 5656],
+                    'database': 'edgedb',
+                    'user': '__test__',
+                    'password': None,
+                    'tlsCAData': None,
+                    'tlsVerifyHostname': True,
+                    'serverSettings': {}
+                },
+                'other_results': {
+                    'wait_until_available': 30
+                },
             })
 
     def test_connect_params(self):
-        for testcase in self.TESTS:
-            self.run_testcase(testcase)
+        with open(os.path.abspath('tests/connection_testcases.json')) as f:
+            testcases = json.load(f)
+
+        for testcase in testcases:
+            platform = testcase.get('platform')
+            if not (
+                testcase.get('fs') and (
+                    (platform is None and sys.platform in {'win32', 'darwin'})
+                    or (platform == 'windows' and sys.platform != 'win32')
+                    or (platform == 'macos' and sys.platform != 'darwin')
+                )
+            ):
+                self.run_testcase(testcase)
 
     @mock.patch("edgedb.platform.config_dir",
                 lambda: pathlib.Path("/home/user/.config/edgedb"))
@@ -517,15 +314,18 @@ class TestConUtils(unittest.TestCase):
                 with open(instance_file, 'wt') as f:
                     f.write('inst1')
 
-                addrs, params, _config = con_utils.parse_connect_arguments(
-                    dsn=None, host=None, port=None, user=None, password=None,
-                    database=None, admin=None,
-                    tls_ca_file=None, tls_verify_hostname=None,
-                    timeout=10, command_timeout=None,
-                    server_settings=None,
-                    wait_until_available=30)
+                connect_config, client_config = (
+                    con_utils.parse_connect_arguments(
+                        dsn=None, credentials_file=None, host=None, port=None,
+                        user=None, password=None, database=None,
+                        tls_ca_file=None, tls_verify_hostname=None,
+                        timeout=10, command_timeout=None,
+                        server_settings=None,
+                        wait_until_available=30
+                    )
+                )
 
-        self.assertEqual(addrs, [('inst1.example.org', 12323)])
-        self.assertEqual(params.user, 'inst1_user')
-        self.assertEqual(params.password, 'passw1')
-        self.assertEqual(params.database, 'inst1_db')
+        self.assertEqual(connect_config.address, ('inst1.example.org', 12323))
+        self.assertEqual(connect_config.user, 'inst1_user')
+        self.assertEqual(connect_config.password, 'passw1')
+        self.assertEqual(connect_config.database, 'inst1_db')

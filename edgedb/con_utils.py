@@ -170,16 +170,16 @@ class ResolvedConnectConfig:
                 )
 
     def set_host(self, host, source):
-        self._set_param('host', host, source)
+        self._set_param('host', host, source, _validate_host)
 
     def set_port(self, port, source):
         self._set_param('port', port, source, _validate_port)
 
     def set_database(self, database, source):
-        self._set_param('database', database, source)
+        self._set_param('database', database, source, _validate_database)
 
     def set_user(self, user, source):
-        self._set_param('user', user, source)
+        self._set_param('user', user, source, _validate_user)
 
     def set_password(self, password, source):
         self._set_param('password', password, source)
@@ -224,7 +224,7 @@ class ResolvedConnectConfig:
     @property
     def tls_verify_hostname(self):
         return (self._tls_verify_hostname
-                if self._tls_verify_hostname
+                if self._tls_verify_hostname is not None
                 else self._tls_ca_data is None)
 
     _ssl_ctx = None
@@ -251,11 +251,37 @@ class ResolvedConnectConfig:
         return self._ssl_ctx
 
 
+def _validate_host(host):
+    if '/' in host:
+        raise ValueError('unix socket paths not supported')
+    if host == '' or ',' in host:
+        raise ValueError(f'invalid host: "{host}"')
+    return host
+
+
 def _validate_port(port):
-    port = int(port)
+    try:
+        if isinstance(port, str):
+            port = int(port)
+        if not isinstance(port, int):
+            raise ValueError()
+    except Exception:
+        raise ValueError(f'invalid port: {port}, not an integer')
     if port < 1 or port > 65535:
-        raise ValueError(f'invalid port: {port}')
+        raise ValueError(f'invalid port: {port}, must be between 1 and 65535')
     return port
+
+
+def _validate_database(database):
+    if database == '':
+        raise ValueError(f'invalid database name: {database}')
+    return database
+
+
+def _validate_user(user):
+    if user == '':
+        raise ValueError(f'invalid user name: {user}')
+    return user
 
 
 def _validate_server_settings(server_settings):
@@ -278,39 +304,45 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
 
     dsn, instance_name = (
         (dsn, None)
-        if dsn and re.match('(?i)^[a-z]+://', dsn)
+        if dsn is not None and re.match('(?i)^[a-z]+://', dsn)
         else (None, dsn)
     )
 
     has_compound_options = _resolve_config_options(
         resolved_config,
         'Cannot have more than one of the following connection options: '
-        + '"dsn", "credentials_file" or "host"',
-        dsn=(dsn, '"dsn" option') if dsn else None,
+        + '"dsn", "credentials_file" or "host"/"port"',
+        dsn=(dsn, '"dsn" option') if dsn is not None else None,
         instance_name=(
             (instance_name, '"dsn" option (parsed as instance name)')
-            if instance_name else None
+            if instance_name is not None else None
         ),
         credentials_file=(
             (credentials_file, '"credentials_file" option')
-            if credentials_file else None
+            if credentials_file is not None else None
         ),
-        host=(host, '"host" option') if host else None,
-        port=(port, '"port" option') if port else None,
-        database=(database, '"database" option') if database else None,
-        user=(user, '"user" option') if user else None,
-        password=(password, '"password" option') if password else None,
+        host=(host, '"host" option') if host is not None else None,
+        port=(port, '"port" option') if port is not None else None,
+        database=(
+            (database, '"database" option')
+            if database is not None else None
+        ),
+        user=(user, '"user" option') if user is not None else None,
+        password=(
+            (password, '"password" option')
+            if password is not None else None
+        ),
         tls_ca_file=(
             (tls_ca_file, '"tls_ca_file" option')
-            if tls_ca_file else None
+            if tls_ca_file is not None else None
         ),
         tls_verify_hostname=(
             (tls_verify_hostname, '"tls_verify_hostname" option')
-            if tls_verify_hostname else None
+            if tls_verify_hostname is not None else None
         ),
         server_settings=(
             (server_settings, '"server_settings" option')
-            if server_settings else None
+            if server_settings is not None else None
         ),
     )
 
@@ -339,48 +371,48 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
             resolved_config,
             'Cannot have more than one of the following connection '
             + 'environment variables: "EDGEDB_DSN", "EDGEDB_INSTANCE", '
-            + '"EDGEDB_CREDENTIALS_FILE" or "EDGEDB_HOST"',
+            + '"EDGEDB_CREDENTIALS_FILE" or "EDGEDB_HOST"/"EDGEDB_PORT"',
             dsn=(
                 (env_dsn, '"EDGEDB_DSN" environment variable')
-                if env_dsn else None
+                if env_dsn is not None else None
             ),
-            instance=(
+            instance_name=(
                 (env_instance, '"EDGEDB_INSTANCE" environment variable')
-                if env_instance else None
+                if env_instance is not None else None
             ),
             credentials_file=(
                 (env_credentials_file,
                  '"EDGEDB_CREDENTIALS_FILE" environment variable')
-                if env_credentials_file else None
+                if env_credentials_file is not None else None
             ),
             host=(
                 (env_host, '"EDGEDB_HOST" environment variable')
-                if env_host else None
+                if env_host is not None else None
             ),
             port=(
                 (env_port, '"EDGEDB_PORT" environment variable')
-                if env_port else None
+                if env_port is not None else None
             ),
             database=(
                 (env_database, '"EDGEDB_DATABASE" environment variable')
-                if env_database else None
+                if env_database is not None else None
             ),
             user=(
                 (env_user, '"EDGEDB_USER" environment variable')
-                if env_user else None
+                if env_user is not None else None
             ),
             password=(
                 (env_password, '"EDGEDB_PASSWORD" environment variable')
-                if env_password else None
+                if env_password is not None else None
             ),
             tls_ca_file=(
                 (env_tls_ca_file, '"EDGEDB_TLS_CA_FILE" environment variable')
-                if env_tls_ca_file else None
+                if env_tls_ca_file is not None else None
             ),
             tls_verify_hostname=(
                 (env_tls_verify_hostname,
                  '"EDGEDB_TLS_VERIFY_HOSTNAME" environment variable')
-                if env_tls_verify_hostname else None
+                if env_tls_verify_hostname is not None else None
             ),
         )
 
@@ -414,7 +446,15 @@ def _parse_dsn_into_config(
 ):
     dsn_str, source = dsn
 
-    parsed = urllib.parse.urlparse(dsn_str)
+    try:
+        parsed = urllib.parse.urlparse(dsn_str)
+        host = parsed.hostname
+        port = parsed.port
+        database = parsed.path
+        user = parsed.username
+        password = parsed.password
+    except Exception as e:
+        raise ValueError(f'invalid DSN: {str(e)}')
 
     if parsed.scheme != 'edgedb':
         raise ValueError(
@@ -422,73 +462,104 @@ def _parse_dsn_into_config(
             f'"edgedb", got {parsed.scheme!r}')
 
     query = (
-        urllib.parse.parse_qs(parsed.query, strict_parsing=True)
+        urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
         if parsed.query != ''
         else {}
     )
     for key, val in query.items():
         if isinstance(val, list):
+            if len(val) > 1:
+                raise ValueError(
+                    f'invalid DSN: duplicate query parameter {key}')
             query[key] = val[-1]
 
-    host = parsed.hostname
-    if 'host' in query:
-        val = query.pop('host')
-        if host is None:
-            host = val
-    resolved_config.set_host(host if host != '' else None, source)
+    def handle_dsn_part(
+        paramName, value, currentValue, setter,
+        formatter=lambda val: val
+    ):
+        param_values = [
+            (value if value != '' else None),
+            query.get(paramName),
+            query.get(paramName + '_env'),
+            query.get(paramName + '_file')
+        ]
+        if len([p for p in param_values if p is not None]) > 1:
+            raise ValueError(
+                f'invalid DSN: more than one of ' +
+                f'{(paramName + ", ") if value else ""}' +
+                f'?{paramName}=, ?{paramName}_env=, ?{paramName}_file= ' +
+                f'was specified'
+            )
 
-    port = parsed.port
-    if 'port' in query:
-        val = query.pop('port')
-        if port is None:
-            port = val
-    resolved_config.set_port(port if port != '' else None, source)
+        if currentValue is None:
+            param = (
+                value if (value is not None and value != '')
+                else query.get(paramName)
+            )
+            paramSource = source
 
-    database = parsed.path
-    if 'database' in query:
-        val = query.pop('database')
-        if database == '':
-            database = val
-    if database.startswith('/'):
-        database = database[1:]
-    resolved_config.set_database(database if database != '' else None, source)
+            if param is None:
+                env = query.get(paramName + '_env')
+                if env is not None:
+                    param = os.getenv(env)
+                    if param is None:
+                        raise ValueError(
+                            f'{paramName}_env environment variable "{env}" ' +
+                            f'doesn\'t exist')
+                    paramSource = paramSource + f' ({paramName}_env: {env})'
+            if param is None:
+                filename = query.get(paramName + '_file')
+                if filename is not None:
+                    with open(filename) as f:
+                        param = f.read()
+                    paramSource = (
+                        paramSource + f' ({paramName}_file: {filename})'
+                    )
 
-    user = parsed.username
-    if 'user' in query:
-        val = query.pop('user')
-        if user is None:
-            user = val
-    resolved_config.set_user(user if user != '' else None, source)
+            param = formatter(param) if param is not None else None
 
-    password = parsed.password
-    password_source = source
-    if 'password' in query:
-        val = query.pop('password')
-        if password is None:
-            password = val
-    if 'password_env' in query:
-        val = os.getenv(query.pop('pasword_env'))
-        if password is None or password == '':
-            password = val
-            password_source = password_source + ' ("password_env")'
-    resolved_config.set_password(
-        password if password != '' else None,
-        password_source
+            setter(param, paramSource)
+
+        query.pop(paramName, None)
+        query.pop(paramName + '_env', None)
+        query.pop(paramName + '_file', None)
+
+    handle_dsn_part(
+        'host', host, resolved_config._host, resolved_config.set_host
     )
 
-    tls_ca_file = None
-    if 'tls_ca_file' in query:
-        val = query.pop('tls_ca_file')
-        if val != '':
-            tls_ca_file = val
-    resolved_config.set_tls_ca_file(tls_ca_file, source)
+    handle_dsn_part(
+        'port', port, resolved_config._port, resolved_config.set_port
+    )
 
-    tls_verify_hostname = None
-    if 'tls_verify_hostname' in query:
-        val = query.pop('tls_verify_hostname')
-        if val != '':
-            tls_verify_hostname = val
-    resolved_config.set_tls_verify_hostname(tls_verify_hostname, source)
+    def strip_leading_slash(str):
+        return str[1:] if str.startswith('/') else str
+
+    handle_dsn_part(
+        'database', strip_leading_slash(database),
+        resolved_config._database, resolved_config.set_database,
+        strip_leading_slash
+    )
+
+    handle_dsn_part(
+        'user', user, resolved_config._user, resolved_config.set_user
+    )
+
+    handle_dsn_part(
+        'password', password,
+        resolved_config._password, resolved_config.set_password
+    )
+
+    handle_dsn_part(
+        'tls_cert_file', None,
+        resolved_config._tls_ca_data, resolved_config.set_tls_ca_file
+    )
+
+    handle_dsn_part(
+        'tls_verify_hostname', None,
+        resolved_config._tls_verify_hostname,
+        resolved_config.set_tls_verify_hostname
+    )
 
     resolved_config.add_server_settings(query)
 
@@ -497,45 +568,46 @@ def _resolve_config_options(
     resolved_config: ResolvedConnectConfig,
     compound_error: str,
     *,
-    dsn,
-    instance_name,
-    credentials_file,
-    host,
-    port,
-    database,
-    user,
-    password,
-    tls_ca_file,
-    tls_verify_hostname,
-    server_settings
+    dsn=None,
+    instance_name=None,
+    credentials_file=None,
+    host=None,
+    port=None,
+    database=None,
+    user=None,
+    password=None,
+    tls_ca_file=None,
+    tls_verify_hostname=None,
+    server_settings=None
 ):
-    if port:
-        resolved_config.set_port(*port)
-    if database:
+    if database is not None:
         resolved_config.set_database(*database)
-    if user:
+    if user is not None:
         resolved_config.set_user(*user)
-    if password:
+    if password is not None:
         resolved_config.set_password(*password)
-    if tls_ca_file:
+    if tls_ca_file is not None:
         resolved_config.set_tls_ca_file(*tls_ca_file)
-    if tls_verify_hostname:
+    if tls_verify_hostname is not None:
         resolved_config.set_tls_verify_hostname(*tls_verify_hostname)
-    if server_settings:
+    if server_settings is not None:
         resolved_config.add_server_settings(server_settings[0])
 
-    compound_params = [dsn, instance_name, credentials_file, host]
+    compound_params = [dsn, instance_name, credentials_file, host or port]
     compound_params_count = len([p for p in compound_params if p is not None])
 
     if compound_params_count > 1:
         raise errors.ClientConnectionError(compound_error)
 
     if compound_params_count == 1:
-        if dsn or host:
+        if dsn is not None or host is not None or port is not None:
+            if port is not None:
+                resolved_config.set_port(*port)
             if dsn is None:
-                if '/' in host[0]:
-                    raise ValueError('unix socket paths not supported')
-                dsn = ('edgedb://' + host[0], host[1])
+                dsn = (
+                    'edgedb://' + (_validate_host(host[0]) if host else ''),
+                    host[1] if host is not None else port[1]
+                )
             _parse_dsn_into_config(resolved_config, dsn)
         else:
             if credentials_file is None:
