@@ -93,7 +93,8 @@ class TestConUtils(unittest.TestCase):
         env = testcase.get('env', {})
         test_env = {'EDGEDB_HOST': None, 'EDGEDB_PORT': None,
                     'EDGEDB_USER': None, 'EDGEDB_PASSWORD': None,
-                    'EDGEDB_DATABASE': None, 'PGSSLMODE': None}
+                    'EDGEDB_DATABASE': None, 'PGSSLMODE': None,
+                    'XDG_CONFIG_HOME': None}
         test_env.update(env)
 
         fs = testcase.get('fs')
@@ -143,10 +144,9 @@ class TestConUtils(unittest.TestCase):
                 if cwd:
                     es.enter_context(mock.patch('os.getcwd', lambda: cwd))
                 if homedir:
+                    homedir = pathlib.Path(homedir)
                     es.enter_context(
-                        mock.patch(
-                            'pathlib.Path.home', lambda: pathlib.Path(homedir)
-                        )
+                        mock.patch('pathlib.Path.home', lambda: homedir)
                     )
                 if files:
                     es.enter_context(
@@ -154,6 +154,10 @@ class TestConUtils(unittest.TestCase):
                             'os.path.exists',
                             lambda filepath: str(filepath) in files
                         )
+                    )
+
+                    es.enter_context(
+                        mock.patch('os.path.realpath', lambda f: f)
                     )
 
                     def mocked_open(filepath, *args, **kwargs):
@@ -262,14 +266,14 @@ class TestConUtils(unittest.TestCase):
 
         for testcase in testcases:
             platform = testcase.get('platform')
-            if not (
-                testcase.get('fs') and (
-                    (platform is None and sys.platform in {'win32', 'darwin'})
-                    or (platform == 'windows' and sys.platform != 'win32')
-                    or (platform == 'macos' and sys.platform != 'darwin')
-                )
+            if testcase.get('fs') and (
+                sys.platform == 'win32' or platform == 'windows'
+                or (platform is None and sys.platform == 'darwin')
+                or (platform == 'macos' and sys.platform != 'darwin')
             ):
-                self.run_testcase(testcase)
+                continue
+
+            self.run_testcase(testcase)
 
     @mock.patch("edgedb.platform.config_dir",
                 lambda: pathlib.Path("/home/user/.config/edgedb"))
