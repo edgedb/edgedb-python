@@ -261,8 +261,18 @@ class TestConUtils(unittest.TestCase):
             })
 
     def test_connect_params(self):
-        with open(os.path.abspath('tests/connection_testcases.json')) as f:
-            testcases = json.load(f)
+        testcases_path = os.path.abspath(
+            'tests/shared-client-testcases/connection_testcases.json'
+        )
+        try:
+            with open(testcases_path) as f:
+                testcases = json.load(f)
+        except FileNotFoundError as err:
+            raise FileNotFoundError(
+                f'Failed to read "connection_testcases.json": {err}.\n' +
+                f'Is the "shared-client-testcases" submodule initialised? ' +
+                f'Try running "git submodule update --init".'
+            )
 
         for testcase in testcases:
             platform = testcase.get('platform')
