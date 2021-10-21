@@ -454,7 +454,7 @@ def _parse_dsn_into_config(
         user = parsed.username
         password = parsed.password
     except Exception as e:
-        raise ValueError(f'invalid DSN: {str(e)}')
+        raise ValueError(f'invalid DSN or instance name: {str(e)}')
 
     if parsed.scheme != 'edgedb':
         raise ValueError(
@@ -618,7 +618,7 @@ def _resolve_config_options(
                     ) is None
                 ):
                     raise ValueError(
-                        f'invalid instance name: "{instance_name[0]}"'
+                        f'invalid DSN or instance name: "{instance_name[0]}"'
                     )
                 credentials_file = (
                     credentials.get_credentials_path(instance_name[0]),

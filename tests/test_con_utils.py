@@ -44,7 +44,8 @@ class TestConUtils(unittest.TestCase):
             'no `edgedb.toml` found and no connection options specified'),
         'invalid_credentials_file': (
             RuntimeError, 'cannot read credentials'),
-        'invalid_instance_name': (ValueError, 'invalid instance name'),
+        'invalid_dsn_or_instance_name': (
+            ValueError, 'invalid DSN or instance name'),
         'invalid_dsn': (ValueError, 'invalid DSN'),
         'unix_socket_unsupported': (
             ValueError, 'unix socket paths not supported'),
