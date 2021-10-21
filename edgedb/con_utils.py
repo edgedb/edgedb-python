@@ -163,13 +163,8 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
         if instance_name:
             dsn = instance_name
         else:
-            dir = os.getcwd()
-            if not os.path.exists(os.path.join(dir, 'edgedb.toml')):
-                raise errors.ClientConnectionError(
-                    f'no `edgedb.toml` found and '
-                    f'no connection options specified'
-                )
-            stash_dir = _stash_path(dir)
+            toml = find_edgedb_toml()
+            stash_dir = _stash_path(os.path.dirname(toml))
             if os.path.exists(stash_dir):
                 with open(os.path.join(stash_dir, 'instance-name'), 'rt') as f:
                     dsn = f.read().strip()
@@ -421,6 +416,33 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
     )
 
     return addrs, params
+
+
+def find_edgedb_toml():
+    dir = os.getcwd()
+    dev = os.stat(dir).st_dev
+
+    while True:
+        toml = os.path.join(dir, 'edgedb.toml')
+        if not os.path.isfile(toml):
+            parent = os.path.basename(dir)
+            if parent == dir:
+                raise errors.ClientConnectionError(
+                    f'no `edgedb.toml` found and '
+                    f'no connection options specified'
+                )
+            parent_dev = os.stat(parent).st_dev
+            if parent_dev != dev:
+                raise errors.ClientConnectionError(
+                    f'no `edgedb.toml` found and '
+                    f'no connection options specified.'
+                    f'Stopped searching for `edgedb.toml` at file system'
+                    f'boundry {dir!r}'
+                )
+            dir = parent
+            dev = parent_dev
+            continue
+        return toml
 
 
 def parse_connect_arguments(*, dsn, host, port, user, password,
