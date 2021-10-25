@@ -435,9 +435,9 @@ def find_edgedb_toml():
             if parent_dev != dev:
                 raise errors.ClientConnectionError(
                     f'no `edgedb.toml` found and '
-                    f'no connection options specified.'
-                    f'Stopped searching for `edgedb.toml` at file system'
-                    f'boundry {dir!r}'
+                    f'no connection options specified'
+                    f'(stopped searching for `edgedb.toml` at file system'
+                    f'boundry {dir!r})'
                 )
             dir = parent
             dev = parent_dev
