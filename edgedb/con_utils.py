@@ -437,7 +437,7 @@ def find_edgedb_toml():
                     f'no `edgedb.toml` found and '
                     f'no connection options specified'
                     f'(stopped searching for `edgedb.toml` at file system'
-                    f'boundry {dir!r})'
+                    f'boundary {dir!r})'
                 )
             dir = parent
             dev = parent_dev
