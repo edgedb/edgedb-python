@@ -274,7 +274,6 @@ class AsyncIOConnection(
             kwargs=kwargs,
             reg=inner._codecs_registry,
             qc=inner._query_cache,
-            capabilities_cache=inner._capabilities_cache,
             implicit_limit=__limit__,
             inline_typeids=__typeids__,
             inline_typenames=__typenames__,
@@ -304,7 +303,6 @@ class AsyncIOConnection(
             kwargs=kwargs,
             reg=inner._codecs_registry,
             qc=inner._query_cache,
-            capabilities_cache=inner._capabilities_cache,
             implicit_limit=__limit__,
             inline_typeids=__typeids__,
             inline_typenames=__typenames__,
@@ -330,7 +328,6 @@ class AsyncIOConnection(
             kwargs=kwargs,
             reg=inner._codecs_registry,
             qc=inner._query_cache,
-            capabilities_cache=inner._capabilities_cache,
             implicit_limit=__limit__,
             inline_typenames=False,
             io_format=protocol.IoFormat.JSON,
@@ -366,7 +363,6 @@ class AsyncIOConnection(
                         kwargs=kwargs,
                         reg=inner._codecs_registry,
                         qc=inner._query_cache,
-                        capabilities_cache=inner._capabilities_cache,
                         io_format=io_format,
                         expect_one=expect_one,
                     )
@@ -375,7 +371,7 @@ class AsyncIOConnection(
                 if not e.has_tag(errors.SHOULD_RETRY):
                     raise e
                 if capabilities is None:
-                    capabilities = inner._capabilities_cache.get(
+                    _, _, _, capabilities = inner._query_cache.get(
                         query=query,
                         io_format=io_format,
                         implicit_limit=0,
@@ -431,7 +427,6 @@ class AsyncIOConnection(
             kwargs=kwargs,
             reg=inner._codecs_registry,
             qc=inner._query_cache,
-            capabilities_cache=inner._capabilities_cache,
             io_format=protocol.IoFormat.JSON_ELEMENTS,
         )
         return result

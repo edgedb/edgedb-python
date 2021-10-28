@@ -25,7 +25,6 @@ from . import errors
 
 from .protocol.protocol import CodecsRegistry as _CodecsRegistry
 from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
-from .protocol.protocol import CapabilitiesCache as _CapabilitiesCache
 
 
 BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
@@ -49,8 +48,7 @@ def borrow_error(condition):
 class _InnerConnection:
 
     def __init__(self, addrs, config, params, *,
-                 codecs_registry=None, query_cache=None,
-                 capabilities_cache=None):
+                 codecs_registry=None, query_cache=None):
         super().__init__()
         self._log_listeners = set()
 
@@ -67,11 +65,6 @@ class _InnerConnection:
             self._query_cache = query_cache
         else:
             self._query_cache = _QueryCodecsCache()
-
-        if capabilities_cache is not None:
-            self._capabilities_cache = capabilities_cache
-        else:
-            self._capabilities_cache = _CapabilitiesCache()
 
         self._top_xact = None
         self._borrowed_for = None

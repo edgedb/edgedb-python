@@ -270,7 +270,6 @@ class BlockingIOConnection(
             kwargs=kwargs,
             reg=inner._codecs_registry,
             qc=inner._query_cache,
-            capabilities_cache=inner._capabilities_cache,
             implicit_limit=__limit__,
             inline_typenames=__typenames__,
             io_format=protocol.IoFormat.BINARY,
@@ -290,7 +289,6 @@ class BlockingIOConnection(
             kwargs=kwargs,
             reg=inner._codecs_registry,
             qc=inner._query_cache,
-            capabilities_cache=inner._capabilities_cache,
             implicit_limit=__limit__,
             inline_typenames=False,
             io_format=protocol.IoFormat.JSON,
@@ -319,7 +317,6 @@ class BlockingIOConnection(
                     kwargs=kwargs,
                     reg=inner._codecs_registry,
                     qc=inner._query_cache,
-                    capabilities_cache=inner._capabilities_cache,
                     expect_one=expect_one,
                     io_format=io_format,
                 )
@@ -327,7 +324,7 @@ class BlockingIOConnection(
                 if not e.has_tag(errors.SHOULD_RETRY):
                     raise e
                 if capabilities is None:
-                    capabilities = inner._capabilities_cache.get(
+                    _, _, _, capabilities = inner._query_cache.get(
                         query=query,
                         io_format=io_format,
                         implicit_limit=0,
@@ -379,7 +376,6 @@ class BlockingIOConnection(
             kwargs=kwargs,
             reg=inner._codecs_registry,
             qc=inner._query_cache,
-            capabilities_cache=inner._capabilities_cache,
             io_format=protocol.IoFormat.JSON_ELEMENTS,
         )
 
@@ -391,7 +387,6 @@ class BlockingIOConnection(
             kwargs=kwargs,
             reg=inner._codecs_registry,
             qc=inner._query_cache,
-            capabilities_cache=inner._capabilities_cache,
             expect_one=True,
             io_format=protocol.IoFormat.JSON,
         )

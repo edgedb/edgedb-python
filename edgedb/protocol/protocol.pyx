@@ -89,7 +89,7 @@ cdef class QueryCodecsCache:
     def __init__(self, *, cache_size=1000):
         self.queries = LRUMapping(maxsize=cache_size)
 
-    cdef get(
+    def get(
         self, str query, IoFormat io_format,
         int implicit_limit, bint inline_typenames, bint inline_typeids,
         bint expect_one
@@ -104,7 +104,7 @@ cdef class QueryCodecsCache:
         self, str query, IoFormat io_format,
         int implicit_limit, bint inline_typenames, bint inline_typeids,
         bint expect_one, bint has_na_cardinality,
-        BaseCodec in_type, BaseCodec out_type
+        BaseCodec in_type, BaseCodec out_type, int capabilities,
     ):
         key = (
             query, io_format, implicit_limit, inline_typenames, inline_typeids,
@@ -113,40 +113,8 @@ cdef class QueryCodecsCache:
         assert in_type is not None
         assert out_type is not None
         self.queries[key] = (
-            has_na_cardinality, in_type, out_type
+            has_na_cardinality, in_type, out_type, capabilities
         )
-
-
-cdef class CapabilitiesCache:
-
-    def __init__(self, *, cache_size=1000):
-        self.capabilities = LRUMapping(maxsize=cache_size)
-
-    def get(
-        self, str query, IoFormat io_format,
-        int implicit_limit, bint inline_typenames, bint inline_typeids,
-        bint expect_one
-    ):
-        key = (
-            query, io_format, implicit_limit, inline_typenames, inline_typeids,
-            expect_one
-        )
-        return self.capabilities.get(key, None)
-
-    cdef set(
-        self, str query, IoFormat io_format,
-        int implicit_limit, bint inline_typenames, bint inline_typeids,
-        bint expect_one, dict headers,
-    ):
-        capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
-        if capabilities is None:
-            return
-
-        key = (
-            query, io_format, implicit_limit, inline_typenames, inline_typeids,
-            expect_one
-        )
-        self.capabilities[key] = int.from_bytes(capabilities, 'big')
 
 
 cdef class SansIOProtocol:
@@ -250,7 +218,6 @@ cdef class SansIOProtocol:
         query: str,
         *,
         reg: CodecsRegistry,
-        capabilities_cache: CapabilitiesCache,
         io_format: IoFormat=IoFormat.BINARY,
         expect_one: bint=False,
         implicit_limit: int=0,
@@ -294,8 +261,6 @@ cdef class SansIOProtocol:
             try:
                 if mtype == PREPARE_COMPLETE_MSG:
                     attrs = self.parse_headers()
-                    capabilities_cache.set(query, io_format, implicit_limit, inline_typenames,
-                            inline_typeids, expect_one, attrs)
                     cardinality = self.buffer.read_byte()
                     in_type_id = self.buffer.read_bytes(16)
                     out_type_id = self.buffer.read_bytes(16)
@@ -455,7 +420,6 @@ cdef class SansIOProtocol:
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
-        capabilities_cache: CapabilitiesCache,
         io_format: object,
         expect_one: bint,
         implicit_limit: int,
@@ -505,6 +469,11 @@ cdef class SansIOProtocol:
                     # our in/out type spec is out-dated
                     new_cardinality, in_dc, out_dc, headers = \
                         self.parse_describe_type_message(reg)
+
+                    capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
+                    if capabilities is not None:
+                        capabilities = int.from_bytes(capabilities, 'big')
+
                     qc.set(
                         query,
                         io_format,
@@ -513,15 +482,7 @@ cdef class SansIOProtocol:
                         inline_typeids,
                         expect_one,
                         new_cardinality == CARDINALITY_NOT_APPLICABLE,
-                        in_dc, out_dc)
-                    capabilities_cache.set(
-                        query,
-                        io_format,
-                        implicit_limit,
-                        inline_typenames,
-                        inline_typeids,
-                        expect_one,
-                        headers)
+                        in_dc, out_dc, capabilities)
                     re_exec = True
 
                 elif mtype == DATA_MSG:
@@ -635,7 +596,6 @@ cdef class SansIOProtocol:
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
-        capabilities_cache: CapabilitiesCache,
         io_format: object,
         expect_one: bint = False,
         implicit_limit: int = 0,
@@ -657,7 +617,6 @@ cdef class SansIOProtocol:
             codecs = await self._parse(
                 query,
                 reg=reg,
-                capabilities_cache=capabilities_cache,
                 io_format=io_format,
                 expect_one=expect_one,
                 implicit_limit=implicit_limit,
@@ -669,6 +628,13 @@ cdef class SansIOProtocol:
             cardinality = codecs[0]
             in_dc = <BaseCodec>codecs[1]
             out_dc = <BaseCodec>codecs[2]
+            headers = <BaseCodec>codecs[3]
+
+            capabilities = None
+            if headers:
+                capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
+                if capabilities is not None:
+                    capabilities = int.from_bytes(capabilities, 'big')
 
             qc.set(
                 query,
@@ -679,7 +645,8 @@ cdef class SansIOProtocol:
                 expect_one,
                 cardinality == CARDINALITY_NOT_APPLICABLE,
                 in_dc,
-                out_dc
+                out_dc,
+                capabilities,
             )
 
             ret, attrs = await self._execute(in_dc, out_dc, args, kwargs)
@@ -701,7 +668,6 @@ cdef class SansIOProtocol:
                 kwargs=kwargs,
                 reg=reg,
                 qc=qc,
-                capabilities_cache=capabilities_cache,
                 io_format=io_format,
                 expect_one=expect_one,
                 implicit_limit=implicit_limit,
