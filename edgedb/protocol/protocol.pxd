@@ -82,7 +82,7 @@ cdef class QueryCodecsCache:
 
 cdef class CapabilitiesCache:
     cdef:
-        LRUMapping headers
+        LRUMapping capabilities
 
     cdef set(self, str query, IoFormat io_format,
              int implicit_limit, bint inline_typenames, bint inline_typeids,

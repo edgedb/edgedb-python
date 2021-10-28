@@ -17,7 +17,6 @@
 #
 
 
-import itertools
 import random
 import socket
 import ssl
@@ -308,7 +307,9 @@ class BlockingIOConnection(
     ):
         inner = self._inner
         reconnect = False
-        for i in itertools.count(start=1):
+        capabilities = None
+        i = 0
+        while True:
             try:
                 if reconnect:
                     self._reconnect(single_attempt=True)
@@ -325,14 +326,15 @@ class BlockingIOConnection(
             except errors.EdgeDBError as e:
                 if not e.has_tag(errors.SHOULD_RETRY):
                     raise e
-                capabilities = inner._capabilities_cache.get(
-                    query=query,
-                    io_format=io_format,
-                    implicit_limit=0,
-                    inline_typenames=False,
-                    inline_typeids=False,
-                    expect_one=expect_one,
-                )
+                if capabilities is None:
+                    capabilities = inner._capabilities_cache.get(
+                        query=query,
+                        io_format=io_format,
+                        implicit_limit=0,
+                        inline_typenames=False,
+                        inline_typeids=False,
+                        expect_one=expect_one,
+                    )
                 # A query is read-only if it has no capabilities i.e.
                 # capabilities == 0. Read-only queries are safe to retry.
                 if capabilities != 0:

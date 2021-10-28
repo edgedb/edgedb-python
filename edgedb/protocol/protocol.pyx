@@ -120,7 +120,7 @@ cdef class QueryCodecsCache:
 cdef class CapabilitiesCache:
 
     def __init__(self, *, cache_size=1000):
-        self.headers = LRUMapping(maxsize=cache_size)
+        self.capabilities = LRUMapping(maxsize=cache_size)
 
     def get(
         self, str query, IoFormat io_format,
@@ -131,7 +131,7 @@ cdef class CapabilitiesCache:
             query, io_format, implicit_limit, inline_typenames, inline_typeids,
             expect_one
         )
-        return self.headers.get(key, None)
+        return self.capabilities.get(key, None)
 
     cdef set(
         self, str query, IoFormat io_format,
@@ -146,7 +146,7 @@ cdef class CapabilitiesCache:
             query, io_format, implicit_limit, inline_typenames, inline_typeids,
             expect_one
         )
-        self.headers[key] = int.from_bytes(capabilities, 'big')
+        self.capabilities[key] = int.from_bytes(capabilities, 'big')
 
 
 cdef class SansIOProtocol:
