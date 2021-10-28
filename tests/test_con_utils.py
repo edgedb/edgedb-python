@@ -138,10 +138,16 @@ class TestConUtils(unittest.TestCase):
             es.enter_context(self.subTest(dsn=dsn, env=env, opts=opts))
             es.enter_context(self.environ(**test_env))
 
+            stat_result = os.stat(os.getcwd())
+            es.enter_context(
+                mock.patch('os.stat', lambda _: stat_result)
+            )
+
             if fs:
                 cwd = fs.get('cwd')
                 homedir = fs.get('homedir')
                 files = fs.get('files')
+
                 if cwd:
                     es.enter_context(mock.patch('os.getcwd', lambda: cwd))
                 if homedir:
@@ -153,6 +159,12 @@ class TestConUtils(unittest.TestCase):
                     es.enter_context(
                         mock.patch(
                             'os.path.exists',
+                            lambda filepath: str(filepath) in files
+                        )
+                    )
+                    es.enter_context(
+                        mock.patch(
+                            'os.path.isfile',
                             lambda filepath: str(filepath) in files
                         )
                     )
