@@ -242,16 +242,13 @@ class AsyncIOConnection(
     # overriden by connection pool
     async def _reconnect(self, single_attempt=False):
         inner = self._inner
-        inner._impl = _AsyncIOConnectionImpl(
+        impl = _AsyncIOConnectionImpl(
             inner._codecs_registry, inner._query_cache)
-        try:
-            await inner._impl.connect(inner._loop, inner._addrs,
-                                      inner._config, inner._params,
-                                      single_attempt=single_attempt,
-                                      connection=self)
-        except Exception:
-            inner._impl.terminate()
-            raise
+        await impl.connect(inner._loop, inner._addrs,
+                           inner._config, inner._params,
+                           single_attempt=single_attempt,
+                           connection=self)
+        inner._impl = impl
 
     async def _fetchall(
         self,
