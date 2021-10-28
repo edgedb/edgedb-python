@@ -47,16 +47,6 @@ TEMPORARY_ERROR_CODES = frozenset({
 })
 
 
-class ConnectionParameters(typing.NamedTuple):
-
-    user: str
-    password: str
-    database: str
-    connect_timeout: float
-    server_settings: typing.Mapping[str, str]
-    ssl_ctx: ssl.SSLContext
-
-
 class ClientConfiguration(typing.NamedTuple):
 
     connect_timeout: float
@@ -129,7 +119,10 @@ def _stash_path(path):
     return platform.search_config_dir('projects', dir_name)
 
 
-def _parse_verify_hostname(val: str) -> bool:
+def _parse_verify_hostname(val: typing.Union[str, bool]) -> bool:
+    if isinstance(val, bool):
+        return val
+
     val = val.lower()
     if val in {"1", "yes", "true", "y", "t", "on"}:
         return True
@@ -141,284 +134,517 @@ def _parse_verify_hostname(val: str) -> bool:
         )
 
 
-def _parse_connect_dsn_and_args(*, dsn, host, port, user,
-                                password, database, admin,
-                                tls_ca_file, tls_verify_hostname,
-                                connect_timeout, server_settings):
-    using_credentials = False
-    tls_ca_data = None
+class ResolvedConnectConfig:
+    _host = None
+    _host_source = None
 
-    if admin:
-        warnings.warn(
-            'The "admin=True" parameter is deprecated and is scheduled to be '
-            'removed. Admin socket should never be used in applications. '
-            'Use command-line tool `edgedb` to setup proper credentials.',
-            DeprecationWarning, 4)
+    _port = None
+    _port_source = None
 
-    if not (
-            dsn or host or port or
-            os.getenv("EDGEDB_HOST") or os.getenv("EDGEDB_PORT")
-    ):
-        instance_name = os.getenv("EDGEDB_INSTANCE")
-        if instance_name:
-            dsn = instance_name
-        else:
-            toml = find_edgedb_toml()
-            stash_dir = _stash_path(os.path.dirname(toml))
-            if os.path.exists(stash_dir):
-                with open(os.path.join(stash_dir, 'instance-name'), 'rt') as f:
-                    dsn = f.read().strip()
-            else:
-                raise errors.ClientConnectionError(
-                    f'Found `edgedb.toml` but the project is not initialized. '
-                    f'Run `edgedb project init`.'
+    _database = None
+    _database_source = None
+
+    _user = None
+    _user_source = None
+
+    _password = None
+    _password_source = None
+
+    _tls_ca_data = None
+    _tls_ca_data_source = None
+
+    _tls_verify_hostname = None
+    _tls_verify_hostname_source = None
+
+    server_settings = {}
+
+    def _set_param(self, param, value, source, validator=None):
+        param_name = '_' + param
+        if getattr(self, param_name) is None:
+            setattr(self, param_name + '_source', source)
+            if value is not None:
+                setattr(
+                    self,
+                    param_name,
+                    validator(value) if validator else value
                 )
 
-    if dsn and dsn.startswith(("edgedb://", "edgedbadmin://")):
-        parsed = urllib.parse.urlparse(dsn)
+    def set_host(self, host, source):
+        self._set_param('host', host, source, _validate_host)
 
-        if parsed.scheme not in ('edgedb', 'edgedbadmin'):
-            raise ValueError(
-                f'invalid DSN: scheme is expected to be '
-                f'"edgedb" or "edgedbadmin", got {parsed.scheme!r}')
+    def set_port(self, port, source):
+        self._set_param('port', port, source, _validate_port)
 
-        if parsed.scheme == 'edgedbadmin':
-            warnings.warn(
-                'The `edgedbadmin` scheme is deprecated and is scheduled '
-                'to be removed. Admin socket should never be used in '
-                'applications. Use command-line tool `edgedb` to setup '
-                'proper credentials.',
-                DeprecationWarning, 4)
+    def set_database(self, database, source):
+        self._set_param('database', database, source, _validate_database)
 
-        if admin is None:
-            admin = parsed.scheme == 'edgedbadmin'
+    def set_user(self, user, source):
+        self._set_param('user', user, source, _validate_user)
 
-        if not host and parsed.netloc:
-            if '@' in parsed.netloc:
-                auth, _, hostspec = parsed.netloc.partition('@')
-            else:
-                hostspec = parsed.netloc
+    def set_password(self, password, source):
+        self._set_param('password', password, source)
 
-            if hostspec:
-                host, port = _parse_hostlist(hostspec, port)
+    def set_tls_ca_data(self, ca_data, source):
+        self._set_param('tls_ca_data', ca_data, source)
 
-        if parsed.path and database is None:
-            database = parsed.path
-            if database.startswith('/'):
-                database = database[1:]
+    def set_tls_ca_file(self, ca_file, source):
+        def read_ca_file(file_path):
+            with open(file_path) as f:
+                return f.read()
 
-        if parsed.username and user is None:
-            user = parsed.username
+        self._set_param('tls_ca_data', ca_file, source, read_ca_file)
 
-        if parsed.password and password is None:
-            password = parsed.password
+    def set_tls_verify_hostname(self, verify_hostname, source):
+        self._set_param('tls_verify_hostname', verify_hostname, source,
+                        _parse_verify_hostname)
 
-        if parsed.query:
-            query = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
-            for key, val in query.items():
-                if isinstance(val, list):
-                    query[key] = val[-1]
+    def add_server_settings(self, server_settings):
+        _validate_server_settings(server_settings)
+        self.server_settings = {**server_settings, **self.server_settings}
 
-            if 'port' in query:
-                val = query.pop('port')
-                if not port and val:
-                    port = [int(p) for p in val.split(',')]
+    @property
+    def address(self):
+        return (
+            self._host if self._host else 'localhost',
+            self._port if self._port else 5656
+        )
 
-            if 'host' in query:
-                val = query.pop('host')
-                if not host and val:
-                    host, port = _parse_hostlist(val, port)
+    @property
+    def database(self):
+        return self._database if self._database else 'edgedb'
 
-            if 'dbname' in query:
-                val = query.pop('dbname')
-                if database is None:
-                    database = val
+    @property
+    def user(self):
+        return self._user if self._user else 'edgedb'
 
-            if 'database' in query:
-                val = query.pop('database')
-                if database is None:
-                    database = val
+    @property
+    def password(self):
+        return self._password
 
-            if 'user' in query:
-                val = query.pop('user')
-                if user is None:
-                    user = val
+    @property
+    def tls_verify_hostname(self):
+        return (self._tls_verify_hostname
+                if self._tls_verify_hostname is not None
+                else self._tls_ca_data is None)
 
-            if 'password' in query:
-                val = query.pop('password')
-                if password is None:
-                    password = val
+    _ssl_ctx = None
 
-            if 'tls_ca_file' in query:
-                val = query.pop('tls_ca_file')
-                if tls_ca_file is None:
-                    tls_ca_file = val
+    @property
+    def ssl_ctx(self):
+        if (self._ssl_ctx):
+            return self._ssl_ctx
 
-            if 'tls_verify_hostname' in query:
-                val = query.pop('tls_verify_hostname')
-                if tls_verify_hostname is None:
-                    tls_verify_hostname = _parse_verify_hostname(val)
-
-            if query:
-                if server_settings is None:
-                    server_settings = query
-                else:
-                    server_settings = {**query, **server_settings}
-    elif dsn:
-        if not dsn.isidentifier():
-            raise ValueError(
-                f"dsn {dsn!r} is neither a edgedb:// URI "
-                f"nor valid instance name"
+        self._ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        self._ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+        if self._tls_ca_data:
+            self._ssl_ctx.load_verify_locations(
+                cadata=self._tls_ca_data
             )
-
-        using_credentials = True
-        path = credentials.get_credentials_path(dsn)
-        try:
-            creds = credentials.read_credentials(path)
-        except Exception as e:
-            raise errors.ClientError(
-                f"cannot read credentials of instance {dsn!r}"
-            ) from e
-
-        if port is None:
-            port = creds['port']
-        if user is None:
-            user = creds['user']
-        if host is None and 'host' in creds:
-            host = creds['host']
-        if password is None and 'password' in creds:
-            password = creds['password']
-        if database is None and 'database' in creds:
-            database = creds['database']
-        if tls_ca_file is None and 'tls_cert_data' in creds:
-            tls_ca_data = creds['tls_cert_data']
-        if tls_verify_hostname is None and 'tls_verify_hostname' in creds:
-            tls_verify_hostname = creds['tls_verify_hostname']
-
-    if not host:
-        hostspec = os.environ.get('EDGEDB_HOST')
-        if hostspec:
-            host, port = _parse_hostlist(hostspec, port)
-
-    if not host:
-        if platform.IS_WINDOWS or using_credentials:
-            host = []
         else:
-            host = ['/run/edgedb', '/var/run/edgedb']
+            self._ssl_ctx.load_default_certs(ssl.Purpose.SERVER_AUTH)
+            if platform.IS_WINDOWS:
+                import certifi
+                self._ssl_ctx.load_verify_locations(cafile=certifi.where())
+        self._ssl_ctx.check_hostname = self.tls_verify_hostname
+        self._ssl_ctx.set_alpn_protocols(['edgedb-binary'])
 
-        if not admin:
-            host.append('localhost')
+        return self._ssl_ctx
 
-    if not isinstance(host, list):
-        host = [host]
 
-    if not port:
-        portspec = os.environ.get('EDGEDB_PORT')
-        if portspec:
-            if ',' in portspec:
-                port = [int(p) for p in portspec.split(',')]
-            else:
-                port = int(portspec)
-        else:
-            port = EDGEDB_PORT
+def _validate_host(host):
+    if '/' in host:
+        raise ValueError('unix socket paths not supported')
+    if host == '' or ',' in host:
+        raise ValueError(f'invalid host: "{host}"')
+    return host
 
-    elif isinstance(port, (list, tuple)):
-        port = [int(p) for p in port]
 
-    else:
-        port = int(port)
+def _validate_port(port):
+    try:
+        if isinstance(port, str):
+            port = int(port)
+        if not isinstance(port, int):
+            raise ValueError()
+    except Exception:
+        raise ValueError(f'invalid port: {port}, not an integer')
+    if port < 1 or port > 65535:
+        raise ValueError(f'invalid port: {port}, must be between 1 and 65535')
+    return port
 
-    port = _validate_port_spec(host, port)
 
-    if user is None:
-        user = os.getenv('EDGEDB_USER')
-        if not user:
-            user = 'edgedb'
+def _validate_database(database):
+    if database == '':
+        raise ValueError(f'invalid database name: {database}')
+    return database
 
-    if password is None:
-        password = os.getenv('EDGEDB_PASSWORD')
 
-    if database is None:
-        database = os.getenv('EDGEDB_DATABASE')
+def _validate_user(user):
+    if user == '':
+        raise ValueError(f'invalid user name: {user}')
+    return user
 
-    if database is None:
-        database = 'edgedb'
 
-    if user is None:
-        raise errors.InterfaceError(
-            'could not determine user name to connect with')
-
-    if database is None:
-        raise errors.InterfaceError(
-            'could not determine database name to connect to')
-
-    have_unix_sockets = False
-    addrs = []
-    for h, p in zip(host, port):
-        if h.startswith('/'):
-            # UNIX socket name
-            if '.s.EDGEDB.' not in h:
-                if admin:
-                    sock_name = f'.s.EDGEDB.admin.{p}'
-                else:
-                    sock_name = f'.s.EDGEDB.{p}'
-                h = os.path.join(h, sock_name)
-                have_unix_sockets = True
-            addrs.append(h)
-        elif not admin:
-            # TCP host/port
-            addrs.append((h, p))
-
-    if admin and not have_unix_sockets:
-        raise ValueError(
-            'admin connections are only supported over UNIX sockets')
-
-    if not addrs:
-        raise ValueError(
-            'could not determine the database address to connect to')
-
-    if server_settings is not None and (
-            not isinstance(server_settings, dict) or
-            not all(isinstance(k, str) for k in server_settings) or
-            not all(isinstance(v, str) for v in server_settings.values())):
+def _validate_server_settings(server_settings):
+    if (
+        not isinstance(server_settings, dict) or
+        not all(isinstance(k, str) for k in server_settings) or
+        not all(isinstance(v, str) for v in server_settings.values())
+    ):
         raise ValueError(
             'server_settings is expected to be None or '
             'a Dict[str, str]')
 
-    if admin:
-        ssl_ctx = None
-    else:
-        ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_ctx.verify_mode = ssl.CERT_REQUIRED
-        if tls_ca_file or tls_ca_data:
-            ssl_ctx.load_verify_locations(
-                cafile=tls_ca_file, cadata=tls_ca_data
-            )
-            if tls_verify_hostname is None:
-                tls_verify_hostname = False
-        else:
-            ssl_ctx.load_default_certs(ssl.Purpose.SERVER_AUTH)
-            if platform.IS_WINDOWS:
-                import certifi
-                ssl_ctx.load_verify_locations(cafile=certifi.where())
-            if tls_verify_hostname is None:
-                tls_verify_hostname = True
-        ssl_ctx.check_hostname = tls_verify_hostname
-        ssl_ctx.set_alpn_protocols(['edgedb-binary'])
 
-    params = ConnectionParameters(
-        user=user,
-        password=password,
-        database=database,
-        connect_timeout=connect_timeout,
-        server_settings=server_settings,
-        ssl_ctx=ssl_ctx,
+def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
+                                password, database,
+                                tls_ca_file, tls_verify_hostname,
+                                server_settings):
+
+    resolved_config = ResolvedConnectConfig()
+
+    dsn, instance_name = (
+        (dsn, None)
+        if dsn is not None and re.match('(?i)^[a-z]+://', dsn)
+        else (None, dsn)
     )
 
-    return addrs, params
+    has_compound_options = _resolve_config_options(
+        resolved_config,
+        'Cannot have more than one of the following connection options: '
+        + '"dsn", "credentials_file" or "host"/"port"',
+        dsn=(dsn, '"dsn" option') if dsn is not None else None,
+        instance_name=(
+            (instance_name, '"dsn" option (parsed as instance name)')
+            if instance_name is not None else None
+        ),
+        credentials_file=(
+            (credentials_file, '"credentials_file" option')
+            if credentials_file is not None else None
+        ),
+        host=(host, '"host" option') if host is not None else None,
+        port=(port, '"port" option') if port is not None else None,
+        database=(
+            (database, '"database" option')
+            if database is not None else None
+        ),
+        user=(user, '"user" option') if user is not None else None,
+        password=(
+            (password, '"password" option')
+            if password is not None else None
+        ),
+        tls_ca_file=(
+            (tls_ca_file, '"tls_ca_file" option')
+            if tls_ca_file is not None else None
+        ),
+        tls_verify_hostname=(
+            (tls_verify_hostname, '"tls_verify_hostname" option')
+            if tls_verify_hostname is not None else None
+        ),
+        server_settings=(
+            (server_settings, '"server_settings" option')
+            if server_settings is not None else None
+        ),
+    )
+
+    if has_compound_options is False:
+        env_port = os.getenv("EDGEDB_PORT")
+        if (
+            resolved_config._port is None and
+            env_port and env_port.startswith('tcp://')
+        ):
+            # EDGEDB_PORT is set by 'docker --link' so ignore and warn
+            warnings.warn('EDGEDB_PORT in "tcp://host:port" format, ' +
+                          'so will be ignored')
+            env_port = None
+
+        env_dsn = os.getenv('EDGEDB_DSN')
+        env_instance = os.getenv('EDGEDB_INSTANCE')
+        env_credentials_file = os.getenv('EDGEDB_CREDENTIALS_FILE')
+        env_host = os.getenv('EDGEDB_HOST')
+        env_database = os.getenv('EDGEDB_DATABASE')
+        env_user = os.getenv('EDGEDB_USER')
+        env_password = os.getenv('EDGEDB_PASSWORD')
+        env_tls_ca_file = os.getenv('EDGEDB_TLS_CA_FILE')
+        env_tls_verify_hostname = os.getenv('EDGEDB_TLS_VERIFY_HOSTNAME')
+
+        has_compound_options = _resolve_config_options(
+            resolved_config,
+            'Cannot have more than one of the following connection '
+            + 'environment variables: "EDGEDB_DSN", "EDGEDB_INSTANCE", '
+            + '"EDGEDB_CREDENTIALS_FILE" or "EDGEDB_HOST"/"EDGEDB_PORT"',
+            dsn=(
+                (env_dsn, '"EDGEDB_DSN" environment variable')
+                if env_dsn is not None else None
+            ),
+            instance_name=(
+                (env_instance, '"EDGEDB_INSTANCE" environment variable')
+                if env_instance is not None else None
+            ),
+            credentials_file=(
+                (env_credentials_file,
+                 '"EDGEDB_CREDENTIALS_FILE" environment variable')
+                if env_credentials_file is not None else None
+            ),
+            host=(
+                (env_host, '"EDGEDB_HOST" environment variable')
+                if env_host is not None else None
+            ),
+            port=(
+                (env_port, '"EDGEDB_PORT" environment variable')
+                if env_port is not None else None
+            ),
+            database=(
+                (env_database, '"EDGEDB_DATABASE" environment variable')
+                if env_database is not None else None
+            ),
+            user=(
+                (env_user, '"EDGEDB_USER" environment variable')
+                if env_user is not None else None
+            ),
+            password=(
+                (env_password, '"EDGEDB_PASSWORD" environment variable')
+                if env_password is not None else None
+            ),
+            tls_ca_file=(
+                (env_tls_ca_file, '"EDGEDB_TLS_CA_FILE" environment variable')
+                if env_tls_ca_file is not None else None
+            ),
+            tls_verify_hostname=(
+                (env_tls_verify_hostname,
+                 '"EDGEDB_TLS_VERIFY_HOSTNAME" environment variable')
+                if env_tls_verify_hostname is not None else None
+            ),
+        )
+
+    if has_compound_options is False:
+        dir = find_edgedb_project_dir()
+        stash_dir = _stash_path(dir)
+        if os.path.exists(stash_dir):
+            with open(os.path.join(stash_dir, 'instance-name'), 'rt') as f:
+                instance_name = f.read().strip()
+
+                _resolve_config_options(
+                    resolved_config,
+                    '',
+                    instance_name=(
+                        instance_name,
+                        f'project linked instance ("{instance_name}")'
+                    )
+                )
+        else:
+            raise errors.ClientConnectionError(
+                f'Found `edgedb.toml` but the project is not initialized. '
+                f'Run `edgedb project init`.'
+            )
+
+    return resolved_config
 
 
-def find_edgedb_toml():
+def _parse_dsn_into_config(
+    resolved_config: ResolvedConnectConfig,
+    dsn: typing.Tuple[str, str]
+):
+    dsn_str, source = dsn
+
+    try:
+        parsed = urllib.parse.urlparse(dsn_str)
+        host = parsed.hostname
+        port = parsed.port
+        database = parsed.path
+        user = parsed.username
+        password = parsed.password
+    except Exception as e:
+        raise ValueError(f'invalid DSN or instance name: {str(e)}')
+
+    if parsed.scheme != 'edgedb':
+        raise ValueError(
+            f'invalid DSN: scheme is expected to be '
+            f'"edgedb", got {parsed.scheme!r}')
+
+    query = (
+        urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+        if parsed.query != ''
+        else {}
+    )
+    for key, val in query.items():
+        if isinstance(val, list):
+            if len(val) > 1:
+                raise ValueError(
+                    f'invalid DSN: duplicate query parameter {key}')
+            query[key] = val[-1]
+
+    def handle_dsn_part(
+        paramName, value, currentValue, setter,
+        formatter=lambda val: val
+    ):
+        param_values = [
+            (value if value != '' else None),
+            query.get(paramName),
+            query.get(paramName + '_env'),
+            query.get(paramName + '_file')
+        ]
+        if len([p for p in param_values if p is not None]) > 1:
+            raise ValueError(
+                f'invalid DSN: more than one of ' +
+                f'{(paramName + ", ") if value else ""}' +
+                f'?{paramName}=, ?{paramName}_env=, ?{paramName}_file= ' +
+                f'was specified'
+            )
+
+        if currentValue is None:
+            param = (
+                value if (value is not None and value != '')
+                else query.get(paramName)
+            )
+            paramSource = source
+
+            if param is None:
+                env = query.get(paramName + '_env')
+                if env is not None:
+                    param = os.getenv(env)
+                    if param is None:
+                        raise ValueError(
+                            f'{paramName}_env environment variable "{env}" ' +
+                            f'doesn\'t exist')
+                    paramSource = paramSource + f' ({paramName}_env: {env})'
+            if param is None:
+                filename = query.get(paramName + '_file')
+                if filename is not None:
+                    with open(filename) as f:
+                        param = f.read()
+                    paramSource = (
+                        paramSource + f' ({paramName}_file: {filename})'
+                    )
+
+            param = formatter(param) if param is not None else None
+
+            setter(param, paramSource)
+
+        query.pop(paramName, None)
+        query.pop(paramName + '_env', None)
+        query.pop(paramName + '_file', None)
+
+    handle_dsn_part(
+        'host', host, resolved_config._host, resolved_config.set_host
+    )
+
+    handle_dsn_part(
+        'port', port, resolved_config._port, resolved_config.set_port
+    )
+
+    def strip_leading_slash(str):
+        return str[1:] if str.startswith('/') else str
+
+    handle_dsn_part(
+        'database', strip_leading_slash(database),
+        resolved_config._database, resolved_config.set_database,
+        strip_leading_slash
+    )
+
+    handle_dsn_part(
+        'user', user, resolved_config._user, resolved_config.set_user
+    )
+
+    handle_dsn_part(
+        'password', password,
+        resolved_config._password, resolved_config.set_password
+    )
+
+    handle_dsn_part(
+        'tls_cert_file', None,
+        resolved_config._tls_ca_data, resolved_config.set_tls_ca_file
+    )
+
+    handle_dsn_part(
+        'tls_verify_hostname', None,
+        resolved_config._tls_verify_hostname,
+        resolved_config.set_tls_verify_hostname
+    )
+
+    resolved_config.add_server_settings(query)
+
+
+def _resolve_config_options(
+    resolved_config: ResolvedConnectConfig,
+    compound_error: str,
+    *,
+    dsn=None,
+    instance_name=None,
+    credentials_file=None,
+    host=None,
+    port=None,
+    database=None,
+    user=None,
+    password=None,
+    tls_ca_file=None,
+    tls_verify_hostname=None,
+    server_settings=None
+):
+    if database is not None:
+        resolved_config.set_database(*database)
+    if user is not None:
+        resolved_config.set_user(*user)
+    if password is not None:
+        resolved_config.set_password(*password)
+    if tls_ca_file is not None:
+        resolved_config.set_tls_ca_file(*tls_ca_file)
+    if tls_verify_hostname is not None:
+        resolved_config.set_tls_verify_hostname(*tls_verify_hostname)
+    if server_settings is not None:
+        resolved_config.add_server_settings(server_settings[0])
+
+    compound_params = [dsn, instance_name, credentials_file, host or port]
+    compound_params_count = len([p for p in compound_params if p is not None])
+
+    if compound_params_count > 1:
+        raise errors.ClientConnectionError(compound_error)
+
+    if compound_params_count == 1:
+        if dsn is not None or host is not None or port is not None:
+            if port is not None:
+                resolved_config.set_port(*port)
+            if dsn is None:
+                dsn = (
+                    'edgedb://' + (_validate_host(host[0]) if host else ''),
+                    host[1] if host is not None else port[1]
+                )
+            _parse_dsn_into_config(resolved_config, dsn)
+        else:
+            if credentials_file is None:
+                if (
+                    re.match(
+                        '^[A-Za-z_][A-Za-z_0-9]*$',
+                        instance_name[0]
+                    ) is None
+                ):
+                    raise ValueError(
+                        f'invalid DSN or instance name: "{instance_name[0]}"'
+                    )
+                credentials_file = (
+                    credentials.get_credentials_path(instance_name[0]),
+                    instance_name[1]
+                )
+            creds = credentials.read_credentials(credentials_file[0])
+
+            source = credentials_file[1]
+
+            resolved_config.set_host(creds.get('host'), source)
+            resolved_config.set_port(creds.get('port'), source)
+            resolved_config.set_database(creds.get('database'), source)
+            resolved_config.set_user(creds.get('user'), source)
+            resolved_config.set_password(creds.get('password'), source)
+            resolved_config.set_tls_ca_data(creds.get('tls_cert_data'), source)
+            resolved_config.set_tls_verify_hostname(
+                creds.get('tls_verify_hostname'),
+                source
+            )
+
+        return True
+
+    return False
+
+
+def find_edgedb_project_dir():
     dir = os.getcwd()
     dev = os.stat(dir).st_dev
 
@@ -442,14 +668,16 @@ def find_edgedb_toml():
             dir = parent
             dev = parent_dev
             continue
-        return toml
+        return dir
 
 
-def parse_connect_arguments(*, dsn, host, port, user, password,
-                            database, admin,
-                            tls_ca_file, tls_verify_hostname,
-                            timeout, command_timeout, wait_until_available,
-                            server_settings):
+def parse_connect_arguments(
+    *, dsn, credentials_file, host, port,
+    database, user, password,
+    tls_ca_file, tls_verify_hostname,
+    timeout, command_timeout, wait_until_available,
+    server_settings
+) -> typing.Tuple[ResolvedConnectConfig, ClientConfiguration]:
 
     if command_timeout is not None:
         try:
@@ -464,21 +692,20 @@ def parse_connect_arguments(*, dsn, host, port, user, password,
                 'expected greater than 0 float (got {!r})'.format(
                     command_timeout)) from None
 
-    addrs, params = _parse_connect_dsn_and_args(
-        dsn=dsn, host=host, port=port, user=user,
-        password=password, admin=admin,
-        database=database, connect_timeout=timeout,
+    connect_config = _parse_connect_dsn_and_args(
+        dsn=dsn, credentials_file=credentials_file, host=host, port=port,
+        database=database, user=user, password=password,
         tls_ca_file=tls_ca_file, tls_verify_hostname=tls_verify_hostname,
         server_settings=server_settings,
     )
 
-    config = ClientConfiguration(
+    client_config = ClientConfiguration(
         connect_timeout=timeout,
         command_timeout=command_timeout,
         wait_until_available=wait_until_available or 0,
     )
 
-    return addrs, params, config
+    return connect_config, client_config
 
 
 def check_alpn_protocol(ssl_obj):

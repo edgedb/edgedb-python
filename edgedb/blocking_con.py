@@ -425,18 +425,18 @@ class BlockingIOConnection(
 
 
 def connect(dsn: str = None, *,
+            credentials_file: str = None,
             host: str = None, port: int = None,
             user: str = None, password: str = None,
-            admin: bool = None,
             database: str = None,
             tls_ca_file: str = None,
             tls_verify_hostname: bool = None,
             timeout: int = 10,
             wait_until_available: int = 30) -> BlockingIOConnection:
 
-    addrs, params, config = con_utils.parse_connect_arguments(
-        dsn=dsn, host=host, port=port, user=user, password=password,
-        database=database, admin=admin,
+    connect_config, client_config = con_utils.parse_connect_arguments(
+        dsn=dsn, credentials_file=credentials_file, host=host, port=port,
+        user=user, password=password, database=database,
         timeout=timeout,
         wait_until_available=wait_until_available,
         tls_ca_file=tls_ca_file, tls_verify_hostname=tls_verify_hostname,
@@ -446,7 +446,8 @@ def connect(dsn: str = None, *,
         server_settings=None)
 
     conn = BlockingIOConnection(
-        addrs=addrs, params=params, config=config,
+        addrs=[connect_config.address], params=connect_config,
+        config=client_config,
         codecs_registry=_CodecsRegistry(),
         query_cache=_QueryCodecsCache())
     conn.ensure_connected()
