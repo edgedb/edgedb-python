@@ -241,12 +241,13 @@ class AsyncIOConnection(
     # overriden by connection pool
     async def _reconnect(self, single_attempt=False):
         inner = self._inner
-        inner._impl = _AsyncIOConnectionImpl(
+        impl = _AsyncIOConnectionImpl(
             inner._codecs_registry, inner._query_cache)
-        await inner._impl.connect(inner._loop, inner._addrs,
-                                  inner._config, inner._params,
-                                  single_attempt=single_attempt,
-                                  connection=self)
+        await impl.connect(inner._loop, inner._addrs,
+                           inner._config, inner._params,
+                           single_attempt=single_attempt,
+                           connection=self)
+        inner._impl = impl
 
     async def _fetchall(
         self,
@@ -329,54 +330,85 @@ class AsyncIOConnection(
         )
         return result
 
-    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+    async def _execute(
+        self,
+        query: str,
+        args,
+        kwargs,
+        io_format,
+        expect_one=False,
+    ):
         inner = self._inner
         if inner._borrowed_for:
             raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             await self._reconnect()
-        result, _ = await self._inner._impl._protocol.execute_anonymous(
+
+        reconnect = False
+        capabilities = None
+        i = 0
+        while True:
+            i += 1
+            try:
+                if reconnect:
+                    await self._reconnect(single_attempt=True)
+                result, _ = \
+                    await self._inner._impl._protocol.execute_anonymous(
+                        query=query,
+                        args=args,
+                        kwargs=kwargs,
+                        reg=inner._codecs_registry,
+                        qc=inner._query_cache,
+                        io_format=io_format,
+                        expect_one=expect_one,
+                    )
+                return result
+            except errors.EdgeDBError as e:
+                if not e.has_tag(errors.SHOULD_RETRY):
+                    raise e
+                if capabilities is None:
+                    _, _, _, capabilities = inner._query_cache.get(
+                        query=query,
+                        io_format=io_format,
+                        implicit_limit=0,
+                        inline_typenames=False,
+                        inline_typeids=False,
+                        expect_one=expect_one,
+                    )
+                # A query is read-only if it has no capabilities i.e.
+                # capabilities == 0. Read-only queries are safe to retry.
+                if capabilities != 0:
+                    raise e
+                rule = self._options.retry_options.get_rule_for_exception(e)
+                if i >= rule.attempts:
+                    raise e
+                await asyncio.sleep(rule.backoff(i))
+                reconnect = self.is_closed()
+
+    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+        return await self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
             io_format=protocol.IoFormat.BINARY,
         )
-        return result
 
     async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
-        inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
-        if not inner._impl or inner._impl.is_closed():
-            await self._reconnect()
-        result, _ = await inner._impl._protocol.execute_anonymous(
+        return await self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
-        return result
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
-        inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
-        if not inner._impl or inner._impl.is_closed():
-            await self._reconnect()
-        result, _ = await inner._impl._protocol.execute_anonymous(
+        return await self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
             io_format=protocol.IoFormat.JSON,
         )
-        return result
 
     async def _fetchall_json_elements(
             self, query: str, *args, **kwargs) -> typing.List[str]:
@@ -396,21 +428,13 @@ class AsyncIOConnection(
         return result
 
     async def query_single_json(self, query: str, *args, **kwargs) -> str:
-        inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
-        if not inner._impl or inner._impl.is_closed():
-            await self._reconnect()
-        result, _ = await inner._impl._protocol.execute_anonymous(
+        return await self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
-            expect_one=True,
             io_format=protocol.IoFormat.JSON,
+            expect_one=True,
         )
-        return result
 
     async def execute(self, query: str) -> None:
         """Execute an EdgeQL command (or commands).

@@ -584,7 +584,7 @@ class TestPool(tb.AsyncQueryTestCase):
     async def _test_connection_broken(self, executor, broken_evt):
         self.assertEqual(await executor.query_single("SELECT 123"), 123)
         broken_evt.set()
-        with self.assertRaises(errors.ClientConnectionClosedError):
+        with self.assertRaises(errors.ClientConnectionError):
             await executor.query_single("SELECT 123")
         broken_evt.clear()
         self.assertEqual(await executor.query_single("SELECT 123"), 123)
@@ -599,7 +599,7 @@ class TestPool(tb.AsyncQueryTestCase):
                 broken_evt.set()
                 try:
                     await tx.query_single("SELECT 123")
-                except errors.ClientConnectionClosedError:
+                except errors.ClientConnectionError:
                     broken_evt.clear()
                     raise
                 else:

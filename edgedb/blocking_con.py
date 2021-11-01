@@ -294,37 +294,76 @@ class BlockingIOConnection(
             io_format=protocol.IoFormat.JSON,
         )
 
-    def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+    def _execute(
+        self,
+        *,
+        query: str,
+        args,
+        kwargs,
+        io_format,
+        expect_one=False
+    ):
         inner = self._inner
-        return self._get_protocol().sync_execute_anonymous(
+        reconnect = False
+        capabilities = None
+        i = 0
+        while True:
+            try:
+                if reconnect:
+                    self._reconnect(single_attempt=True)
+                return self._get_protocol().sync_execute_anonymous(
+                    query=query,
+                    args=args,
+                    kwargs=kwargs,
+                    reg=inner._codecs_registry,
+                    qc=inner._query_cache,
+                    expect_one=expect_one,
+                    io_format=io_format,
+                )
+            except errors.EdgeDBError as e:
+                if not e.has_tag(errors.SHOULD_RETRY):
+                    raise e
+                if capabilities is None:
+                    _, _, _, capabilities = inner._query_cache.get(
+                        query=query,
+                        io_format=io_format,
+                        implicit_limit=0,
+                        inline_typenames=False,
+                        inline_typeids=False,
+                        expect_one=expect_one,
+                    )
+                # A query is read-only if it has no capabilities i.e.
+                # capabilities == 0. Read-only queries are safe to retry.
+                if capabilities != 0:
+                    raise e
+                rule = self._options.retry_options.get_rule_for_exception(e)
+                if i >= rule.attempts:
+                    raise e
+                time.sleep(rule.backoff(i))
+                reconnect = self.is_closed()
+
+    def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+        return self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
             io_format=protocol.IoFormat.BINARY,
         )
 
     def query_single(self, query: str, *args, **kwargs) -> typing.Any:
-        inner = self._inner
-        return self._get_protocol().sync_execute_anonymous(
+        return self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
 
     def query_json(self, query: str, *args, **kwargs) -> str:
-        inner = self._inner
-        return self._get_protocol().sync_execute_anonymous(
+        return self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
             io_format=protocol.IoFormat.JSON,
         )
 
