@@ -192,8 +192,7 @@ class _AsyncIOInnerConnection(base_con._InnerConnection):
             codecs_registry=self._codecs_registry,
             query_cache=self._query_cache)
         new_conn._impl = impl
-        if impl._protocol:
-            impl._protocol.set_connection(new_conn)
+        impl._protocol.set_connection(new_conn)
         return new_conn
 
     def _dispatch_log_message(self, msg):
@@ -384,7 +383,7 @@ class AsyncIOConnection(
                 if i >= rule.attempts:
                     raise e
                 await asyncio.sleep(rule.backoff(i))
-                reconnect = e.has_tag(errors.SHOULD_RECONNECT)
+                reconnect = self.is_closed()
 
     async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
         return await self._execute(

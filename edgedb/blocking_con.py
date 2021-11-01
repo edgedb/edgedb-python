@@ -340,7 +340,7 @@ class BlockingIOConnection(
                 if i >= rule.attempts:
                     raise e
                 time.sleep(rule.backoff(i))
-                reconnect = e.has_tag(errors.SHOULD_RECONNECT)
+                reconnect = self.is_closed()
 
     def query(self, query: str, *args, **kwargs) -> datatypes.Set:
         return self._execute(
