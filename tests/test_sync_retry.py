@@ -83,10 +83,17 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                     ''')
                     1 / 0
         with self.assertRaises(edgedb.NoDataError):
-            self.con.query_single('''
+            self.con.query_required_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
             ''')
+        self.assertEqual(
+            self.con.query_single('''
+                SELECT test::Counter
+                FILTER .name = 'counter_retry_02'
+            '''),
+            None
+        )
 
     def test_sync_retry_begin(self):
         patcher = unittest.mock.patch("edgedb.retry.Iteration._start")
@@ -111,10 +118,17 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                         };
                     ''')
         with self.assertRaises(edgedb.NoDataError):
-            self.con.query_single('''
+            self.con.query_required_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_begin'
             ''')
+        self.assertEqual(
+            self.con.query_single('''
+                SELECT test::Counter
+                FILTER .name = 'counter_retry_begin'
+            '''),
+            None
+        )
 
         def recover_after_first_error(*_, **__):
             patcher.stop()

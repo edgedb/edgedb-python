@@ -301,7 +301,8 @@ class BlockingIOConnection(
         args,
         kwargs,
         io_format,
-        expect_one=False
+        expect_one=False,
+        required_one=False,
     ):
         inner = self._inner
         reconnect = False
@@ -318,6 +319,7 @@ class BlockingIOConnection(
                     reg=inner._codecs_registry,
                     qc=inner._query_cache,
                     expect_one=expect_one,
+                    required_one=required_one,
                     io_format=io_format,
                 )
             except errors.EdgeDBError as e:
@@ -350,12 +352,24 @@ class BlockingIOConnection(
             io_format=protocol.IoFormat.BINARY,
         )
 
-    def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+    def query_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Union[typing.Any, None]:
         return self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
             expect_one=True,
+            io_format=protocol.IoFormat.BINARY,
+        )
+
+    def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
+        return self._execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            expect_one=True,
+            required_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
 
@@ -388,6 +402,19 @@ class BlockingIOConnection(
             reg=inner._codecs_registry,
             qc=inner._query_cache,
             expect_one=True,
+            io_format=protocol.IoFormat.JSON,
+        )
+
+    def query_required_single_json(self, query: str, *args, **kwargs) -> str:
+        inner = self._inner
+        return self._get_protocol().sync_execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=inner._codecs_registry,
+            qc=inner._query_cache,
+            expect_one=True,
+            required_one=True,
             io_format=protocol.IoFormat.JSON,
         )
 

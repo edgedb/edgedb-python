@@ -105,7 +105,8 @@ cdef class SansIOProtocol:
     cdef parse_sync_message(self)
     cdef parse_command_complete_message(self)
     cdef parse_describe_type_message(self, CodecsRegistry reg)
-    cdef _amend_parse_error(self, exc, IoFormat io_format, bint expect_one)
+    cdef _amend_parse_error(
+        self, exc, IoFormat io_format, bint expect_one, bint required_one)
 
     cdef inline ignore_headers(self)
     cdef dict parse_headers(self)

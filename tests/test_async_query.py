@@ -173,8 +173,8 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'query cannot be executed with query_single_json\('):
-            await self.con.query_single_json('''
+                r'query cannot be executed with query_required_single_json\('):
+            await self.con.query_required_single_json('''
                 DROP TYPE test::server_query_single_command_01;
             ''')
 
@@ -243,15 +243,21 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'cannot be executed with query_single\(\).*'
+                r'cannot be executed with query_required_single\(\).*'
                 r'not return'):
-            await self.con.query_single('START TRANSACTION')
+            await self.con.query_required_single('START TRANSACTION')
 
-        with self.assertRaisesRegex(
-                edgedb.InterfaceError,
-                r'cannot be executed with query_single_json\(\).*'
-                r'not return'):
-            await self.con.query_single_json('START TRANSACTION')
+        # self.assertEqual(
+        #     await self.con.query_single('START TRANSACTION'), None)
+
+        # with self.assertRaisesRegex(
+        #         edgedb.InterfaceError,
+        #         r'cannot be executed with query_required_single_json\(\).*'
+        #         r'not return'):
+        #     await self.con.query_required_single_json('ROLLBACK')
+
+        # self.assertEqual(
+        #     await self.con.query_single_json('ROLLBACK'), None)
 
     async def test_async_query_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
@@ -314,9 +320,14 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 await self.con.query_single('SELECT {1, 2}')
 
             with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    r'query_required_single\(\) as it returns a multiset'):
+                await self.con.query_required_single('SELECT {1, 2}')
+
+            with self.assertRaisesRegex(
                     edgedb.NoDataError,
-                    r'\bquery_single\('):
-                await self.con.query_single('SELECT <int64>{}')
+                    r'\bquery_required_single\('):
+                await self.con.query_required_single('SELECT <int64>{}')
 
     async def test_async_basic_datatypes_02(self):
         self.assertEqual(
@@ -379,7 +390,14 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 [])
 
             with self.assertRaises(edgedb.NoDataError):
-                await self.con.query_single_json('SELECT <int64>{}')
+                await self.con.query_required_single_json('SELECT <int64>{}')
+
+            self.assertEqual(
+                json.loads(
+                    await self.con.query_single_json('SELECT <int64>{}')
+                ),
+                None
+            )
 
     async def test_async_basic_datatypes_04(self):
         val = await self.con.query_single(

@@ -337,6 +337,7 @@ class AsyncIOConnection(
         kwargs,
         io_format,
         expect_one=False,
+        required_one=False,
     ):
         inner = self._inner
         if inner._borrowed_for:
@@ -361,6 +362,7 @@ class AsyncIOConnection(
                         qc=inner._query_cache,
                         io_format=io_format,
                         expect_one=expect_one,
+                        required_one=required_one,
                     )
                 return result
             except errors.EdgeDBError as e:
@@ -393,12 +395,26 @@ class AsyncIOConnection(
             io_format=protocol.IoFormat.BINARY,
         )
 
-    async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+    async def query_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Union[typing.Any, None]:
         return await self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
             expect_one=True,
+            io_format=protocol.IoFormat.BINARY,
+        )
+
+    async def query_required_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Any:
+        return await self._execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            expect_one=True,
+            required_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
 
@@ -434,6 +450,18 @@ class AsyncIOConnection(
             kwargs=kwargs,
             io_format=protocol.IoFormat.JSON,
             expect_one=True,
+        )
+
+    async def query_required_single_json(
+        self, query: str, *args, **kwargs
+    ) -> str:
+        return await self._execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            io_format=protocol.IoFormat.JSON,
+            expect_one=True,
+            required_one=True
         )
 
     async def execute(self, query: str) -> None:

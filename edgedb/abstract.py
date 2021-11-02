@@ -17,7 +17,13 @@ class ReadOnlyExecutor(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+    def query_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Union[typing.Any, None]:
+        ...
+
+    @abc.abstractmethod
+    def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
         ...
 
     @abc.abstractmethod
@@ -26,6 +32,10 @@ class ReadOnlyExecutor(abc.ABC):
 
     @abc.abstractmethod
     def query_single_json(self, query: str, *args, **kwargs) -> str:
+        ...
+
+    @abc.abstractmethod
+    def query_required_single_json(self, query: str, *args, **kwargs) -> str:
         ...
 
     # TODO(tailhook) add *args, **kwargs, when they are supported

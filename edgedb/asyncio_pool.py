@@ -627,6 +627,10 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         async with self._acquire() as con:
             return await con.query_single(query, *args, **kwargs)
 
+    async def query_required_single(self, query, *args, **kwargs):
+        async with self._acquire as con:
+            return await con.query_required_single(query, *args, **kwargs)
+
     async def query_json(self, query, *args, **kwargs):
         async with self._acquire() as con:
             return await con.query_json(query, *args, **kwargs)
@@ -634,6 +638,10 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
     async def query_single_json(self, query, *args, **kwargs):
         async with self._acquire() as con:
             return await con.query_single_json(query, *args, **kwargs)
+
+    async def query_required_single_json(self, query, *args, **kwargs):
+        async with self._acquire() as con:
+            return await con.query_required_single_json(query, *args, **kwargs)
 
     async def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
         warnings.warn(

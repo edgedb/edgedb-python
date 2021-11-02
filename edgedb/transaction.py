@@ -197,7 +197,9 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         )
         return result
 
-    async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+    async def query_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Union[typing.Any, None]:
         await self._ensure_transaction()
         con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
@@ -207,6 +209,23 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             reg=con._codecs_registry,
             qc=con._query_cache,
             expect_one=True,
+            io_format=protocol.IoFormat.BINARY,
+        )
+        return result
+
+    async def query_required_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Any:
+        await self._ensure_transaction()
+        con = self._connection_inner
+        result, _ = await self._connection_impl._protocol.execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=con._codecs_registry,
+            qc=con._query_cache,
+            expect_one=True,
+            required_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
         return result
@@ -234,6 +253,23 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             reg=con._codecs_registry,
             qc=con._query_cache,
             expect_one=True,
+            io_format=protocol.IoFormat.JSON,
+        )
+        return result
+
+    async def query_required_single_json(
+        self, query: str, *args, **kwargs
+    ) -> str:
+        await self._ensure_transaction()
+        con = self._connection_inner
+        result, _ = await self._connection_impl._protocol.execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=con._codecs_registry,
+            qc=con._query_cache,
+            expect_one=True,
+            required_one=True,
             io_format=protocol.IoFormat.JSON,
         )
         return result
@@ -355,7 +391,9 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             io_format=protocol.IoFormat.BINARY,
         )
 
-    def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+    def query_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Union[typing.Any, None]:
         self._ensure_transaction()
         con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
@@ -365,6 +403,20 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             reg=con._codecs_registry,
             qc=con._query_cache,
             expect_one=True,
+            io_format=protocol.IoFormat.BINARY,
+        )
+
+    def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
+        self._ensure_transaction()
+        con = self._connection_inner
+        return self._connection_impl._protocol.sync_execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=con._codecs_registry,
+            qc=con._query_cache,
+            expect_one=True,
+            required_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
 
@@ -390,6 +442,20 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             reg=con._codecs_registry,
             qc=con._query_cache,
             expect_one=True,
+            io_format=protocol.IoFormat.JSON,
+        )
+
+    def query_required_single_json(self, query: str, *args, **kwargs) -> str:
+        self._ensure_transaction()
+        con = self._connection_inner
+        return self._connection_impl._protocol.sync_execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=con._codecs_registry,
+            qc=con._query_cache,
+            expect_one=True,
+            required_one=True,
             io_format=protocol.IoFormat.JSON,
         )
 
