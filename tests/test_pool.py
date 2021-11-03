@@ -99,7 +99,8 @@ class TestClient(tb.AsyncQueryTestCase):
 
                     self.assertEqual(await client.query('SELECT 1'), [1])
                     self.assertEqual(await client.query_single('SELECT 1'), 1)
-                    self.assertEqual(await client.query_json('SELECT 1'), '[1]')
+                    self.assertEqual(
+                        await client.query_json('SELECT 1'), '[1]')
                     self.assertEqual(
                         await client.query_single_json('SELECT 1'), '1')
 
