@@ -132,6 +132,24 @@ Connection
 
     .. py:method:: query_single(query, *args, **kwargs)
 
+        Run an optional singleton-returning query and return its element.
+
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            Query result.
+
+        The *query* must return at most one element.  If the query returns
+        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, ``None`` is returned.
+
+        Note, that positional and named query arguments cannot be mixed.
+
+
+    .. py:method:: query_required_single(query, *args, **kwargs)
+
         Run a singleton-returning query and return its element.
 
         :param str query: Query text.
@@ -176,6 +194,37 @@ Connection
 
 
     .. py:method:: query_single_json(query, *args, **kwargs)
+
+        Run an optional singleton-returning query and return its element
+        in JSON.
+
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            Query result encoded in JSON.
+
+        The *query* must return at most one element.  If the query returns
+        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, ``"null"`` is returned.
+
+        Note, that positional and named query arguments cannot be mixed.
+
+        .. note::
+
+            Caution is advised when reading ``decimal`` values using
+            this method. The JSON specification does not have a limit
+            on significant digits, so a ``decimal`` number can be
+            losslessly represented in JSON. However, the default JSON
+            decoder in Python will read all such numbers as ``float``
+            values, which may result in errors or precision loss. If
+            such loss is unacceptable, then consider casting the value
+            into ``str`` and decoding it on the client side into a
+            more appropriate type, such as ``Decimal``.
+
+
+    .. py:method:: query_required_single_json(query, *args, **kwargs)
 
         Run a singleton-returning query and return its element in JSON.
 
@@ -227,15 +276,16 @@ Connection
             ... ''')
 
         .. note::
-            If the results of *query* are desired, :py:meth:`query` or
-            :py:meth:`query_single` should be used instead.
+            If the results of *query* are desired, :py:meth:`query`,
+            :py:meth:`query_required_single` or :py:meth:`query_single`
+            should be used instead.
 
-    .. py:method:: retrying_transaction()
+    .. py:method:: transaction()
 
         Open a retryable transaction loop.
 
         This is the preferred method of initiating and running a database
-        transaction in a robust fashion.  The ``retrying_transaction()``
+        transaction in a robust fashion.  The ``transaction()``
         transaction loop will attempt to re-execute the transaction loop body
         if a transient error occurs, such as a network error or a transaction
         serialization error.
@@ -248,7 +298,7 @@ Connection
 
         .. code-block:: python
 
-            for tx in con.retrying_transaction():
+            for tx in con.transaction():
                 with tx:
                     value = tx.query_single("SELECT Counter.value")
                     tx.execute(
@@ -261,14 +311,17 @@ Connection
 
     .. py:method:: raw_transaction()
 
+        **Deprecated**. Use :py:meth:`transaction` along with
+        ``with_retry_options(RetryOptions(attempts=1))`` instead.
+
         Execute a non-retryable transaction.
 
-        Contrary to ``retrying_transaction()``, ``raw_transaction()``
+        Contrary to ``transaction()``, ``raw_transaction()``
         will not attempt to re-run the nested code block in case a retryable
         error happens.
 
         This is a low-level API and it is advised to use the
-        ``retrying_transaction()`` method instead.
+        ``transaction()`` method instead.
 
         A call to ``raw_transaction()`` returns
         :py:class:`AsyncIOTransaction`.
@@ -288,27 +341,6 @@ Connection
         rather than on the original connection ``con``.
 
 
-    .. py:method:: transaction(isolation=None, readonly=None, deferrable=None)
-
-        **Deprecated**. Use :py:meth:`retrying_transaction` or
-        :py:meth:`raw_transaction`.
-
-        Create a :py:class:`Transaction` object.
-
-        :param isolation:
-            Transaction isolation mode, can be one of:
-            ``'serializable'``, ``'repeatable_read'``.  If not specified,
-            the server-side default is used.
-
-        :param readonly:
-            Specifies whether or not this transaction is read-only.  If not
-            specified, the server-side default is used.
-
-        :param deferrable:
-            Specifies whether or not this transaction is deferrable.  If not
-            specified, the server-side default is used.
-
-
     .. py:method:: close()
 
         Close the connection gracefully.
@@ -325,19 +357,18 @@ Transactions
 ============
 
 The most robust way to execute transactional code is to use the
-``retrying_transaction()`` loop API:
+``transaction()`` loop API:
 
 .. code-block:: python
 
-    for tx in pool.retrying_transaction():
+    for tx in con.transaction():
         with tx:
             tx.execute("INSERT User { name := 'Don' }")
 
 Note that we execute queries on the ``tx`` object in the above
-example, rather than on the original connection pool ``pool``
-object.
+example, rather than on the original connection ``con`` object.
 
-The ``retrying_transaction()`` API guarantees that:
+The ``transaction()`` API guarantees that:
 
 1. Transactions are executed atomically;
 2. If a transaction is failed for any of the number of transient errors
@@ -345,7 +376,7 @@ The ``retrying_transaction()`` API guarantees that:
    would be retried;
 3. If any other, non-retryable exception occurs, the transaction is
    rolled back, and the exception is propagated, immediately aborting the
-   ``retrying_transaction()`` block.
+   ``transaction()`` block.
 
 The key implication of retrying transactions is that the entire
 nested code block can be re-run, including any non-querying
@@ -353,7 +384,7 @@ Python code. Here is an example:
 
 .. code-block:: python
 
-    for tx in pool.retrying_transaction():
+    for tx in con.transaction():
         with tx:
             user = tx.query_single(
                 "SELECT User { email } FILTER .login = <str>$login",
@@ -386,7 +417,7 @@ negatively impact the performance of the DB server.
 See also:
 
 * RFC1004_
-* :py:meth:`BlockingIOConnection.retrying_transaction()`
+* :py:meth:`BlockingIOConnection.transaction()`
 * :py:meth:`BlockingIOConnection.raw_transaction()`
 
 
@@ -422,7 +453,7 @@ See also:
     Represents a wrapper that yields :py:class:`Transaction`
     object when iterating.
 
-    See :py:meth:`BlockingIOConnection.retrying_transaction()` method for
+    See :py:meth:`BlockingIOConnection.transaction()` method for
     an example.
 
     .. py:coroutinemethod:: __next__()

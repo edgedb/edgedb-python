@@ -9,7 +9,7 @@ Here are some ways to connect to an EdgeDB instance by a name:
 
    conn = edgedb.connect('my_name')
    conn = await edgedb.async_connect('my_name')
-   pool = await edgedb.create_async_pool('my_name')
+   client = await edgedb.create_client('my_name')
 
 This usually refers to instances created by the command-line tool:
 
@@ -17,7 +17,7 @@ This usually refers to instances created by the command-line tool:
 
    edgedb server init my_name
 
-When the command is run, it puts a credentials file into the user's 
+When the command is run, it puts a credentials file into the user's
 home directory::
 
     $HOME/.edgedb/credentials/my_name.json
