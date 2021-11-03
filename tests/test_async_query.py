@@ -29,6 +29,7 @@ import edgedb
 from edgedb import compat
 from edgedb import _taskgroup as tg
 from edgedb import _testbase as tb
+from edgedb.options import RetryOptions
 
 
 class TestAsyncQuery(tb.AsyncQueryTestCase):
@@ -292,12 +293,6 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 await self.con.query(
                     'select (1,)'),
                 edgedb.Set([(1,)]))
-
-            async with self.con.transaction(isolation='repeatable_read'):
-                self.assertEqual(
-                    await self.con.query_single(
-                        'select <array<int64>>[]'),
-                    [])
 
             self.assertEqual(
                 await self.con.query(
@@ -810,48 +805,55 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         # by closing.
         lock_key = tb.gen_lock_key()
 
-        con2 = await self.connect(database=self.con.dbname)
+        con = self.con.with_retry_options(RetryOptions(attempts=1))
+        _con2 = await self.connect(database=self.con.dbname)
+        con2 = _con2.with_retry_options(RetryOptions(attempts=1))
 
-        async with self.con.raw_transaction() as tx:
-            self.assertTrue(await tx.query_single(
-                'select sys::_advisory_lock(<int64>$0)',
-                lock_key))
+        async for tx in con.transaction():
+            async with tx:
+                self.assertTrue(await tx.query_single(
+                    'select sys::_advisory_lock(<int64>$0)',
+                    lock_key))
 
-            try:
-                async with tg.TaskGroup() as g:
+                try:
+                    async with tg.TaskGroup() as g:
 
-                    fut = asyncio.Future()
+                        fut = asyncio.Future()
 
-                    async def exec_to_fail():
-                        with self.assertRaises((
-                            edgedb.ClientConnectionClosedError,
-                            ConnectionResetError,
-                        )):
-                            async with con2.raw_transaction() as tx2:
-                                fut.set_result(None)
-                                await tx2.query(
-                                    'select sys::_advisory_lock(<int64>$0)',
-                                    lock_key,
-                                )
+                        async def exec_to_fail():
+                            with self.assertRaises((
+                                edgedb.ClientConnectionClosedError,
+                                ConnectionResetError,
+                            )):
+                                async for tx2 in con2.transaction():
+                                    async with tx2:
+                                        fut.set_result(None)
+                                        await tx2.query(
+                                            'select sys::_advisory_lock(' +
+                                            '<int64>$0)',
+                                            lock_key,
+                                        )
 
-                    g.create_task(exec_to_fail())
+                        g.create_task(exec_to_fail())
 
-                    await asyncio.wait_for(fut, 1)
-                    await asyncio.sleep(0.1)
+                        await asyncio.wait_for(fut, 1)
+                        await asyncio.sleep(0.1)
 
-                    with self.assertRaises(asyncio.TimeoutError):
-                        # aclose() will ask the server nicely to disconnect,
-                        # but since the server is blocked on the lock,
-                        # aclose() will timeout and get cancelled, which,
-                        # in turn, will terminate the connection rudely,
-                        # and exec_to_fail() will get ConnectionResetError.
-                        await compat.wait_for(con2.aclose(), timeout=0.5)
+                        with self.assertRaises(asyncio.TimeoutError):
+                            # aclose() will ask the server nicely to
+                            # disconnect, but since the server is blocked on
+                            # the lock, aclose() will timeout and get
+                            # cancelled, which, in turn, will terminate the
+                            # connection rudely, and exec_to_fail() will get
+                            # ConnectionResetError.
+                            await compat.wait_for(con2.aclose(), timeout=0.5)
 
-            finally:
-                self.assertEqual(
-                    await tx.query(
-                        'select sys::_advisory_unlock(<int64>$0)', lock_key),
-                    [True])
+                finally:
+                    self.assertEqual(
+                        await tx.query(
+                            'select sys::_advisory_unlock(<int64>$0)',
+                            lock_key),
+                        [True])
 
     async def test_empty_set_unpack(self):
         await self.con.query_single('''
@@ -872,8 +874,9 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
-            async with self.con.raw_transaction() as tx:
-                await tx.query_single('SELECT <MyEnum><str>$0', 'Oups')
+            async for tx in self.con.transaction():
+                async with tx:
+                    await tx.query_single('SELECT <MyEnum><str>$0', 'Oups')
 
         self.assertEqual(
             await self.con.query_single('SELECT <MyEnum>$0', 'A'),
@@ -885,8 +888,9 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
-            async with self.con.raw_transaction() as tx:
-                await tx.query_single('SELECT <MyEnum>$0', 'Oups')
+            async for tx in self.con.transaction():
+                async with tx:
+                    await tx.query_single('SELECT <MyEnum>$0', 'Oups')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidArgumentError, 'a str or edgedb.EnumValue'):

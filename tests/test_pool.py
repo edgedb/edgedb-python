@@ -246,15 +246,16 @@ class TestPool(tb.AsyncQueryTestCase):
     async def test_pool_transaction(self):
         pool = await self.create_pool(min_size=1, max_size=1)
 
-        async with pool.raw_transaction() as tx:
-            self.assertEqual(await tx.query_single("SELECT 7*8"), 56)
+        async for tx in pool.transaction():
+            async with tx:
+                self.assertEqual(await tx.query_single("SELECT 7*8"), 56)
 
         await pool.aclose()
 
     async def test_pool_retry(self):
         pool = await self.create_pool(min_size=1, max_size=1)
 
-        async for tx in pool.retrying_transaction():
+        async for tx in pool.transaction():
             async with tx:
                 self.assertEqual(await tx.query_single("SELECT 7*8"), 56)
 
@@ -267,7 +268,7 @@ class TestPool(tb.AsyncQueryTestCase):
         pool.with_retry_options(
             edgedb.RetryOptions(attempts=1, backoff=edgedb.default_backoff)
         )
-        async for tx in pool.retrying_transaction():
+        async for tx in pool.transaction():
             async with tx:
                 self.assertEqual(await tx.query_single("SELECT 7*8"), 56)
 
@@ -417,9 +418,10 @@ class TestPool(tb.AsyncQueryTestCase):
         pool = await self.create_pool(min_size=1, max_size=1)
 
         async def iterate(con):
-            async with con.raw_transaction() as tx:
-                for record in await tx.query("SELECT {1, 2, 3}"):
-                    yield record
+            async for tx in con.transaction():
+                async with tx:
+                    for record in await tx.query("SELECT {1, 2, 3}"):
+                        yield record
 
         class MyException(Exception):
             pass
@@ -439,9 +441,10 @@ class TestPool(tb.AsyncQueryTestCase):
         pool = await self.create_pool(min_size=1, max_size=1)
 
         async def iterate(con):
-            async with con.raw_transaction() as tx:
-                for record in await tx.query("SELECT {1, 2, 3}"):
-                    yield record
+            async for tx in con.transaction():
+                async with tx:
+                    for record in await tx.query("SELECT {1, 2, 3}"):
+                        yield record
 
         class MyException(Exception):
             pass
@@ -471,13 +474,14 @@ class TestPool(tb.AsyncQueryTestCase):
 
         with self.assertRaises(MyException):
             async with pool.acquire() as con:
-                async with con.raw_transaction() as tx:
-                    agen = iterate(tx)
-                    try:
-                        async for _ in agen:  # noqa
-                            raise MyException()
-                    finally:
-                        await agen.aclose()
+                async for tx in con.transaction():
+                    async with tx:
+                        agen = iterate(tx)
+                        try:
+                            async for _ in agen:  # noqa
+                                raise MyException()
+                        finally:
+                            await agen.aclose()
 
         await pool.aclose()
 
@@ -590,7 +594,7 @@ class TestPool(tb.AsyncQueryTestCase):
         self.assertEqual(await executor.query_single("SELECT 123"), 123)
 
         tested = False
-        async for tx in executor.retrying_transaction():
+        async for tx in executor.transaction():
             async with tx:
                 self.assertEqual(await tx.query_single("SELECT 123"), 123)
                 if tested:

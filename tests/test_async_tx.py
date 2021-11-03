@@ -22,6 +22,7 @@ import edgedb
 
 from edgedb import _testbase as tb
 from edgedb import TransactionOptions
+from edgedb.options import RetryOptions
 
 
 class TestAsyncTx(tb.AsyncQueryTestCase):
@@ -40,28 +41,30 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
     async def test_async_transaction_regular_01(self):
         self.assertIsNone(self.con._inner._borrowed_for)
-        tr = self.con.raw_transaction()
+        tr = self.con.with_retry_options(
+            RetryOptions(attempts=1)).transaction()
         self.assertIsNone(self.con._inner._borrowed_for)
 
         with self.assertRaises(ZeroDivisionError):
-            async with tr as with_tr:
-                self.assertIs(self.con._inner._borrowed_for, 'transaction')
+            async for with_tr in tr:
+                async with with_tr:
+                    self.assertIs(self.con._inner._borrowed_for, 'transaction')
 
-                with self.assertRaisesRegex(edgedb.InterfaceError,
-                                            '.*is borrowed.*'):
-                    await self.con.execute('''
+                    with self.assertRaisesRegex(edgedb.InterfaceError,
+                                                '.*is borrowed.*'):
+                        await self.con.execute('''
+                            INSERT test::TransactionTest {
+                                name := 'Test Transaction'
+                            };
+                        ''')
+
+                    await with_tr.execute('''
                         INSERT test::TransactionTest {
                             name := 'Test Transaction'
                         };
                     ''')
 
-                await with_tr.execute('''
-                    INSERT test::TransactionTest {
-                        name := 'Test Transaction'
-                    };
-                ''')
-
-                1 / 0
+                    1 / 0
 
         self.assertIsNone(self.con._inner._borrowed_for)
 
@@ -78,7 +81,6 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
         isolations = [
             None,
             edgedb.IsolationLevel.Serializable,
-            edgedb.IsolationLevel.RepeatableRead,
         ]
         booleans = [None, True, False]
         all = itertools.product(isolations, booleans, booleans)
@@ -91,9 +93,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
             # skip None
             opt = {k: v for k, v in opt.items() if v is not None}
             con = self.con.with_transaction_options(TransactionOptions(**opt))
-            async with con.raw_transaction():
-                pass
-            async for tx in con.retrying_transaction():
+            async for tx in con.transaction():
                 async with tx:
                     pass
 

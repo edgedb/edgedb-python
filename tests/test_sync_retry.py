@@ -64,7 +64,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
     '''
 
     def test_sync_retry_01(self):
-        for tx in self.con.retrying_transaction():
+        for tx in self.con.transaction():
             with tx:
                 tx.execute('''
                     INSERT test::Counter {
@@ -74,7 +74,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
 
     def test_sync_retry_02(self):
         with self.assertRaises(ZeroDivisionError):
-            for tx in self.con.retrying_transaction():
+            for tx in self.con.transaction():
                 with tx:
                     tx.execute('''
                         INSERT test::Counter {
@@ -110,7 +110,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         _start.side_effect = errors.BackendUnavailableError()
 
         with self.assertRaises(errors.BackendUnavailableError):
-            for tx in self.con.retrying_transaction():
+            for tx in self.con.transaction():
                 with tx:
                     tx.execute('''
                         INSERT test::Counter {
@@ -137,7 +137,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         _start.side_effect = recover_after_first_error
         call_count = _start.call_count
 
-        for tx in self.con.retrying_transaction():
+        for tx in self.con.transaction():
             with tx:
                 tx.execute('''
                     INSERT test::Counter {
@@ -174,7 +174,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         iterations = 0
 
         def transaction1(con):
-            for tx in con.retrying_transaction():
+            for tx in con.transaction():
                 nonlocal iterations
                 iterations += 1
                 with tx:
@@ -224,7 +224,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
             AttributeError,
             "'Iteration' object has no attribute 'start'",
         ):
-            for tx in self.con.retrying_transaction():
+            for tx in self.con.transaction():
                 with tx:
                     tx.start()
 
@@ -232,7 +232,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
             AttributeError,
             "'Iteration' object has no attribute 'rollback'",
         ):
-            for tx in self.con.retrying_transaction():
+            for tx in self.con.transaction():
                 with tx:
                     tx.rollback()
 
@@ -240,24 +240,24 @@ class TestSyncRetry(tb.SyncQueryTestCase):
             AttributeError,
             "'Iteration' object has no attribute 'start'",
         ):
-            for tx in self.con.retrying_transaction():
+            for tx in self.con.transaction():
                 tx.start()
 
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*Use `with transaction:`'):
-            for tx in self.con.retrying_transaction():
+            for tx in self.con.transaction():
                 tx.execute("SELECT 123")
 
         with self.assertRaisesRegex(
             edgedb.InterfaceError,
             r"already in a `with` block",
         ):
-            for tx in self.con.retrying_transaction():
+            for tx in self.con.transaction():
                 with tx:
                     with tx:
                         pass
 
         with self.assertRaisesRegex(edgedb.InterfaceError, r".*is borrowed.*"):
-            for tx in self.con.retrying_transaction():
+            for tx in self.con.transaction():
                 with tx:
                     self.con.execute("SELECT 123")

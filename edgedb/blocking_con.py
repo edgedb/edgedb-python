@@ -32,7 +32,6 @@ from . import errors
 from . import options
 from . import transaction as _transaction
 from . import retry as _retry
-from . import legacy_transaction
 
 from .datatypes import datatypes
 from .protocol import blocking_proto, protocol
@@ -463,23 +462,25 @@ class BlockingIOConnection(
     def execute(self, query: str) -> None:
         self._get_protocol().sync_simple_query(query, enums.Capability.EXECUTE)
 
-    def transaction(self, *, isolation: str = None, readonly: bool = None,
-                    deferrable: bool = None) -> legacy_transaction.Transaction:
-        warnings.warn(
-            'The "transaction()" method is deprecated and is scheduled to be '
-            'removed. Use the "retrying_transaction()" or "raw_transaction()" '
-            'method instead.',
-            DeprecationWarning, 2)
-        return legacy_transaction.Transaction(
-            self, isolation, readonly, deferrable)
+    def transaction(self) -> _retry.Retry:
+        return _retry.Retry(self)
 
     def raw_transaction(self) -> _transaction.Transaction:
+        warnings.warn(
+            'The "raw_transaction()" method is deprecated and is scheduled '
+            'to be removed. Use the "transaction()" method with '
+            'retry attempts=1 instead',
+            DeprecationWarning, 2)
         return _transaction.Transaction(
             self,
             self._options.transaction_options,
         )
 
     def retrying_transaction(self) -> _retry.Retry:
+        warnings.warn(
+            'The "retrying_transaction()" method has been renamed to '
+            '"transaction()"',
+            DeprecationWarning, 2)
         return _retry.Retry(self)
 
     def close(self) -> None:

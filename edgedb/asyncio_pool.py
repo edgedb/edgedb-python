@@ -757,13 +757,25 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
     async def __aexit__(self, *exc):
         await self.aclose()
 
+    def transaction(self) -> _retry.AsyncIORetry:
+        return _retry.AsyncIORetry(self)
+
     def raw_transaction(self) -> _transaction.AsyncIOTransaction:
+        warnings.warn(
+            'The "raw_transaction()" method is deprecated and is scheduled '
+            'to be removed. Use the "transaction()" method with '
+            'retry attempts=1 instead',
+            DeprecationWarning, 2)
         return _transaction.AsyncIOTransaction(
             self,
             self._options.transaction_options,
         )
 
     def retrying_transaction(self) -> _retry.AsyncIORetry:
+        warnings.warn(
+            'The "retrying_transaction()" method has been renamed to '
+            '"transaction()"',
+            DeprecationWarning, 2)
         return _retry.AsyncIORetry(self)
 
     def _shallow_clone(self):

@@ -35,7 +35,6 @@ from . import enums
 from . import options
 from . import retry as _retry
 from . import transaction as _transaction
-from . import legacy_transaction
 
 from .datatypes import datatypes
 from .protocol import asyncio_proto
@@ -484,24 +483,22 @@ class AsyncIOConnection(
         await inner._impl._protocol.simple_query(
             query, enums.Capability.EXECUTE)
 
-    def transaction(
-        self, *,
-        isolation: str = None,
-        readonly: bool = None,
-        deferrable: bool = None,
-    ) -> legacy_transaction.AsyncIOTransaction:
-        warnings.warn(
-            'The "transaction()" method is deprecated and is scheduled to be '
-            'removed. Use the "retrying_transaction()" or "raw_transaction()" '
-            'method instead.',
-            DeprecationWarning, 2)
-        return legacy_transaction.AsyncIOTransaction(
-            self, isolation, readonly, deferrable)
+    def transaction(self) -> _retry.AsyncIORetry:
+        return _retry.AsyncIORetry(self)
 
     def retrying_transaction(self) -> _retry.AsyncIORetry:
+        warnings.warn(
+            'The "retrying_transaction()" method has been renamed to '
+            '"transaction()"',
+            DeprecationWarning, 2)
         return _retry.AsyncIORetry(self)
 
     def raw_transaction(self) -> _transaction.AsyncIOTransaction:
+        warnings.warn(
+            'The "raw_transaction()" method is deprecated and is scheduled '
+            'to be removed. Use the "transaction()" method with '
+            'retry attempts=1 instead',
+            DeprecationWarning, 2)
         return _transaction.AsyncIOTransaction(
             self,
             self._options.transaction_options,

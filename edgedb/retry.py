@@ -36,7 +36,7 @@ class AsyncIOIteration(_transaction.BaseAsyncIOTransaction):
             # Borrow the connection for transaction now if it's not on a pool,
             # because that means we already have the connection now, and
             # further use of the connection like this should be prevented:
-            #     async for tx in conn.retrying_transaction():
+            #     async for tx in conn.transaction():
             #         async with tx:
             #             await conn.query("...")  # <- wrong use after borrow
             self._borrow()
