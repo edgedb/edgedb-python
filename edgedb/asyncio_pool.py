@@ -33,7 +33,7 @@ from . import transaction as _transaction
 from .datatypes import datatypes
 
 
-__all__ = ('create_async_pool', 'AsyncIOPool')
+__all__ = ('create_client', 'create_async_pool', 'AsyncIOClient')
 
 
 logger = logging.getLogger(__name__)
@@ -223,8 +223,8 @@ class PoolConnectionHolder:
 
 
 class _AsyncIOPoolImpl:
-    __slots__ = ('_queue', '_loop', '_minsize', '_maxsize', '_on_connect',
-                 '_connect_args', '_connect_kwargs',
+    __slots__ = ('_queue', '_loop', '_user_concurrency', '_concurrency',
+                 '_on_connect', '_connect_args', '_connect_kwargs',
                  '_working_addr', '_working_config', '_working_params',
                  '_codecs_registry', '_query_cache',
                  '_holders', '_initialized', '_initializing', '_closing',
@@ -232,8 +232,7 @@ class _AsyncIOPoolImpl:
                  '_on_acquire', '_on_release')
 
     def __init__(self, *connect_args,
-                 min_size: int,
-                 max_size: int,
+                 concurrency: typing.Optional[int],
                  on_acquire,
                  on_release,
                  on_connect,
@@ -244,15 +243,8 @@ class _AsyncIOPoolImpl:
         loop = asyncio.get_event_loop()
         self._loop = loop
 
-        if max_size <= 0:
-            raise ValueError('max_size is expected to be greater than zero')
-
-        if min_size < 0:
-            raise ValueError(
-                'min_size is expected to be greater or equal to zero')
-
-        if min_size > max_size:
-            raise ValueError('min_size is greater than max_size')
+        if concurrency is not None and concurrency <= 0:
+            raise ValueError('concurrency is expected to be greater than zero')
 
         if not issubclass(connection_class, PoolConnection):
             raise TypeError(
@@ -260,16 +252,14 @@ class _AsyncIOPoolImpl:
                 f'edgedb.asyncio_pool.PoolConnection, '
                 f'got {connection_class}')
 
-        self._minsize = min_size
-        self._maxsize = max_size
+        self._user_concurrency = concurrency
+        self._concurrency = concurrency if concurrency else 1
 
         self._on_acquire = on_acquire
         self._on_release = on_release
 
         self._holders = []
-        self._initialized = False
-        self._initializing = False
-        self._queue = None
+        self._queue = asyncio.LifoQueue(maxsize=self._concurrency)
 
         self._working_addr = None
         self._working_config = None
@@ -284,56 +274,26 @@ class _AsyncIOPoolImpl:
         self._connect_args = connect_args
         self._connect_kwargs = connect_kwargs
 
-    async def _async__init__(self):
-        if self._initialized:
-            return
-        if self._initializing:
-            raise errors.InterfaceError(
-                'pool is being initialized in another task')
-        if self._closed:
-            raise errors.InterfaceError('pool is closed')
+        self._resize_holder_pool()
 
-        self._initializing = True
+    def _resize_holder_pool(self):
+        resize_diff = self._concurrency - len(self._holders)
 
-        self._queue = asyncio.LifoQueue(maxsize=self._maxsize)
-        for _ in range(self._maxsize):
-            ch = PoolConnectionHolder(
-                self,
-                on_acquire=self._on_acquire,
-                on_release=self._on_release)
+        if (resize_diff > 0):
+            if self._queue.maxsize != self._concurrency:
+                self._queue._maxsize = self._concurrency
 
-            self._holders.append(ch)
-            self._queue.put_nowait(ch)
+            for _ in range(resize_diff):
+                ch = PoolConnectionHolder(
+                    self,
+                    on_acquire=self._on_acquire,
+                    on_release=self._on_release)
 
-        try:
-            await self._initialize()
-            return self
-        finally:
-            self._initializing = False
-            self._initialized = True
-
-    async def _initialize(self):
-        if self._minsize:
-            # Since we use a LIFO queue, the first items in the queue will be
-            # the last ones in `self._holders`.  We want to pre-connect the
-            # first few connections in the queue, therefore we want to walk
-            # `self._holders` in reverse.
-
-            # Connect the first connection holder in the queue so that it
-            # can record `_working_addr` and `_working_opts`, which will
-            # speed up successive connection attempts.
-            first_ch = self._holders[-1]  # type: PoolConnectionHolder
-            await first_ch.connect()
-
-            if self._minsize > 1:
-                connect_tasks = []
-                for i, ch in enumerate(reversed(self._holders[:-1])):
-                    # `minsize - 1` because we already have first_ch
-                    if i >= self._minsize - 1:
-                        break
-                    connect_tasks.append(ch.connect())
-
-                await asyncio.gather(*connect_tasks)
+                self._holders.append(ch)
+                self._queue.put_nowait(ch)
+        elif resize_diff < 0:
+            # TODO: shrink the pool
+            pass
 
     def set_connect_args(self, dsn=None, **connect_kwargs):
         r"""Set the new connection arguments for this pool.
@@ -374,6 +334,13 @@ class _AsyncIOPoolImpl:
             self._working_params = con._inner._params
             self._codecs_registry = con._inner._codecs_registry
             self._query_cache = con._inner._query_cache
+
+            if self._user_concurrency is None:
+                suggested_concurrency = con.get_settings().get(
+                    'suggested_pool_concurrency')
+                if suggested_concurrency:
+                    self._concurrency = int(suggested_concurrency)
+                    self._resize_holder_pool()
 
         else:
             # We've connected before and have a resolved address,
@@ -423,7 +390,6 @@ class _AsyncIOPoolImpl:
 
         if self._closing:
             raise errors.InterfaceError('pool is closing')
-        self._check_init()
 
         if timeout is None:
             return await _acquire_impl()
@@ -450,8 +416,6 @@ class _AsyncIOPoolImpl:
                 f'{connection!r} is not a member of this pool'
             )
 
-        self._check_init()
-
         timeout = None
 
         # Use asyncio.shield() to guarantee that task cancellation
@@ -472,7 +436,6 @@ class _AsyncIOPoolImpl:
         """
         if self._closed:
             return
-        self._check_init()
 
         self._closing = True
 
@@ -508,7 +471,6 @@ class _AsyncIOPoolImpl:
         """Terminate all connections in the pool."""
         if self._closed:
             return
-        self._check_init()
         for ch in self._holders:
             ch.terminate()
         self._closed = True
@@ -520,17 +482,6 @@ class _AsyncIOPoolImpl:
         next AsyncIOPool.acquire() call.
         """
         self._generation += 1
-
-    def _check_init(self):
-        if not self._initialized:
-            if self._initializing:
-                raise errors.InterfaceError(
-                    'pool is being initialized, but not yet ready: '
-                    'likely there is a race between creating a pool and '
-                    'using it')
-            raise errors.InterfaceError('pool is not initialized')
-        if self._closed:
-            raise errors.InterfaceError('pool is closed')
 
     def _drop_statement_cache(self):
         # Drop statement cache for all connections in the pool.
@@ -545,22 +496,21 @@ class _AsyncIOPoolImpl:
                 ch._con._drop_local_type_cache()
 
 
-class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
-    """A connection pool.
+class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
+    """A lazy connection pool.
 
-    Connection pool can be used to manage a set of connections to the database.
+    A Client can be used to manage a set of connections to the database.
     Connections are first acquired from the pool, then used, and then released
     back to the pool.  Once a connection is released, it's reset to close all
     open cursors and other resources *except* prepared statements.
 
-    Pools are created by calling :func:`~edgedb.asyncio_pool.create_pool`.
+    Clients are created by calling :func:`~edgedb.asyncio_pool.create_client`.
     """
 
     __slots__ = ('_impl', '_options')
 
     def __init__(self, *connect_args,
-                 min_size: int,
-                 max_size: int,
+                 concurrency: int,
                  on_acquire,
                  on_release,
                  on_connect,
@@ -569,8 +519,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         super().__init__()
         self._impl = _AsyncIOPoolImpl(
             *connect_args,
-            min_size=min_size,
-            max_size=max_size,
+            concurrency=concurrency,
             on_acquire=on_acquire,
             on_release=on_release,
             on_connect=on_connect,
@@ -579,16 +528,10 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         )
 
     @property
-    def min_size(self) -> int:
-        """Number of connection the pool was initialized with."""
-
-        return self._impl._minsize
-
-    @property
-    def max_size(self) -> int:
+    def concurrency(self) -> int:
         """Max number of connections in the pool."""
 
-        return self._impl._maxsize
+        return self._impl._concurrency
 
     @property
     def free_size(self) -> int:
@@ -596,16 +539,27 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
 
         if self._impl._queue is None:
             # Queue has not been initialized yet
-            return self._impl._maxsize
+            return self._impl._concurrency
 
         return self._impl._queue.qsize()
+
+    async def ensure_connected(self):
+        for ch in self._impl._holders:
+            if ch._con is not None and ch._con.is_closed():
+                return self
+
+        ch = self._impl._holders[0]
+        ch._con = None
+        await ch.connect()
+
+        return self
 
     def set_connect_args(self, dsn=None, **connect_kwargs):
         r"""Set the new connection arguments for this pool.
 
         The new connection arguments will be used for all subsequent
         new connection attempts.  Existing connections will remain until
-        they expire. Use AsyncIOPool.expire_connections() to expedite
+        they expire. Use AsyncIOClient.expire_connections() to expedite
         the connection expiry.
 
         :param str dsn:
@@ -747,11 +701,7 @@ class AsyncIOPool(abstract.AsyncIOExecutor, options._OptionsMixin):
         """
         await self._impl.expire_connections()
 
-    def __await__(self):
-        return self.__aenter__().__await__()
-
     async def __aenter__(self):
-        await self._impl._async__init__()
         return self
 
     async def __aexit__(self, *exc):
@@ -818,30 +768,19 @@ class PoolAcquireContext:
         ).__await__()
 
 
-def create_async_pool(dsn=None, *,
-                      min_size=10,
-                      max_size=10,
-                      on_acquire=None,
-                      on_release=None,
-                      on_connect=None,
-                      connection_class=PoolConnection,
-                      **connect_kwargs):
-    r"""Create an asynchronous connection pool.
-
-    Can be used either with an ``async with`` block:
+def create_client(dsn=None, *,
+                  concurrency=None,
+                  on_acquire=None,
+                  on_release=None,
+                  on_connect=None,
+                  connection_class=PoolConnection,
+                  **connect_kwargs):
+    r"""Create an AsyncIOClient with a lazy connection pool.
 
     .. code-block:: python
 
-        async with edgedb.create_async_pool(user='edgedb') as pool:
-            async with pool.acquire() as con:
-                await con.fetchall('SELECT {1, 2, 3}')
-
-    Or directly with ``await``:
-
-    .. code-block:: python
-
-        pool = await edgedb.create_async_pool(user='edgedb')
-        con = await pool.acquire()
+        client = edgedb.create_client(user='edgedb')
+        con = await client.acquire()
         try:
             await con.fetchall('SELECT {1, 2, 3}')
         finally:
@@ -861,11 +800,9 @@ def create_async_pool(dsn=None, *,
         The class to use for connections.  Must be a subclass of
         :class:`~edgedb.asyncio_con.AsyncIOConnection`.
 
-    :param int min_size:
-        Number of connection the pool will be initialized with.
-
-    :param int max_size:
-        Max number of connections in the pool.
+    :param int concurrency:
+        Max number of connections in the pool. If not set, the suggested
+        concurrency value sent by the server will be used.
 
     :param coroutine on_acquire:
         A coroutine to prepare a connection right before it is returned
@@ -880,12 +817,35 @@ def create_async_pool(dsn=None, *,
 
     :return: An instance of :class:`~edgedb.AsyncIOPool`.
     """
-    return AsyncIOPool(
+    return AsyncIOClient(
         dsn,
         connection_class=connection_class,
-        min_size=min_size,
-        max_size=max_size,
+        concurrency=concurrency,
         on_acquire=on_acquire,
         on_release=on_release,
         on_connect=on_connect,
         **connect_kwargs)
+
+
+async def create_async_pool(dsn=None, *,
+                            min_size=10,
+                            max_size=10,
+                            on_acquire=None,
+                            on_release=None,
+                            on_connect=None,
+                            connection_class=PoolConnection,
+                            **connect_kwargs):
+    warnings.warn(
+        'The "create_async_pool()" API is deprecated and is scheduled to be '
+        'removed. Use the "create_client()" API instead.',
+        DeprecationWarning, 2)
+
+    return await AsyncIOClient(
+        dsn,
+        connection_class=connection_class,
+        concurrency=max_size,
+        on_acquire=on_acquire,
+        on_release=on_release,
+        on_connect=on_connect,
+        **connect_kwargs
+    ).ensure_connected()

@@ -26,7 +26,7 @@ from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
 
 from .abstract import Executor, AsyncIOExecutor
 from .asyncio_con import async_connect, AsyncIOConnection
-from .asyncio_pool import create_async_pool, AsyncIOPool
+from .asyncio_pool import create_client, create_async_pool, AsyncIOClient
 from .blocking_con import connect, BlockingIOConnection
 from .options import RetryCondition, IsolationLevel, default_backoff
 from .options import RetryOptions, TransactionOptions
