@@ -223,30 +223,17 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         self.assertEqual(r, '[]')
 
     async def test_async_query_single_command_03(self):
-        qs = [
-            'START TRANSACTION',
-            'DECLARE SAVEPOINT t0',
-            'ROLLBACK TO SAVEPOINT t0',
-            'RELEASE SAVEPOINT t0',
-            'ROLLBACK',
-            'START TRANSACTION',
-            'COMMIT',
-        ]
-
-        for _ in range(3):
-            for q in qs:
-                r = await self.con.query(q)
-                self.assertEqual(r, [])
-
-            for q in qs:
-                r = await self.con.query_json(q)
-                self.assertEqual(r, '[]')
-
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
                 r'cannot be executed with query_required_single\(\).*'
                 r'not return'):
-            await self.con.query_required_single('START TRANSACTION')
+            await self.con.query_required_single('set module default')
+
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'cannot be executed with query_required_single_json\(\).*'
+                r'not return'):
+            await self.con.query_required_single_json('set module default')
 
         # self.assertEqual(
         #     await self.con.query_single('START TRANSACTION'), None)
@@ -954,3 +941,14 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 break
         else:
             raise AssertionError('a notice message was not delivered')
+
+    async def test_async_banned_transaction(self):
+        with self.assertRaisesRegex(
+                edgedb.CapabilityError,
+                r'cannot execute transaction control commands'):
+            await self.con.query('start transaction')
+
+        with self.assertRaisesRegex(
+                edgedb.CapabilityError,
+                r'cannot execute transaction control commands'):
+            await self.con.execute('start transaction')

@@ -362,6 +362,7 @@ class AsyncIOConnection(
                         io_format=io_format,
                         expect_one=expect_one,
                         required_one=required_one,
+                        allow_capabilities=enums.Capability.EXECUTE,
                     )
                 return result
             except errors.EdgeDBError as e:
@@ -439,6 +440,7 @@ class AsyncIOConnection(
             reg=inner._codecs_registry,
             qc=inner._query_cache,
             io_format=protocol.IoFormat.JSON_ELEMENTS,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
         return result
 

@@ -272,6 +272,7 @@ class BlockingIOConnection(
             implicit_limit=__limit__,
             inline_typenames=__typenames__,
             io_format=protocol.IoFormat.BINARY,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def _fetchall_json(
@@ -291,6 +292,7 @@ class BlockingIOConnection(
             implicit_limit=__limit__,
             inline_typenames=False,
             io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def _execute(
@@ -320,6 +322,7 @@ class BlockingIOConnection(
                     expect_one=expect_one,
                     required_one=required_one,
                     io_format=io_format,
+                    allow_capabilities=enums.Capability.EXECUTE,
                 )
             except errors.EdgeDBError as e:
                 if not e.has_tag(errors.SHOULD_RETRY):
@@ -390,6 +393,7 @@ class BlockingIOConnection(
             reg=inner._codecs_registry,
             qc=inner._query_cache,
             io_format=protocol.IoFormat.JSON_ELEMENTS,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -402,6 +406,7 @@ class BlockingIOConnection(
             qc=inner._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def query_required_single_json(self, query: str, *args, **kwargs) -> str:
@@ -415,6 +420,7 @@ class BlockingIOConnection(
             expect_one=True,
             required_one=True,
             io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
