@@ -63,8 +63,8 @@ class TestConUtils(unittest.TestCase):
         'env_not_found': (
             ValueError, 'environment variable ".*" doesn\'t exist'),
         'file_not_found': (FileNotFoundError, 'No such file or directory'),
-        'invalid_tls_verify_hostname': (
-            ValueError, 'tls_verify_hostname can only be one of yes/no')
+        'invalid_tls_security': (
+            ValueError, 'tls_security can only be one of `insecure`, ')
     }
 
     @contextlib.contextmanager
@@ -109,7 +109,7 @@ class TestConUtils(unittest.TestCase):
         user = opts.get('user')
         password = opts.get('password')
         tls_ca_file = opts.get('tlsCAFile')
-        tls_verify_hostname = opts.get('tlsVerifyHostname')
+        tls_security = opts.get('tlsSecurity')
         server_settings = opts.get('serverSettings')
 
         other_opts = testcase.get('other_opts', {})
@@ -156,6 +156,17 @@ class TestConUtils(unittest.TestCase):
                         mock.patch('pathlib.Path.home', lambda: homedir)
                     )
                 if files:
+                    for f, v in files.copy().items():
+                        if "${HASH}" in f:
+                            hash = con_utils._hash_path(v['project-path'])
+                            dir = f.replace("${HASH}", hash)
+                            files[dir] = ""
+                            instance = os.path.join(dir, 'instance-name')
+                            files[instance] = v['instance-name']
+                            project = os.path.join(dir, 'project-path')
+                            files[project] = v['project-path']
+                            del files[f]
+
                     es.enter_context(
                         mock.patch(
                             'os.path.exists',
@@ -168,6 +179,11 @@ class TestConUtils(unittest.TestCase):
                             lambda filepath: str(filepath) in files
                         )
                     )
+
+                    es.enter_context(mock.patch(
+                        'os.stat',
+                        lambda d: mock.Mock(st_dev=0),
+                    ))
 
                     es.enter_context(
                         mock.patch('os.path.realpath', lambda f: f)
@@ -192,7 +208,7 @@ class TestConUtils(unittest.TestCase):
                 host=host, port=port, database=database,
                 user=user, password=password,
                 tls_ca_file=tls_ca_file,
-                tls_verify_hostname=tls_verify_hostname,
+                tls_security=tls_security,
                 timeout=timeout, command_timeout=command_timeout,
                 server_settings=server_settings,
                 wait_until_available=30)
@@ -206,7 +222,7 @@ class TestConUtils(unittest.TestCase):
                     'user': connect_config.user,
                     'password': connect_config.password,
                     'tlsCAData': connect_config._tls_ca_data,
-                    'tlsVerifyHostname': connect_config.tls_verify_hostname,
+                    'tlsSecurity': connect_config.tls_security,
                     'serverSettings': connect_config.server_settings
                 }, {
                     k: v for k, v in client_config._asdict().items()
@@ -221,7 +237,7 @@ class TestConUtils(unittest.TestCase):
                     # instance of that type that `result` may contain.
                     if isinstance(v, type) and isinstance(result[1].get(k), v):
                         result[1][k] = v
-            self.assertEqual(expected, result, 'Testcase: {}'.format(testcase))
+            self.assertEqual(expected, result)
 
     def test_test_connect_params_environ(self):
         self.assertNotIn('AAAAAAAAAA123', os.environ)
@@ -265,7 +281,7 @@ class TestConUtils(unittest.TestCase):
                     'user': '__test__',
                     'password': None,
                     'tlsCAData': None,
-                    'tlsVerifyHostname': True,
+                    'tlsSecurity': 'strict',
                     'serverSettings': {}
                 },
                 'other_results': {
@@ -287,16 +303,18 @@ class TestConUtils(unittest.TestCase):
                 f'Try running "git submodule update --init".'
             )
 
-        for testcase in testcases:
-            platform = testcase.get('platform')
-            if testcase.get('fs') and (
-                sys.platform == 'win32' or platform == 'windows'
-                or (platform is None and sys.platform == 'darwin')
-                or (platform == 'macos' and sys.platform != 'darwin')
-            ):
-                continue
+        for i, testcase in enumerate(testcases):
+            with self.subTest(i=i):
+                platform = testcase.get('platform')
+                if testcase.get('fs') and (
+                    sys.platform == 'win32' or platform == 'windows'
+                    or (platform is None and sys.platform == 'darwin')
+                    or (platform == 'macos' and sys.platform != 'darwin')
+                ):
+                    self.skipTest("os incompatible file system test")
+                    continue
 
-            self.run_testcase(testcase)
+                self.run_testcase(testcase)
 
     @mock.patch("edgedb.platform.config_dir",
                 lambda: pathlib.Path("/home/user/.config/edgedb"))
@@ -345,7 +363,7 @@ class TestConUtils(unittest.TestCase):
                     con_utils.parse_connect_arguments(
                         dsn=None, credentials_file=None, host=None, port=None,
                         user=None, password=None, database=None,
-                        tls_ca_file=None, tls_verify_hostname=None,
+                        tls_ca_file=None, tls_security=None,
                         timeout=10, command_timeout=None,
                         server_settings=None,
                         wait_until_available=30

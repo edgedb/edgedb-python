@@ -109,29 +109,28 @@ def _parse_hostlist(hostlist, port):
     return hosts, port
 
 
-def _stash_path(path):
+def _hash_path(path):
     path = os.path.realpath(path)
     if platform.IS_WINDOWS and not path.startswith('\\\\'):
         path = '\\\\?\\' + path
-    hash = hashlib.sha1(str(path).encode('utf-8')).hexdigest()
+    return hashlib.sha1(str(path).encode('utf-8')).hexdigest()
+
+
+def _stash_path(path):
     base_name = os.path.basename(path)
-    dir_name = base_name + '-' + hash
+    dir_name = base_name + '-' + _hash_path(path)
     return platform.search_config_dir('projects', dir_name)
 
 
-def _parse_verify_hostname(val: typing.Union[str, bool]) -> bool:
-    if isinstance(val, bool):
-        return val
-
+def _validate_tls_security(val: str) -> str:
     val = val.lower()
-    if val in {"1", "yes", "true", "y", "t", "on"}:
-        return True
-    elif val in {"0", "no", "false", "n", "f", "off"}:
-        return False
-    else:
+    if val not in {"insecure", "no_host_verification", "strict", "default"}:
         raise ValueError(
-            "tls_verify_hostname can only be one of yes/no"
+            "tls_security can only be one of "
+            "`insecure`, `no_host_verification`, `strict` or `default`"
         )
+
+    return val
 
 
 class ResolvedConnectConfig:
@@ -153,8 +152,8 @@ class ResolvedConnectConfig:
     _tls_ca_data = None
     _tls_ca_data_source = None
 
-    _tls_verify_hostname = None
-    _tls_verify_hostname_source = None
+    _tls_security = None
+    _tls_security_source = None
 
     server_settings = {}
 
@@ -194,9 +193,9 @@ class ResolvedConnectConfig:
 
         self._set_param('tls_ca_data', ca_file, source, read_ca_file)
 
-    def set_tls_verify_hostname(self, verify_hostname, source):
-        self._set_param('tls_verify_hostname', verify_hostname, source,
-                        _parse_verify_hostname)
+    def set_tls_security(self, security, source):
+        self._set_param('tls_security', security, source,
+                        _validate_tls_security)
 
     def add_server_settings(self, server_settings):
         _validate_server_settings(server_settings)
@@ -222,10 +221,14 @@ class ResolvedConnectConfig:
         return self._password
 
     @property
-    def tls_verify_hostname(self):
-        return (self._tls_verify_hostname
-                if self._tls_verify_hostname is not None
-                else self._tls_ca_data is None)
+    def tls_security(self):
+        if self._tls_security and self._tls_security != 'default':
+            return self._tls_security
+
+        if self._tls_ca_data is not None:
+            return "no_host_verification"
+
+        return "strict"
 
     _ssl_ctx = None
 
@@ -245,7 +248,7 @@ class ResolvedConnectConfig:
             if platform.IS_WINDOWS:
                 import certifi
                 self._ssl_ctx.load_verify_locations(cafile=certifi.where())
-        self._ssl_ctx.check_hostname = self.tls_verify_hostname
+        self._ssl_ctx.check_hostname = self.tls_security == "strict"
         self._ssl_ctx.set_alpn_protocols(['edgedb-binary'])
 
         return self._ssl_ctx
@@ -297,7 +300,7 @@ def _validate_server_settings(server_settings):
 
 def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
                                 password, database,
-                                tls_ca_file, tls_verify_hostname,
+                                tls_ca_file, tls_security,
                                 server_settings):
 
     resolved_config = ResolvedConnectConfig()
@@ -336,9 +339,9 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
             (tls_ca_file, '"tls_ca_file" option')
             if tls_ca_file is not None else None
         ),
-        tls_verify_hostname=(
-            (tls_verify_hostname, '"tls_verify_hostname" option')
-            if tls_verify_hostname is not None else None
+        tls_security=(
+            (tls_security, '"tls_security" option')
+            if tls_security is not None else None
         ),
         server_settings=(
             (server_settings, '"server_settings" option')
@@ -365,7 +368,7 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
         env_user = os.getenv('EDGEDB_USER')
         env_password = os.getenv('EDGEDB_PASSWORD')
         env_tls_ca_file = os.getenv('EDGEDB_TLS_CA_FILE')
-        env_tls_verify_hostname = os.getenv('EDGEDB_TLS_VERIFY_HOSTNAME')
+        env_tls_security = os.getenv('EDGEDB_CLIENT_TLS_SECURITY')
 
         has_compound_options = _resolve_config_options(
             resolved_config,
@@ -409,10 +412,10 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
                 (env_tls_ca_file, '"EDGEDB_TLS_CA_FILE" environment variable')
                 if env_tls_ca_file is not None else None
             ),
-            tls_verify_hostname=(
-                (env_tls_verify_hostname,
-                 '"EDGEDB_TLS_VERIFY_HOSTNAME" environment variable')
-                if env_tls_verify_hostname is not None else None
+            tls_security=(
+                (env_tls_security,
+                 '"EDGEDB_CLIENT_TLS_SECURITY" environment variable')
+                if env_tls_security is not None else None
             ),
         )
 
@@ -556,9 +559,9 @@ def _parse_dsn_into_config(
     )
 
     handle_dsn_part(
-        'tls_verify_hostname', None,
-        resolved_config._tls_verify_hostname,
-        resolved_config.set_tls_verify_hostname
+        'tls_security', None,
+        resolved_config._tls_security,
+        resolved_config.set_tls_security
     )
 
     resolved_config.add_server_settings(query)
@@ -577,7 +580,7 @@ def _resolve_config_options(
     user=None,
     password=None,
     tls_ca_file=None,
-    tls_verify_hostname=None,
+    tls_security=None,
     server_settings=None
 ):
     if database is not None:
@@ -588,8 +591,8 @@ def _resolve_config_options(
         resolved_config.set_password(*password)
     if tls_ca_file is not None:
         resolved_config.set_tls_ca_file(*tls_ca_file)
-    if tls_verify_hostname is not None:
-        resolved_config.set_tls_verify_hostname(*tls_verify_hostname)
+    if tls_security is not None:
+        resolved_config.set_tls_security(*tls_security)
     if server_settings is not None:
         resolved_config.add_server_settings(server_settings[0])
 
@@ -634,8 +637,8 @@ def _resolve_config_options(
             resolved_config.set_user(creds.get('user'), source)
             resolved_config.set_password(creds.get('password'), source)
             resolved_config.set_tls_ca_data(creds.get('tls_cert_data'), source)
-            resolved_config.set_tls_verify_hostname(
-                creds.get('tls_verify_hostname'),
+            resolved_config.set_tls_security(
+                creds.get('tls_security'),
                 source
             )
 
@@ -651,7 +654,7 @@ def find_edgedb_project_dir():
     while True:
         toml = os.path.join(dir, 'edgedb.toml')
         if not os.path.isfile(toml):
-            parent = os.path.basename(dir)
+            parent = os.path.dirname(dir)
             if parent == dir:
                 raise errors.ClientConnectionError(
                     f'no `edgedb.toml` found and '
@@ -674,7 +677,7 @@ def find_edgedb_project_dir():
 def parse_connect_arguments(
     *, dsn, credentials_file, host, port,
     database, user, password,
-    tls_ca_file, tls_verify_hostname,
+    tls_ca_file, tls_security,
     timeout, command_timeout, wait_until_available,
     server_settings
 ) -> typing.Tuple[ResolvedConnectConfig, ClientConfiguration]:
@@ -695,7 +698,7 @@ def parse_connect_arguments(
     connect_config = _parse_connect_dsn_and_args(
         dsn=dsn, credentials_file=credentials_file, host=host, port=port,
         database=database, user=user, password=password,
-        tls_ca_file=tls_ca_file, tls_verify_hostname=tls_verify_hostname,
+        tls_ca_file=tls_ca_file, tls_security=tls_security,
         server_settings=server_settings,
     )
 

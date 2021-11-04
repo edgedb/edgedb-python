@@ -551,7 +551,7 @@ async def async_connect(dsn: str = None, *,
                         user: str = None, password: str = None,
                         database: str = None,
                         tls_ca_file: str = None,
-                        tls_verify_hostname: bool = None,
+                        tls_security: bool = None,
                         connection_class=None,
                         wait_until_available: int = 30,
                         timeout: int = 10) -> AsyncIOConnection:
@@ -564,7 +564,7 @@ async def async_connect(dsn: str = None, *,
     connect_config, client_config = con_utils.parse_connect_arguments(
         dsn=dsn, credentials_file=credentils_file, host=host, port=port,
         user=user, password=password, database=database, timeout=timeout,
-        tls_ca_file=tls_ca_file, tls_verify_hostname=tls_verify_hostname,
+        tls_ca_file=tls_ca_file, tls_security=tls_security,
         wait_until_available=wait_until_available,
 
         # ToDos
