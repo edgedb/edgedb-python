@@ -1,3 +1,5 @@
+.. _edgedb-python-intro:
+
 ====================
 EdgeDB Python Driver
 ====================
