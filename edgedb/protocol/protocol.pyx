@@ -138,6 +138,7 @@ cdef class SansIOProtocol:
 
         self.xact_status = TRANS_UNKNOWN
 
+        self.internal_reg = CodecsRegistry()
         self.server_settings = {}
         self.reset_status()
         self.protocol_version = (PROTO_VER_MAJOR, 0)
@@ -1087,15 +1088,53 @@ cdef class SansIOProtocol:
             raise RuntimeError(
                 f'server SCRAM proof does not match')
 
+    cdef parse_system_config(self, BaseCodec codec, bytes data):
+        cdef:
+            decode_row_method decoder = <decode_row_method>codec.decode
+
+            const char* buf
+            ssize_t buf_len
+
+            FRBuffer _rbuf
+            FRBuffer *rbuf = &_rbuf
+
+        buf = cpython.PyBytes_AS_STRING(data)
+        buf_len = cpython.PyBytes_GET_SIZE(data)
+
+        frb_init(rbuf, buf, buf_len)
+
+        return decoder(codec, rbuf)
+
+    cdef parse_server_settings(self, str name, bytes val):
+        if name == 'suggested_pool_concurrency':
+            self.server_settings[name] = int(val.decode('utf-8'))
+        elif name == 'system_config':
+            buf = ReadBuffer()
+            buf.feed_data(val)
+            typedesc_len = buf.read_int32() - 16
+            typedesc_id = buf.read_bytes(16)
+            typedesc = buf.read_bytes(typedesc_len)
+
+            if self.internal_reg.has_codec(typedesc_id):
+                codec = self.internal_reg.get_codec(typedesc_id)
+            else:
+                codec = self.internal_reg.build_codec(
+                    typedesc, self.protocol_version)
+
+            data = buf.read_len_prefixed_bytes()
+            self.server_settings[name] = self.parse_system_config(codec, data)
+        else:
+            self.server_settings[name] = val
+
     cdef fallthrough(self):
         cdef:
             char mtype = self.buffer.get_message_type()
 
         if mtype == PARAMETER_STATUS_MSG:
             name = self.buffer.read_len_prefixed_utf8()
-            val = self.buffer.read_len_prefixed_utf8()
+            val = self.buffer.read_len_prefixed_bytes()
             self.buffer.finish_message()
-            self.server_settings[name] = val
+            self.parse_server_settings(name, val)
 
         elif mtype == LOG_MSG:
             severity = <uint8_t>self.buffer.read_byte()

@@ -156,7 +156,7 @@ class BaseConnection:
         """
         return self._inner._impl._protocol.is_in_transaction()
 
-    def get_settings(self) -> typing.Dict[str, str]:
+    def get_settings(self) -> typing.Dict[str, typing.Any]:
         return self._inner._impl._protocol.get_settings()
 
 
