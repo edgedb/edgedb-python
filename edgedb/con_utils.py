@@ -222,8 +222,30 @@ class ResolvedConnectConfig:
 
     @property
     def tls_security(self):
-        if self._tls_security and self._tls_security != 'default':
-            return self._tls_security
+        tls_security = self._tls_security or 'default'
+        security = os.environ.get('EDGEDB_CLIENT_SECURITY') or 'default'
+        if security not in {'default', 'insecure_dev_mode', 'strict'}:
+            raise ValueError(
+                f'environment variable EDGEDB_CLIENT_SECURITY should be '
+                f'one of strict, insecure_dev_mode or default, '
+                f'got: {security!r}')
+
+        if security == 'default':
+            pass
+        elif security == 'insecure_dev_mode':
+            if tls_security == 'default':
+                tls_security = 'insecure'
+        elif security == 'strict':
+            if tls_security == 'default':
+                tls_security = 'strict'
+            elif tls_security in {'no_host_verification', 'insecure'}:
+                raise ValueError(
+                    f'EDGEDB_CLIENT_SECURITY=strict but '
+                    f'tls_security={tls_security}, tls_security must be '
+                    f'set to strict when EDGEDB_CLIENT_SECURITY is strict')
+
+        if tls_security != 'default':
+            return tls_security
 
         if self._tls_ca_data is not None:
             return "no_host_verification"
