@@ -445,6 +445,25 @@ cdef relative_duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
         microseconds=microseconds, days=days, months=months)
 
 
+cdef config_memory_encode(pgproto.CodecContext settings,
+                          WriteBuffer buf,
+                          object obj):
+    cdef:
+        bytes = obj.bytes
+
+    buf.write_int32(8)
+    buf.write_int64(bytes)
+
+
+cdef config_memory_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        int64_t bytes
+
+    bytes = hton.unpack_int64(frb_read(buf, 8))
+
+    return datatypes.ConfigMemory(bytes=bytes)
+
+
 cdef checked_decimal_encode(
     pgproto.CodecContext settings, WriteBuffer buf, obj
 ):
@@ -631,6 +650,11 @@ cdef register_base_scalar_codecs():
         'cal::relative_duration',
         relative_duration_encode,
         relative_duration_decode)
+
+    register_base_scalar_codec(
+        'cfg::memory',
+        config_memory_encode,
+        config_memory_decode)
 
 
 register_base_scalar_codecs()
