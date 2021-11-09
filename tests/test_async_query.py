@@ -235,18 +235,6 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 r'not return'):
             await self.con.query_required_single_json('set module default')
 
-        # self.assertEqual(
-        #     await self.con.query_single('START TRANSACTION'), None)
-
-        # with self.assertRaisesRegex(
-        #         edgedb.InterfaceError,
-        #         r'cannot be executed with query_required_single_json\(\).*'
-        #         r'not return'):
-        #     await self.con.query_required_single_json('ROLLBACK')
-
-        # self.assertEqual(
-        #     await self.con.query_single_json('ROLLBACK'), None)
-
     async def test_async_query_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
