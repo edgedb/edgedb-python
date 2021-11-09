@@ -51,15 +51,15 @@ cdef class ConfigMemory:
             int64_t bytes = self.bytes
 
         if bytes >= PiB and bytes % PiB == 0:
-            return f'{int(bytes / PiB)}PiB'
+            return f'{bytes // PiB}PiB'
         if bytes >= TiB and bytes % TiB == 0:
-            return f'{int(bytes / TiB)}TiB'
+            return f'{bytes // TiB}TiB'
         if bytes >= GiB and bytes % GiB == 0:
-            return f'{int(bytes / GiB)}GiB'
+            return f'{bytes // GiB}GiB'
         if bytes >= MiB and bytes % MiB == 0:
-            return f'{int(bytes / MiB)}MiB'
+            return f'{bytes // MiB}MiB'
         if bytes >= KiB and bytes % KiB == 0:
-            return f'{int(bytes / KiB)}KiB'
+            return f'{bytes // KiB}KiB'
         return f'{bytes}B'
 
     @property
