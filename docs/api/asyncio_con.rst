@@ -30,12 +30,13 @@ Connection
 
     :param str dsn:
         If this parameter does not start with ``edgedb://`` then this is
-        a :ref:`name of an instance <edgedb-instances>`.
+        a :ref:`name of an instance <edgedb-python-connection>`.
 
         Otherwise it specifies a single string in the following format:
         ``edgedb://user:password@host:port/database?option=value``.
         The following options are recognized: host, port,
-        user, database, password.
+        user, database, password. For a complete reference on DSN, see
+        the :ref:`DSN Specification <ref_dsn>`.
 
     :param host:
         Database host address as one of the following:
@@ -508,7 +509,7 @@ Client Connection Pool
 
         :param str dsn:
             If this parameter does not start with ``edgedb://`` then this is
-            a :ref:`name of an instance <edgedb-instances>`.
+            a :ref:`name of an instance <edgedb-python-connection>`.
 
             Otherwise it specifies a single string in the following format:
             ``edgedb://user:pass@host:port/database?option=value``.

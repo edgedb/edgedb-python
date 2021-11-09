@@ -17,6 +17,31 @@ or :py:class:`AsyncIOConnection <edgedb.AsyncIOConnection>` instance
 correspondingly.  The connection instance provides methods to run queries
 and manage transactions.
 
+
+Connection
+----------
+
+There are a couple ways to provide connection information to the client
+library.
+
+- If you've :ref:`initialized a project <ref_guide_using_projects>`, the
+  linked instance will be auto-discovered by the library.
+- Pass the name of a local instance to :py:func:`connect() <edgedb.connect>` or
+  :py:func:`async_connect() <edgedb.async_connect>`. You can create new
+  instances with :ref:`the CLI <ref_cli_edgedb_instance_create>`.
+
+  .. code-block:: python
+
+    client = async_connect()
+- Pass a DSN (connection URL) to :py:func:`connect() <edgedb.connect>` or
+  :py:func:`async_connect() <edgedb.async_connect>`. For a guide to DSNs, see
+  the :ref:`DSN Specification <ref_dsn>`.
+
+  .. code-block:: python
+
+Examples
+--------
+
 Blocking connection example:
 
 
