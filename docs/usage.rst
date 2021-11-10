@@ -121,8 +121,8 @@ types and vice versa.  See :ref:`edgedb-python-datatypes` for details.
 
 .. _edgedb-python-connection-pool:
 
-Connection Pools
-----------------
+Client Connection Pools
+-----------------------
 
 For server-type type applications that handle frequent requests and need
 the database connection for a short period time while handling a request,
@@ -130,8 +130,8 @@ the use of a connection pool is recommended.  The edgedb-python asyncio API
 provides an implementation of such a pool.
 
 To create a connection pool, use the
-:py:func:`edgedb.create_async_pool() <edgedb.create_async_pool>`
-function.  The resulting :py:class:`AsyncIOPool <edgedb.AsyncIOPool>`
+:py:func:`edgedb.create_client() <edgedb.create_client>`
+function.  The resulting :py:class:`AsyncIOClient <edgedb.AsyncIOClient>`
 object can then be used to borrow connections from the pool.
 
 Below is an example of a connection pool usage:
@@ -146,11 +146,11 @@ Below is an example of a connection pool usage:
 
     async def handle(request):
         """Handle incoming requests."""
-        pool = request.app['pool']
+        client = request.app['client']
         username = int(request.match_info.get('name'))
 
         # Execute the query on any pool connection
-        result = await pool.query_single_json(
+        result = await client.query_single_json(
             '''
                 SELECT User {first_name, email, bio}
                 FILTER .name = <str>$username
@@ -160,11 +160,11 @@ Below is an example of a connection pool usage:
             content_type='application/json')
 
 
-    async def init_app():
+    def init_app():
         """Initialize the application server."""
         app = web.Application()
-        # Create a database connection pool
-        app['pool'] = await edgedb.create_async_pool(
+        # Create a database connection client
+        app['client'] = edgedb.create_client(
             database='my_service',
             user='my_service')
         # Configure service routes
@@ -173,11 +173,15 @@ Below is an example of a connection pool usage:
 
 
     loop = asyncio.get_event_loop()
-    app = loop.run_until_complete(init_app())
+    app = init_app()
     web.run_app(app)
 
 But if you have a bunch of tightly related queries it's better to use
 transactions.
+
+Note that the client is created synchronously. Pool connections are created
+lazily as they are needed. If you want to explicitly connect to the
+database in ``init_app()``, use the ``ensure_connected()`` method on the client.
 
 See :ref:`edgedb-python-asyncio-api-pool` API documentation for
 more information.
@@ -187,17 +191,18 @@ Transactions
 ------------
 
 The most robust way to create a
-:ref:`transaction <edgedb-python-asyncio-api-transaction>` is ``retry`` method:
+:ref:`transaction <edgedb-python-asyncio-api-transaction>` is the
+``transaction()`` method:
 
-* :py:meth:`AsyncIOPool.retrying_transaction() <edgedb.AsyncIOPool.retrying_transaction>`
-* :py:meth:`BlockingIOConnection.retrying_transaction() <edgedb.BlockingIOConnection.retrying_transaction>`
-* :py:meth:`AsyncIOConnection.retrying_transaction() <edgedb.AsyncIOConnection.retrying_transaction>`
+* :py:meth:`AsyncIOClient.transaction() <edgedb.AsyncIOClient.transaction>`
+* :py:meth:`BlockingIOConnection.transaction() <edgedb.BlockingIOConnection.transaction>`
+* :py:meth:`AsyncIOConnection.transaction() <edgedb.AsyncIOConnection.transaction>`
 
 Example:
 
 .. code-block:: python
 
-    for tx in connection.retrying_transaction():
+    for tx in connection.transaction():
         with tx:
             tx.execute("INSERT User {name := 'Don'}")
 
@@ -205,7 +210,7 @@ or, if using the async API on connection pool:
 
 .. code-block:: python
 
-    async for tx in connection.retrying_transaction():
+    async for tx in connection.transaction():
         async with tx:
             await tx.execute("INSERT User {name := 'Don'}")
 

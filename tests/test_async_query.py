@@ -29,6 +29,7 @@ import edgedb
 from edgedb import compat
 from edgedb import _taskgroup as tg
 from edgedb import _testbase as tb
+from edgedb.options import RetryOptions
 
 
 class TestAsyncQuery(tb.AsyncQueryTestCase):
@@ -173,8 +174,8 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'query cannot be executed with query_single_json\('):
-            await self.con.query_single_json('''
+                r'query cannot be executed with query_required_single_json\('):
+            await self.con.query_required_single_json('''
                 DROP TYPE test::server_query_single_command_01;
             ''')
 
@@ -222,36 +223,17 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         self.assertEqual(r, '[]')
 
     async def test_async_query_single_command_03(self):
-        qs = [
-            'START TRANSACTION',
-            'DECLARE SAVEPOINT t0',
-            'ROLLBACK TO SAVEPOINT t0',
-            'RELEASE SAVEPOINT t0',
-            'ROLLBACK',
-            'START TRANSACTION',
-            'COMMIT',
-        ]
-
-        for _ in range(3):
-            for q in qs:
-                r = await self.con.query(q)
-                self.assertEqual(r, [])
-
-            for q in qs:
-                r = await self.con.query_json(q)
-                self.assertEqual(r, '[]')
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'cannot be executed with query_required_single\(\).*'
+                r'not return'):
+            await self.con.query_required_single('set module default')
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'cannot be executed with query_single\(\).*'
+                r'cannot be executed with query_required_single_json\(\).*'
                 r'not return'):
-            await self.con.query_single('START TRANSACTION')
-
-        with self.assertRaisesRegex(
-                edgedb.InterfaceError,
-                r'cannot be executed with query_single_json\(\).*'
-                r'not return'):
-            await self.con.query_single_json('START TRANSACTION')
+            await self.con.query_required_single_json('set module default')
 
     async def test_async_query_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
@@ -287,12 +269,6 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                     'select (1,)'),
                 edgedb.Set([(1,)]))
 
-            async with self.con.transaction(isolation='repeatable_read'):
-                self.assertEqual(
-                    await self.con.query_single(
-                        'select <array<int64>>[]'),
-                    [])
-
             self.assertEqual(
                 await self.con.query(
                     'select ["a", "b"]'),
@@ -314,9 +290,14 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 await self.con.query_single('SELECT {1, 2}')
 
             with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    r'query_required_single\(\) as it returns a multiset'):
+                await self.con.query_required_single('SELECT {1, 2}')
+
+            with self.assertRaisesRegex(
                     edgedb.NoDataError,
-                    r'\bquery_single\('):
-                await self.con.query_single('SELECT <int64>{}')
+                    r'\bquery_required_single\('):
+                await self.con.query_required_single('SELECT <int64>{}')
 
     async def test_async_basic_datatypes_02(self):
         self.assertEqual(
@@ -379,7 +360,14 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 [])
 
             with self.assertRaises(edgedb.NoDataError):
-                await self.con.query_single_json('SELECT <int64>{}')
+                await self.con.query_required_single_json('SELECT <int64>{}')
+
+            self.assertEqual(
+                json.loads(
+                    await self.con.query_single_json('SELECT <int64>{}')
+                ),
+                None
+            )
 
     async def test_async_basic_datatypes_04(self):
         val = await self.con.query_single(
@@ -792,48 +780,55 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         # by closing.
         lock_key = tb.gen_lock_key()
 
-        con2 = await self.connect(database=self.con.dbname)
+        con = self.con.with_retry_options(RetryOptions(attempts=1))
+        _con2 = await self.connect(database=self.con.dbname)
+        con2 = _con2.with_retry_options(RetryOptions(attempts=1))
 
-        async with self.con.raw_transaction() as tx:
-            self.assertTrue(await tx.query_single(
-                'select sys::_advisory_lock(<int64>$0)',
-                lock_key))
+        async for tx in con.transaction():
+            async with tx:
+                self.assertTrue(await tx.query_single(
+                    'select sys::_advisory_lock(<int64>$0)',
+                    lock_key))
 
-            try:
-                async with tg.TaskGroup() as g:
+                try:
+                    async with tg.TaskGroup() as g:
 
-                    fut = asyncio.Future()
+                        fut = asyncio.Future()
 
-                    async def exec_to_fail():
-                        with self.assertRaises((
-                            edgedb.ClientConnectionClosedError,
-                            ConnectionResetError,
-                        )):
-                            async with con2.raw_transaction() as tx2:
-                                fut.set_result(None)
-                                await tx2.query(
-                                    'select sys::_advisory_lock(<int64>$0)',
-                                    lock_key,
-                                )
+                        async def exec_to_fail():
+                            with self.assertRaises((
+                                edgedb.ClientConnectionClosedError,
+                                ConnectionResetError,
+                            )):
+                                async for tx2 in con2.transaction():
+                                    async with tx2:
+                                        fut.set_result(None)
+                                        await tx2.query(
+                                            'select sys::_advisory_lock(' +
+                                            '<int64>$0)',
+                                            lock_key,
+                                        )
 
-                    g.create_task(exec_to_fail())
+                        g.create_task(exec_to_fail())
 
-                    await asyncio.wait_for(fut, 1)
-                    await asyncio.sleep(0.1)
+                        await asyncio.wait_for(fut, 1)
+                        await asyncio.sleep(0.1)
 
-                    with self.assertRaises(asyncio.TimeoutError):
-                        # aclose() will ask the server nicely to disconnect,
-                        # but since the server is blocked on the lock,
-                        # aclose() will timeout and get cancelled, which,
-                        # in turn, will terminate the connection rudely,
-                        # and exec_to_fail() will get ConnectionResetError.
-                        await compat.wait_for(con2.aclose(), timeout=0.5)
+                        with self.assertRaises(asyncio.TimeoutError):
+                            # aclose() will ask the server nicely to
+                            # disconnect, but since the server is blocked on
+                            # the lock, aclose() will timeout and get
+                            # cancelled, which, in turn, will terminate the
+                            # connection rudely, and exec_to_fail() will get
+                            # ConnectionResetError.
+                            await compat.wait_for(con2.aclose(), timeout=0.5)
 
-            finally:
-                self.assertEqual(
-                    await tx.query(
-                        'select sys::_advisory_unlock(<int64>$0)', lock_key),
-                    [True])
+                finally:
+                    self.assertEqual(
+                        await tx.query(
+                            'select sys::_advisory_unlock(<int64>$0)',
+                            lock_key),
+                        [True])
 
     async def test_empty_set_unpack(self):
         await self.con.query_single('''
@@ -854,8 +849,9 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
-            async with self.con.raw_transaction() as tx:
-                await tx.query_single('SELECT <MyEnum><str>$0', 'Oups')
+            async for tx in self.con.transaction():
+                async with tx:
+                    await tx.query_single('SELECT <MyEnum><str>$0', 'Oups')
 
         self.assertEqual(
             await self.con.query_single('SELECT <MyEnum>$0', 'A'),
@@ -867,8 +863,9 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError, 'invalid input value for enum'):
-            async with self.con.raw_transaction() as tx:
-                await tx.query_single('SELECT <MyEnum>$0', 'Oups')
+            async for tx in self.con.transaction():
+                async with tx:
+                    await tx.query_single('SELECT <MyEnum>$0', 'Oups')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidArgumentError, 'a str or edgedb.EnumValue'):
@@ -932,3 +929,14 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 break
         else:
             raise AssertionError('a notice message was not delivered')
+
+    async def test_async_banned_transaction(self):
+        with self.assertRaisesRegex(
+                edgedb.CapabilityError,
+                r'cannot execute transaction control commands'):
+            await self.con.query('start transaction')
+
+        with self.assertRaisesRegex(
+                edgedb.CapabilityError,
+                r'cannot execute transaction control commands'):
+            await self.con.execute('start transaction')

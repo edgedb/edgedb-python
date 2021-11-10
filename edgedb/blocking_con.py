@@ -32,7 +32,6 @@ from . import errors
 from . import options
 from . import transaction as _transaction
 from . import retry as _retry
-from . import legacy_transaction
 
 from .datatypes import datatypes
 from .protocol import blocking_proto, protocol
@@ -273,6 +272,7 @@ class BlockingIOConnection(
             implicit_limit=__limit__,
             inline_typenames=__typenames__,
             io_format=protocol.IoFormat.BINARY,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def _fetchall_json(
@@ -292,6 +292,7 @@ class BlockingIOConnection(
             implicit_limit=__limit__,
             inline_typenames=False,
             io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def _execute(
@@ -301,7 +302,8 @@ class BlockingIOConnection(
         args,
         kwargs,
         io_format,
-        expect_one=False
+        expect_one=False,
+        required_one=False,
     ):
         inner = self._inner
         reconnect = False
@@ -318,7 +320,9 @@ class BlockingIOConnection(
                     reg=inner._codecs_registry,
                     qc=inner._query_cache,
                     expect_one=expect_one,
+                    required_one=required_one,
                     io_format=io_format,
+                    allow_capabilities=enums.Capability.EXECUTE,
                 )
             except errors.EdgeDBError as e:
                 if not e.has_tag(errors.SHOULD_RETRY):
@@ -350,12 +354,24 @@ class BlockingIOConnection(
             io_format=protocol.IoFormat.BINARY,
         )
 
-    def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+    def query_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Union[typing.Any, None]:
         return self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
             expect_one=True,
+            io_format=protocol.IoFormat.BINARY,
+        )
+
+    def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
+        return self._execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            expect_one=True,
+            required_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
 
@@ -377,6 +393,7 @@ class BlockingIOConnection(
             reg=inner._codecs_registry,
             qc=inner._query_cache,
             io_format=protocol.IoFormat.JSON_ELEMENTS,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -389,6 +406,21 @@ class BlockingIOConnection(
             qc=inner._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
+        )
+
+    def query_required_single_json(self, query: str, *args, **kwargs) -> str:
+        inner = self._inner
+        return self._get_protocol().sync_execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=inner._codecs_registry,
+            qc=inner._query_cache,
+            expect_one=True,
+            required_one=True,
+            io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
@@ -436,23 +468,25 @@ class BlockingIOConnection(
     def execute(self, query: str) -> None:
         self._get_protocol().sync_simple_query(query, enums.Capability.EXECUTE)
 
-    def transaction(self, *, isolation: str = None, readonly: bool = None,
-                    deferrable: bool = None) -> legacy_transaction.Transaction:
-        warnings.warn(
-            'The "transaction()" method is deprecated and is scheduled to be '
-            'removed. Use the "retrying_transaction()" or "raw_transaction()" '
-            'method instead.',
-            DeprecationWarning, 2)
-        return legacy_transaction.Transaction(
-            self, isolation, readonly, deferrable)
+    def transaction(self) -> _retry.Retry:
+        return _retry.Retry(self)
 
     def raw_transaction(self) -> _transaction.Transaction:
+        warnings.warn(
+            'The "raw_transaction()" method is deprecated and is scheduled '
+            'to be removed. Use the "transaction()" method with '
+            'retry attempts=1 instead',
+            DeprecationWarning, 2)
         return _transaction.Transaction(
             self,
             self._options.transaction_options,
         )
 
     def retrying_transaction(self) -> _retry.Retry:
+        warnings.warn(
+            'The "retrying_transaction()" method has been renamed to '
+            '"transaction()"',
+            DeprecationWarning, 2)
         return _retry.Retry(self)
 
     def close(self) -> None:

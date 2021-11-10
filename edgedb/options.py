@@ -22,14 +22,13 @@ class RetryCondition:
 class IsolationLevel:
     """Isolation level for transaction"""
     Serializable = "SERIALIZABLE"
-    RepeatableRead = "REPEATABLE READ"
 
 
 class RetryOptions:
-    """An immutable class that contains rules for `retrying_transaction()`"""
+    """An immutable class that contains rules for `transaction()`"""
     __slots__ = ['_default', '_overrides']
 
-    def __init__(self, attempts: int, backoff):
+    def __init__(self, attempts: int, backoff=default_backoff):
         self._default = _RetryRule(attempts, backoff)
         self._overrides = None
 
@@ -69,12 +68,12 @@ class RetryOptions:
 
 
 class TransactionOptions:
-    """Options for `raw_transaction()` and `retrying_transaction()`"""
+    """Options for `transaction()`"""
     __slots__ = ['_isolation', '_readonly', '_deferrable']
 
     def __init__(
         self,
-        isolation: IsolationLevel=IsolationLevel.RepeatableRead,
+        isolation: IsolationLevel=IsolationLevel.Serializable,
         readonly: bool = False,
         deferrable: bool = False,
     ):
@@ -130,8 +129,7 @@ class _OptionsMixin:
         Both ``self`` and returned object can be used after, but when using
         them transaction options applied will be different.
 
-        Transaction options are are used by both
-        ``raw_transaction`` and ``retrying_transaction``.
+        Transaction options are are used by the ``transaction`` method.
         """
         result = self._shallow_clone()
         result._options = self._options.with_transaction_options(options)

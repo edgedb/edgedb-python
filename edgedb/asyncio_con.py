@@ -35,7 +35,6 @@ from . import enums
 from . import options
 from . import retry as _retry
 from . import transaction as _transaction
-from . import legacy_transaction
 
 from .datatypes import datatypes
 from .protocol import asyncio_proto
@@ -337,6 +336,7 @@ class AsyncIOConnection(
         kwargs,
         io_format,
         expect_one=False,
+        required_one=False,
     ):
         inner = self._inner
         if inner._borrowed_for:
@@ -361,6 +361,8 @@ class AsyncIOConnection(
                         qc=inner._query_cache,
                         io_format=io_format,
                         expect_one=expect_one,
+                        required_one=required_one,
+                        allow_capabilities=enums.Capability.EXECUTE,
                     )
                 return result
             except errors.EdgeDBError as e:
@@ -393,12 +395,26 @@ class AsyncIOConnection(
             io_format=protocol.IoFormat.BINARY,
         )
 
-    async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+    async def query_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Union[typing.Any, None]:
         return await self._execute(
             query=query,
             args=args,
             kwargs=kwargs,
             expect_one=True,
+            io_format=protocol.IoFormat.BINARY,
+        )
+
+    async def query_required_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Any:
+        return await self._execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            expect_one=True,
+            required_one=True,
             io_format=protocol.IoFormat.BINARY,
         )
 
@@ -424,6 +440,7 @@ class AsyncIOConnection(
             reg=inner._codecs_registry,
             qc=inner._query_cache,
             io_format=protocol.IoFormat.JSON_ELEMENTS,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
         return result
 
@@ -434,6 +451,18 @@ class AsyncIOConnection(
             kwargs=kwargs,
             io_format=protocol.IoFormat.JSON,
             expect_one=True,
+        )
+
+    async def query_required_single_json(
+        self, query: str, *args, **kwargs
+    ) -> str:
+        return await self._execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            io_format=protocol.IoFormat.JSON,
+            expect_one=True,
+            required_one=True
         )
 
     async def execute(self, query: str) -> None:
@@ -456,24 +485,22 @@ class AsyncIOConnection(
         await inner._impl._protocol.simple_query(
             query, enums.Capability.EXECUTE)
 
-    def transaction(
-        self, *,
-        isolation: str = None,
-        readonly: bool = None,
-        deferrable: bool = None,
-    ) -> legacy_transaction.AsyncIOTransaction:
-        warnings.warn(
-            'The "transaction()" method is deprecated and is scheduled to be '
-            'removed. Use the "retrying_transaction()" or "raw_transaction()" '
-            'method instead.',
-            DeprecationWarning, 2)
-        return legacy_transaction.AsyncIOTransaction(
-            self, isolation, readonly, deferrable)
+    def transaction(self) -> _retry.AsyncIORetry:
+        return _retry.AsyncIORetry(self)
 
     def retrying_transaction(self) -> _retry.AsyncIORetry:
+        warnings.warn(
+            'The "retrying_transaction()" method has been renamed to '
+            '"transaction()"',
+            DeprecationWarning, 2)
         return _retry.AsyncIORetry(self)
 
     def raw_transaction(self) -> _transaction.AsyncIOTransaction:
+        warnings.warn(
+            'The "raw_transaction()" method is deprecated and is scheduled '
+            'to be removed. Use the "transaction()" method with '
+            'retry attempts=1 instead',
+            DeprecationWarning, 2)
         return _transaction.AsyncIOTransaction(
             self,
             self._options.transaction_options,

@@ -40,18 +40,19 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
     def test_sync_transaction_regular_01(self):
         self.assertIsNone(self.con._inner._borrowed_for)
-        tr = self.con.raw_transaction()
+        tr = self.con.transaction()
         self.assertIsNone(self.con._inner._borrowed_for)
 
         with self.assertRaises(ZeroDivisionError):
-            with tr as with_tr:
-                with_tr.execute('''
-                    INSERT test::TransactionTest {
-                        name := 'Test Transaction'
-                    };
-                ''')
+            for with_tr in tr:
+                with with_tr:
+                    with_tr.execute('''
+                        INSERT test::TransactionTest {
+                            name := 'Test Transaction'
+                        };
+                    ''')
 
-                1 / 0
+                    1 / 0
 
         self.assertIsNone(self.con._inner._borrowed_for)
 
@@ -68,7 +69,6 @@ class TestSyncTx(tb.SyncQueryTestCase):
         isolations = [
             None,
             edgedb.IsolationLevel.Serializable,
-            edgedb.IsolationLevel.RepeatableRead,
         ]
         booleans = [None, True, False]
         all = itertools.product(isolations, booleans, booleans)
@@ -82,15 +82,16 @@ class TestSyncTx(tb.SyncQueryTestCase):
             opt = {k: v for k, v in opt.items() if v is not None}
             con = self.con.with_transaction_options(TransactionOptions(**opt))
             try:
-                with con.raw_transaction() as tx:
-                    tx.execute(
-                        'INSERT test::TransactionTest {name := "test"}')
+                for tx in con.transaction():
+                    with tx:
+                        tx.execute(
+                            'INSERT test::TransactionTest {name := "test"}')
             except edgedb.TransactionError:
                 self.assertTrue(readonly)
             else:
                 self.assertFalse(readonly)
 
-            for tx in con.retrying_transaction():
+            for tx in con.transaction():
                 with tx:
                     pass
 

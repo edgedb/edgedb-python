@@ -194,10 +194,13 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             reg=con._codecs_registry,
             qc=con._query_cache,
             io_format=protocol.IoFormat.BINARY,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
         return result
 
-    async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+    async def query_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Union[typing.Any, None]:
         await self._ensure_transaction()
         con = self._connection_inner
         result, _ = await self._connection_impl._protocol.execute_anonymous(
@@ -208,6 +211,25 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             qc=con._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.BINARY,
+            allow_capabilities=enums.Capability.EXECUTE,
+        )
+        return result
+
+    async def query_required_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Any:
+        await self._ensure_transaction()
+        con = self._connection_inner
+        result, _ = await self._connection_impl._protocol.execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=con._codecs_registry,
+            qc=con._query_cache,
+            expect_one=True,
+            required_one=True,
+            io_format=protocol.IoFormat.BINARY,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
         return result
 
@@ -221,6 +243,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             reg=con._codecs_registry,
             qc=con._query_cache,
             io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
         return result
 
@@ -235,6 +258,25 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             qc=con._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
+        )
+        return result
+
+    async def query_required_single_json(
+        self, query: str, *args, **kwargs
+    ) -> str:
+        await self._ensure_transaction()
+        con = self._connection_inner
+        result, _ = await self._connection_impl._protocol.execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=con._codecs_registry,
+            qc=con._query_cache,
+            expect_one=True,
+            required_one=True,
+            io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
         return result
 
@@ -353,9 +395,12 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             reg=con._codecs_registry,
             qc=con._query_cache,
             io_format=protocol.IoFormat.BINARY,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
-    def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+    def query_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Union[typing.Any, None]:
         self._ensure_transaction()
         con = self._connection_inner
         return self._connection_impl._protocol.sync_execute_anonymous(
@@ -366,6 +411,22 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             qc=con._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.BINARY,
+            allow_capabilities=enums.Capability.EXECUTE,
+        )
+
+    def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
+        self._ensure_transaction()
+        con = self._connection_inner
+        return self._connection_impl._protocol.sync_execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=con._codecs_registry,
+            qc=con._query_cache,
+            expect_one=True,
+            required_one=True,
+            io_format=protocol.IoFormat.BINARY,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def query_json(self, query: str, *args, **kwargs) -> str:
@@ -378,6 +439,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             reg=con._codecs_registry,
             qc=con._query_cache,
             io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -391,6 +453,22 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             qc=con._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
+        )
+
+    def query_required_single_json(self, query: str, *args, **kwargs) -> str:
+        self._ensure_transaction()
+        con = self._connection_inner
+        return self._connection_impl._protocol.sync_execute_anonymous(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=con._codecs_registry,
+            qc=con._query_cache,
+            expect_one=True,
+            required_one=True,
+            io_format=protocol.IoFormat.JSON,
+            allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def execute(self, query: str) -> None:
