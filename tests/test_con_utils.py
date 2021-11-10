@@ -64,7 +64,8 @@ class TestConUtils(unittest.TestCase):
             ValueError, 'environment variable ".*" doesn\'t exist'),
         'file_not_found': (FileNotFoundError, 'No such file or directory'),
         'invalid_tls_security': (
-            ValueError, 'tls_security can only be one of `insecure`, ')
+            ValueError, 'tls_security can only be one of `insecure`, '
+            '|tls_security must be set to strict')
     }
 
     @contextlib.contextmanager
