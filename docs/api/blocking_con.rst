@@ -23,7 +23,7 @@ Connection
 
     :param dsn:
         If this parameter does not start with ``edgedb://`` then this is
-        a :ref:`name of an instance <edgedb-instances>`.
+        a :ref:`name of an instance <ref_reference_connection_instance_name>`.
 
         Otherwise it specifies a single string in the connection URI format:
         ``edgedb://user:password@host:port/database?option=value``.

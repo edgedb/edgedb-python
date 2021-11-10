@@ -1,8 +1,19 @@
 .. _edgedb-python-examples:
 
-
 Basic Usage
 ===========
+
+
+Connection
+----------
+
+The client library must be able to establish a connection to a running EdgeDB
+instance to execute queries. Refer to the :ref:`Client Library Connection
+<edgedb_client_connection>` docs for details on configuring connections.
+
+
+Blocking vs asynchronous
+------------------------
 
 **edgedb-python** has two APIs: blocking and asynchronous.  Both are
 almost entirely equivalent, with the exception of pool functionality, which
@@ -16,6 +27,10 @@ which establishes a new database session and returns a new
 or :py:class:`AsyncIOConnection <edgedb.AsyncIOConnection>` instance
 correspondingly.  The connection instance provides methods to run queries
 and manage transactions.
+
+
+Examples
+--------
 
 Blocking connection example:
 

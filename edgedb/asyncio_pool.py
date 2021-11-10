@@ -788,7 +788,7 @@ def create_client(dsn=None, *,
 
     :param str dsn:
         If this parameter does not start with ``edgedb://`` then this is
-        a :ref:`name of an instance <edgedb-instances>`.
+        a :ref:`name of an instance <ref_reference_connection_instance_name>`.
 
         Otherwies it specifies as a single string in the following format:
         ``edgedb://user:pass@host:port/database?option=value``.
