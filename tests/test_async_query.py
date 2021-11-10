@@ -802,7 +802,10 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                             )):
                                 async for tx2 in con2.transaction():
                                     async with tx2:
+                                        # start the lazy transaction
+                                        await tx2.query('SELECT 42;')
                                         fut.set_result(None)
+
                                         await tx2.query(
                                             'select sys::_advisory_lock(' +
                                             '<int64>$0)',
