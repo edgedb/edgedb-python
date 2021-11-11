@@ -572,16 +572,16 @@ class AsyncIOConnection(
         return await self.query_single_json(query, *args, **kwargs)
 
 
-async def async_connect(dsn: str = None, *,
-                        credentials_file: str = None,
-                        host: str = None, port: int = None,
-                        user: str = None, password: str = None,
-                        database: str = None,
-                        tls_ca_file: str = None,
-                        tls_security: bool = None,
-                        connection_class=None,
-                        wait_until_available: int = 30,
-                        timeout: int = 10) -> AsyncIOConnection:
+async def async_connect_raw(dsn: str = None, *,
+                            credentials_file: str = None,
+                            host: str = None, port: int = None,
+                            user: str = None, password: str = None,
+                            database: str = None,
+                            tls_ca_file: str = None,
+                            tls_security: bool = None,
+                            connection_class=None,
+                            wait_until_available: int = 30,
+                            timeout: int = 10) -> AsyncIOConnection:
 
     loop = asyncio.get_event_loop()
 

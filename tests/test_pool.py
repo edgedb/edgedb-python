@@ -622,7 +622,7 @@ class TestClient(tb.AsyncQueryTestCase):
         conargs["timeout"] = 120
         conargs["host"] = "127.0.0.1"
         conargs["port"] = port
-        conn = await edgedb.async_connect(**conargs)
+        conn = await edgedb.async_connect_raw(**conargs)
         try:
             await self._test_connection_broken(conn, broken)
             await self._test_connection_broken(client, broken)

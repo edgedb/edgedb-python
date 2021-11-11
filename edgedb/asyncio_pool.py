@@ -324,7 +324,7 @@ class _AsyncIOPoolImpl:
     async def _get_new_connection(self):
         if self._working_addr is None:
             # First connection attempt on this pool.
-            con = await asyncio_con.async_connect(
+            con = await asyncio_con.async_connect_raw(
                 *self._connect_args,
                 connection_class=self._connection_class,
                 **self._connect_kwargs)
@@ -849,3 +849,31 @@ async def create_async_pool(dsn=None, *,
         on_connect=on_connect,
         **connect_kwargs
     ).ensure_connected()
+
+
+async def async_connect(dsn: str = None, *,
+                        credentials_file: str = None,
+                        host: str = None, port: int = None,
+                        user: str = None, password: str = None,
+                        database: str = None,
+                        tls_ca_file: str = None,
+                        tls_security: bool = None,
+                        connection_class=None,
+                        wait_until_available: int = 30,
+                        timeout: int = 10) -> AsyncIOClient:
+    warnings.warn(
+        'The "async_connect()" API is deprecated and is scheduled to be '
+        'removed. Use "create_client(concurrency=1)" instead.',
+        DeprecationWarning, 2)
+
+    client = create_client(
+        dsn, concurrency=1, connection_class=connection_class,
+        wait_until_available=wait_until_available, timeout=timeout,
+        credentials_file=credentials_file, host=host, port=port,
+        user=user, password=password, database=database,
+        tls_ca_file=tls_ca_file, tls_security=tls_security
+    )
+
+    await client.ensure_connected()
+
+    return client
