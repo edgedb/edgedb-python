@@ -17,14 +17,14 @@
 #
 
 
-from libc.stdint cimport int64_t, int32_t
+from libc.stdint cimport int64_t
 
 
 @cython.final
 cdef class ConfigMemory:
 
     cdef:
-        readonly int64_t bytes
+        readonly int64_t _bytes
 
 
 cdef new_config_memory(int64_t bytes)

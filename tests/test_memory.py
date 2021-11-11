@@ -48,7 +48,11 @@ class TestConfigMemory(tb.SyncQueryTestCase):
         # same as <str><cfg::memory>
         mem_tuples = self.con.query('''
             WITH args := array_unpack(<array<str>>$0)
-            SELECT (<cfg::memory>args, <str><cfg::memory>args);
+            SELECT (
+                <cfg::memory>args,
+                <str><cfg::memory>args,
+                <int64><cfg::memory>args
+            );
         ''', mem_strs)
 
         mem_vals = [t[0] for t in mem_tuples]
@@ -62,5 +66,9 @@ class TestConfigMemory(tb.SyncQueryTestCase):
         self.assertEqual(
             [str(t[0]) for t in mem_tuples],
             [t[1] for t in mem_tuples]
+        )
+        self.assertEqual(
+            [t[0].as_bytes() for t in mem_tuples],
+            [t[2] for t in mem_tuples]
         )
         self.assertEqual(list(roundtrip), mem_vals)

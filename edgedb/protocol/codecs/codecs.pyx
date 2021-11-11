@@ -449,7 +449,7 @@ cdef config_memory_encode(pgproto.CodecContext settings,
                           WriteBuffer buf,
                           object obj):
     cdef:
-        bytes = obj.bytes
+        bytes = obj._bytes
 
     buf.write_int32(8)
     buf.write_int64(bytes)

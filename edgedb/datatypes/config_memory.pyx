@@ -31,16 +31,16 @@ DEF PiB = 1024 * TiB;
 cdef class ConfigMemory:
 
     def __init__(self, int64_t bytes):
-        self.bytes = bytes
+        self._bytes = bytes
 
     def __eq__(self, other):
         if type(other) is not ConfigMemory:
             return NotImplemented
 
-        return self.bytes == (<ConfigMemory>other).bytes
+        return self._bytes == (<ConfigMemory>other)._bytes
 
     def __hash__(self):
-        return hash((RelativeDuration, self.bytes))
+        return hash((ConfigMemory, self._bytes))
 
     def __repr__(self):
         return f'<edgedb.ConfigMemory "{self}">'
@@ -48,7 +48,7 @@ cdef class ConfigMemory:
     @cython.cdivision(True)
     def __str__(self):
         cdef:
-            int64_t bytes = self.bytes
+            int64_t bytes = self._bytes
 
         if bytes >= PiB and bytes % PiB == 0:
             return f'{bytes // PiB}PiB'
@@ -62,30 +62,13 @@ cdef class ConfigMemory:
             return f'{bytes // KiB}KiB'
         return f'{bytes}B'
 
-    @property
-    def kibibytes(self):
-        return self.bytes / KiB
-
-    @property
-    def mebibytes(self):
-        return self.bytes / MiB
-
-    @property
-    def gibibytes(self):
-        return self.bytes / GiB
-
-    @property
-    def tebibytes(self):
-        return self.bytes / TiB
-
-    @property
-    def pebibytes(self):
-        return self.bytes / PiB
+    def as_bytes(self):
+        return self._bytes
 
 
 cdef new_config_memory(int64_t bytes):
     cdef ConfigMemory mem = ConfigMemory.__new__(ConfigMemory)
 
-    mem.bytes = bytes
+    mem._bytes = bytes
 
     return mem
