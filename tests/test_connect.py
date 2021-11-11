@@ -52,13 +52,13 @@ class TestConnect(tb.AsyncQueryTestCase):
                 edgedb.ClientConnectionError,
                 f'(?s).*Is the server running.*port {self.port}.*'):
             conn_args['host'] = '127.0.0.1'
-            await edgedb.async_connect(**conn_args)
+            await edgedb.async_connect_raw(**conn_args)
 
         with self.assertRaisesRegex(
                 edgedb.ClientConnectionError,
                 f'(?s).*Is the server running.*port {self.port}.*'):
             conn_args['host'] = orig_conn_args['host']
-            await edgedb.async_connect(**conn_args)
+            await edgedb.async_connect_raw(**conn_args)
 
     def test_connect_sync_01(self):
         orig_conn_args = self.get_connect_args()

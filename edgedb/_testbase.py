@@ -328,7 +328,7 @@ class ConnectedTestCaseMixin:
                       password='test'):
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
-        return await edgedb.async_connect(**conargs)
+        return await edgedb.async_connect_raw(**conargs)
 
     @classmethod
     def get_connect_args(cls, *,
