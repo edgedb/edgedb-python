@@ -368,6 +368,12 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     'CONFIGURE SESSION SET __internal_testmode := true;'))
 
         if self.ISOLATED_METHODS:
+            self.loop.run_until_complete(
+                self.con.execute(
+                    "CONFIGURE SESSION SET session_idle_transaction_timeout "
+                    ":= <std::duration>'3m'"
+                )
+            )
             self.xact = self.con.raw_transaction()
             self.loop.run_until_complete(self.xact.start())
 
