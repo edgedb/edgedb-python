@@ -22,6 +22,7 @@ cimport cpython
 
 include "./relative_duration.pyx"
 include "./enum.pyx"
+include "./config_memory.pyx"
 
 
 _RecordDescriptor = EdgeRecordDesc_InitType()

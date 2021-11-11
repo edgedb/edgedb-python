@@ -93,6 +93,7 @@ cdef class SansIOProtocol:
 
         TransactionStatus xact_status
 
+        CodecsRegistry internal_reg
         dict server_settings
 
         readonly bytes last_status
@@ -118,6 +119,9 @@ cdef class SansIOProtocol:
     cpdef abort(self)
 
     cdef reset_status(self)
+
+    cdef parse_system_config(self, BaseCodec codec, bytes data)
+    cdef parse_server_settings(self, str name, bytes val)
 
     cdef fallthrough(self)
 

@@ -339,7 +339,7 @@ class _AsyncIOPoolImpl:
                 suggested_concurrency = con.get_settings().get(
                     'suggested_pool_concurrency')
                 if suggested_concurrency:
-                    self._concurrency = int(suggested_concurrency)
+                    self._concurrency = suggested_concurrency
                     self._resize_holder_pool()
 
         else:
