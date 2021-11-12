@@ -81,12 +81,10 @@ Sets
 
     A representation of an immutable set of values returned by a query.
 
-    The :py:meth:`BlockingIOConnection.query()
-    <edgedb.BlockingIOConnection.query>` and
-    :py:meth:`AsyncIOConnection.query()
-    <edgedb.AsyncIOConnection.query>` methods return
-    an instance of this type.  Nested sets in the result are also
-    returned as ``Set`` objects.
+    The :py:meth:`AsyncIOClient.query() <edgedb.AsyncIOClient.query>` and
+    :py:meth:`BlockingIOConnection.query() <edgedb.BlockingIOConnection.query>`
+    methods return an instance of this type.  Nested sets in the result are
+    also returned as ``Set`` objects.
 
     .. describe:: len(s)
 

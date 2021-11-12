@@ -36,9 +36,10 @@ Connection
         >>> asyncio.run(main())
         {2}
 
+
 .. _edgedb-python-asyncio-api-pool:
 
-Client Connection Pool
+Client connection pool
 ======================
 
 .. py:function:: create_async_client(dsn=None, *, \
@@ -56,7 +57,7 @@ Client Connection Pool
     If both *dsn* and keyword arguments are specified, the latter
     override the corresponding values parsed from the connection URI.
 
-    Returns a new :py:class:`AsyncIOConnection` object.
+    Returns a new :py:class:`AsyncIOClient` object.
 
     :param str dsn:
         If this parameter does not start with ``edgedb://`` then this is
@@ -161,6 +162,7 @@ Client Connection Pool
                 await tx.query('SELECT {1, 2, 3}')
 
 
+
 .. py:class:: AsyncIOClient()
 
     A connection pool.
@@ -169,19 +171,7 @@ Client Connection Pool
     except that the pool is safe for concurrent use.
 
     Pools are created by calling
-    :py:func:`~edgedb.create_client`.
-
-    .. py:coroutinemethod:: ensure_connected()
-
-        If the client does not yet have any open connections in its pool,
-        attempts to open a connection, else returns immediately.
-
-        Since the client lazily creates new connections as needed (up to the
-        configured ``concurrency`` limit), the first connection attempt will
-        only occur when the first query is run on a client. ``ensureConnected``
-        can be useful to catch any errors resulting from connection
-        mis-configuration by triggering the first connection attempt
-        explicitly.
+    :py:func:`~edgedb.create_async_client`.
 
     .. py:coroutinemethod:: query(query, *args, **kwargs)
 
@@ -189,8 +179,16 @@ Client Connection Pool
         as an :py:class:`edgedb.Set <edgedb.Set>` instance. The temporary
         connection is automatically returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.query()
-        <edgedb.AsyncIOConnection.query>` for details.
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            An instance of :py:class:`edgedb.Set <edgedb.Set>` containing
+            the query result.
+
+        Note that positional and named query arguments cannot be mixed.
+
 
     .. py:coroutinemethod:: query_single(query, *args, **kwargs)
 
@@ -198,8 +196,20 @@ Client Connection Pool
         query and return its element. The temporary connection is automatically
         returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.query_single()
-        <edgedb.AsyncIOConnection.query_single>` for details.
+
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            Query result.
+
+        The *query* must return no more than one element.  If the query returns
+        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, ``None`` is returned.
+
+        Note, that positional and named query arguments cannot be mixed.
+
 
     .. py:coroutinemethod:: query_required_single(query, *args, **kwargs)
 
@@ -207,8 +217,20 @@ Client Connection Pool
         and return its element. The temporary connection is automatically
         returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.query_required_single()
-        <edgedb.AsyncIOConnection.query_required_single>` for details.
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            Query result.
+
+        The *query* must return exactly one element.  If the query returns
+        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, an ``edgedb.NoDataError``
+        is raised.
+
+        Note, that positional and named query arguments cannot be mixed.
+
 
     .. py:coroutinemethod:: query_json(query, *args, **kwargs)
 
@@ -216,8 +238,28 @@ Client Connection Pool
         return the results as JSON. The temporary connection is automatically
         returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.query_json()
-        <edgedb.AsyncIOConnection.query_json>` for details.
+
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            A JSON string containing an array of query results.
+
+        Note, that positional and named query arguments cannot be mixed.
+
+        .. note::
+
+            Caution is advised when reading ``decimal`` values using
+            this method. The JSON specification does not have a limit
+            on significant digits, so a ``decimal`` number can be
+            losslessly represented in JSON. However, the default JSON
+            decoder in Python will read all such numbers as ``float``
+            values, which may result in errors or precision loss. If
+            such loss is unacceptable, then consider casting the value
+            into ``str`` and decoding it on the client side into a
+            more appropriate type, such as ``Decimal``.
+
 
     .. py:coroutinemethod:: query_single_json(query, *args, **kwargs)
 
@@ -225,8 +267,31 @@ Client Connection Pool
         query and return its element in JSON. The temporary connection is
         automatically returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.query_single_json()
-        <edgedb.AsyncIOConnection.query_single_json>` for details.
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            Query result encoded in JSON.
+
+        The *query* must return no more than one element.  If the query returns
+        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, ``"null"`` is returned.
+
+        Note, that positional and named query arguments cannot be mixed.
+
+        .. note::
+
+            Caution is advised when reading ``decimal`` values using
+            this method. The JSON specification does not have a limit
+            on significant digits, so a ``decimal`` number can be
+            losslessly represented in JSON. However, the default JSON
+            decoder in Python will read all such numbers as ``float``
+            values, which may result in errors or precision loss. If
+            such loss is unacceptable, then consider casting the value
+            into ``str`` and decoding it on the client side into a
+            more appropriate type, such as ``Decimal``.
+
 
     .. py:coroutinemethod:: query_required_single_json(query, *args, **kwargs)
 
@@ -234,8 +299,32 @@ Client Connection Pool
         query and return its element in JSON. The temporary connection is
         automatically returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.query_required_single_json()
-        <edgedb.AsyncIOConnection.query_required_single_json>` for details.
+        :param str query: Query text.
+        :param args: Positional query arguments.
+        :param kwargs: Named query arguments.
+
+        :return:
+            Query result encoded in JSON.
+
+        The *query* must return exactly one element.  If the query returns
+        more than one element, an ``edgedb.ResultCardinalityMismatchError``
+        is raised, if it returns an empty set, an ``edgedb.NoDataError``
+        is raised.
+
+        Note, that positional and named query arguments cannot be mixed.
+
+        .. note::
+
+            Caution is advised when reading ``decimal`` values using
+            this method. The JSON specification does not have a limit
+            on significant digits, so a ``decimal`` number can be
+            losslessly represented in JSON. However, the default JSON
+            decoder in Python will read all such numbers as ``float``
+            values, which may result in errors or precision loss. If
+            such loss is unacceptable, then consider casting the value
+            into ``str`` and decoding it on the client side into a
+            more appropriate type, such as ``Decimal``.
+
 
     .. py:coroutinemethod:: execute(query)
 
@@ -243,8 +332,26 @@ Client Connection Pool
         (or commands).  The temporary connection is automatically
         returned back to the pool.
 
-        See :py:meth:`AsyncIOConnection.execute()
-        <edgedb.AsyncIOConnection.execute>` for details.
+        :param str query: Query text.
+
+        The commands must take no arguments.
+
+        Example:
+
+        .. code-block:: pycon
+
+            >>> await con.execute('''
+            ...     CREATE TYPE MyType {
+            ...         CREATE PROPERTY a -> int64
+            ...     };
+            ...     FOR x IN {100, 200, 300}
+            ...     UNION INSERT MyType { a := x };
+            ... ''')
+
+        .. note::
+            If the results of *query* are desired, :py:meth:`query`,
+            :py:meth:`query_single` or :py:meth:`query_required_single`
+            should be used instead.
 
     .. py:method:: transaction()
 
@@ -252,9 +359,9 @@ Client Connection Pool
 
         This is the preferred method of initiating and running a database
         transaction in a robust fashion.  The ``transaction()``
-        transaction loop will attempt to re-execute the transaction loop body
-        if a transient error occurs, such as a network error or a transaction
-        serialization error.
+        transaction loop will attempt to re-execute the transaction loop
+        body if a transient error occurs, such as a network error or a
+        transaction serialization error.
 
         Returns an instance of :py:class:`AsyncIORetry`.
 
@@ -264,16 +371,18 @@ Client Connection Pool
 
         .. code-block:: python
 
-            async for tx in client.transaction():
+            async for tx in con.transaction():
                 async with tx:
                     value = await tx.query_single("SELECT Counter.value")
                     await tx.execute(
-                        "UPDATE Counter SET { value := <int64>$value",
-                        value=value,
+                        "UPDATE Counter SET { value := <int64>$value }",
+                        value=value + 1,
                     )
 
         Note that we are executing queries on the ``tx`` object rather
-        than on the original client.
+        than on the original connection.
+
+
 
     .. py:coroutinemethod:: aclose()
 
@@ -290,6 +399,19 @@ Client Connection Pool
     .. py:method:: terminate()
 
         Terminate all connections in the pool.
+
+
+    .. py:coroutinemethod:: ensure_connected()
+
+        If the client does not yet have any open connections in its pool,
+        attempts to open a connection, else returns immediately.
+
+        Since the client lazily creates new connections as needed (up to the
+        configured ``concurrency`` limit), the first connection attempt will
+        only occur when the first query is run on a client. ``ensureConnected``
+        can be useful to catch any errors resulting from connection
+        mis-configuration by triggering the first connection attempt
+        explicitly.
 
 
 .. _edgedb-python-asyncio-api-transaction:
@@ -360,80 +482,7 @@ See also:
 
 * RFC1004_
 * :py:meth:`AsyncIOClient.transaction()`
-* :py:meth:`AsyncIOClient.raw_transaction()`
-* :py:meth:`AsyncIOConnection.transaction()`
-* :py:meth:`AsyncIOConnection.raw_transaction()`
 
-
-.. py:class:: AsyncIOTransaction
-
-    Represents a transaction or a savepoint block.
-
-    Instances of this type are created by calling the
-    :py:meth:`AsyncIOConnection.raw_transaction()` method.
-
-    .. py:coroutinemethod:: query(query, *args, **kwargs)
-
-        Acquire a connection and use it to run a query and return the results
-        as an :py:class:`edgedb.Set <edgedb.Set>` instance. The temporary
-        connection is automatically returned back to the pool.
-
-        See :py:meth:`AsyncIOConnection.query()
-        <edgedb.AsyncIOConnection.query>` for details.
-
-    .. py:coroutinemethod:: query_single(query, *args, **kwargs)
-
-        Acquire a connection and use it to run an optional singleton-returning
-        query and return its element. The temporary connection is automatically
-        returned back to the pool.
-
-        See :py:meth:`AsyncIOConnection.query_single()
-        <edgedb.AsyncIOConnection.query_single>` for details.
-
-    .. py:coroutinemethod:: query_required_single(query, *args, **kwargs)
-
-        Acquire a connection and use it to run a singleton-returning query
-        and return its element. The temporary connection is automatically
-        returned back to the pool.
-
-        See :py:meth:`AsyncIOConnection.query_required_single()
-        <edgedb.AsyncIOConnection.query_required_single>` for details.
-
-    .. py:coroutinemethod:: query_json(query, *args, **kwargs)
-
-        Acquire a connection and use it to run a query and
-        return the results as JSON. The temporary connection is automatically
-        returned back to the pool.
-
-        See :py:meth:`AsyncIOConnection.query_json()
-        <edgedb.AsyncIOConnection.query_json>` for details.
-
-    .. py:coroutinemethod:: query_single_json(query, *args, **kwargs)
-
-        Acquire a connection and use it to run an optional singleton-returning
-        query and return its element in JSON. The temporary connection is
-        automatically returned back to the pool.
-
-        See :py:meth:`AsyncIOConnection.query_single_json()
-        <edgedb.AsyncIOConnection.query_single_json>` for details.
-
-    .. py:coroutinemethod:: query_required_single_json(query, *args, **kwargs)
-
-        Acquire a connection and use it to run a singleton-returning
-        query and return its element in JSON. The temporary connection is
-        automatically returned back to the pool.
-
-        See :py:meth:`AsyncIOConnection.query_requried_single_json()
-        <edgedb.AsyncIOConnection.query_required_single_json>` for details.
-
-    .. py:coroutinemethod:: execute(query)
-
-        Acquire a connection and use it to execute an EdgeQL command
-        (or commands).  The temporary connection is automatically
-        returned back to the pool.
-
-        See :py:meth:`AsyncIOConnection.execute()
-        <edgedb.AsyncIOConnection.execute>` for details.
 
 
 .. py:class:: AsyncIORetry
@@ -441,12 +490,99 @@ See also:
     Represents a wrapper that yields :py:class:`AsyncIOTransaction`
     object when iterating.
 
-    See :py:meth:`AsyncIOConnection.transaction()`
+    See :py:meth:`AsyncIOClient.transaction()`
     method for an example.
 
     .. py:coroutinemethod:: __anext__()
 
         Yields :py:class:`AsyncIOTransaction` object every time transaction
         has to be repeated.
+
+.. py:class:: AsyncIOTransaction
+
+    Represents a transaction or a savepoint block.
+
+    Instances of this type are yielded by a :py:class`AsyncIORetry` iterator.
+
+    .. py:coroutinemethod:: start()
+
+        Start a transaction or create a savepoint.
+
+    .. py:coroutinemethod:: commit()
+
+        Exit the transaction or savepoint block and commit changes.
+
+    .. py:coroutinemethod:: rollback()
+
+        Exit the transaction or savepoint block and discard changes.
+
+    .. describe:: async with c:
+
+        Start and commit/rollback the transaction or savepoint block
+        automatically when entering and exiting the code inside the
+        context manager block.
+
+    .. py:coroutinemethod:: query(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a query and return the results
+        as an :py:class:`edgedb.Set <edgedb.Set>` instance. The temporary
+        connection is automatically returned back to the pool.
+
+        See :py:meth:`AsyncIOClient.query()
+        <edgedb.AsyncIOClient.query>` for details.
+
+    .. py:coroutinemethod:: query_single(query, *args, **kwargs)
+
+        Acquire a connection and use it to run an optional singleton-returning
+        query and return its element. The temporary connection is automatically
+        returned back to the pool.
+
+        See :py:meth:`AsyncIOClient.query_single()
+        <edgedb.AsyncIOClient.query_single>` for details.
+
+    .. py:coroutinemethod:: query_required_single(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a singleton-returning query
+        and return its element. The temporary connection is automatically
+        returned back to the pool.
+
+        See :py:meth:`AsyncIOClient.query_required_single()
+        <edgedb.AsyncIOClient.query_required_single>` for details.
+
+    .. py:coroutinemethod:: query_json(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a query and
+        return the results as JSON. The temporary connection is automatically
+        returned back to the pool.
+
+        See :py:meth:`AsyncIOClient.query_json()
+        <edgedb.AsyncIOClient.query_json>` for details.
+
+    .. py:coroutinemethod:: query_single_json(query, *args, **kwargs)
+
+        Acquire a connection and use it to run an optional singleton-returning
+        query and return its element in JSON. The temporary connection is
+        automatically returned back to the pool.
+
+        See :py:meth:`AsyncIOClient.query_single_json()
+        <edgedb.AsyncIOClient.query_single_json>` for details.
+
+    .. py:coroutinemethod:: query_required_single_json(query, *args, **kwargs)
+
+        Acquire a connection and use it to run a singleton-returning
+        query and return its element in JSON. The temporary connection is
+        automatically returned back to the pool.
+
+        See :py:meth:`AsyncIOClient.query_requried_single_json()
+        <edgedb.AsyncIOClient.query_required_single_json>` for details.
+
+    .. py:coroutinemethod:: execute(query)
+
+        Acquire a connection and use it to execute an EdgeQL command
+        (or commands).  The temporary connection is automatically
+        returned back to the pool.
+
+        See :py:meth:`AsyncIOClient.execute()
+        <edgedb.AsyncIOClient.execute>` for details.
 
 .. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst

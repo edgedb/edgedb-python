@@ -12,21 +12,21 @@ instance to execute queries. Refer to the :ref:`Client Library Connection
 <edgedb_client_connection>` docs for details on configuring connections.
 
 
-Blocking vs asynchronous
-------------------------
+Async vs blocking API
+---------------------
 
-**edgedb-python** has two APIs: blocking and asynchronous.  Both are
-almost entirely equivalent, with the exception of pool functionality, which
-is currently only supported in asynchronous mode.
+This libraray provides two APIs: asynchronous and blocking. Both are
+nearly equivalent, with the exception of connection pooling functionality,
+which is currently only supported in asynchronous mode.
 
-The interaction with the database normally starts with a call to
-:py:func:`connect() <edgedb.connect>`, or
-:py:func:`async_connect() <edgedb.async_connect>`,
-which establishes a new database session and returns a new
-:py:class:`BlockingIOConnection <edgedb.BlockingIOConnection>`
-or :py:class:`AsyncIOConnection <edgedb.AsyncIOConnection>` instance
-correspondingly.  The connection instance provides methods to run queries
-and manage transactions.
+For an async client, call :py:func:`create_async_client()
+<edgedb.create_async_client>` to create an instance of
+:py:class:`AsyncIOClient <edgedb.AsyncIOClient>`. This class maintains
+a pool of connections under the hood and provides methods for executing
+queries and transactions.
+
+For a blocking client, use :py:func:`connect() <edgedb.connect>` to create an
+instance of :py:class:`BlockingIOConnection <edgedb.BlockingIOConnection>`.
 
 
 Examples
@@ -127,7 +127,7 @@ An equivalent example using the **asyncio** API:
         asyncio.run(main())
 
 
-Type Conversion
+Type conversion
 ---------------
 
 edgedb-python automatically converts EdgeDB types to the corresponding Python
@@ -136,7 +136,7 @@ types and vice versa.  See :ref:`edgedb-python-datatypes` for details.
 
 .. _edgedb-python-connection-pool:
 
-Client Connection Pools
+Client connection pools
 -----------------------
 
 For server-type type applications that handle frequent requests and need
@@ -145,7 +145,7 @@ the use of a connection pool is recommended.  The edgedb-python asyncio API
 provides an implementation of such a pool.
 
 To create a connection pool, use the
-:py:func:`edgedb.create_client() <edgedb.create_client>`
+:py:func:`edgedb.create_async_client() <edgedb.create_async_client>`
 function.  The resulting :py:class:`AsyncIOClient <edgedb.AsyncIOClient>`
 object can then be used to borrow connections from the pool.
 
@@ -179,7 +179,7 @@ Below is an example of a connection pool usage:
         """Initialize the application server."""
         app = web.Application()
         # Create a database connection client
-        app['client'] = edgedb.create_client(
+        app['client'] = edgedb.create_async_client(
             database='my_service',
             user='my_service')
         # Configure service routes
@@ -211,7 +211,7 @@ The most robust way to create a
 
 * :py:meth:`AsyncIOClient.transaction() <edgedb.AsyncIOClient.transaction>`
 * :py:meth:`BlockingIOConnection.transaction() <edgedb.BlockingIOConnection.transaction>`
-* :py:meth:`AsyncIOConnection.transaction() <edgedb.AsyncIOConnection.transaction>`
+
 
 Example:
 
