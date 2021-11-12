@@ -21,17 +21,21 @@
 
 from ._version import __version__
 
-from edgedb.datatypes.datatypes import Tuple, NamedTuple, EnumValue, RelativeDuration, ConfigMemory
+from edgedb.datatypes.datatypes import (
+    Tuple, NamedTuple, EnumValue, RelativeDuration, ConfigMemory
+)
 from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
 
 from .abstract import Executor, AsyncIOExecutor
+
 from .asyncio_con import async_connect_raw, AsyncIOConnection
 from .asyncio_pool import (
-    create_client,
+    create_async_client,
     create_async_pool,
     async_connect,
     AsyncIOClient
 )
+
 from .blocking_con import connect, BlockingIOConnection
 from .options import RetryCondition, IsolationLevel, default_backoff
 from .options import RetryOptions, TransactionOptions

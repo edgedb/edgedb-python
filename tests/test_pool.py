@@ -37,12 +37,12 @@ class TestClient(tb.AsyncQueryTestCase):
         conargs["timeout"] = 120
         conargs.update(kwargs)
 
-        return edgedb.create_client(**conargs)
+        return edgedb.create_async_pool(**conargs)
 
     async def test_client_01(self):
         for n in {1, 5, 10, 20, 100}:
             with self.subTest(tasksnum=n):
-                client = self.create_client(concurrency=10)
+                client = await self.create_client(max_size=10)
 
                 async def worker():
                     con = await client.acquire()
@@ -56,7 +56,7 @@ class TestClient(tb.AsyncQueryTestCase):
     async def test_client_02(self):
         for n in {1, 3, 5, 10, 20, 100}:
             with self.subTest(tasksnum=n):
-                async with self.create_client(concurrency=5) as client:
+                async with self.create_client(max_size=5) as client:
 
                     async def worker():
                         con = await client.acquire()
@@ -67,7 +67,7 @@ class TestClient(tb.AsyncQueryTestCase):
                     await asyncio.gather(*tasks)
 
     async def test_client_04(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         con = await client.acquire()
 
@@ -91,7 +91,7 @@ class TestClient(tb.AsyncQueryTestCase):
     async def test_client_05(self):
         for n in {1, 3, 5, 10, 20, 100}:
             with self.subTest(tasksnum=n):
-                client = self.create_client(concurrency=10)
+                client = await self.create_client(max_size=10)
 
                 async def worker():
                     async with client.acquire() as con:
@@ -115,7 +115,7 @@ class TestClient(tb.AsyncQueryTestCase):
             fut.set_result(con)
 
         async with self.create_client(
-            concurrency=5, on_acquire=on_acquire
+            max_size=5, on_acquire=on_acquire
         ) as client:
             async with client.acquire() as con:
                 pass
@@ -140,7 +140,7 @@ class TestClient(tb.AsyncQueryTestCase):
                     raise RuntimeError("init was not called")
 
         async with self.create_client(
-            concurrency=5, on_connect=on_connect,
+            max_size=5, on_connect=on_connect,
             on_acquire=on_acquire,
         ) as client:
             users = asyncio.gather(*[user(client) for _ in range(10)])
@@ -149,7 +149,7 @@ class TestClient(tb.AsyncQueryTestCase):
         self.assertEqual(len(cons), 5)
 
     async def test_client_08(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         try:
             con = await client.acquire()
@@ -162,9 +162,9 @@ class TestClient(tb.AsyncQueryTestCase):
             await client.aclose()
 
     async def test_client_09(self):
-        client1 = self.create_client(concurrency=1)
+        client1 = await self.create_client(max_size=1)
 
-        client2 = self.create_client(concurrency=1)
+        client2 = await self.create_client(max_size=1)
 
         try:
             con = await client1.acquire()
@@ -179,7 +179,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client2.aclose()
 
     async def test_client_10(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         con = await client.acquire()
         await client.release(con)
@@ -188,7 +188,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_11(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         async with client.acquire() as con:
             txn = con.raw_transaction()
@@ -222,7 +222,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_12(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         async with client.acquire() as con:
             self.assertTrue(isinstance(con, asyncio_con.AsyncIOConnection))
@@ -231,7 +231,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_13(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         async with client.acquire() as con:
             self.assertIn("Execute an EdgeQL command", con.execute.__doc__)
@@ -245,7 +245,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_transaction(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         async for tx in client.transaction():
             async with tx:
@@ -254,7 +254,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_retry(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         async for tx in client.transaction():
             async with tx:
@@ -263,7 +263,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_options(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         client.with_transaction_options(
             edgedb.TransactionOptions(readonly=True))
@@ -275,10 +275,10 @@ class TestClient(tb.AsyncQueryTestCase):
 
         await client.aclose()
 
-    def test_client_init_run_until_complete(self):
-        client = self.create_client()
+    async def test_client_init_run_until_complete(self):
+        client = await self.create_client()
         self.assertIsInstance(client, asyncio_pool.AsyncIOClient)
-        self.loop.run_until_complete(client.aclose())
+        await client.aclose()
 
     async def test_client_exception_in_on_acquire_and_on_connect(self):
         class Error(Exception):
@@ -299,7 +299,7 @@ class TestClient(tb.AsyncQueryTestCase):
             last_con = None
             cons = []
             async with self.create_client(
-                concurrency=1, on_acquire=callback
+                max_size=1, on_acquire=callback
             ) as client:
                 with self.assertRaises(Error):
                     await client.acquire()
@@ -313,7 +313,7 @@ class TestClient(tb.AsyncQueryTestCase):
             last_con = None
             cons = []
             async with self.create_client(
-                concurrency=1, on_connect=callback
+                max_size=1, on_connect=callback
             ) as client:
                 with self.assertRaises(Error):
                     await client.acquire()
@@ -325,7 +325,7 @@ class TestClient(tb.AsyncQueryTestCase):
 
     async def test_client_no_acquire_deadlock(self):
         async with self.create_client(
-            concurrency=1,
+            max_size=1,
         ) as client:
 
             async with client.acquire() as con:
@@ -367,7 +367,7 @@ class TestClient(tb.AsyncQueryTestCase):
                 cons.add(con)
 
         async with self.create_client(
-            concurrency=10,
+            max_size=10,
             connection_class=MyConnection,
         ) as client:
 
@@ -396,7 +396,7 @@ class TestClient(tb.AsyncQueryTestCase):
             return 1
 
         async def run(N, meth):
-            async with self.create_client(concurrency=10) as client:
+            async with self.create_client(max_size=10) as client:
 
                 coros = [meth(client) for _ in range(N)]
                 res = await asyncio.gather(*coros)
@@ -414,7 +414,7 @@ class TestClient(tb.AsyncQueryTestCase):
                     await run(200, method)
 
     async def test_client_handles_transaction_exit_in_asyncgen_1(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         async def iterate(con):
             async for tx in con.transaction():
@@ -437,7 +437,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_handles_transaction_exit_in_asyncgen_2(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         async def iterate(con):
             async for tx in con.transaction():
@@ -462,7 +462,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_handles_asyncgen_finalization(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         async def iterate(tx):
             for record in await tx.query("SELECT {1, 2, 3}"):
@@ -485,7 +485,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_close_waits_for_release(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         flag = self.loop.create_future()
         conn_released = False
@@ -507,7 +507,7 @@ class TestClient(tb.AsyncQueryTestCase):
         self.assertTrue(conn_released)
 
     async def test_client_close_timeout(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         flag = self.loop.create_future()
 
@@ -525,7 +525,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await task
 
     async def test_client_expire_connections(self):
-        client = self.create_client(concurrency=1)
+        client = await self.create_client(max_size=1)
 
         con = await client.acquire()
         try:
@@ -539,7 +539,7 @@ class TestClient(tb.AsyncQueryTestCase):
     async def test_client_properties(self):
         concurrency = 2
 
-        client = self.create_client(concurrency=concurrency)
+        client = await self.create_client(max_size=concurrency)
         self.assertEqual(client.concurrency, concurrency)
         self.assertEqual(client.concurrency, concurrency)
 
@@ -616,7 +616,8 @@ class TestClient(tb.AsyncQueryTestCase):
             cb, '127.0.0.1', 0
         )
         port = server.sockets[0].getsockname()[1]
-        client = self.create_client(host='127.0.0.1', port=port, concurrency=1)
+        client = await self.create_client(
+            host='127.0.0.1', port=port, max_size=1)
         conargs = self.get_connect_args().copy()
         conargs["database"] = self.con.dbname
         conargs["timeout"] = 120
@@ -635,7 +636,11 @@ class TestClient(tb.AsyncQueryTestCase):
             await done.wait()
 
     async def test_client_suggested_concurrency(self):
-        client = self.create_client()
+        conargs = self.get_connect_args().copy()
+        conargs["database"] = self.con.dbname
+        conargs["timeout"] = 120
+
+        client = edgedb.create_async_client(**conargs)
 
         self.assertEqual(client.concurrency, 1)
 
@@ -644,7 +649,7 @@ class TestClient(tb.AsyncQueryTestCase):
 
         await client.aclose()
 
-        client = self.create_client(concurrency=5)
+        client = edgedb.create_async_client(**conargs, concurrency=5)
 
         self.assertEqual(client.concurrency, 5)
 
