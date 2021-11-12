@@ -39,7 +39,7 @@ jobs:
         mkdir -p dist/
         echo "${VERSION}" > dist/VERSION
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: dist
         path: dist/
@@ -52,98 +52,99 @@ jobs:
       PIP_DISABLE_PIP_VERSION_CHECK: 1
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         fetch-depth: 50
         submodules: true
 
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v1
-      with:
-        python-version: "3.9"
+    - name: Set up Python
+      uses: actions/setup-python@v2
 
     - name: Build source distribution
       run: |
         pip install -U setuptools wheel pip
         python setup.py sdist
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: dist
-        path: dist/
+        path: dist/*.tar.*
 
   build-wheels:
     needs: validate-release-request
     runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        cibw_python: ["cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*"]
+        cibw_arch: ["auto64"]
+        exclude:
+            # Tests fail on this combination.
+            - os: macos-latest
+              cibw_python: "cp36-*"
+
+    defaults:
+      run:
+        shell: bash
 
     env:
       PIP_DISABLE_PIP_VERSION_CHECK: 1
 
-    strategy:
-      matrix:
-        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
-        os: [ubuntu-latest, macos-latest, windows-latest]
-
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         fetch-depth: 50
         submodules: true
 
+    - name: Setup WSL
+      if: ${{ steps.release.outputs.version == 0 && matrix.os == 'windows-latest' }}
+      uses: vampire/setup-wsl@v1
+      with:
+        wsl-shell-user: edgedb
+        additional-packages:
+          ca-certificates
+          curl
+
     - name: Install EdgeDB
-      if: "!startsWith(matrix.os, 'windows')"
       uses: edgedb/setup-edgedb@v1
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install Python Deps
-      run: |
-        python -m pip install --upgrade setuptools pip wheel
-
-    - name: Build Wheels (linux)
-      if: startsWith(matrix.os, 'ubuntu')
-      uses: docker://quay.io/pypa/manylinux1_x86_64
+    - uses: pypa/cibuildwheel@v2.2.2
       env:
-        PYTHON_VERSION: ${{ matrix.python-version }}
-      with:
-        entrypoint: /github/workspace/.github/workflows/build-manylinux-wheels.sh
+        CIBW_BUILD_VERBOSITY: 1
+        CIBW_BUILD: ${{ matrix.cibw_python }}
+        # Cannot test on Musl distros yet.
+        CIBW_SKIP: "*-musllinux*"
+        CIBW_ARCHS: ${{ matrix.cibw_arch }}
+        # EdgeDB doesn't run on CentOS 6, so use 2014 as baseline
+        CIBW_MANYLINUX_X86_64_IMAGE: "quay.io/pypa/manylinux2014_x86_64"
+        CIBW_BEFORE_ALL_LINUX: >
+          .github/workflows/install-edgedb.sh
+        CIBW_TEST_EXTRAS: "test"
+        CIBW_TEST_COMMAND: >
+          python {project}/tests/__init__.py
+        CIBW_TEST_COMMAND_WINDOWS: >
+          python {project}\tests\__init__.py
+        CIBW_TEST_COMMAND_LINUX: >
+          PY=`which python`
+          && chmod -R go+rX "$(dirname $(dirname $(dirname $PY)))"
+          && su -l edgedb -c "$PY {project}/tests/__init__.py"
 
-    - name: Build Wheels (non-linux)
-      if: "!startsWith(matrix.os, 'ubuntu')"
-      run: |
-        make clean
-        python setup.py bdist_wheel
-
-    - name: Test Wheels
-      env:
-        PKG_VERSION: ${{ needs.validate-release-request.outputs.version }}
-      if: |
-        !startsWith(matrix.os, 'windows')
-        && !contains(github.event.pull_request.labels.*.name, 'skip wheel tests')
-      run: |
-        pip install -f "file:///${GITHUB_WORKSPACE}/dist" \
-            edgedb[test]==${PKG_VERSION}
-        make -C "${GITHUB_WORKSPACE}" testinstalled
-
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v2
       with:
         name: dist
-        path: dist/
+        path: wheelhouse/*.whl
 
   publish:
     needs: [build-sdist, build-wheels]
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         fetch-depth: 5
         submodules: false
 
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v2
       with:
         name: dist
         path: dist/
