@@ -505,7 +505,8 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
     back to the pool.  Once a connection is released, it's reset to close all
     open cursors and other resources *except* prepared statements.
 
-    Clients are created by calling :func:`~edgedb.asyncio_pool.create_client`.
+    Clients are created by calling
+    :func:`~edgedb.asyncio_pool.create_async_client`.
     """
 
     __slots__ = ('_impl', '_options')
@@ -749,7 +750,7 @@ def create_async_client(
 
     .. code-block:: python
 
-        client = edgedb.create_client(user='edgedb')
+        client = edgedb.create_async_client(user='edgedb')
         con = await client.acquire()
         try:
             await con.fetchall('SELECT {1, 2, 3}')

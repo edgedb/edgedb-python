@@ -22,11 +22,11 @@ and :ref:`asyncio <edgedb-python-asyncio-api-reference>` implementations.
 
 * :ref:`edgedb-python-asyncio-api-reference`
 
-  asyncio APIs reference.
+  Asynchronous API reference.
 
 * :ref:`edgedb-python-blocking-api-reference`
 
-  Synchronous IO APIs reference.
+  Synchronous API reference.
 
 * :ref:`edgedb-python-datatypes`
 

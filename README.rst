@@ -76,7 +76,7 @@ Development
 -----------
 
 Instructions for installing EdgeDB and edgedb-python locally can be found at
-`edgedb.com/docs/internals/dev/ <https://edgedb.com/docs/internals/dev/>`_.
+`edgedb.com/docs/reference/dev <https://edgedb.com/docs/reference/dev>`_.
 
 To run the test suite, run ``$ python setup.py test``.
 
