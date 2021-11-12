@@ -291,11 +291,13 @@ class TestConUtils(unittest.TestCase):
             })
 
     def test_connect_params(self):
-        testcases_path = os.path.abspath(
-            'tests/shared-client-testcases/connection_testcases.json'
+        testcases_path = (
+            pathlib.Path(__file__).parent
+            / "shared-client-testcases"
+            / "connection_testcases.json"
         )
         try:
-            with open(testcases_path) as f:
+            with open(testcases_path, encoding="utf-8") as f:
                 testcases = json.load(f)
         except FileNotFoundError as err:
             raise FileNotFoundError(

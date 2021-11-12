@@ -28,3 +28,4 @@ docs/_build
 /reflog.txt
 /edgedb/**/*.html
 /tmp
+/wheelhouse

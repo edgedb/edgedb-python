@@ -107,6 +107,7 @@ def _start_cluster(*, cleanup_atexit=True):
             universal_newlines=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            encoding="utf-8",
             env=env,
             cwd=tmpdir.name,
         ).stdout:
