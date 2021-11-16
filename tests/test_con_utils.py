@@ -314,7 +314,6 @@ class TestConUtils(unittest.TestCase):
                     or (platform is None and sys.platform == 'darwin')
                     or (platform == 'macos' and sys.platform != 'darwin')
                 ):
-                    self.skipTest("os incompatible file system test")
                     continue
 
                 self.run_testcase(testcase)
