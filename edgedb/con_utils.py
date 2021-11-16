@@ -284,6 +284,14 @@ def _validate_host(host):
     return host
 
 
+def _prepare_host_for_dsn(host):
+    host = _validate_host(host)
+    if ':' in host:
+        # IPv6
+        host = f'[{host}]'
+    return host
+
+
 def _validate_port(port):
     try:
         if isinstance(port, str):
@@ -473,7 +481,9 @@ def _parse_dsn_into_config(
 
     try:
         parsed = urllib.parse.urlparse(dsn_str)
-        host = parsed.hostname
+        host = (
+            urllib.parse.unquote(parsed.hostname) if parsed.hostname else None
+        )
         port = parsed.port
         database = parsed.path
         user = parsed.username
@@ -630,7 +640,8 @@ def _resolve_config_options(
                 resolved_config.set_port(*port)
             if dsn is None:
                 dsn = (
-                    'edgedb://' + (_validate_host(host[0]) if host else ''),
+                    'edgedb://' +
+                    (_prepare_host_for_dsn(host[0]) if host else ''),
                     host[1] if host is not None else port[1]
                 )
             _parse_dsn_into_config(resolved_config, dsn)
