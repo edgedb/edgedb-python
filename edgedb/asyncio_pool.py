@@ -574,6 +574,9 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
         async with self._acquire() as con:
             return await con.execute(query)
 
+    def _acquire(self):
+        return PoolAcquireContext(self, timeout=None, options=self._options)
+
     async def _release(self, connection):
         await self._impl.release(connection)
 
@@ -666,9 +669,6 @@ class AsyncIOPool(AsyncIOClient):
                 await pool.release(con)
         """
         return self._acquire()
-
-    def _acquire(self):
-        return PoolAcquireContext(self, timeout=None, options=self._options)
 
     async def release(self, connection):
         """Release a database connection back to the pool.
