@@ -260,7 +260,7 @@ class ResolvedConnectConfig:
             return self._ssl_ctx
 
         self._ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        self._ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+
         if self._tls_ca_data:
             self._ssl_ctx.load_verify_locations(
                 cadata=self._tls_ca_data
@@ -270,7 +270,15 @@ class ResolvedConnectConfig:
             if platform.IS_WINDOWS:
                 import certifi
                 self._ssl_ctx.load_verify_locations(cafile=certifi.where())
-        self._ssl_ctx.check_hostname = self.tls_security == "strict"
+
+        tls_security = self.tls_security
+        if tls_security in {"strict", "no_host_verification"}:
+            self._ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+        else:
+            self._ssl_ctx.verify_mode = ssl.CERT_NONE
+
+        self._ssl_ctx.check_hostname = tls_security == "strict"
+
         self._ssl_ctx.set_alpn_protocols(['edgedb-binary'])
 
         return self._ssl_ctx
