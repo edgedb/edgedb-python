@@ -272,12 +272,12 @@ class ResolvedConnectConfig:
                 self._ssl_ctx.load_verify_locations(cafile=certifi.where())
 
         tls_security = self.tls_security
+        self._ssl_ctx.check_hostname = tls_security == "strict"
+
         if tls_security in {"strict", "no_host_verification"}:
             self._ssl_ctx.verify_mode = ssl.CERT_REQUIRED
         else:
             self._ssl_ctx.verify_mode = ssl.CERT_NONE
-
-        self._ssl_ctx.check_hostname = tls_security == "strict"
 
         self._ssl_ctx.set_alpn_protocols(['edgedb-binary'])
 
