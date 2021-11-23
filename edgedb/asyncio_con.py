@@ -578,7 +578,7 @@ async def async_connect_raw(dsn: str = None, *,
                             user: str = None, password: str = None,
                             database: str = None,
                             tls_ca_file: str = None,
-                            tls_security: bool = None,
+                            tls_security: str = None,
                             connection_class=None,
                             wait_until_available: int = 30,
                             timeout: int = 10) -> AsyncIOConnection:
