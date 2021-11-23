@@ -260,7 +260,7 @@ class ResolvedConnectConfig:
             return self._ssl_ctx
 
         self._ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        self._ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+
         if self._tls_ca_data:
             self._ssl_ctx.load_verify_locations(
                 cadata=self._tls_ca_data
@@ -270,7 +270,15 @@ class ResolvedConnectConfig:
             if platform.IS_WINDOWS:
                 import certifi
                 self._ssl_ctx.load_verify_locations(cafile=certifi.where())
-        self._ssl_ctx.check_hostname = self.tls_security == "strict"
+
+        tls_security = self.tls_security
+        self._ssl_ctx.check_hostname = tls_security == "strict"
+
+        if tls_security in {"strict", "no_host_verification"}:
+            self._ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+        else:
+            self._ssl_ctx.verify_mode = ssl.CERT_NONE
+
         self._ssl_ctx.set_alpn_protocols(['edgedb-binary'])
 
         return self._ssl_ctx
@@ -281,6 +289,14 @@ def _validate_host(host):
         raise ValueError('unix socket paths not supported')
     if host == '' or ',' in host:
         raise ValueError(f'invalid host: "{host}"')
+    return host
+
+
+def _prepare_host_for_dsn(host):
+    host = _validate_host(host)
+    if ':' in host:
+        # IPv6
+        host = f'[{host}]'
     return host
 
 
@@ -473,7 +489,9 @@ def _parse_dsn_into_config(
 
     try:
         parsed = urllib.parse.urlparse(dsn_str)
-        host = parsed.hostname
+        host = (
+            urllib.parse.unquote(parsed.hostname) if parsed.hostname else None
+        )
         port = parsed.port
         database = parsed.path
         user = parsed.username
@@ -630,7 +648,8 @@ def _resolve_config_options(
                 resolved_config.set_port(*port)
             if dsn is None:
                 dsn = (
-                    'edgedb://' + (_validate_host(host[0]) if host else ''),
+                    'edgedb://' +
+                    (_prepare_host_for_dsn(host[0]) if host else ''),
                     host[1] if host is not None else port[1]
                 )
             _parse_dsn_into_config(resolved_config, dsn)
