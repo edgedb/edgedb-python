@@ -122,6 +122,17 @@ class TestSyncQuery(tb.SyncQueryTestCase):
             self.con.query('SELECT "HELLO"'),
             ["HELLO"])
 
+    async def test_async_query_single_01(self):
+        res = self.con.query_single("SELECT 1")
+        self.assertEqual(res, 1)
+        res = self.con.query_single("SELECT <str>{}")
+        self.assertEqual(res, None)
+        res = self.con.query_required_single("SELECT 1")
+        self.assertEqual(res, 1)
+
+        with self.assertRaises(edgedb.NoDataError):
+            self.con.query_required_single("SELECT <str>{}")
+
     def test_sync_query_single_command_01(self):
         r = self.con.query('''
             CREATE TYPE test::server_query_single_command_01 {

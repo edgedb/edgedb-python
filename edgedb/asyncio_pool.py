@@ -555,7 +555,7 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
             return await con.query_single(query, *args, **kwargs)
 
     async def query_required_single(self, query, *args, **kwargs):
-        async with self._acquire as con:
+        async with self._acquire() as con:
             return await con.query_required_single(query, *args, **kwargs)
 
     async def query_json(self, query, *args, **kwargs):
