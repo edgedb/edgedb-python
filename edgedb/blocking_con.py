@@ -328,7 +328,7 @@ class BlockingIOConnection(
                 if not e.has_tag(errors.SHOULD_RETRY):
                     raise e
                 if capabilities is None:
-                    _, _, _, capabilities = inner._query_cache.get(
+                    cache_item = inner._query_cache.get(
                         query=query,
                         io_format=io_format,
                         implicit_limit=0,
@@ -336,6 +336,8 @@ class BlockingIOConnection(
                         inline_typeids=False,
                         expect_one=expect_one,
                     )
+                    if cache_item is not None:
+                        _, _, _, capabilities = cache_item
                 # A query is read-only if it has no capabilities i.e.
                 # capabilities == 0. Read-only queries are safe to retry.
                 if capabilities != 0:
