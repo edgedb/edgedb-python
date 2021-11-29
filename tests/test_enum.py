@@ -25,8 +25,6 @@ from edgedb import _testbase as tb
 
 class TestEnum(tb.AsyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     SETUP = '''
         CREATE SCALAR TYPE CellType EXTENDING enum<'red', 'white'>;
         CREATE SCALAR TYPE Color EXTENDING enum<'red', 'white'>;

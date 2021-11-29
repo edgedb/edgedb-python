@@ -352,9 +352,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     SETUP_METHOD = None
     TEARDOWN_METHOD = None
 
-    # Some tests may want to manage transactions manually,
-    # in which case ISOLATED_METHODS will be False.
-    ISOLATED_METHODS = True
     # Turns on "EdgeDB developer" mode which allows using restricted
     # syntax like FROM SQL and similar. It allows modifying standard
     # library (e.g. declaring casts).
@@ -367,16 +364,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             self.loop.run_until_complete(
                 self.con.execute(
                     'CONFIGURE SESSION SET __internal_testmode := true;'))
-
-        if self.ISOLATED_METHODS:
-            self.loop.run_until_complete(
-                self.con.execute(
-                    "CONFIGURE SESSION SET session_idle_transaction_timeout "
-                    ":= <std::duration>'3m'"
-                )
-            )
-            self.xact = self.con.raw_transaction()
-            self.loop.run_until_complete(self.xact.start())
 
         if self.SETUP_METHOD:
             self.loop.run_until_complete(
@@ -391,20 +378,13 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     self.con.execute(self.TEARDOWN_METHOD))
         finally:
             try:
-                if self.ISOLATED_METHODS:
-                    self.loop.run_until_complete(self.xact.rollback())
-                    del self.xact
-
                 if self.con.is_in_transaction():
-                    self.loop.run_until_complete(
-                        self.con.execute('ROLLBACK'))
                     raise AssertionError(
                         'test connection is still in transaction '
                         '*after* the test')
 
-                if not self.ISOLATED_METHODS:
-                    self.loop.run_until_complete(
-                        self.con.execute('RESET ALIAS *;'))
+                self.loop.run_until_complete(
+                    self.con.execute('RESET ALIAS *;'))
 
             finally:
                 super().tearDown()
@@ -432,11 +412,11 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             if script:
                 # The setup is expected to contain a CREATE MIGRATION,
                 # which needs to be wrapped in a transaction.
-                tx = cls.con.raw_transaction()
-                cls.loop.run_until_complete(tx.start())
-                cls.loop.run_until_complete(tx.execute(script))
-                cls.loop.run_until_complete(tx.commit())
-                del tx
+                async def execute():
+                    async for tr in cls.con.transaction():
+                        async with tr:
+                            await tr.execute(script)
+                cls.loop.run_until_complete(execute())
 
     @classmethod
     def get_database_name(cls):

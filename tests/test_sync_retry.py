@@ -46,8 +46,6 @@ class Barrier:
 
 class TestSyncRetry(tb.SyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     SETUP = '''
         CREATE TYPE test::Counter EXTENDING std::Object {
             CREATE PROPERTY name -> std::str {

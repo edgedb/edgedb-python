@@ -31,15 +31,12 @@ from .abstract import Executor, AsyncIOExecutor
 from .asyncio_con import async_connect_raw, AsyncIOConnection
 from .asyncio_pool import (
     create_async_client,
-    create_async_pool,
-    async_connect,
     AsyncIOClient
 )
 
 from .blocking_con import connect, BlockingIOConnection
 from .options import RetryCondition, IsolationLevel, default_backoff
 from .options import RetryOptions, TransactionOptions
-from .transaction import Transaction, AsyncIOTransaction
 
 from .errors._base import EdgeDBError, EdgeDBMessage
 

@@ -22,7 +22,6 @@ import socket
 import ssl
 import time
 import typing
-import warnings
 
 from . import abstract
 from . import base_con
@@ -30,7 +29,6 @@ from . import con_utils
 from . import enums
 from . import errors
 from . import options
-from . import transaction as _transaction
 from . import retry as _retry
 
 from .datatypes import datatypes
@@ -425,70 +423,10 @@ class BlockingIOConnection(
             allow_capabilities=enums.Capability.EXECUTE,
         )
 
-    def fetchall(self, query: str, *args, **kwargs) -> datatypes.Set:
-        warnings.warn(
-            'The "fetchall()" method is deprecated and is scheduled to be '
-            'removed. Use the "query()" method instead.',
-            DeprecationWarning, 2)
-        return self.query(query, *args, **kwargs)
-
-    def query_one(self, query: str, *args, **kwargs) -> typing.Any:
-        warnings.warn(
-            'The "query_one()" method is deprecated and is scheduled to be '
-            'removed. Use the "query_single()" method instead.',
-            DeprecationWarning, 2)
-        return self.query_single(query, *args, **kwargs)
-
-    def fetchone(self, query: str, *args, **kwargs) -> typing.Any:
-        warnings.warn(
-            'The "fetchone()" method is deprecated and is scheduled to be '
-            'removed. Use the "query_single()" method instead.',
-            DeprecationWarning, 2)
-        return self.query_single(query, *args, **kwargs)
-
-    def fetchall_json(self, query: str, *args, **kwargs) -> str:
-        warnings.warn(
-            'The "fetchall_json()" method is deprecated and is scheduled to '
-            'be removed. Use the "query_json()" method instead.',
-            DeprecationWarning, 2)
-        return self.query_json(query, *args, **kwargs)
-
-    def query_one_json(self, query: str, *args, **kwargs) -> str:
-        warnings.warn(
-            'The "query_one_json()" method is deprecated and is scheduled to '
-            'be removed. Use the "query_single_json()" method instead.',
-            DeprecationWarning, 2)
-        return self.query_single_json(query, *args, **kwargs)
-
-    def fetchone_json(self, query: str, *args, **kwargs) -> str:
-        warnings.warn(
-            'The "fetchone_json()" method is deprecated and is scheduled to '
-            'be removed. Use the "query_single_json()" method instead.',
-            DeprecationWarning, 2)
-        return self.query_single_json(query, *args, **kwargs)
-
     def execute(self, query: str) -> None:
         self._get_protocol().sync_simple_query(query, enums.Capability.EXECUTE)
 
     def transaction(self) -> _retry.Retry:
-        return _retry.Retry(self)
-
-    def raw_transaction(self) -> _transaction.Transaction:
-        warnings.warn(
-            'The "raw_transaction()" method is deprecated and is scheduled '
-            'to be removed. Use the "transaction()" method with '
-            'retry attempts=1 instead',
-            DeprecationWarning, 2)
-        return _transaction.Transaction(
-            self,
-            self._options.transaction_options,
-        )
-
-    def retrying_transaction(self) -> _retry.Retry:
-        warnings.warn(
-            'The "retrying_transaction()" method has been renamed to '
-            '"transaction()"',
-            DeprecationWarning, 2)
         return _retry.Retry(self)
 
     def close(self) -> None:

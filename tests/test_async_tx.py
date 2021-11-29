@@ -27,8 +27,6 @@ from edgedb.options import RetryOptions
 
 class TestAsyncTx(tb.AsyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     SETUP = '''
         CREATE TYPE test::TransactionTest EXTENDING std::Object {
             CREATE PROPERTY name -> std::str;
@@ -96,83 +94,3 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
             async for tx in con.transaction():
                 async with tx:
                     pass
-
-    async def test_async_transaction_interface_errors(self):
-        self.assertIsNone(self.con._inner._borrowed_for)
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'cannot start; .* already started'):
-            async with tr:
-                await tr.start()
-
-        self.assertTrue(repr(tr).startswith(
-            '<edgedb.AsyncIOTransaction state:rolledback'))
-
-        self.assertIsNone(self.con._inner._borrowed_for)
-
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'cannot start; .* already rolled back'):
-            async with tr:
-                pass
-
-        self.assertIsNone(self.con._inner._borrowed_for)
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'cannot manually commit.*async with'):
-            async with tr:
-                await tr.commit()
-
-        self.assertIsNone(self.con._inner._borrowed_for)
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'cannot manually rollback.*async with'):
-            async with tr:
-                await tr.rollback()
-
-        self.assertIsNone(self.con._inner._borrowed_for)
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'cannot enter context:.*async with'):
-            async with tr:
-                async with tr:
-                    pass
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            async with tr:
-                await self.con.query("SELECT 1")
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            async with tr:
-                await self.con.query_single("SELECT 1")
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            async with tr:
-                await self.con.query_json("SELECT 1")
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            async with tr:
-                await self.con.query_single_json("SELECT 1")
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            async with tr:
-                await self.con.execute("SELECT 1")
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            async with tr:
-                await self.con.ensure_connected()
