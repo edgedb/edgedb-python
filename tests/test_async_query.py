@@ -34,8 +34,6 @@ from edgedb.options import RetryOptions
 
 class TestAsyncQuery(tb.AsyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     SETUP = '''
         CREATE TYPE test::Tmp {
             CREATE REQUIRED PROPERTY tmp -> std::str;

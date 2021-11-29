@@ -20,7 +20,6 @@
 import asyncio
 import logging
 import typing
-import warnings
 
 from . import abstract
 from . import asyncio_con
@@ -28,12 +27,10 @@ from . import compat
 from . import errors
 from . import options
 from . import retry as _retry
-from . import transaction as _transaction
 
 
 __all__ = (
-    'create_async_client',
-    'create_async_pool', 'async_connect', 'AsyncIOClient'
+    'create_async_client', 'AsyncIOClient'
 )
 
 
@@ -607,106 +604,6 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
         return new_pool
 
 
-class AsyncIOPool(AsyncIOClient):
-
-    @property
-    def free_size(self) -> int:
-        """Number of available connections in the pool."""
-
-        if self._impl._queue is None:
-            # Queue has not been initialized yet
-            return self._impl._concurrency
-
-        return self._impl._queue.qsize()
-
-    def set_connect_args(self, dsn=None, **connect_kwargs):
-        r"""Set the new connection arguments for this pool.
-
-        The new connection arguments will be used for all subsequent
-        new connection attempts.  Existing connections will remain until
-        they expire. Use AsyncIOClient.expire_connections() to expedite
-        the connection expiry.
-
-        :param str dsn:
-            Connection arguments specified using as a single string in
-            the following format:
-            ``edgedb://user:pass@host:port/database?option=value``.
-
-        :param \*\*connect_kwargs:
-            Keyword arguments for the :func:`~edgedb.asyncio_con.connect`
-            function.
-        """
-        self._impl.set_connect_args(dsn, **connect_kwargs)
-
-    async def expire_connections(self):
-        """Expire all currently open connections.
-
-        Cause all currently open connections to get replaced on the
-        next AsyncIOPool.acquire() call.
-        """
-        await self._impl.expire_connections()
-
-    def acquire(self):
-        """Acquire a database connection from the pool.
-
-        :return: An instance of :class:`~edgedb.asyncio_con.AsyncIOConnection`.
-
-        Can be used in an ``await`` expression or with an ``async with`` block.
-
-        .. code-block:: python
-
-            async with pool.acquire() as con:
-                await con.execute(...)
-
-        Or:
-
-        .. code-block:: python
-
-            con = await pool.acquire()
-            try:
-                await con.execute(...)
-            finally:
-                await pool.release(con)
-        """
-        return self._acquire()
-
-    async def release(self, connection):
-        """Release a database connection back to the pool.
-
-        :param Connection connection:
-            A :class:`~edgedb.asyncio_con.AsyncIOConnection` object
-            to release.
-        """
-        return await self._release(connection)
-
-    def __await__(self):
-        return self.__aenter__().__await__()
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *exc):
-        await self.aclose()
-
-    def raw_transaction(self) -> _transaction.AsyncIOTransaction:
-        warnings.warn(
-            'The "raw_transaction()" method is deprecated and is scheduled '
-            'to be removed. Use the "transaction()" method with '
-            'retry attempts=1 instead',
-            DeprecationWarning, 2)
-        return _transaction.AsyncIOTransaction(
-            self,
-            self._options.transaction_options,
-        )
-
-    def retrying_transaction(self) -> _retry.AsyncIORetry:
-        warnings.warn(
-            'The "retrying_transaction()" method has been renamed to '
-            '"transaction()"',
-            DeprecationWarning, 2)
-        return _retry.AsyncIORetry(self)
-
-
 class PoolAcquireContext:
 
     __slots__ = ('timeout', 'connection', 'done', 'pool')
@@ -786,58 +683,3 @@ def create_async_client(
         on_connect=None,
         **connect_kwargs
     )
-
-
-def create_async_pool(
-    dsn=None, *,
-    min_size=10,
-    max_size=10,
-    on_acquire=None,
-    on_release=None,
-    on_connect=None,
-    connection_class=PoolConnection,
-    **connect_kwargs
-):
-    warnings.warn(
-        'The "create_async_pool()" API is deprecated and is scheduled to be '
-        'removed. Use the "create_async_client()" API instead.',
-        DeprecationWarning, 2)
-
-    pool = AsyncIOPool(
-        dsn,
-        connection_class=connection_class,
-        concurrency=max_size,
-        on_acquire=on_acquire,
-        on_release=on_release,
-        on_connect=on_connect,
-        **connect_kwargs
-    )
-    return pool
-
-
-async def async_connect(
-    dsn: str = None, *,
-    credentials_file: str = None,
-    host: str = None, port: int = None,
-    user: str = None, password: str = None,
-    database: str = None,
-    tls_ca_file: str = None,
-    tls_security: str = None,
-    connection_class=None,
-    wait_until_available: int = 30,
-    timeout: int = 10
-) -> AsyncIOClient:
-    warnings.warn(
-        'The "async_connect()" API is deprecated and is scheduled to be '
-        'removed. Use "create_async_client(concurrency=1)" instead.',
-        DeprecationWarning, 2)
-
-    client = create_async_client(
-        dsn, concurrency=1,
-        wait_until_available=wait_until_available, timeout=timeout,
-        credentials_file=credentials_file, host=host, port=port,
-        user=user, password=password, database=database,
-        tls_ca_file=tls_ca_file, tls_security=tls_security
-    )
-    await client.ensure_connected()
-    return client

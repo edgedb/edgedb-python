@@ -21,8 +21,6 @@ from edgedb import _testbase as tb
 
 class TestConfigMemory(tb.SyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     async def test_config_memory_01(self):
         if (
             self.con.query_required_single(

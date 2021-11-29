@@ -26,8 +26,6 @@ from edgedb import TransactionOptions
 
 class TestSyncTx(tb.SyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     SETUP = '''
         CREATE TYPE test::TransactionTest EXTENDING std::Object {
             CREATE PROPERTY name -> std::str;
@@ -94,83 +92,3 @@ class TestSyncTx(tb.SyncQueryTestCase):
             for tx in con.transaction():
                 with tx:
                     pass
-
-    def test_sync_transaction_interface_errors(self):
-        self.assertIsNone(self.con._inner._top_xact)
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'cannot start; .* already started'):
-            with tr:
-                tr.start()
-
-        self.assertTrue(repr(tr).startswith(
-            '<edgedb.Transaction state:rolledback'))
-
-        self.assertIsNone(self.con._inner._top_xact)
-
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'cannot start; .* already rolled back'):
-            with tr:
-                pass
-
-        self.assertIsNone(self.con._inner._top_xact)
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'cannot manually commit.*with'):
-            with tr:
-                tr.commit()
-
-        self.assertIsNone(self.con._inner._top_xact)
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'cannot manually rollback.*with'):
-            with tr:
-                tr.rollback()
-
-        self.assertIsNone(self.con._inner._top_xact)
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'cannot enter context:.*with'):
-            with tr:
-                with tr:
-                    pass
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            with tr:
-                self.con.query("SELECT 1")
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            with tr:
-                self.con.query_single("SELECT 1")
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            with tr:
-                self.con.query_json("SELECT 1")
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            with tr:
-                self.con.query_single_json("SELECT 1")
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            with tr:
-                self.con.execute("SELECT 1")
-
-        tr = self.con.raw_transaction()
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*is borrowed.*'):
-            with tr:
-                self.con.ensure_connected()

@@ -25,8 +25,6 @@ from edgedb import _testbase as tb
 
 class TestProto(tb.SyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     def test_json(self):
         self.assertEqual(
             self.con.query_json('SELECT {"aaa", "bbb"}'),

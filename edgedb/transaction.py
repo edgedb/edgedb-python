@@ -29,9 +29,6 @@ from .datatypes import datatypes
 from .protocol import protocol
 
 
-__all__ = ('Transaction', 'AsyncIOTransaction')
-
-
 class TransactionState(enum.Enum):
     NEW = 0
     STARTED = 1
@@ -297,46 +294,6 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             query, enums.Capability.EXECUTE)
 
 
-class AsyncIOTransaction(BaseAsyncIOTransaction):
-    __slots__ = ()
-
-    async def __aenter__(self):
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot enter context: already in an `async with` block')
-        self._managed = True
-        await self.start()
-        return self
-
-    async def __aexit__(self, extype, ex, tb):
-        try:
-            if extype is not None:
-                await self._rollback()
-            else:
-                await self._commit()
-        finally:
-            self._managed = False
-
-    async def start(self) -> None:
-        """Enter the transaction or savepoint block."""
-        await self._start()
-        self._borrow()
-
-    async def commit(self) -> None:
-        """Exit the transaction or savepoint block and commit changes."""
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot manually commit from within an `async with` block')
-        await self._commit()
-
-    async def rollback(self) -> None:
-        """Exit the transaction or savepoint block and rollback changes."""
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot manually rollback from within an `async with` block')
-        await self._rollback()
-
-
 class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
     __slots__ = ()
 
@@ -475,41 +432,3 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
         self._ensure_transaction()
         self._connection_impl._protocol.sync_simple_query(
             query, enums.Capability.EXECUTE)
-
-
-class Transaction(BaseBlockingIOTransaction):
-    def __enter__(self):
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot enter context: already in a `with` block')
-        self._managed = True
-        self.start()
-        return self
-
-    def __exit__(self, extype, ex, tb):
-        try:
-            if extype is not None:
-                self._rollback()
-            else:
-                self._commit()
-        finally:
-            self._managed = False
-
-    def start(self) -> None:
-        """Enter the transaction or savepoint block."""
-        self._start()
-        self._borrow()
-
-    def commit(self) -> None:
-        """Exit the transaction or savepoint block and commit changes."""
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot manually commit from within a `with` block')
-        self._commit()
-
-    def rollback(self) -> None:
-        """Exit the transaction or savepoint block and rollback changes."""
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot manually rollback from within a `with` block')
-        self._rollback()

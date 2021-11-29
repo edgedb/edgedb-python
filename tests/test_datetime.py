@@ -27,8 +27,6 @@ from edgedb.datatypes.datatypes import RelativeDuration
 
 class TestDatetimeTypes(tb.SyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     async def test_duration_01(self):
 
         duration_kwargs = [

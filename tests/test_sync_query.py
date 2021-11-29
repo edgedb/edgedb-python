@@ -25,8 +25,6 @@ from edgedb import _testbase as tb
 
 class TestSyncQuery(tb.SyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     SETUP = '''
         CREATE TYPE test::Tmp {
             CREATE REQUIRED PROPERTY tmp -> std::str;

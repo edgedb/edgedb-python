@@ -49,8 +49,6 @@ class Barrier:
 
 class TestAsyncRetry(tb.AsyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     SETUP = '''
         CREATE TYPE test::Counter EXTENDING std::Object {
             CREATE PROPERTY name -> std::str {
