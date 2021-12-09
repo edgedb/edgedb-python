@@ -18,6 +18,7 @@
 
 
 import errno
+import json
 import os
 import re
 import ssl
@@ -27,7 +28,7 @@ import warnings
 import hashlib
 
 from . import errors
-from . import credentials
+from . import credentials as cred_utils
 from . import platform
 
 
@@ -336,11 +337,21 @@ def _validate_server_settings(server_settings):
             'a Dict[str, str]')
 
 
-def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
-                                password, database,
-                                tls_ca_file, tls_security,
-                                server_settings):
-
+def _parse_connect_dsn_and_args(
+    *,
+    dsn,
+    host,
+    port,
+    credentials,
+    credentials_file,
+    user,
+    password,
+    database,
+    tls_ca,
+    tls_ca_file,
+    tls_security,
+    server_settings,
+):
     resolved_config = ResolvedConnectConfig()
 
     dsn, instance_name = (
@@ -352,11 +363,15 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
     has_compound_options = _resolve_config_options(
         resolved_config,
         'Cannot have more than one of the following connection options: '
-        + '"dsn", "credentials_file" or "host"/"port"',
+        + '"dsn", "credentials", "credentials_file" or "host"/"port"',
         dsn=(dsn, '"dsn" option') if dsn is not None else None,
         instance_name=(
             (instance_name, '"dsn" option (parsed as instance name)')
             if instance_name is not None else None
+        ),
+        credentials=(
+            (credentials, '"credentials" option')
+            if credentials is not None else None
         ),
         credentials_file=(
             (credentials_file, '"credentials_file" option')
@@ -372,6 +387,10 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
         password=(
             (password, '"password" option')
             if password is not None else None
+        ),
+        tls_ca=(
+            (tls_ca, '"tls_ca" option')
+            if tls_ca is not None else None
         ),
         tls_ca_file=(
             (tls_ca_file, '"tls_ca_file" option')
@@ -405,6 +424,7 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
         env_database = os.getenv('EDGEDB_DATABASE')
         env_user = os.getenv('EDGEDB_USER')
         env_password = os.getenv('EDGEDB_PASSWORD')
+        env_tls_ca = os.getenv('EDGEDB_TLS_CA')
         env_tls_ca_file = os.getenv('EDGEDB_TLS_CA_FILE')
         env_tls_security = os.getenv('EDGEDB_CLIENT_TLS_SECURITY')
 
@@ -446,6 +466,10 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
                 (env_password, '"EDGEDB_PASSWORD" environment variable')
                 if env_password is not None else None
             ),
+            tls_ca=(
+                (env_tls_ca, '"EDGEDB_TLS_CA" environment variable')
+                if env_tls_ca is not None else None
+            ),
             tls_ca_file=(
                 (env_tls_ca_file, '"EDGEDB_TLS_CA_FILE" environment variable')
                 if env_tls_ca_file is not None else None
@@ -457,7 +481,7 @@ def _parse_connect_dsn_and_args(*, dsn, credentials_file, host, port, user,
             ),
         )
 
-    if has_compound_options is False:
+    if not has_compound_options:
         dir = find_edgedb_project_dir()
         stash_dir = _stash_path(dir)
         if os.path.exists(stash_dir):
@@ -594,7 +618,7 @@ def _parse_dsn_into_config(
     )
 
     handle_dsn_part(
-        'tls_cert_file', None,
+        'tls_ca_file', None,
         resolved_config._tls_ca_data, resolved_config.set_tls_ca_file
     )
 
@@ -613,15 +637,17 @@ def _resolve_config_options(
     *,
     dsn=None,
     instance_name=None,
+    credentials=None,
     credentials_file=None,
     host=None,
     port=None,
     database=None,
     user=None,
     password=None,
+    tls_ca=None,
     tls_ca_file=None,
     tls_security=None,
-    server_settings=None
+    server_settings=None,
 ):
     if database is not None:
         resolved_config.set_database(*database)
@@ -630,19 +656,30 @@ def _resolve_config_options(
     if password is not None:
         resolved_config.set_password(*password)
     if tls_ca_file is not None:
+        if tls_ca is not None:
+            raise errors.ClientConnectionError(
+                f"{tls_ca[1]} and {tls_ca_file[1]} are mutually exclusive")
         resolved_config.set_tls_ca_file(*tls_ca_file)
+    if tls_ca is not None:
+        resolved_config.set_tls_ca_data(*tls_ca)
     if tls_security is not None:
         resolved_config.set_tls_security(*tls_security)
     if server_settings is not None:
         resolved_config.add_server_settings(server_settings[0])
 
-    compound_params = [dsn, instance_name, credentials_file, host or port]
+    compound_params = [
+        dsn,
+        instance_name,
+        credentials,
+        credentials_file,
+        host or port,
+    ]
     compound_params_count = len([p for p in compound_params if p is not None])
 
     if compound_params_count > 1:
         raise errors.ClientConnectionError(compound_error)
 
-    if compound_params_count == 1:
+    elif compound_params_count == 1:
         if dsn is not None or host is not None or port is not None:
             if port is not None:
                 resolved_config.set_port(*port)
@@ -654,7 +691,18 @@ def _resolve_config_options(
                 )
             _parse_dsn_into_config(resolved_config, dsn)
         else:
-            if credentials_file is None:
+            if credentials_file is not None:
+                creds = cred_utils.read_credentials(credentials_file[0])
+                source = "credentials"
+            elif credentials is not None:
+                try:
+                    cred_data = json.loads(credentials[0])
+                except ValueError as e:
+                    raise RuntimeError(f"cannot read credentials") from e
+                else:
+                    creds = cred_utils.validate_credentials(cred_data)
+                source = "credentials"
+            else:
                 if (
                     re.match(
                         '^[A-Za-z_][A-Za-z_0-9]*$',
@@ -664,13 +712,12 @@ def _resolve_config_options(
                     raise ValueError(
                         f'invalid DSN or instance name: "{instance_name[0]}"'
                     )
-                credentials_file = (
-                    credentials.get_credentials_path(instance_name[0]),
-                    instance_name[1]
-                )
-            creds = credentials.read_credentials(credentials_file[0])
 
-            source = credentials_file[1]
+                creds = cred_utils.read_credentials(
+                    cred_utils.get_credentials_path(instance_name[0]),
+                )
+
+                source = instance_name[1]
 
             resolved_config.set_host(creds.get('host'), source)
             resolved_config.set_port(creds.get('port'), source)
@@ -685,7 +732,8 @@ def _resolve_config_options(
 
         return True
 
-    return False
+    else:
+        return False
 
 
 def find_edgedb_project_dir():
@@ -716,11 +764,22 @@ def find_edgedb_project_dir():
 
 
 def parse_connect_arguments(
-    *, dsn, credentials_file, host, port,
-    database, user, password,
-    tls_ca_file, tls_security,
-    timeout, command_timeout, wait_until_available,
-    server_settings
+    *,
+    dsn,
+    host,
+    port,
+    credentials,
+    credentials_file,
+    database,
+    user,
+    password,
+    tls_ca,
+    tls_ca_file,
+    tls_security,
+    timeout,
+    command_timeout,
+    wait_until_available,
+    server_settings,
 ) -> typing.Tuple[ResolvedConnectConfig, ClientConfiguration]:
 
     if command_timeout is not None:
@@ -737,9 +796,17 @@ def parse_connect_arguments(
                     command_timeout)) from None
 
     connect_config = _parse_connect_dsn_and_args(
-        dsn=dsn, credentials_file=credentials_file, host=host, port=port,
-        database=database, user=user, password=password,
-        tls_ca_file=tls_ca_file, tls_security=tls_security,
+        dsn=dsn,
+        host=host,
+        port=port,
+        credentials=credentials,
+        credentials_file=credentials_file,
+        database=database,
+        user=user,
+        password=password,
+        tls_ca=tls_ca,
+        tls_ca_file=tls_ca_file,
+        tls_security=tls_security,
         server_settings=server_settings,
     )
 
