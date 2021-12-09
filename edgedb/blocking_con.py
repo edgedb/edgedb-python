@@ -437,22 +437,37 @@ class BlockingIOConnection(
         return self._inner._impl is None or self._inner._impl.is_closed()
 
 
-def connect(dsn: str = None, *,
-            credentials_file: str = None,
-            host: str = None, port: int = None,
-            user: str = None, password: str = None,
-            database: str = None,
-            tls_ca_file: str = None,
-            tls_security: str = None,
-            timeout: int = 10,
-            wait_until_available: int = 30) -> BlockingIOConnection:
+def connect(
+    dsn: str = None,
+    *,
+    host: str = None,
+    port: int = None,
+    credentials: str = None,
+    credentials_file: str = None,
+    user: str = None,
+    password: str = None,
+    database: str = None,
+    tls_ca: str = None,
+    tls_ca_file: str = None,
+    tls_security: str = None,
+    timeout: int = 10,
+    wait_until_available: int = 30,
+) -> BlockingIOConnection:
 
     connect_config, client_config = con_utils.parse_connect_arguments(
-        dsn=dsn, credentials_file=credentials_file, host=host, port=port,
-        user=user, password=password, database=database,
+        dsn=dsn,
+        host=host,
+        port=port,
+        credentials=credentials,
+        credentials_file=credentials_file,
+        user=user,
+        password=password,
+        database=database,
         timeout=timeout,
         wait_until_available=wait_until_available,
-        tls_ca_file=tls_ca_file, tls_security=tls_security,
+        tls_ca=tls_ca,
+        tls_ca_file=tls_ca_file,
+        tls_security=tls_security,
 
         # ToDos
         command_timeout=None,

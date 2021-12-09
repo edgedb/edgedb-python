@@ -512,16 +512,23 @@ class AsyncIOConnection(
         return self._inner._impl.is_closed()
 
 
-async def async_connect_raw(dsn: str = None, *,
-                            credentials_file: str = None,
-                            host: str = None, port: int = None,
-                            user: str = None, password: str = None,
-                            database: str = None,
-                            tls_ca_file: str = None,
-                            tls_security: str = None,
-                            connection_class=None,
-                            wait_until_available: int = 30,
-                            timeout: int = 10) -> AsyncIOConnection:
+async def async_connect_raw(
+    dsn: str = None,
+    *,
+    host: str = None,
+    port: int = None,
+    credentials: str = None,
+    credentials_file: str = None,
+    user: str = None,
+    password: str = None,
+    database: str = None,
+    tls_ca: str = None,
+    tls_ca_file: str = None,
+    tls_security: str = None,
+    connection_class=None,
+    wait_until_available: int = 30,
+    timeout: int = 10,
+) -> AsyncIOConnection:
 
     loop = asyncio.get_event_loop()
 
@@ -529,14 +536,24 @@ async def async_connect_raw(dsn: str = None, *,
         connection_class = AsyncIOConnection
 
     connect_config, client_config = con_utils.parse_connect_arguments(
-        dsn=dsn, credentials_file=credentials_file, host=host, port=port,
-        user=user, password=password, database=database, timeout=timeout,
-        tls_ca_file=tls_ca_file, tls_security=tls_security,
+        dsn=dsn,
+        host=host,
+        port=port,
+        credentials=credentials,
+        credentials_file=credentials_file,
+        user=user,
+        password=password,
+        database=database,
+        timeout=timeout,
+        tls_ca=tls_ca,
+        tls_ca_file=tls_ca_file,
+        tls_security=tls_security,
         wait_until_available=wait_until_available,
 
         # ToDos
         command_timeout=None,
-        server_settings=None)
+        server_settings=None,
+    )
 
     connection = connection_class(
         loop, [connect_config.address], client_config, connect_config,
