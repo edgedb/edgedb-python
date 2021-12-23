@@ -148,11 +148,9 @@ class TestSyncRetry(tb.SyncQueryTestCase):
             FILTER .name = 'counter_retry_begin'
         ''')
 
-    @unittest.skip('https://github.com/edgedb/edgedb/issues/2869')
     def test_sync_retry_conflict(self):
         self.execute_conflict('counter2')
 
-    @unittest.skip('https://github.com/edgedb/edgedb/issues/2869')
     def test_sync_conflict_no_retry(self):
         with self.assertRaises(edgedb.TransactionSerializationError):
             self.execute_conflict(

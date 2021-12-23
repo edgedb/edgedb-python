@@ -338,7 +338,11 @@ class BlockingIOConnection(
                         _, _, _, capabilities = cache_item
                 # A query is read-only if it has no capabilities i.e.
                 # capabilities == 0. Read-only queries are safe to retry.
-                if capabilities != 0:
+                # Explicit transaction conflicts as well.
+                if (
+                    capabilities != 0
+                    and not isinstance(e, errors.TransactionConflictError)
+                ):
                     raise e
                 rule = self._options.retry_options.get_rule_for_exception(e)
                 if i >= rule.attempts:
