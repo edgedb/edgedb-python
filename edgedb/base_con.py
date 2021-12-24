@@ -35,7 +35,6 @@ class _InnerConnection:
     def __init__(self, addrs, config, params, *,
                  codecs_registry=None, query_cache=None):
         super().__init__()
-        self._log_listeners = set()
 
         self._addrs = addrs
         self._config = config
@@ -54,20 +53,25 @@ class _InnerConnection:
         self._top_xact = None
         self._impl = None
 
-    def _dispatch_log_message(self, msg):
-        for cb in self._log_listeners:
-            cb(self, msg)
-
-    def _on_log_message(self, msg):
-        if self._log_listeners:
-            self._dispatch_log_message(msg)
-
     def _get_unique_id(self, prefix):
         return f'_edgedb_{prefix}_{_uid_counter():x}_'
 
 
 class BaseConnection:
     _inner: _InnerConnection
+    _log_listeners: typing.Set[
+        typing.Callable[[BaseConnection_T, errors.EdgeDBMessage], None]
+    ]
+
+    def __init__(self):
+        self._log_listeners = set()
+
+    def _dispatch_log_message(self, msg):
+        raise NotImplementedError
+
+    def _on_log_message(self, msg):
+        if self._log_listeners:
+            self._dispatch_log_message(msg)
 
     def connected_addr(self):
         return self._inner._impl._addr
@@ -102,7 +106,7 @@ class BaseConnection:
         return status
 
     def _cleanup(self):
-        self._inner._log_listeners.clear()
+        self._log_listeners.clear()
 
     def add_log_listener(
         self: BaseConnection_T,
@@ -116,7 +120,7 @@ class BaseConnection:
             **connection**: a Connection the callback is registered with;
             **message**: the `edgedb.EdgeDBMessage` message.
         """
-        self._inner._log_listeners.add(callback)
+        self._log_listeners.add(callback)
 
     def remove_log_listener(
         self: BaseConnection_T,
@@ -124,7 +128,7 @@ class BaseConnection:
                                   None]
     ) -> None:
         """Remove a listening callback for log messages."""
-        self._inner._log_listeners.discard(callback)
+        self._log_listeners.discard(callback)
 
     @property
     def dbname(self) -> str:

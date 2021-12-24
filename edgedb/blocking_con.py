@@ -212,7 +212,7 @@ class BlockingIOConnection(
         inner._impl = _BlockingIOConnectionImpl(
             inner._codecs_registry, inner._query_cache)
         inner._impl.connect(inner._addrs, inner._config, inner._params,
-                            single_attempt=single_attempt, connection=inner)
+                            single_attempt=single_attempt, connection=self)
         assert inner._impl._protocol
 
     def _get_protocol(self):
@@ -243,7 +243,7 @@ class BlockingIOConnection(
         )
 
     def _dispatch_log_message(self, msg):
-        for cb in self._inner._log_listeners:
+        for cb in self._log_listeners:
             cb(self, msg)
 
     def _fetchall(
