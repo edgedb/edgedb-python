@@ -104,16 +104,6 @@ class BaseTransaction:
         self.__check_state('rollback')
         return 'ROLLBACK;'
 
-    def _borrow(self):
-        inner = self._connection_inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
-        inner._borrowed_for = base_con.BorrowReason.TRANSACTION
-
-    def _maybe_return(self):
-        if self._connection_inner is not None:
-            self._connection_inner._borrowed_for = None
-
     def __repr__(self):
         attrs = []
         attrs.append('state:{}'.format(self._state.name.lower()))
@@ -159,7 +149,6 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             else:
                 self._state = TransactionState.COMMITTED
         finally:
-            self._maybe_return()
             if self._pool is not None:
                 await self._pool._release(self._connection)
 
@@ -174,7 +163,6 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             else:
                 self._state = TransactionState.ROLLEDBACK
         finally:
-            self._maybe_return()
             if self._pool is not None:
                 await self._pool._release(self._connection)
 
@@ -314,30 +302,24 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             self._state = TransactionState.STARTED
 
     def _commit(self):
+        query = self._make_commit_query()
         try:
-            query = self._make_commit_query()
-            try:
-                self._connection_impl.privileged_execute(query)
-            except BaseException:
-                self._state = TransactionState.FAILED
-                raise
-            else:
-                self._state = TransactionState.COMMITTED
-        finally:
-            self._maybe_return()
+            self._connection_impl.privileged_execute(query)
+        except BaseException:
+            self._state = TransactionState.FAILED
+            raise
+        else:
+            self._state = TransactionState.COMMITTED
 
     def _rollback(self):
+        query = self._make_rollback_query()
         try:
-            query = self._make_rollback_query()
-            try:
-                self._connection_impl.privileged_execute(query)
-            except BaseException:
-                self._state = TransactionState.FAILED
-                raise
-            else:
-                self._state = TransactionState.ROLLEDBACK
-        finally:
-            self._maybe_return()
+            self._connection_impl.privileged_execute(query)
+        except BaseException:
+            self._state = TransactionState.FAILED
+            raise
+        else:
+            self._state = TransactionState.ROLLEDBACK
 
     def _ensure_transaction(self):
         pass

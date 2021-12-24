@@ -212,8 +212,6 @@ class AsyncIOConnection(
         super().__init__()
 
     def _shallow_clone(self):
-        if self._inner._borrowed_for:
-            raise base_con.borrow_error(self._inner._borrowed_for)
         new_conn = self.__class__.__new__(self.__class__)
         new_conn._inner = self._inner
         return new_conn
@@ -230,8 +228,6 @@ class AsyncIOConnection(
 
     async def ensure_connected(self, *, single_attempt=False):
         inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             await self._reconnect(single_attempt=single_attempt)
 
@@ -257,8 +253,6 @@ class AsyncIOConnection(
         **kwargs,
     ) -> datatypes.Set:
         inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             await self._reconnect()
         result, _ = await inner._impl._protocol.execute_anonymous(
@@ -286,8 +280,6 @@ class AsyncIOConnection(
         **kwargs,
     ) -> typing.Tuple[datatypes.Set, typing.Dict[int, bytes]]:
         inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             await self._reconnect()
         return await inner._impl._protocol.execute_anonymous(
@@ -311,8 +303,6 @@ class AsyncIOConnection(
         **kwargs,
     ) -> datatypes.Set:
         inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             await self._reconnect()
         result, _ = await inner._impl._protocol.execute_anonymous(
@@ -337,8 +327,6 @@ class AsyncIOConnection(
         required_one=False,
     ):
         inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             await self._reconnect()
 
@@ -433,8 +421,6 @@ class AsyncIOConnection(
     async def _fetchall_json_elements(
             self, query: str, *args, **kwargs) -> typing.List[str]:
         inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             await self._reconnect()
         result, _ = await inner._impl._protocol.execute_anonymous(
@@ -482,8 +468,6 @@ class AsyncIOConnection(
             ... ''')
         """
         inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             await self._reconnect()
         await inner._impl._protocol.simple_query(

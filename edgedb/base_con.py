@@ -30,21 +30,6 @@ from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
 
 
-class BorrowReason:
-    TRANSACTION = 'transaction'
-
-
-BORROW_ERRORS = {
-    BorrowReason.TRANSACTION:
-        "Connection object is borrowed for a transaction. "
-        "Use the methods on transaction object instead.",
-}
-
-
-def borrow_error(condition):
-    raise errors.InterfaceError(BORROW_ERRORS[condition])
-
-
 class _InnerConnection:
 
     def __init__(self, addrs, config, params, *,
@@ -67,7 +52,6 @@ class _InnerConnection:
             self._query_cache = _QueryCodecsCache()
 
         self._top_xact = None
-        self._borrowed_for = None
         self._impl = None
 
     def _dispatch_log_message(self, msg):

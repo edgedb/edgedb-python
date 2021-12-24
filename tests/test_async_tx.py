@@ -38,16 +38,12 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
     '''
 
     async def test_async_transaction_regular_01(self):
-        self.assertIsNone(self.con._inner._borrowed_for)
         tr = self.con.with_retry_options(
             RetryOptions(attempts=1)).transaction()
-        self.assertIsNone(self.con._inner._borrowed_for)
 
         with self.assertRaises(ZeroDivisionError):
             async for with_tr in tr:
                 async with with_tr:
-                    self.assertIs(self.con._inner._borrowed_for, 'transaction')
-
                     with self.assertRaisesRegex(edgedb.InterfaceError,
                                                 '.*is borrowed.*'):
                         await self.con.execute('''
@@ -63,8 +59,6 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
                     ''')
 
                     1 / 0
-
-        self.assertIsNone(self.con._inner._borrowed_for)
 
         result = await self.con.query('''
             SELECT

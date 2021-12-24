@@ -198,16 +198,12 @@ class BlockingIOConnection(
         super().__init__()
 
     def _shallow_clone(self):
-        if self._inner._borrowed_for:
-            raise base_con.borrow_error(self._inner._borrowed_for)
         new_conn = self.__class__.__new__(self.__class__)
         new_conn._inner = self._inner
         return new_conn
 
     def ensure_connected(self, single_attempt=False):
         inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             self._reconnect(single_attempt=single_attempt)
 
@@ -221,8 +217,6 @@ class BlockingIOConnection(
 
     def _get_protocol(self):
         inner = self._inner
-        if inner._borrowed_for:
-            raise base_con.borrow_error(inner._borrowed_for)
         if not inner._impl or inner._impl.is_closed():
             self._reconnect()
         return inner._impl._protocol
