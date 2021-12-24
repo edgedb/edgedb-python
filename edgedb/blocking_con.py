@@ -192,10 +192,9 @@ class BlockingIOConnection(
     def __init__(self, addrs, config, params, *,
                  codecs_registry, query_cache):
         self._inner = base_con._InnerConnection(
-            addrs, config, params,
             codecs_registry=codecs_registry,
             query_cache=query_cache)
-        super().__init__()
+        super().__init__(addrs, config, params)
 
     def _shallow_clone(self):
         new_conn = self.__class__.__new__(self.__class__)
@@ -211,7 +210,7 @@ class BlockingIOConnection(
         inner = self._inner
         inner._impl = _BlockingIOConnectionImpl(
             inner._codecs_registry, inner._query_cache)
-        inner._impl.connect(inner._addrs, inner._config, inner._params,
+        inner._impl.connect(self._addrs, self._config, self._params,
                             single_attempt=single_attempt, connection=self)
         assert inner._impl._protocol
 

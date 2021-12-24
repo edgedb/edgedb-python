@@ -174,17 +174,15 @@ class _AsyncIOConnectionImpl:
 
 class _AsyncIOInnerConnection(base_con._InnerConnection):
 
-    def __init__(self, addrs, config, params, *,
+    def __init__(self, *,
                  codecs_registry=None, query_cache=None):
         super().__init__(
-            addrs, config, params,
             codecs_registry=codecs_registry, query_cache=query_cache)
 
     def _detach(self):
         impl = self._impl
         self._impl = None
         new_conn = self.__class__(
-            self._addrs, self._config, self._params,
             codecs_registry=self._codecs_registry,
             query_cache=self._query_cache)
         new_conn._impl = impl
@@ -202,10 +200,9 @@ class AsyncIOConnection(
                  codecs_registry, query_cache):
         self._loop = loop
         self._inner = _AsyncIOInnerConnection(
-            addrs, config, params,
             codecs_registry=codecs_registry,
             query_cache=query_cache)
-        super().__init__()
+        super().__init__(addrs, config, params)
 
     def _dispatch_log_message(self, msg):
         for cb in self._log_listeners:
@@ -236,8 +233,8 @@ class AsyncIOConnection(
         inner = self._inner
         impl = _AsyncIOConnectionImpl(
             inner._codecs_registry, inner._query_cache)
-        await impl.connect(self._loop, inner._addrs,
-                           inner._config, inner._params,
+        await impl.connect(self._loop, self._addrs,
+                           self._config, self._params,
                            single_attempt=single_attempt,
                            connection=self)
         inner._impl = impl

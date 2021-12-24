@@ -23,6 +23,8 @@ import uuid
 
 from . import errors
 
+from .con_utils import ClientConfiguration
+from .con_utils import ResolvedConnectConfig
 from .protocol.protocol import CodecsRegistry as _CodecsRegistry
 from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
@@ -32,13 +34,9 @@ BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
 
 class _InnerConnection:
 
-    def __init__(self, addrs, config, params, *,
+    def __init__(self, *,
                  codecs_registry=None, query_cache=None):
         super().__init__()
-
-        self._addrs = addrs
-        self._config = config
-        self._params = params
 
         if codecs_registry is not None:
             self._codecs_registry = codecs_registry
@@ -59,11 +57,22 @@ class _InnerConnection:
 
 class BaseConnection:
     _inner: _InnerConnection
+    _addrs: typing.Iterable[typing.Union[str, typing.Tuple[str, int]]]
+    _config: ClientConfiguration
+    _params: ResolvedConnectConfig
     _log_listeners: typing.Set[
         typing.Callable[[BaseConnection_T, errors.EdgeDBMessage], None]
     ]
 
-    def __init__(self):
+    def __init__(
+        self,
+        addrs: typing.Iterable[typing.Union[str, typing.Tuple[str, int]]],
+        config: ClientConfiguration,
+        params: ResolvedConnectConfig,
+    ):
+        self._addrs = addrs
+        self._config = config
+        self._params = params
         self._log_listeners = set()
 
     def _dispatch_log_message(self, msg):
@@ -132,7 +141,7 @@ class BaseConnection:
 
     @property
     def dbname(self) -> str:
-        return self._inner._params.database
+        return self._params.database
 
     def is_closed(self) -> bool:
         raise NotImplementedError
