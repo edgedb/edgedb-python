@@ -191,10 +191,10 @@ class BlockingIOConnection(
 
     def __init__(self, addrs, config, params, *,
                  codecs_registry, query_cache):
-        self._inner = base_con._InnerConnection(
-            codecs_registry=codecs_registry,
-            query_cache=query_cache)
-        super().__init__(addrs, config, params)
+        self._inner = base_con._InnerConnection()
+        super().__init__(addrs, config, params,
+                         codecs_registry=codecs_registry,
+                         query_cache=query_cache)
 
     def _shallow_clone(self):
         new_conn = self.__class__.__new__(self.__class__)
@@ -209,7 +209,7 @@ class BlockingIOConnection(
     def _reconnect(self, single_attempt=False):
         inner = self._inner
         inner._impl = _BlockingIOConnectionImpl(
-            inner._codecs_registry, inner._query_cache)
+            self._codecs_registry, self._query_cache)
         inner._impl.connect(self._addrs, self._config, self._params,
                             single_attempt=single_attempt, connection=self)
         assert inner._impl._protocol
@@ -253,13 +253,12 @@ class BlockingIOConnection(
         __typenames__: bool=False,
         **kwargs,
     ) -> datatypes.Set:
-        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
             implicit_limit=__limit__,
             inline_typenames=__typenames__,
             io_format=protocol.IoFormat.BINARY,
@@ -273,13 +272,12 @@ class BlockingIOConnection(
         __limit__: int=0,
         **kwargs,
     ) -> datatypes.Set:
-        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
             implicit_limit=__limit__,
             inline_typenames=False,
             io_format=protocol.IoFormat.JSON,
@@ -296,7 +294,6 @@ class BlockingIOConnection(
         expect_one=False,
         required_one=False,
     ):
-        inner = self._inner
         reconnect = False
         capabilities = None
         i = 0
@@ -308,8 +305,8 @@ class BlockingIOConnection(
                     query=query,
                     args=args,
                     kwargs=kwargs,
-                    reg=inner._codecs_registry,
-                    qc=inner._query_cache,
+                    reg=self._codecs_registry,
+                    qc=self._query_cache,
                     expect_one=expect_one,
                     required_one=required_one,
                     io_format=io_format,
@@ -319,7 +316,7 @@ class BlockingIOConnection(
                 if not e.has_tag(errors.SHOULD_RETRY):
                     raise e
                 if capabilities is None:
-                    cache_item = inner._query_cache.get(
+                    cache_item = self._query_cache.get(
                         query=query,
                         io_format=io_format,
                         implicit_limit=0,
@@ -382,38 +379,35 @@ class BlockingIOConnection(
 
     def _fetchall_json_elements(
             self, query: str, *args, **kwargs) -> typing.List[str]:
-        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
             io_format=protocol.IoFormat.JSON_ELEMENTS,
             allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
-        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
             expect_one=True,
             io_format=protocol.IoFormat.JSON,
             allow_capabilities=enums.Capability.EXECUTE,
         )
 
     def query_required_single_json(self, query: str, *args, **kwargs) -> str:
-        inner = self._inner
         return self._get_protocol().sync_execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
             expect_one=True,
             required_one=True,
             io_format=protocol.IoFormat.JSON,

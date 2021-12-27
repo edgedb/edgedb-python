@@ -171,7 +171,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
         await self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -187,7 +187,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         self, query: str, *args, **kwargs
     ) -> typing.Union[typing.Any, None]:
         await self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -204,7 +204,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         self, query: str, *args, **kwargs
     ) -> typing.Any:
         await self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -220,7 +220,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
         await self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -234,7 +234,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def query_single_json(self, query: str, *args, **kwargs) -> str:
         await self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -251,7 +251,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         self, query: str, *args, **kwargs
     ) -> str:
         await self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         result, _ = await self._connection_impl._protocol.execute_anonymous(
             query=query,
             args=args,
@@ -326,7 +326,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
 
     def query(self, query: str, *args, **kwargs) -> datatypes.Set:
         self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
             args=args,
@@ -341,7 +341,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
         self, query: str, *args, **kwargs
     ) -> typing.Union[typing.Any, None]:
         self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
             args=args,
@@ -355,7 +355,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
 
     def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
         self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
             args=args,
@@ -370,7 +370,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
 
     def query_json(self, query: str, *args, **kwargs) -> str:
         self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
             args=args,
@@ -383,7 +383,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
         self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
             args=args,
@@ -397,7 +397,7 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
 
     def query_required_single_json(self, query: str, *args, **kwargs) -> str:
         self._ensure_transaction()
-        con = self._connection_inner
+        con = self._connection
         return self._connection_impl._protocol.sync_execute_anonymous(
             query=query,
             args=args,

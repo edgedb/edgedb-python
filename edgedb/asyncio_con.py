@@ -174,17 +174,10 @@ class _AsyncIOConnectionImpl:
 
 class _AsyncIOInnerConnection(base_con._InnerConnection):
 
-    def __init__(self, *,
-                 codecs_registry=None, query_cache=None):
-        super().__init__(
-            codecs_registry=codecs_registry, query_cache=query_cache)
-
     def _detach(self):
         impl = self._impl
         self._impl = None
-        new_conn = self.__class__(
-            codecs_registry=self._codecs_registry,
-            query_cache=self._query_cache)
+        new_conn = self.__class__()
         new_conn._impl = impl
         impl._protocol.set_connection(new_conn)
         return new_conn
@@ -199,10 +192,10 @@ class AsyncIOConnection(
     def __init__(self, loop, addrs, config, params, *,
                  codecs_registry, query_cache):
         self._loop = loop
-        self._inner = _AsyncIOInnerConnection(
-            codecs_registry=codecs_registry,
-            query_cache=query_cache)
-        super().__init__(addrs, config, params)
+        self._inner = _AsyncIOInnerConnection()
+        super().__init__(addrs, config, params,
+                         codecs_registry=codecs_registry,
+                         query_cache=query_cache)
 
     def _dispatch_log_message(self, msg):
         for cb in self._log_listeners:
@@ -232,7 +225,7 @@ class AsyncIOConnection(
     async def _reconnect(self, single_attempt=False):
         inner = self._inner
         impl = _AsyncIOConnectionImpl(
-            inner._codecs_registry, inner._query_cache)
+            self._codecs_registry, self._query_cache)
         await impl.connect(self._loop, self._addrs,
                            self._config, self._params,
                            single_attempt=single_attempt,
@@ -256,8 +249,8 @@ class AsyncIOConnection(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
             implicit_limit=__limit__,
             inline_typeids=__typeids__,
             inline_typenames=__typenames__,
@@ -283,8 +276,8 @@ class AsyncIOConnection(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
             implicit_limit=__limit__,
             inline_typeids=__typeids__,
             inline_typenames=__typenames__,
@@ -306,8 +299,8 @@ class AsyncIOConnection(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
             implicit_limit=__limit__,
             inline_typenames=False,
             io_format=protocol.IoFormat.JSON,
@@ -340,8 +333,8 @@ class AsyncIOConnection(
                         query=query,
                         args=args,
                         kwargs=kwargs,
-                        reg=inner._codecs_registry,
-                        qc=inner._query_cache,
+                        reg=self._codecs_registry,
+                        qc=self._query_cache,
                         io_format=io_format,
                         expect_one=expect_one,
                         required_one=required_one,
@@ -352,7 +345,7 @@ class AsyncIOConnection(
                 if not e.has_tag(errors.SHOULD_RETRY):
                     raise e
                 if capabilities is None:
-                    cache_item = inner._query_cache.get(
+                    cache_item = self._query_cache.get(
                         query=query,
                         io_format=io_format,
                         implicit_limit=0,
@@ -424,8 +417,8 @@ class AsyncIOConnection(
             query=query,
             args=args,
             kwargs=kwargs,
-            reg=inner._codecs_registry,
-            qc=inner._query_cache,
+            reg=self._codecs_registry,
+            qc=self._query_cache,
             io_format=protocol.IoFormat.JSON_ELEMENTS,
             allow_capabilities=enums.Capability.EXECUTE,
         )

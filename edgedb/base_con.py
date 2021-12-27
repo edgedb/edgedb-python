@@ -34,20 +34,7 @@ BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
 
 class _InnerConnection:
 
-    def __init__(self, *,
-                 codecs_registry=None, query_cache=None):
-        super().__init__()
-
-        if codecs_registry is not None:
-            self._codecs_registry = codecs_registry
-        else:
-            self._codecs_registry = _CodecsRegistry()
-
-        if query_cache is not None:
-            self._query_cache = query_cache
-        else:
-            self._query_cache = _QueryCodecsCache()
-
+    def __init__(self):
         self._top_xact = None
         self._impl = None
 
@@ -63,17 +50,31 @@ class BaseConnection:
     _log_listeners: typing.Set[
         typing.Callable[[BaseConnection_T, errors.EdgeDBMessage], None]
     ]
+    _codecs_registry: _CodecsRegistry
+    _query_cache: _QueryCodecsCache
 
     def __init__(
         self,
         addrs: typing.Iterable[typing.Union[str, typing.Tuple[str, int]]],
         config: ClientConfiguration,
         params: ResolvedConnectConfig,
+        *,
+        codecs_registry: typing.Optional[_CodecsRegistry],
+        query_cache: typing.Optional[_QueryCodecsCache],
     ):
         self._addrs = addrs
         self._config = config
         self._params = params
         self._log_listeners = set()
+        if codecs_registry is not None:
+            self._codecs_registry = codecs_registry
+        else:
+            self._codecs_registry = _CodecsRegistry()
+
+        if query_cache is not None:
+            self._query_cache = query_cache
+        else:
+            self._query_cache = _QueryCodecsCache()
 
     def _dispatch_log_message(self, msg):
         raise NotImplementedError
@@ -86,7 +87,7 @@ class BaseConnection:
         return self._inner._impl._addr
 
     def _clear_codecs_cache(self):
-        self._inner._codecs_registry.clear_cache()
+        self._codecs_registry.clear_cache()
 
     def _set_type_codec(
         self,
@@ -96,7 +97,7 @@ class BaseConnection:
         decoder: typing.Callable[[typing.Any], typing.Any],
         format: str
     ):
-        self._inner._codecs_registry.set_type_codec(
+        self._codecs_registry.set_type_codec(
             typeid,
             encoder=encoder,
             decoder=decoder,
