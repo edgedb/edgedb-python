@@ -41,35 +41,21 @@ class PoolConnection(asyncio_con.AsyncIOConnection):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._inner._holder = None
-        self._inner._detached = False
-
-    async def _reconnect(self, single_attempt=False):
-        if self._inner._detached:
-            # initial connection
-            raise errors.InterfaceError(
-                "the underlying connection has been released back to the pool"
-            )
-        return await super()._reconnect(single_attempt=single_attempt)
+        self._holder = None
 
     def _detach(self):
         new_conn = self._shallow_clone()
-        inner = self._inner
-        holder = inner._holder
-        inner._holder = None
-        inner._detached = True
-        new_conn._inner = self._inner._detach()
-        new_conn._inner._holder = holder
-        new_conn._inner._detached = False
+        new_conn._holder = self._holder
+        self._connection._protocol.set_connection(new_conn)
         return new_conn
 
     def _cleanup(self):
-        if self._inner._holder:
-            self._inner._holder._release_on_close()
+        if self._holder:
+            self._holder._release_on_close()
         super()._cleanup()
 
     def __repr__(self):
-        if self._inner._holder is None:
+        if self._holder is None:
             return '<{classname} [released] {id:#x}>'.format(
                 classname=self.__class__.__name__, id=id(self))
         else:
@@ -100,8 +86,8 @@ class PoolConnectionHolder:
                 'connection already exists')
 
         self._con = await self._pool._get_new_connection()
-        assert self._con._inner._holder is None
-        self._con._inner._holder = self
+        assert self._con._holder is None
+        self._con._holder = self
         self._generation = self._pool._generation
 
     async def acquire(self) -> PoolConnection:
@@ -330,10 +316,10 @@ class _AsyncIOPoolImpl:
             **self._connect_args)
 
         self._working_addr = con.connected_addr()
-        self._working_config = con._inner._config
-        self._working_params = con._inner._params
-        self._codecs_registry = con._inner._codecs_registry
-        self._query_cache = con._inner._query_cache
+        self._working_config = con._config
+        self._working_params = con._params
+        self._codecs_registry = con._codecs_registry
+        self._query_cache = con._query_cache
 
         if self._user_concurrency is None:
             suggested_concurrency = con.get_settings().get(
@@ -383,6 +369,7 @@ class _AsyncIOPoolImpl:
 
     async def _acquire(self, timeout, options):
         self._ensure_initialized()
+
         async def _acquire_impl():
             ch = await self._queue.get()  # type: PoolConnectionHolder
             try:
@@ -414,7 +401,7 @@ class _AsyncIOPoolImpl:
                 f'{connection!r} does not belong to any connection pool'
             )
 
-        ch = connection._inner._holder
+        ch = connection._holder
         if ch is None:
             # Already released, do nothing.
             return

@@ -243,7 +243,8 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                     async with tx:
                         pass
 
-        with self.assertRaisesRegex(edgedb.InterfaceError, r".*is borrowed.*"):
-            async for tx in self.con.transaction():
-                async with tx:
-                    await self.con.execute("SELECT 123")
+        # with self.assertRaisesRegex(edgedb.InterfaceError,
+        #                             r".*is borrowed.*"):
+        #     async for tx in self.con.transaction():
+        #         async with tx:
+        #             await self.con.execute("SELECT 123")

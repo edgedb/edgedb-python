@@ -37,13 +37,7 @@ from .protocol.protocol import CodecsRegistry as _CodecsRegistry
 from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
 
-class _BlockingIOConnectionImpl:
-
-    def __init__(self, codecs_registry, query_cache):
-        self._addr = None
-        self._protocol = None
-        self._codecs_registry = codecs_registry
-        self._query_cache = query_cache
+class _BlockingIOConnectionImpl(base_con.RawConnection):
 
     def connect(self, addrs, config, params, *,
                 single_attempt=False, connection):
@@ -184,41 +178,40 @@ class _BlockingIOConnectionImpl:
 
 
 class BlockingIOConnection(
+    options._OptionsMixin,
     base_con.BaseConnection,
     abstract.Executor,
-    options._OptionsMixin,
 ):
-
-    def __init__(self, addrs, config, params, *,
-                 codecs_registry, query_cache):
-        self._inner = base_con._InnerConnection()
-        super().__init__(addrs, config, params,
-                         codecs_registry=codecs_registry,
-                         query_cache=query_cache)
+    _connection: typing.Optional[_BlockingIOConnectionImpl]
 
     def _shallow_clone(self):
         new_conn = self.__class__.__new__(self.__class__)
-        new_conn._inner = self._inner
+        new_conn._connection = self._connection
+        new_conn._addrs = self._addrs
+        new_conn._config = self._config
+        new_conn._params = self._params
+        new_conn._codecs_registry = self._codecs_registry
+        new_conn._query_cache = self._query_cache
+        new_conn._log_listeners = set()
         return new_conn
 
     def ensure_connected(self, single_attempt=False):
-        inner = self._inner
-        if not inner._impl or inner._impl.is_closed():
+        if not self._connection or self._connection.is_closed():
             self._reconnect(single_attempt=single_attempt)
 
     def _reconnect(self, single_attempt=False):
-        inner = self._inner
-        inner._impl = _BlockingIOConnectionImpl(
+        self._connection = _BlockingIOConnectionImpl(
             self._codecs_registry, self._query_cache)
-        inner._impl.connect(self._addrs, self._config, self._params,
-                            single_attempt=single_attempt, connection=self)
-        assert inner._impl._protocol
+        self._connection.connect(
+            self._addrs, self._config, self._params,
+            single_attempt=single_attempt, connection=self,
+        )
+        assert self._connection._protocol
 
     def _get_protocol(self):
-        inner = self._inner
-        if not inner._impl or inner._impl.is_closed():
+        if not self._connection or self._connection.is_closed():
             self._reconnect()
-        return inner._impl._protocol
+        return self._connection._protocol
 
     def _dump(
         self,
@@ -422,10 +415,10 @@ class BlockingIOConnection(
 
     def close(self) -> None:
         if not self.is_closed():
-            self._inner._impl.close()
+            self._connection.close()
 
     def is_closed(self) -> bool:
-        return self._inner._impl is None or self._inner._impl.is_closed()
+        return self._connection is None or self._connection.is_closed()
 
 
 def connect(

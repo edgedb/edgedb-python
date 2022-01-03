@@ -41,14 +41,11 @@ from .protocol.protocol import CodecsRegistry as _CodecsRegistry
 from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
 
-class _AsyncIOConnectionImpl:
+class _AsyncIOConnectionImpl(base_con.RawConnection):
 
     def __init__(self, codecs_registry, query_cache):
-        self._addr = None
+        super().__init__(codecs_registry, query_cache)
         self._transport = None
-        self._protocol = None
-        self._codecs_registry = codecs_registry
-        self._query_cache = query_cache
 
     def is_closed(self):
         protocol = self._protocol
@@ -172,27 +169,16 @@ class _AsyncIOConnectionImpl:
             self._protocol.abort()
 
 
-class _AsyncIOInnerConnection(base_con._InnerConnection):
-
-    def _detach(self):
-        impl = self._impl
-        self._impl = None
-        new_conn = self.__class__()
-        new_conn._impl = impl
-        impl._protocol.set_connection(new_conn)
-        return new_conn
-
-
 class AsyncIOConnection(
+    options._OptionsMixin,
     base_con.BaseConnection,
     abstract.AsyncIOExecutor,
-    options._OptionsMixin,
 ):
+    _connection: typing.Optional[_AsyncIOConnectionImpl]
 
     def __init__(self, loop, addrs, config, params, *,
                  codecs_registry, query_cache):
         self._loop = loop
-        self._inner = _AsyncIOInnerConnection()
         super().__init__(addrs, config, params,
                          codecs_registry=codecs_registry,
                          query_cache=query_cache)
@@ -203,7 +189,13 @@ class AsyncIOConnection(
 
     def _shallow_clone(self):
         new_conn = self.__class__.__new__(self.__class__)
-        new_conn._inner = self._inner
+        new_conn._connection = self._connection
+        new_conn._addrs = self._addrs
+        new_conn._config = self._config
+        new_conn._params = self._params
+        new_conn._codecs_registry = self._codecs_registry
+        new_conn._query_cache = self._query_cache
+        new_conn._log_listeners = set()
         return new_conn
 
     def __repr__(self):
@@ -217,20 +209,18 @@ class AsyncIOConnection(
                 id=id(self))
 
     async def ensure_connected(self, *, single_attempt=False):
-        inner = self._inner
-        if not inner._impl or inner._impl.is_closed():
+        if not self._connection or self._connection.is_closed():
             await self._reconnect(single_attempt=single_attempt)
 
     # overriden by connection pool
     async def _reconnect(self, single_attempt=False):
-        inner = self._inner
         impl = _AsyncIOConnectionImpl(
             self._codecs_registry, self._query_cache)
         await impl.connect(self._loop, self._addrs,
                            self._config, self._params,
                            single_attempt=single_attempt,
                            connection=self)
-        inner._impl = impl
+        self._connection = impl
 
     async def _fetchall(
         self,
@@ -242,10 +232,9 @@ class AsyncIOConnection(
         __allow_capabilities__: typing.Optional[int]=None,
         **kwargs,
     ) -> datatypes.Set:
-        inner = self._inner
-        if not inner._impl or inner._impl.is_closed():
+        if not self._connection or self._connection.is_closed():
             await self._reconnect()
-        result, _ = await inner._impl._protocol.execute_anonymous(
+        result, _ = await self._connection._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -269,10 +258,9 @@ class AsyncIOConnection(
         __allow_capabilities__: typing.Optional[int]=None,
         **kwargs,
     ) -> typing.Tuple[datatypes.Set, typing.Dict[int, bytes]]:
-        inner = self._inner
-        if not inner._impl or inner._impl.is_closed():
+        if not self._connection or self._connection.is_closed():
             await self._reconnect()
-        return await inner._impl._protocol.execute_anonymous(
+        return await self._connection._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -292,10 +280,9 @@ class AsyncIOConnection(
         __limit__: int=0,
         **kwargs,
     ) -> datatypes.Set:
-        inner = self._inner
-        if not inner._impl or inner._impl.is_closed():
+        if not self._connection or self._connection.is_closed():
             await self._reconnect()
-        result, _ = await inner._impl._protocol.execute_anonymous(
+        result, _ = await self._connection._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -316,8 +303,7 @@ class AsyncIOConnection(
         expect_one=False,
         required_one=False,
     ):
-        inner = self._inner
-        if not inner._impl or inner._impl.is_closed():
+        if not self._connection or self._connection.is_closed():
             await self._reconnect()
 
         reconnect = False
@@ -329,7 +315,7 @@ class AsyncIOConnection(
                 if reconnect:
                     await self._reconnect(single_attempt=True)
                 result, _ = \
-                    await self._inner._impl._protocol.execute_anonymous(
+                    await self._connection._protocol.execute_anonymous(
                         query=query,
                         args=args,
                         kwargs=kwargs,
@@ -410,10 +396,9 @@ class AsyncIOConnection(
 
     async def _fetchall_json_elements(
             self, query: str, *args, **kwargs) -> typing.List[str]:
-        inner = self._inner
-        if not inner._impl or inner._impl.is_closed():
+        if not self._connection or self._connection.is_closed():
             await self._reconnect()
-        result, _ = await inner._impl._protocol.execute_anonymous(
+        result, _ = await self._connection._protocol.execute_anonymous(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -457,10 +442,9 @@ class AsyncIOConnection(
             ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
             ... ''')
         """
-        inner = self._inner
-        if not inner._impl or inner._impl.is_closed():
+        if not self._connection or self._connection.is_closed():
             await self._reconnect()
-        await inner._impl._protocol.simple_query(
+        await self._connection._protocol.simple_query(
             query, enums.Capability.EXECUTE)
 
     def transaction(self) -> _retry.AsyncIORetry:
@@ -468,13 +452,13 @@ class AsyncIOConnection(
 
     async def aclose(self) -> None:
         try:
-            await self._inner._impl.aclose()
+            await self._connection.aclose()
         finally:
             self._cleanup()
 
     def terminate(self) -> None:
         try:
-            self._inner._impl.terminate()
+            self._connection.terminate()
         finally:
             self._cleanup()
 
@@ -487,7 +471,7 @@ class AsyncIOConnection(
         self._proxy = proxy
 
     def is_closed(self) -> bool:
-        return self._inner._impl.is_closed()
+        return self._connection.is_closed()
 
 
 async def async_connect_raw(

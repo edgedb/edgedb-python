@@ -17,7 +17,6 @@
 #
 
 
-import itertools
 import typing
 import uuid
 
@@ -32,18 +31,21 @@ from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
 
 
-class _InnerConnection:
+class RawConnection:
+    _addr: typing.Optional[typing.Union[str, typing.Tuple[str, int]]]
+    _codecs_registry: _CodecsRegistry
+    _query_cache: _QueryCodecsCache
+    _protocol: typing.Any
 
-    def __init__(self):
-        self._top_xact = None
-        self._impl = None
-
-    def _get_unique_id(self, prefix):
-        return f'_edgedb_{prefix}_{_uid_counter():x}_'
+    def __init__(self, codecs_registry, query_cache):
+        self._addr = None
+        self._protocol = None
+        self._codecs_registry = codecs_registry
+        self._query_cache = query_cache
 
 
 class BaseConnection:
-    _inner: _InnerConnection
+    _connection: typing.Optional[RawConnection]
     _addrs: typing.Iterable[typing.Union[str, typing.Tuple[str, int]]]
     _config: ClientConfiguration
     _params: ResolvedConnectConfig
@@ -62,6 +64,7 @@ class BaseConnection:
         codecs_registry: typing.Optional[_CodecsRegistry],
         query_cache: typing.Optional[_QueryCodecsCache],
     ):
+        self._connection = None
         self._addrs = addrs
         self._config = config
         self._params = params
@@ -84,7 +87,7 @@ class BaseConnection:
             self._dispatch_log_message(msg)
 
     def connected_addr(self):
-        return self._inner._impl._addr
+        return self._connection._addr
 
     def _clear_codecs_cache(self):
         self._codecs_registry.clear_cache()
@@ -105,12 +108,12 @@ class BaseConnection:
         )
 
     def _get_last_status(self) -> typing.Optional[str]:
-        impl = self._inner._impl
-        if impl is None:
+        raw_conn = self._connection
+        if raw_conn is None:
             return None
-        if impl._protocol is None:
+        if raw_conn._protocol is None:
             return None
-        status = impl._protocol.last_status
+        status = raw_conn._protocol.last_status
         if status is not None:
             status = status.decode()
         return status
@@ -152,11 +155,7 @@ class BaseConnection:
 
         :return bool: True if inside transaction, False otherwise.
         """
-        return self._inner._impl._protocol.is_in_transaction()
+        return self._connection._protocol.is_in_transaction()
 
     def get_settings(self) -> typing.Dict[str, typing.Any]:
-        return self._inner._impl._protocol.get_settings()
-
-
-# Thread-safe "+= 1" counter.
-_uid_counter = itertools.count(1).__next__
+        return self._connection._protocol.get_settings()
