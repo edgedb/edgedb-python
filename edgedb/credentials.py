@@ -20,7 +20,7 @@ class Credentials(RequiredCredentials, total=False):
     host: typing.Optional[str]
     password: typing.Optional[str]
     database: typing.Optional[str]
-    tls_cert_data: typing.Optional[str]
+    tls_ca: typing.Optional[str]
     tls_security: typing.Optional[str]
 
 
@@ -75,11 +75,20 @@ def validate_credentials(data: dict) -> Credentials:
             raise ValueError("`password` must be a string")
         result['password'] = password
 
+    ca = data.get('tls_ca')
+    if ca is not None:
+        if not isinstance(ca, str):
+            raise ValueError("`tls_ca` must be a string")
+        result['tls_ca'] = ca
+
     cert_data = data.get('tls_cert_data')
     if cert_data is not None:
         if not isinstance(cert_data, str):
             raise ValueError("`tls_cert_data` must be a string")
-        result['tls_cert_data'] = cert_data
+        if ca is not None and ca != cert_data:
+            raise ValueError(
+                f"tls_ca and tls_cert_data are both set and disagree")
+        result['tls_ca'] = cert_data
 
     verify = data.get('tls_verify_hostname')
     if verify is not None:
