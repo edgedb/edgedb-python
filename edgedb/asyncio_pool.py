@@ -617,7 +617,6 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
 
     def _shallow_clone(self):
         new_pool = self.__class__.__new__(self.__class__)
-        new_pool._options = self._options
         new_pool._impl = self._impl
         return new_pool
 
