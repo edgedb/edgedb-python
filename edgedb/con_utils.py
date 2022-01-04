@@ -724,7 +724,7 @@ def _resolve_config_options(
             resolved_config.set_database(creds.get('database'), source)
             resolved_config.set_user(creds.get('user'), source)
             resolved_config.set_password(creds.get('password'), source)
-            resolved_config.set_tls_ca_data(creds.get('tls_cert_data'), source)
+            resolved_config.set_tls_ca_data(creds.get('tls_ca'), source)
             resolved_config.set_tls_security(
                 creds.get('tls_security'),
                 source
