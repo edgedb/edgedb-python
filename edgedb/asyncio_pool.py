@@ -223,20 +223,19 @@ class PoolConnectionHolder:
 class _AsyncIOPoolImpl:
     __slots__ = ('_queue', '_loop', '_user_concurrency', '_concurrency',
                  '_first_connect_lock',
-                 '_on_connect', '_connect_args', '_connect_kwargs',
+                 '_on_connect', '_connect_args',
                  '_working_addr', '_working_config', '_working_params',
                  '_codecs_registry', '_query_cache',
                  '_holders', '_initialized', '_initializing', '_closing',
                  '_closed', '_connection_class', '_generation',
                  '_on_acquire', '_on_release')
 
-    def __init__(self, *connect_args,
+    def __init__(self, connect_args, *,
                  concurrency: typing.Optional[int],
                  on_acquire,
                  on_release,
                  on_connect,
-                 connection_class,
-                 **connect_kwargs):
+                 connection_class):
         super().__init__()
 
         self._loop = None
@@ -271,7 +270,6 @@ class _AsyncIOPoolImpl:
         self._generation = 0
         self._on_connect = on_connect
         self._connect_args = connect_args
-        self._connect_kwargs = connect_kwargs
 
     def _ensure_initialized(self):
         if self._loop is None:
@@ -317,8 +315,8 @@ class _AsyncIOPoolImpl:
             function.
         """
 
-        self._connect_args = [dsn]
-        self._connect_kwargs = connect_kwargs
+        connect_kwargs["dsn"] = dsn
+        self._connect_args = connect_kwargs
         self._working_addr = None
         self._working_config = None
         self._working_params = None
@@ -328,9 +326,8 @@ class _AsyncIOPoolImpl:
     async def _get_first_connection(self):
         # First connection attempt on this pool.
         con = await asyncio_con.async_connect_raw(
-            *self._connect_args,
             connection_class=self._connection_class,
-            **self._connect_kwargs)
+            **self._connect_args)
 
         self._working_addr = con.connected_addr()
         self._working_config = con._inner._config
@@ -537,22 +534,21 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
 
     __slots__ = ('_impl', '_options')
 
-    def __init__(self, *connect_args,
+    def __init__(self, *,
                  concurrency: int,
                  on_acquire,
                  on_release,
                  on_connect,
                  connection_class,
-                 **connect_kwargs):
+                 **connect_args):
         super().__init__()
         self._impl = _AsyncIOPoolImpl(
-            *connect_args,
+            connect_args,
             concurrency=concurrency,
             on_acquire=on_acquire,
             on_release=on_release,
             on_connect=on_connect,
             connection_class=connection_class,
-            **connect_kwargs,
         )
 
     @property
@@ -662,46 +658,39 @@ class PoolAcquireContext:
 def create_async_client(
     dsn=None,
     *,
+    host: str = None,
+    port: int = None,
+    credentials: str = None,
+    credentials_file: str = None,
+    user: str = None,
+    password: str = None,
+    database: str = None,
+    tls_ca: str = None,
+    tls_ca_file: str = None,
+    tls_security: str = None,
+    wait_until_available: int = 30,
+    timeout: int = 10,
     concurrency=None,
-    **connect_kwargs
 ):
-    r"""Create an AsyncIOClient with a lazy connection pool.
-
-    .. code-block:: python
-
-        client = edgedb.create_async_client(user='edgedb')
-        con = await client.acquire()
-        try:
-            await con.fetchall('SELECT {1, 2, 3}')
-        finally:
-            await pool.release(con)
-
-    :param str dsn:
-        If this parameter does not start with ``edgedb://`` then this is
-        a :ref:`name of an instance <ref_reference_connection_instance_name>`.
-
-        Otherwies it specifies as a single string in the following format:
-        ``edgedb://user:pass@host:port/database?option=value``.
-
-    :param \*\*connect_kwargs:
-        Keyword arguments for the async_connect() function.
-
-    :param Connection connection_class:
-        The class to use for connections.  Must be a subclass of
-        :class:`~edgedb.asyncio_con.AsyncIOConnection`.
-
-    :param int concurrency:
-        Max number of connections in the pool. If not set, the suggested
-        concurrency value sent by the server will be used.
-
-    :return: An instance of :class:`~edgedb.AsyncIOPool`.
-    """
     return AsyncIOClient(
-        dsn,
         connection_class=PoolConnection,
         concurrency=concurrency,
         on_acquire=None,
         on_release=None,
         on_connect=None,
-        **connect_kwargs
+
+        # connect arguments
+        dsn=dsn,
+        host=host,
+        port=port,
+        credentials=credentials,
+        credentials_file=credentials_file,
+        user=user,
+        password=password,
+        database=database,
+        timeout=timeout,
+        tls_ca=tls_ca,
+        tls_ca_file=tls_ca_file,
+        tls_security=tls_security,
+        wait_until_available=wait_until_available,
     )
