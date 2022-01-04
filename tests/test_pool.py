@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import asyncio
 
 import edgedb
 
@@ -46,3 +47,22 @@ class TestClient(tb.AsyncQueryTestCase):
         self.assertEqual(client.concurrency, 5)
 
         await client.aclose()
+
+    def test_client_with_different_loop(self):
+        conargs = self.get_connect_args()
+        client = edgedb.create_async_client(**conargs)
+
+        async def test():
+            self.assertIsNot(asyncio.get_event_loop(), self.loop)
+            result = await client.query_single("SELECT 42")
+            self.assertEqual(result, 42)
+            await asyncio.gather(
+                client.query_single("SELECT 42"),
+                client.query_single("SELECT 42"),
+            )
+            await client.aclose()
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(test())
+        asyncio.set_event_loop(self.loop)

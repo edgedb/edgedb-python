@@ -238,8 +238,7 @@ class _AsyncIOPoolImpl:
                  **connect_kwargs):
         super().__init__()
 
-        loop = asyncio.get_event_loop()
-        self._loop = loop
+        self._loop = None
 
         if concurrency is not None and concurrency <= 0:
             raise ValueError('concurrency is expected to be greater than zero')
@@ -257,7 +256,7 @@ class _AsyncIOPoolImpl:
         self._on_release = on_release
 
         self._holders = []
-        self._queue = asyncio.LifoQueue(maxsize=self._concurrency)
+        self._queue = None
 
         self._working_addr = None
         self._working_config = None
@@ -272,7 +271,11 @@ class _AsyncIOPoolImpl:
         self._connect_args = connect_args
         self._connect_kwargs = connect_kwargs
 
-        self._resize_holder_pool()
+    def _ensure_initialized(self):
+        if self._loop is None:
+            self._loop = asyncio.get_event_loop()
+            self._queue = asyncio.LifoQueue(maxsize=self._concurrency)
+            self._resize_holder_pool()
 
     def _resize_holder_pool(self):
         resize_diff = self._concurrency - len(self._holders)
@@ -372,6 +375,7 @@ class _AsyncIOPoolImpl:
         return con
 
     async def _acquire(self, timeout, options):
+        self._ensure_initialized()
         async def _acquire_impl():
             ch = await self._queue.get()  # type: PoolConnectionHolder
             try:
@@ -435,6 +439,10 @@ class _AsyncIOPoolImpl:
         if self._closed:
             return
 
+        if not self._loop:
+            self._closed = True
+            return
+
         self._closing = True
 
         try:
@@ -480,6 +488,17 @@ class _AsyncIOPoolImpl:
         next AsyncIOPool.acquire() call.
         """
         self._generation += 1
+
+    async def ensure_connected(self):
+        self._ensure_initialized()
+
+        for ch in self._holders:
+            if ch._con is not None and ch._con.is_closed():
+                return
+
+        ch = self._holders[0]
+        ch._con = None
+        await ch.connect()
 
     def _drop_statement_cache(self):
         # Drop statement cache for all connections in the pool.
@@ -533,14 +552,7 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
         return self._impl._concurrency
 
     async def ensure_connected(self):
-        for ch in self._impl._holders:
-            if ch._con is not None and ch._con.is_closed():
-                return self
-
-        ch = self._impl._holders[0]
-        ch._con = None
-        await ch.connect()
-
+        await self._impl.ensure_connected()
         return self
 
     async def query(self, query, *args, **kwargs):
