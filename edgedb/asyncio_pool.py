@@ -222,6 +222,7 @@ class PoolConnectionHolder:
 
 class _AsyncIOPoolImpl:
     __slots__ = ('_queue', '_loop', '_user_concurrency', '_concurrency',
+                 '_first_connect_lock',
                  '_on_connect', '_connect_args', '_connect_kwargs',
                  '_working_addr', '_working_config', '_working_params',
                  '_codecs_registry', '_query_cache',
@@ -258,6 +259,7 @@ class _AsyncIOPoolImpl:
         self._holders = []
         self._queue = None
 
+        self._first_connect_lock = None
         self._working_addr = None
         self._working_config = None
         self._working_params = None
@@ -275,6 +277,7 @@ class _AsyncIOPoolImpl:
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
             self._queue = asyncio.LifoQueue(maxsize=self._concurrency)
+            self._first_connect_lock = asyncio.Lock()
             self._resize_holder_pool()
 
     def _resize_holder_pool(self):
@@ -322,28 +325,35 @@ class _AsyncIOPoolImpl:
         self._codecs_registry = None
         self._query_cache = None
 
+    async def _get_first_connection(self):
+        # First connection attempt on this pool.
+        con = await asyncio_con.async_connect_raw(
+            *self._connect_args,
+            connection_class=self._connection_class,
+            **self._connect_kwargs)
+
+        self._working_addr = con.connected_addr()
+        self._working_config = con._inner._config
+        self._working_params = con._inner._params
+        self._codecs_registry = con._inner._codecs_registry
+        self._query_cache = con._inner._query_cache
+
+        if self._user_concurrency is None:
+            suggested_concurrency = con.get_settings().get(
+                'suggested_pool_concurrency')
+            if suggested_concurrency:
+                self._concurrency = suggested_concurrency
+                self._resize_holder_pool()
+        return con
+
     async def _get_new_connection(self):
+        con = None
         if self._working_addr is None:
-            # First connection attempt on this pool.
-            con = await asyncio_con.async_connect_raw(
-                *self._connect_args,
-                connection_class=self._connection_class,
-                **self._connect_kwargs)
-
-            self._working_addr = con.connected_addr()
-            self._working_config = con._inner._config
-            self._working_params = con._inner._params
-            self._codecs_registry = con._inner._codecs_registry
-            self._query_cache = con._inner._query_cache
-
-            if self._user_concurrency is None:
-                suggested_concurrency = con.get_settings().get(
-                    'suggested_pool_concurrency')
-                if suggested_concurrency:
-                    self._concurrency = suggested_concurrency
-                    self._resize_holder_pool()
-
-        else:
+            async with self._first_connect_lock:
+                if self._working_addr is None:
+                    con = await self._get_first_connection()
+        if con is None:
+            assert self._working_addr is not None
             # We've connected before and have a resolved address,
             # and parsed options and config.
             con = await asyncio_con._connect_addr(
