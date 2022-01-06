@@ -121,7 +121,9 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
     async def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
         if self._pool is not None:
-            self._connection = await self._pool._acquire()
+            self._connection = await self._pool._impl._acquire(
+                None, self._pool._options
+            )
             if (
                 not self._connection._connection
                 or self._connection._connection.is_closed()
@@ -150,7 +152,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
                 self._state = TransactionState.COMMITTED
         finally:
             if self._pool is not None:
-                await self._pool._release(self._connection)
+                await self._pool._impl.release(self._connection)
 
     async def _rollback(self):
         try:
@@ -164,7 +166,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
                 self._state = TransactionState.ROLLEDBACK
         finally:
             if self._pool is not None:
-                await self._pool._release(self._connection)
+                await self._pool._impl.release(self._connection)
 
     async def _ensure_transaction(self):
         pass

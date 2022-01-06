@@ -24,9 +24,12 @@ import typing
 from . import abstract
 from . import asyncio_con
 from . import compat
+from . import enums
 from . import errors
 from . import options
 from . import retry as _retry
+from .datatypes import datatypes
+from .protocol import protocol
 
 
 __all__ = (
@@ -548,39 +551,108 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
         await self._impl.ensure_connected()
         return self
 
-    async def query(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query(query, *args, **kwargs)
+    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+        con = await self._impl._acquire(None, self._options)
+        try:
+            return await con._execute(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                io_format=protocol.IoFormat.BINARY,
+            )
+        finally:
+            await self._impl.release(con)
 
-    async def query_single(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query_single(query, *args, **kwargs)
+    async def query_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Union[typing.Any, None]:
+        con = await self._impl._acquire(None, self._options)
+        try:
+            return await con._execute(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                expect_one=True,
+                io_format=protocol.IoFormat.BINARY,
+            )
+        finally:
+            await self._impl.release(con)
 
-    async def query_required_single(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query_required_single(query, *args, **kwargs)
+    async def query_required_single(
+        self, query: str, *args, **kwargs
+    ) -> typing.Any:
+        con = await self._impl._acquire(None, self._options)
+        try:
+            return await con._execute(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                expect_one=True,
+                required_one=True,
+                io_format=protocol.IoFormat.BINARY,
+            )
+        finally:
+            await self._impl.release(con)
 
-    async def query_json(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query_json(query, *args, **kwargs)
+    async def query_json(self, query: str, *args, **kwargs) -> str:
+        con = await self._impl._acquire(None, self._options)
+        try:
+            return await con._execute(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                io_format=protocol.IoFormat.JSON,
+            )
+        finally:
+            await self._impl.release(con)
 
-    async def query_single_json(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query_single_json(query, *args, **kwargs)
+    async def query_single_json(self, query: str, *args, **kwargs) -> str:
+        con = await self._impl._acquire(None, self._options)
+        try:
+            return await con._execute(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                io_format=protocol.IoFormat.JSON,
+                expect_one=True,
+            )
+        finally:
+            await self._impl.release(con)
 
-    async def query_required_single_json(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query_required_single_json(query, *args, **kwargs)
+    async def query_required_single_json(
+        self, query: str, *args, **kwargs
+    ) -> str:
+        con = await self._impl._acquire(None, self._options)
+        try:
+            return await con._execute(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                io_format=protocol.IoFormat.JSON,
+                expect_one=True,
+                required_one=True
+            )
+        finally:
+            await self._impl.release(con)
 
-    async def execute(self, query):
-        async with self._acquire() as con:
-            return await con.execute(query)
+    async def execute(self, query: str) -> None:
+        """Execute an EdgeQL command (or commands).
 
-    def _acquire(self):
-        return PoolAcquireContext(self, timeout=None, options=self._options)
+        Example:
 
-    async def _release(self, connection):
-        await self._impl.release(connection)
+        .. code-block:: pycon
+
+            >>> await con.execute('''
+            ...     CREATE TYPE MyType { CREATE PROPERTY a -> int64 };
+            ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
+            ... ''')
+        """
+        con = await self._impl._acquire(None, self._options)
+        try:
+            await con._protocol.simple_query(
+                query, enums.Capability.EXECUTE)
+        finally:
+            await self._impl.release(con)
 
     async def aclose(self):
         """Attempt to gracefully close all connections in the pool.
@@ -606,39 +678,6 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
         new_pool = self.__class__.__new__(self.__class__)
         new_pool._impl = self._impl
         return new_pool
-
-
-class PoolAcquireContext:
-
-    __slots__ = ('timeout', 'connection', 'done', 'pool')
-
-    def __init__(self, pool, timeout, options):
-        self.pool = pool
-        self.timeout = timeout
-        self.connection = None
-        self.done = False
-
-    async def __aenter__(self):
-        if self.connection is not None or self.done:
-            raise errors.InterfaceError('a connection is already acquired')
-        self.connection = await self.pool._impl._acquire(
-            self.timeout,
-            self.pool._options,
-        )
-        return self.connection
-
-    async def __aexit__(self, *exc):
-        self.done = True
-        con = self.connection
-        self.connection = None
-        await self.pool._release(con)
-
-    def __await__(self):
-        self.done = True
-        return self.pool._impl._acquire(
-            self.timeout,
-            self.pool._options,
-        ).__await__()
 
 
 def create_async_client(
