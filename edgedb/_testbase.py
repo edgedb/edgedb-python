@@ -33,6 +33,7 @@ import time
 import unittest
 
 import edgedb
+from edgedb import asyncio_pool
 
 
 log = logging.getLogger(__name__)
@@ -163,10 +164,11 @@ def _start_cluster(*, cleanup_atexit=True):
             else:
                 con_args['tls_ca_file'] = data['tls_cert_file']
 
-        con = edgedb.connect(password='test', **con_args)
+        client = edgedb.create_client(password='test', **con_args)
+        client.ensure_connected()
         _default_cluster = {
             'proc': p,
-            'con': con,
+            'client': client,
             'con_args': con_args,
         }
 
@@ -174,7 +176,7 @@ def _start_cluster(*, cleanup_atexit=True):
             # Keep the temp dir which we also copied the cert from WSL
             _default_cluster['_tmpdir'] = tmpdir
 
-        atexit.register(con.close)
+        atexit.register(client.close)
     except Exception as e:
         _default_cluster = e
         raise e
@@ -225,7 +227,7 @@ class TestCaseMeta(type(unittest.TestCase)):
                     if try_no == 3:
                         raise
                     else:
-                        self.loop.run_until_complete(self.con.execute(
+                        self.loop.run_until_complete(self.client.execute(
                             'ROLLBACK;'
                         ))
                         try_no += 1
@@ -319,17 +321,37 @@ class ClusterTestCase(TestCase):
         cls.cluster = _start_cluster(cleanup_atexit=True)
 
 
+class TestClient(edgedb.AsyncIOClient):
+    @property
+    def connection(self):
+        return self._impl._holders[0]._con
+
+    @property
+    def dbname(self):
+        return self._impl._working_params.database
+
+
 class ConnectedTestCaseMixin:
 
     @classmethod
-    async def connect(cls, *,
-                      cluster=None,
-                      database='edgedb',
-                      user='edgedb',
-                      password='test'):
+    def test_client(
+        cls, *,
+        cluster=None,
+        database='edgedb',
+        user='edgedb',
+        password='test',
+        connection_class=asyncio_pool.PoolConnection,
+    ):
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
-        return await edgedb.async_connect_raw(**conargs)
+        return TestClient(
+            connection_class=connection_class,
+            concurrency=1,
+            on_acquire=None,
+            on_release=None,
+            on_connect=None,
+            **conargs,
+        )
 
     @classmethod
     def get_connect_args(cls, *,
@@ -362,12 +384,12 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     def setUp(self):
         if self.INTERNAL_TESTMODE:
             self.loop.run_until_complete(
-                self.con.execute(
+                self.client.execute(
                     'CONFIGURE SESSION SET __internal_testmode := true;'))
 
         if self.SETUP_METHOD:
             self.loop.run_until_complete(
-                self.con.execute(self.SETUP_METHOD))
+                self.client.execute(self.SETUP_METHOD))
 
         super().setUp()
 
@@ -375,16 +397,16 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         try:
             if self.TEARDOWN_METHOD:
                 self.loop.run_until_complete(
-                    self.con.execute(self.TEARDOWN_METHOD))
+                    self.client.execute(self.TEARDOWN_METHOD))
         finally:
             try:
-                if self.con.is_in_transaction():
+                if self.client.connection.is_in_transaction():
                     raise AssertionError(
                         'test connection is still in transaction '
                         '*after* the test')
 
                 self.loop.run_until_complete(
-                    self.con.execute('RESET ALIAS *;'))
+                    self.client.execute('RESET ALIAS *;'))
 
             finally:
                 super().tearDown()
@@ -394,18 +416,17 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         super().setUpClass()
         dbname = cls.get_database_name()
 
-        cls.admin_conn = None
-        cls.con = None
+        cls.admin_client = None
 
         class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
 
         # Only open an extra admin connection if necessary.
         if not class_set_up:
             script = f'CREATE DATABASE {dbname};'
-            cls.admin_conn = cls.loop.run_until_complete(cls.connect())
-            cls.loop.run_until_complete(cls.admin_conn.execute(script))
+            cls.admin_client = cls.test_client()
+            cls.loop.run_until_complete(cls.admin_client.execute(script))
 
-        cls.con = cls.loop.run_until_complete(cls.connect(database=dbname))
+        cls.client = cls.test_client(database=dbname)
 
         if not class_set_up:
             script = cls.get_setup_script()
@@ -413,7 +434,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 # The setup is expected to contain a CREATE MIGRATION,
                 # which needs to be wrapped in a transaction.
                 async def execute():
-                    async for tr in cls.con.transaction():
+                    async for tr in cls.client.transaction():
                         async with tr:
                             await tr.execute(script)
                 cls.loop.run_until_complete(execute())
@@ -482,17 +503,17 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         try:
             if script:
                 cls.loop.run_until_complete(
-                    cls.con.execute(script))
+                    cls.client.execute(script))
         finally:
             try:
-                cls.loop.run_until_complete(cls.con.aclose())
+                cls.loop.run_until_complete(cls.client.aclose())
 
                 if not class_set_up:
                     dbname = cls.get_database_name()
                     script = f'DROP DATABASE {dbname};'
 
                     cls.loop.run_until_complete(
-                        cls.admin_conn.execute(script))
+                        cls.admin_client.execute(script))
 
             except Exception:
                 log.exception('error running teardown')
@@ -500,9 +521,9 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 # of finalizer error
             finally:
                 try:
-                    if cls.admin_conn is not None:
+                    if cls.admin_client is not None:
                         cls.loop.run_until_complete(
-                            cls.admin_conn.aclose())
+                            cls.admin_client.aclose())
                 finally:
                     super().tearDownClass()
 
@@ -518,18 +539,18 @@ class SyncQueryTestCase(DatabaseTestCase):
         super().setUp()
 
         cls = type(self)
-        cls.async_con = cls.con
+        cls.async_client = cls.client
 
         conargs = cls.get_connect_args().copy()
-        conargs.update(dict(database=cls.async_con.dbname))
+        conargs.update(dict(database=cls.async_client.dbname))
 
-        cls.con = edgedb.connect(**conargs)
+        cls.client = edgedb.create_client(**conargs)
 
     def tearDown(self):
         cls = type(self)
-        cls.con.close()
-        cls.con = cls.async_con
-        del cls.async_con
+        cls.client.close()
+        cls.client = cls.async_client
+        del cls.async_client
 
 
 _lock_cnt = 0

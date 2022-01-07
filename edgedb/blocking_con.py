@@ -28,38 +28,31 @@ from . import base_con
 from . import con_utils
 from . import enums
 from . import errors
-from . import options
-from . import retry as _retry
 
-from .datatypes import datatypes
-from .protocol import blocking_proto, protocol
-from .protocol.protocol import CodecsRegistry as _CodecsRegistry
-from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
+from .protocol import blocking_proto
 
 
-class _BlockingIOConnectionImpl(base_con.RawConnection):
+class BlockingIOConnection(base_con.BaseConnection):
 
-    def connect(self, addrs, config, params, *,
-                single_attempt=False, connection):
-        addr = None
+    def connect(self, *, single_attempt=False):
         start = time.monotonic()
         if single_attempt:
             max_time = 0
         else:
-            max_time = start + config.wait_until_available
+            max_time = start + self._config.wait_until_available
         iteration = 1
 
         while True:
-            for addr in addrs:
+            for addr in self._addrs:
                 try:
-                    self._connect_addr(addr, config, params, connection)
+                    self._connect_addr(addr)
                 except TimeoutError as e:
                     if iteration == 1 or time.monotonic() < max_time:
                         continue
                     else:
                         raise errors.ClientConnectionTimeoutError(
                             f"connecting to {addr} failed in"
-                            f" {config.connect_timeout} sec"
+                            f" {self._config.connect_timeout} sec"
                         ) from e
                 except errors.ClientConnectionError as e:
                     if (
@@ -82,8 +75,8 @@ class _BlockingIOConnectionImpl(base_con.RawConnection):
             iteration += 1
             time.sleep(0.01 + random.random() * 0.2)
 
-    def _connect_addr(self, addr, config, params, connection):
-        timeout = config.connect_timeout
+    def _connect_addr(self, addr):
+        timeout = self._config.connect_timeout
         deadline = time.monotonic() + timeout
         tls_compat = False
 
@@ -105,13 +98,13 @@ class _BlockingIOConnectionImpl(base_con.RawConnection):
                         raise TimeoutError
 
                     # Upgrade to TLS
-                    if params.ssl_ctx.check_hostname:
+                    if self._params.ssl_ctx.check_hostname:
                         server_hostname = addr[0]
                     else:
                         server_hostname = None
                     sock.settimeout(time_left)
                     try:
-                        sock = params.ssl_ctx.wrap_socket(
+                        sock = self._params.ssl_ctx.wrap_socket(
                             sock, server_hostname=server_hostname
                         )
                     except ssl.CertificateError as e:
@@ -146,9 +139,9 @@ class _BlockingIOConnectionImpl(base_con.RawConnection):
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
             proto = blocking_proto.BlockingIOProtocol(
-                params, sock, tls_compat
+                self._params, sock, tls_compat
             )
-            proto.set_connection(connection)
+            proto.set_connection(self)
 
             try:
                 sock.settimeout(time_left)
@@ -176,42 +169,10 @@ class _BlockingIOConnectionImpl(base_con.RawConnection):
         if self._protocol:
             self._protocol.abort()
 
-
-class BlockingIOConnection(
-    options._OptionsMixin,
-    base_con.BaseConnection,
-    abstract.Executor,
-):
-    _connection: typing.Optional[_BlockingIOConnectionImpl]
-
-    def _shallow_clone(self):
-        new_conn = self.__class__.__new__(self.__class__)
-        new_conn._connection = self._connection
-        new_conn._addrs = self._addrs
-        new_conn._config = self._config
-        new_conn._params = self._params
-        new_conn._codecs_registry = self._codecs_registry
-        new_conn._query_cache = self._query_cache
-        new_conn._log_listeners = set()
-        return new_conn
-
-    def ensure_connected(self, single_attempt=False):
-        if not self._connection or self._connection.is_closed():
-            self._reconnect(single_attempt=single_attempt)
-
-    def _reconnect(self, single_attempt=False):
-        self._connection = _BlockingIOConnectionImpl(
-            self._codecs_registry, self._query_cache)
-        self._connection.connect(
-            self._addrs, self._config, self._params,
-            single_attempt=single_attempt, connection=self,
-        )
-        assert self._connection._protocol
-
     def _get_protocol(self):
-        if not self._connection or self._connection.is_closed():
-            self._reconnect()
-        return self._connection._protocol
+        if self.is_closed():
+            self.connect()
+        return self._protocol
 
     def _dump(
         self,
@@ -238,84 +199,38 @@ class BlockingIOConnection(
         for cb in self._log_listeners:
             cb(self, msg)
 
-    def _fetchall(
-        self,
-        query: str,
-        *args,
-        __limit__: int=0,
-        __typenames__: bool=False,
-        **kwargs,
-    ) -> datatypes.Set:
-        return self._get_protocol().sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
-            implicit_limit=__limit__,
-            inline_typenames=__typenames__,
-            io_format=protocol.IoFormat.BINARY,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-
-    def _fetchall_json(
-        self,
-        query: str,
-        *args,
-        __limit__: int=0,
-        **kwargs,
-    ) -> datatypes.Set:
-        return self._get_protocol().sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
-            implicit_limit=__limit__,
-            inline_typenames=False,
-            io_format=protocol.IoFormat.JSON,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-
-    def _execute(
-        self,
-        *,
-        query: str,
-        args,
-        kwargs,
-        io_format,
-        expect_one=False,
-        required_one=False,
-    ):
+    def raw_query(self, query_context: abstract.QueryContext):
         reconnect = False
         capabilities = None
         i = 0
         while True:
             try:
                 if reconnect:
-                    self._reconnect(single_attempt=True)
+                    self.connect(single_attempt=True)
                 return self._get_protocol().sync_execute_anonymous(
-                    query=query,
-                    args=args,
-                    kwargs=kwargs,
-                    reg=self._codecs_registry,
-                    qc=self._query_cache,
-                    expect_one=expect_one,
-                    required_one=required_one,
-                    io_format=io_format,
+                    query=query_context.query.query,
+                    args=query_context.query.args,
+                    kwargs=query_context.query.kwargs,
+                    reg=query_context.cache.codecs_registry,
+                    qc=query_context.cache.query_cache,
+                    expect_one=query_context.query_options.expect_one,
+                    required_one=query_context.query_options.required_one,
+                    io_format=query_context.query_options.io_format,
                     allow_capabilities=enums.Capability.EXECUTE,
                 )
             except errors.EdgeDBError as e:
+                if query_context.retry_options is None:
+                    raise
                 if not e.has_tag(errors.SHOULD_RETRY):
                     raise e
                 if capabilities is None:
-                    cache_item = self._query_cache.get(
-                        query=query,
-                        io_format=io_format,
+                    cache_item = query_context.cache.query_cache.get(
+                        query=query_context.query.query,
+                        io_format=query_context.query_options.io_format,
                         implicit_limit=0,
                         inline_typenames=False,
                         inline_typeids=False,
-                        expect_one=expect_one,
+                        expect_one=query_context.query_options.expect_one,
                     )
                     if cache_item is not None:
                         _, _, _, capabilities = cache_item
@@ -327,101 +242,17 @@ class BlockingIOConnection(
                     and not isinstance(e, errors.TransactionConflictError)
                 ):
                     raise e
-                rule = self._options.retry_options.get_rule_for_exception(e)
+                rule = query_context.retry_options.get_rule_for_exception(e)
                 if i >= rule.attempts:
                     raise e
                 time.sleep(rule.backoff(i))
                 reconnect = self.is_closed()
 
-    def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        return self._execute(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            io_format=protocol.IoFormat.BINARY,
-        )
-
-    def query_single(
-        self, query: str, *args, **kwargs
-    ) -> typing.Union[typing.Any, None]:
-        return self._execute(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            expect_one=True,
-            io_format=protocol.IoFormat.BINARY,
-        )
-
-    def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
-        return self._execute(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            expect_one=True,
-            required_one=True,
-            io_format=protocol.IoFormat.BINARY,
-        )
-
-    def query_json(self, query: str, *args, **kwargs) -> str:
-        return self._execute(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            io_format=protocol.IoFormat.JSON,
-        )
-
-    def _fetchall_json_elements(
-            self, query: str, *args, **kwargs) -> typing.List[str]:
-        return self._get_protocol().sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
-            io_format=protocol.IoFormat.JSON_ELEMENTS,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-
-    def query_single_json(self, query: str, *args, **kwargs) -> str:
-        return self._get_protocol().sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
-            expect_one=True,
-            io_format=protocol.IoFormat.JSON,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-
-    def query_required_single_json(self, query: str, *args, **kwargs) -> str:
-        return self._get_protocol().sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=self._codecs_registry,
-            qc=self._query_cache,
-            expect_one=True,
-            required_one=True,
-            io_format=protocol.IoFormat.JSON,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-
     def execute(self, query: str) -> None:
         self._get_protocol().sync_simple_query(query, enums.Capability.EXECUTE)
 
-    def transaction(self) -> _retry.Retry:
-        return _retry.Retry(self)
 
-    def close(self) -> None:
-        if not self.is_closed():
-            self._connection.close()
-
-    def is_closed(self) -> bool:
-        return self._connection is None or self._connection.is_closed()
-
-
-def connect(
+def connect_raw(
     dsn: str = None,
     *,
     host: str = None,
@@ -460,7 +291,6 @@ def connect(
     conn = BlockingIOConnection(
         addrs=[connect_config.address], params=connect_config,
         config=client_config,
-        codecs_registry=_CodecsRegistry(),
-        query_cache=_QueryCodecsCache())
-    conn.ensure_connected()
+    )
+    conn.connect()
     return conn

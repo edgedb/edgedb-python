@@ -65,7 +65,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
     '''
 
     async def test_async_retry_01(self):
-        async for tx in self.con.transaction():
+        async for tx in self.client.transaction():
             async with tx:
                 await tx.execute('''
                     INSERT test::Counter {
@@ -75,7 +75,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
 
     async def test_async_retry_02(self):
         with self.assertRaises(ZeroDivisionError):
-            async for tx in self.con.transaction():
+            async for tx in self.client.transaction():
                 async with tx:
                     await tx.execute('''
                         INSERT test::Counter {
@@ -84,7 +84,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                     ''')
                     1 / 0
         with self.assertRaises(edgedb.NoDataError):
-            await self.con.query_required_single('''
+            await self.client.query_required_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
             ''')
@@ -104,7 +104,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
         _start.side_effect = errors.BackendUnavailableError()
 
         with self.assertRaises(errors.BackendUnavailableError):
-            async for tx in self.con.transaction():
+            async for tx in self.client.transaction():
                 async with tx:
                     await tx.execute('''
                         INSERT test::Counter {
@@ -112,7 +112,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                         };
                     ''')
         with self.assertRaises(edgedb.NoDataError):
-            await self.con.query_required_single('''
+            await self.client.query_required_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_begin'
             ''')
@@ -124,7 +124,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
         _start.side_effect = recover_after_first_error
         call_count = _start.call_count
 
-        async for tx in self.con.transaction():
+        async for tx in self.client.transaction():
             async with tx:
                 await tx.execute('''
                     INSERT test::Counter {
@@ -132,7 +132,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                     };
                 ''')
         self.assertEqual(_start.call_count, call_count + 1)
-        await self.con.query_single('''
+        await self.client.query_single('''
             SELECT test::Counter
             FILTER .name = 'counter_retry_begin'
         ''')
@@ -148,15 +148,15 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
             )
 
     async def execute_conflict(self, name='counter2', options=None):
-        con2 = await self.connect(database=self.get_database_name())
-        self.addCleanup(con2.aclose)
+        client2 = self.test_client(database=self.get_database_name())
+        self.addCleanup(client2.aclose)
 
         barrier = Barrier(2)
         lock = asyncio.Lock()
         iterations = 0
 
-        async def transaction1(con):
-            async for tx in con.transaction():
+        async def transaction1(client):
+            async for tx in client.transaction():
                 nonlocal iterations
                 iterations += 1
                 async with tx:
@@ -188,14 +188,14 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                 lock.release()
             return res
 
-        con = self.con
+        client = self.client
         if options:
-            con = con.with_retry_options(options)
-            con2 = con2.with_retry_options(options)
+            client = client.with_retry_options(options)
+            client2 = client2.with_retry_options(options)
 
         results = await compat.wait_for(asyncio.gather(
-            transaction1(con),
-            transaction1(con2),
+            transaction1(client),
+            transaction1(client2),
             return_exceptions=True,
         ), 10)
         for e in results:
@@ -210,7 +210,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
             AttributeError,
             "'AsyncIOIteration' object has no attribute 'start'",
         ):
-            async for tx in self.con.transaction():
+            async for tx in self.client.transaction():
                 async with tx:
                     await tx.start()
 
@@ -218,7 +218,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
             AttributeError,
             "'AsyncIOIteration' object has no attribute 'rollback'",
         ):
-            async for tx in self.con.transaction():
+            async for tx in self.client.transaction():
                 async with tx:
                     await tx.rollback()
 
@@ -226,25 +226,19 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
             AttributeError,
             "'AsyncIOIteration' object has no attribute 'start'",
         ):
-            async for tx in self.con.transaction():
+            async for tx in self.client.transaction():
                 await tx.start()
 
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*Use `async with transaction:`'):
-            async for tx in self.con.transaction():
+            async for tx in self.client.transaction():
                 await tx.execute("SELECT 123")
 
         with self.assertRaisesRegex(
             edgedb.InterfaceError,
             r"already in an `async with` block",
         ):
-            async for tx in self.con.transaction():
+            async for tx in self.client.transaction():
                 async with tx:
                     async with tx:
                         pass
-
-        # with self.assertRaisesRegex(edgedb.InterfaceError,
-        #                             r".*is borrowed.*"):
-        #     async for tx in self.con.transaction():
-        #         async with tx:
-        #             await self.con.execute("SELECT 123")

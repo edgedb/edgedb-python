@@ -18,15 +18,10 @@
 
 
 import enum
-import typing
 
 from . import abstract
-from . import base_con
-from . import enums
 from . import errors
 from . import options
-from .datatypes import datatypes
-from .protocol import protocol
 
 
 class TransactionState(enum.Enum):
@@ -40,22 +35,16 @@ class TransactionState(enum.Enum):
 class BaseTransaction:
 
     __slots__ = (
+        '_client',
         '_connection',
-        '_raw_connection',
-        '_pool',
         '_options',
         '_state',
         '_managed',
     )
 
-    def __init__(self, owner, options: options.TransactionOptions):
-        if isinstance(owner, base_con.BaseConnection):
-            self._connection = owner
-            self._pool = None
-        else:
-            self._connection = None
-            self._pool = owner
-        self._raw_connection = None
+    def __init__(self, client, options: options.TransactionOptions):
+        self._client = client
+        self._connection = None
         self._options = options
         self._state = TransactionState.NEW
         self._managed = False
@@ -120,20 +109,13 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
-        if self._pool is not None:
-            self._connection = await self._pool._impl._acquire(
-                None, self._pool._options
+        self._connection = await self._client._impl._acquire()
+        if self._connection.is_closed():
+            await self._connection.connect(
+                single_attempt=single_connect
             )
-            if (
-                not self._connection._connection
-                or self._connection._connection.is_closed()
-            ):
-                await self._connection._reconnect(
-                    single_attempt=single_connect
-                )
-        self._raw_connection = self._connection._connection
         try:
-            await self._raw_connection.privileged_execute(query)
+            await self._connection.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -144,127 +126,37 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         try:
             query = self._make_commit_query()
             try:
-                await self._raw_connection.privileged_execute(query)
+                await self._connection.privileged_execute(query)
             except BaseException:
                 self._state = TransactionState.FAILED
                 raise
             else:
                 self._state = TransactionState.COMMITTED
         finally:
-            if self._pool is not None:
-                await self._pool._impl.release(self._connection)
+            await self._client._impl.release(self._connection)
 
     async def _rollback(self):
         try:
             query = self._make_rollback_query()
             try:
-                await self._raw_connection.privileged_execute(query)
+                await self._connection.privileged_execute(query)
             except BaseException:
                 self._state = TransactionState.FAILED
                 raise
             else:
                 self._state = TransactionState.ROLLEDBACK
         finally:
-            if self._pool is not None:
-                await self._pool._impl.release(self._connection)
+            await self._client._impl.release(self._connection)
 
     async def _ensure_transaction(self):
         pass
 
-    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        await self._ensure_transaction()
-        con = self._connection
-        result, _ = await self._raw_connection._protocol.execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            io_format=protocol.IoFormat.BINARY,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-        return result
+    def _get_query_cache(self) -> abstract.QueryCache:
+        return self._client._get_query_cache()
 
-    async def query_single(
-        self, query: str, *args, **kwargs
-    ) -> typing.Union[typing.Any, None]:
+    async def _query(self, query_context: abstract.QueryContext):
         await self._ensure_transaction()
-        con = self._connection
-        result, _ = await self._raw_connection._protocol.execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            io_format=protocol.IoFormat.BINARY,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-        return result
-
-    async def query_required_single(
-        self, query: str, *args, **kwargs
-    ) -> typing.Any:
-        await self._ensure_transaction()
-        con = self._connection
-        result, _ = await self._raw_connection._protocol.execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            required_one=True,
-            io_format=protocol.IoFormat.BINARY,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-        return result
-
-    async def query_json(self, query: str, *args, **kwargs) -> str:
-        await self._ensure_transaction()
-        con = self._connection
-        result, _ = await self._raw_connection._protocol.execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            io_format=protocol.IoFormat.JSON,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-        return result
-
-    async def query_single_json(self, query: str, *args, **kwargs) -> str:
-        await self._ensure_transaction()
-        con = self._connection
-        result, _ = await self._raw_connection._protocol.execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            io_format=protocol.IoFormat.JSON,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-        return result
-
-    async def query_required_single_json(
-        self, query: str, *args, **kwargs
-    ) -> str:
-        await self._ensure_transaction()
-        con = self._connection
-        result, _ = await self._raw_connection._protocol.execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            required_one=True,
-            io_format=protocol.IoFormat.JSON,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
+        result, _ = await self._connection.raw_query(query_context)
         return result
 
     async def execute(self, query: str) -> None:
@@ -280,8 +172,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
             ... ''')
         """
         await self._ensure_transaction()
-        await self._raw_connection._protocol.simple_query(
-            query, enums.Capability.EXECUTE)
+        await self._connection.execute(query)
 
 
 class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
@@ -289,15 +180,11 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
 
     def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
-        # no pools supported for blocking con
-        if (
-            not self._connection._connection
-            or self._connection._connection.is_closed()
-        ):
-            self._connection._reconnect(single_attempt=single_connect)
-        self._raw_connection = self._connection._connection
+        self._connection = self._client._impl.acquire()
+        if self._connection.is_closed():
+            self._connection.connect(single_attempt=single_connect)
         try:
-            self._raw_connection.privileged_execute(query)
+            self._connection.privileged_execute(query)
         except BaseException:
             self._state = TransactionState.FAILED
             raise
@@ -305,115 +192,41 @@ class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
             self._state = TransactionState.STARTED
 
     def _commit(self):
-        query = self._make_commit_query()
         try:
-            self._raw_connection.privileged_execute(query)
-        except BaseException:
-            self._state = TransactionState.FAILED
-            raise
-        else:
-            self._state = TransactionState.COMMITTED
+            query = self._make_commit_query()
+            try:
+                self._connection.privileged_execute(query)
+            except BaseException:
+                self._state = TransactionState.FAILED
+                raise
+            else:
+                self._state = TransactionState.COMMITTED
+        finally:
+            self._client._impl.release(self._connection)
 
     def _rollback(self):
-        query = self._make_rollback_query()
         try:
-            self._raw_connection.privileged_execute(query)
-        except BaseException:
-            self._state = TransactionState.FAILED
-            raise
-        else:
-            self._state = TransactionState.ROLLEDBACK
+            query = self._make_rollback_query()
+            try:
+                self._connection.privileged_execute(query)
+            except BaseException:
+                self._state = TransactionState.FAILED
+                raise
+            else:
+                self._state = TransactionState.ROLLEDBACK
+        finally:
+            self._client._impl.release(self._connection)
 
     def _ensure_transaction(self):
         pass
 
-    def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        self._ensure_transaction()
-        con = self._connection
-        return self._raw_connection._protocol.sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            io_format=protocol.IoFormat.BINARY,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
+    def _get_query_cache(self) -> abstract.QueryCache:
+        return self._client._get_query_cache()
 
-    def query_single(
-        self, query: str, *args, **kwargs
-    ) -> typing.Union[typing.Any, None]:
+    def _query(self, query_context: abstract.QueryContext):
         self._ensure_transaction()
-        con = self._connection
-        return self._raw_connection._protocol.sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            io_format=protocol.IoFormat.BINARY,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-
-    def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
-        self._ensure_transaction()
-        con = self._connection
-        return self._raw_connection._protocol.sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            required_one=True,
-            io_format=protocol.IoFormat.BINARY,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-
-    def query_json(self, query: str, *args, **kwargs) -> str:
-        self._ensure_transaction()
-        con = self._connection
-        return self._raw_connection._protocol.sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            io_format=protocol.IoFormat.JSON,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-
-    def query_single_json(self, query: str, *args, **kwargs) -> str:
-        self._ensure_transaction()
-        con = self._connection
-        return self._raw_connection._protocol.sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            io_format=protocol.IoFormat.JSON,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
-
-    def query_required_single_json(self, query: str, *args, **kwargs) -> str:
-        self._ensure_transaction()
-        con = self._connection
-        return self._raw_connection._protocol.sync_execute_anonymous(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=con._codecs_registry,
-            qc=con._query_cache,
-            expect_one=True,
-            required_one=True,
-            io_format=protocol.IoFormat.JSON,
-            allow_capabilities=enums.Capability.EXECUTE,
-        )
+        return self._connection.raw_query(query_context)
 
     def execute(self, query: str) -> None:
         self._ensure_transaction()
-        self._raw_connection._protocol.sync_simple_query(
-            query, enums.Capability.EXECUTE)
+        self._connection.execute(query)

@@ -27,7 +27,7 @@ class TestClient(tb.AsyncQueryTestCase):
 
     async def test_client_suggested_concurrency(self):
         conargs = self.get_connect_args().copy()
-        conargs["database"] = self.con.dbname
+        conargs["database"] = self.client.dbname
         conargs["timeout"] = 120
 
         client = edgedb.create_async_client(**conargs)

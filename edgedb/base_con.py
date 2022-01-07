@@ -18,66 +18,38 @@
 
 
 import typing
-import uuid
 
 from . import errors
 
 from .con_utils import ClientConfiguration
 from .con_utils import ResolvedConnectConfig
-from .protocol.protocol import CodecsRegistry as _CodecsRegistry
-from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
 
 BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
 
 
-class RawConnection:
-    _addr: typing.Optional[typing.Union[str, typing.Tuple[str, int]]]
-    _codecs_registry: _CodecsRegistry
-    _query_cache: _QueryCodecsCache
-    _protocol: typing.Any
-
-    def __init__(self, codecs_registry, query_cache):
-        self._addr = None
-        self._protocol = None
-        self._codecs_registry = codecs_registry
-        self._query_cache = query_cache
-
-
 class BaseConnection:
-    _connection: typing.Optional[RawConnection]
+    _protocol: typing.Any
+    _addr: typing.Optional[typing.Union[str, typing.Tuple[str, int]]]
     _addrs: typing.Iterable[typing.Union[str, typing.Tuple[str, int]]]
     _config: ClientConfiguration
     _params: ResolvedConnectConfig
     _log_listeners: typing.Set[
         typing.Callable[[BaseConnection_T, errors.EdgeDBMessage], None]
     ]
-    _codecs_registry: _CodecsRegistry
-    _query_cache: _QueryCodecsCache
 
     def __init__(
         self,
         addrs: typing.Iterable[typing.Union[str, typing.Tuple[str, int]]],
         config: ClientConfiguration,
         params: ResolvedConnectConfig,
-        *,
-        codecs_registry: typing.Optional[_CodecsRegistry],
-        query_cache: typing.Optional[_QueryCodecsCache],
     ):
-        self._connection = None
+        self._addr = None
+        self._protocol = None
         self._addrs = addrs
         self._config = config
         self._params = params
         self._log_listeners = set()
-        if codecs_registry is not None:
-            self._codecs_registry = codecs_registry
-        else:
-            self._codecs_registry = _CodecsRegistry()
-
-        if query_cache is not None:
-            self._query_cache = query_cache
-        else:
-            self._query_cache = _QueryCodecsCache()
 
     def _dispatch_log_message(self, msg):
         raise NotImplementedError
@@ -87,33 +59,12 @@ class BaseConnection:
             self._dispatch_log_message(msg)
 
     def connected_addr(self):
-        return self._connection._addr
-
-    def _clear_codecs_cache(self):
-        self._codecs_registry.clear_cache()
-
-    def _set_type_codec(
-        self,
-        typeid: uuid.UUID,
-        *,
-        encoder: typing.Callable[[typing.Any], typing.Any],
-        decoder: typing.Callable[[typing.Any], typing.Any],
-        format: str
-    ):
-        self._codecs_registry.set_type_codec(
-            typeid,
-            encoder=encoder,
-            decoder=decoder,
-            format=format,
-        )
+        return self._addr
 
     def _get_last_status(self) -> typing.Optional[str]:
-        raw_conn = self._connection
-        if raw_conn is None:
+        if self._protocol is None:
             return None
-        if raw_conn._protocol is None:
-            return None
-        status = raw_conn._protocol.last_status
+        status = self._protocol.last_status
         if status is not None:
             status = status.decode()
         return status
@@ -155,7 +106,7 @@ class BaseConnection:
 
         :return bool: True if inside transaction, False otherwise.
         """
-        return self._connection._protocol.is_in_transaction()
+        return self._protocol.is_in_transaction()
 
     def get_settings(self) -> typing.Dict[str, typing.Any]:
-        return self._connection._protocol.get_settings()
+        return self._protocol.get_settings()

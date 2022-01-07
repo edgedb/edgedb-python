@@ -38,20 +38,12 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
     '''
 
     async def test_async_transaction_regular_01(self):
-        tr = self.con.with_retry_options(
+        tr = self.client.with_retry_options(
             RetryOptions(attempts=1)).transaction()
 
         with self.assertRaises(ZeroDivisionError):
             async for with_tr in tr:
                 async with with_tr:
-                    # with self.assertRaisesRegex(edgedb.InterfaceError,
-                    #                             '.*is borrowed.*'):
-                    #     await self.con.execute('''
-                    #         INSERT test::TransactionTest {
-                    #             name := 'Test Transaction'
-                    #         };
-                    #     ''')
-
                     await with_tr.execute('''
                         INSERT test::TransactionTest {
                             name := 'Test Transaction'
@@ -60,7 +52,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
 
                     1 / 0
 
-        result = await self.con.query('''
+        result = await self.client.query('''
             SELECT
                 test::TransactionTest
             FILTER
@@ -84,7 +76,9 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
             )
             # skip None
             opt = {k: v for k, v in opt.items() if v is not None}
-            con = self.con.with_transaction_options(TransactionOptions(**opt))
-            async for tx in con.transaction():
+            client = self.client.with_transaction_options(
+                TransactionOptions(**opt)
+            )
+            async for tx in client.transaction():
                 async with tx:
                     pass

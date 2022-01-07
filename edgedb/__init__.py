@@ -34,7 +34,8 @@ from .asyncio_pool import (
     AsyncIOClient
 )
 
-from .blocking_con import connect, BlockingIOConnection
+from .blocking_con import connect_raw, BlockingIOConnection
+from .blocking_pool import create_client, Client
 from .options import RetryCondition, IsolationLevel, default_backoff
 from .options import RetryOptions, TransactionOptions
 

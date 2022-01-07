@@ -54,7 +54,7 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         durs = [timedelta(**d) for d in duration_kwargs]
 
         # Test encode/decode roundtrip
-        durs_from_db = self.con.query('''
+        durs_from_db = self.client.query('''
             WITH args := array_unpack(<array<duration>>$0)
             SELECT args;
         ''', durs)
@@ -62,7 +62,7 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
 
     async def test_relative_duration_01(self):
         try:
-            self.con.query("SELECT <cal::relative_duration>'1y'")
+            self.client.query("SELECT <cal::relative_duration>'1y'")
         except errors.InvalidReferenceError:
             self.skipTest("feature not implemented")
 
@@ -92,13 +92,13 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
 
         # Test that RelativeDuration.__str__ formats the
         # same as <str><cal::relative_duration>
-        durs_as_text = self.con.query('''
+        durs_as_text = self.client.query('''
             WITH args := array_unpack(<array<cal::relative_duration>>$0)
             SELECT <str>args;
         ''', durs)
 
         # Test encode/decode roundtrip
-        durs_from_db = self.con.query('''
+        durs_from_db = self.client.query('''
             WITH args := array_unpack(<array<cal::relative_duration>>$0)
             SELECT args;
         ''', durs)

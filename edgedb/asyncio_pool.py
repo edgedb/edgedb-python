@@ -20,6 +20,7 @@
 import asyncio
 import logging
 import typing
+import uuid
 
 from . import abstract
 from . import asyncio_con
@@ -28,8 +29,8 @@ from . import enums
 from . import errors
 from . import options
 from . import retry as _retry
-from .datatypes import datatypes
-from .protocol import protocol
+from .protocol.protocol import CodecsRegistry as _CodecsRegistry
+from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
 
 __all__ = (
@@ -46,23 +47,9 @@ class PoolConnection(asyncio_con.AsyncIOConnection):
         super().__init__(*args, **kwargs)
         self._holder = None
 
-    def _detach(self):
-        new_conn = self._shallow_clone()
-        new_conn._holder = self._holder
-        self._connection._protocol.set_connection(new_conn)
-        return new_conn
-
     def _cleanup(self):
         if self._holder:
             self._holder._release_on_close()
-        super()._cleanup()
-
-    def __repr__(self):
-        if self._holder is None:
-            return '<{classname} [released] {id:#x}>'.format(
-                classname=self.__class__.__name__, id=id(self))
-        else:
-            return super().__repr__()
 
 
 class PoolConnectionHolder:
@@ -203,8 +190,6 @@ class PoolConnectionHolder:
             self._in_use.set_result(None)
         self._in_use = None
 
-        self._con = self._con._detach()
-
         # Put ourselves back to the pool queue.
         self._pool._queue.put_nowait(self)
 
@@ -259,6 +244,8 @@ class _AsyncIOPoolImpl:
         self._generation = 0
         self._on_connect = on_connect
         self._connect_args = connect_args
+        self._codecs_registry = _CodecsRegistry()
+        self._query_cache = _QueryCodecsCache()
 
     def _ensure_initialized(self):
         if self._loop is None:
@@ -309,8 +296,8 @@ class _AsyncIOPoolImpl:
         self._working_addr = None
         self._working_config = None
         self._working_params = None
-        self._codecs_registry = None
-        self._query_cache = None
+        self._codecs_registry = _CodecsRegistry()
+        self._query_cache = _QueryCodecsCache()
 
     async def _get_first_connection(self):
         # First connection attempt on this pool.
@@ -321,8 +308,6 @@ class _AsyncIOPoolImpl:
         self._working_addr = con.connected_addr()
         self._working_config = con._config
         self._working_params = con._params
-        self._codecs_registry = con._codecs_registry
-        self._query_cache = con._query_cache
 
         if self._user_concurrency is None:
             suggested_concurrency = con.get_settings().get(
@@ -347,8 +332,6 @@ class _AsyncIOPoolImpl:
                 addrs=[self._working_addr],
                 config=self._working_config,
                 params=self._working_params,
-                query_cache=self._query_cache,
-                codecs_registry=self._codecs_registry,
                 connection_class=self._connection_class)
 
         if self._on_connect is not None:
@@ -370,7 +353,7 @@ class _AsyncIOPoolImpl:
 
         return con
 
-    async def _acquire(self, timeout, options):
+    async def _acquire(self, timeout=None):
         self._ensure_initialized()
 
         async def _acquire_impl():
@@ -384,7 +367,6 @@ class _AsyncIOPoolImpl:
                 # Record the timeout, as we will apply it by default
                 # in release().
                 ch._timeout = timeout
-                proxy._options = options
                 return proxy
 
         if self._closing:
@@ -490,24 +472,25 @@ class _AsyncIOPoolImpl:
         self._ensure_initialized()
 
         for ch in self._holders:
-            if ch._con is not None and ch._con.is_closed():
+            if ch._con is not None and not ch._con.is_closed():
                 return
 
         ch = self._holders[0]
         ch._con = None
         await ch.connect()
 
-    def _drop_statement_cache(self):
-        # Drop statement cache for all connections in the pool.
-        for ch in self._holders:
-            if ch._con is not None:
-                ch._con._drop_local_statement_cache()
-
-    def _drop_type_cache(self):
-        # Drop type codec cache for all connections in the pool.
-        for ch in self._holders:
-            if ch._con is not None:
-                ch._con._drop_local_type_cache()
+    # TODO: never implemented or used?
+    # def _drop_statement_cache(self):
+    #     # Drop statement cache for all connections in the pool.
+    #     for ch in self._holders:
+    #         if ch._con is not None:
+    #             ch._con._drop_local_statement_cache()
+    #
+    # def _drop_type_cache(self):
+    #     # Drop type codec cache for all connections in the pool.
+    #     for ch in self._holders:
+    #         if ch._con is not None:
+    #             ch._con._drop_local_type_cache()
 
 
 class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
@@ -551,87 +534,38 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
         await self._impl.ensure_connected()
         return self
 
-    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
-        con = await self._impl._acquire(None, self._options)
-        try:
-            return await con._execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                io_format=protocol.IoFormat.BINARY,
-            )
-        finally:
-            await self._impl.release(con)
+    def _clear_codecs_cache(self):
+        self._impl._codecs_registry.clear_cache()
 
-    async def query_single(
-        self, query: str, *args, **kwargs
-    ) -> typing.Union[typing.Any, None]:
-        con = await self._impl._acquire(None, self._options)
-        try:
-            return await con._execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                expect_one=True,
-                io_format=protocol.IoFormat.BINARY,
-            )
-        finally:
-            await self._impl.release(con)
+    def _set_type_codec(
+        self,
+        typeid: uuid.UUID,
+        *,
+        encoder: typing.Callable[[typing.Any], typing.Any],
+        decoder: typing.Callable[[typing.Any], typing.Any],
+        format: str
+    ):
+        self._impl._codecs_registry.set_type_codec(
+            typeid,
+            encoder=encoder,
+            decoder=decoder,
+            format=format,
+        )
 
-    async def query_required_single(
-        self, query: str, *args, **kwargs
-    ) -> typing.Any:
-        con = await self._impl._acquire(None, self._options)
-        try:
-            return await con._execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                expect_one=True,
-                required_one=True,
-                io_format=protocol.IoFormat.BINARY,
-            )
-        finally:
-            await self._impl.release(con)
+    def _get_query_cache(self) -> abstract.QueryCache:
+        return abstract.QueryCache(
+            codecs_registry=self._impl._codecs_registry,
+            query_cache=self._impl._query_cache,
+        )
 
-    async def query_json(self, query: str, *args, **kwargs) -> str:
-        con = await self._impl._acquire(None, self._options)
-        try:
-            return await con._execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                io_format=protocol.IoFormat.JSON,
-            )
-        finally:
-            await self._impl.release(con)
+    def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
+        return self._options.retry_options
 
-    async def query_single_json(self, query: str, *args, **kwargs) -> str:
-        con = await self._impl._acquire(None, self._options)
+    async def _query(self, query_context: abstract.QueryContext):
+        con = await self._impl._acquire()
         try:
-            return await con._execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                io_format=protocol.IoFormat.JSON,
-                expect_one=True,
-            )
-        finally:
-            await self._impl.release(con)
-
-    async def query_required_single_json(
-        self, query: str, *args, **kwargs
-    ) -> str:
-        con = await self._impl._acquire(None, self._options)
-        try:
-            return await con._execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                io_format=protocol.IoFormat.JSON,
-                expect_one=True,
-                required_one=True
-            )
+            result, _ = await con.raw_query(query_context)
+            return result
         finally:
             await self._impl.release(con)
 
@@ -647,7 +581,7 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
             ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
             ... ''')
         """
-        con = await self._impl._acquire(None, self._options)
+        con = await self._impl._acquire()
         try:
             await con._protocol.simple_query(
                 query, enums.Capability.EXECUTE)
