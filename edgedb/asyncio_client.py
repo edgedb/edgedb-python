@@ -18,65 +18,243 @@
 
 
 import asyncio
+import functools
 import logging
+import random
+import socket
+import ssl
+import time
 import typing
-import warnings
+import uuid
 
 from . import abstract
-from . import asyncio_con
+from . import base_client
 from . import compat
+from . import con_utils
+from . import enums
 from . import errors
-from . import options
 from . import retry as _retry
-from . import transaction as _transaction
+from .protocol import asyncio_proto
 
 
 __all__ = (
-    'create_async_client',
-    'create_async_pool', 'async_connect', 'AsyncIOClient'
+    'create_async_client', 'AsyncIOClient'
 )
 
 
 logger = logging.getLogger(__name__)
 
 
-class PoolConnection(asyncio_con.AsyncIOConnection):
+class AsyncIOConnection(base_client.BaseConnection):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, loop, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._inner._holder = None
-        self._inner._detached = False
+        self._loop = loop
+        self._holder = None
 
-    async def _reconnect(self, single_attempt=False):
-        if self._inner._detached:
-            # initial connection
-            raise errors.InterfaceError(
-                "the underlying connection has been released back to the pool"
-            )
-        return await super()._reconnect(single_attempt=single_attempt)
+    def is_closed(self):
+        protocol = self._protocol
+        return protocol is None or not protocol.connected
 
-    def _detach(self):
-        new_conn = self._shallow_clone()
-        inner = self._inner
-        holder = inner._holder
-        inner._holder = None
-        inner._detached = True
-        new_conn._inner = self._inner._detach()
-        new_conn._inner._holder = holder
-        new_conn._inner._detached = False
-        return new_conn
+    async def connect(self, *, single_attempt=False):
+        start = time.monotonic()
+        if single_attempt:
+            max_time = 0
+        else:
+            max_time = start + self._config.wait_until_available
+        iteration = 1
+
+        while True:
+            for addr in self._addrs:
+                try:
+                    await compat.wait_for(
+                        self._connect_addr(addr),
+                        self._config.connect_timeout,
+                    )
+                except asyncio.TimeoutError as e:
+                    if iteration == 1 or time.monotonic() < max_time:
+                        continue
+                    else:
+                        raise errors.ClientConnectionTimeoutError(
+                            f"connecting to {addr} failed in"
+                            f" {self._config.connect_timeout} sec"
+                        ) from e
+                except errors.ClientConnectionError as e:
+                    if (
+                        e.has_tag(errors.SHOULD_RECONNECT) and
+                        (iteration == 1 or time.monotonic() < max_time)
+                    ):
+                        continue
+                    nice_err = e.__class__(
+                        con_utils.render_client_no_connection_error(
+                            e,
+                            addr,
+                            attempts=iteration,
+                            duration=time.monotonic() - start,
+                        ))
+                    raise nice_err from e.__cause__
+                else:
+                    return
+
+            iteration += 1
+            await asyncio.sleep(0.01 + random.random() * 0.2)
+
+    def _protocol_factory(self, tls_compat=False):
+        return asyncio_proto.AsyncIOProtocol(
+            self._params, self._loop, tls_compat=tls_compat
+        )
+
+    async def _connect_addr(self, addr):
+        tr = None
+
+        try:
+            if isinstance(addr, str):
+                # UNIX socket
+                tr, pr = await self._loop.create_unix_connection(
+                    self._protocol_factory, addr
+                )
+            else:
+                try:
+                    tr, pr = await self._loop.create_connection(
+                        self._protocol_factory, *addr, ssl=self._params.ssl_ctx
+                    )
+                except ssl.CertificateError as e:
+                    raise con_utils.wrap_error(e) from e
+                except ssl.SSLError as e:
+                    if e.reason == 'CERTIFICATE_VERIFY_FAILED':
+                        raise con_utils.wrap_error(e) from e
+                    tr, pr = await self._loop.create_connection(
+                        functools.partial(
+                            self._protocol_factory, tls_compat=True
+                        ),
+                        *addr,
+                    )
+                else:
+                    con_utils.check_alpn_protocol(
+                        tr.get_extra_info('ssl_object')
+                    )
+        except socket.gaierror as e:
+            # All name resolution errors are considered temporary
+            raise errors.ClientConnectionFailedTemporarilyError(str(e)) from e
+        except OSError as e:
+            raise con_utils.wrap_error(e) from e
+        except Exception:
+            if tr is not None:
+                tr.close()
+            raise
+
+        pr.set_connection(self)
+
+        try:
+            await pr.connect()
+        except OSError as e:
+            if tr is not None:
+                tr.close()
+            raise con_utils.wrap_error(e) from e
+        except Exception:
+            if tr is not None:
+                tr.close()
+            raise
+
+        self._protocol = pr
+        self._addr = addr
+
+    async def privileged_execute(self, query):
+        await self._protocol.simple_query(query, enums.Capability.ALL)
+
+    async def aclose(self):
+        """Send graceful termination message wait for connection to drop."""
+        if not self.is_closed():
+            try:
+                self._protocol.terminate()
+                await self._protocol.wait_for_disconnect()
+            except (Exception, asyncio.CancelledError):
+                self.terminate()
+                raise
+            finally:
+                self._cleanup()
+
+    def terminate(self):
+        if not self.is_closed():
+            try:
+                self._protocol.abort()
+            finally:
+                self._cleanup()
 
     def _cleanup(self):
-        if self._inner._holder:
-            self._inner._holder._release_on_close()
-        super()._cleanup()
+        if self._holder:
+            self._holder._release_on_close()
+
+    def _dispatch_log_message(self, msg):
+        for cb in self._log_listeners:
+            self._loop.call_soon(cb, self, msg)
 
     def __repr__(self):
-        if self._inner._holder is None:
-            return '<{classname} [released] {id:#x}>'.format(
+        if self.is_closed():
+            return '<{classname} [closed] {id:#x}>'.format(
                 classname=self.__class__.__name__, id=id(self))
         else:
-            return super().__repr__()
+            return '<{classname} [connected to {addr}] {id:#x}>'.format(
+                classname=self.__class__.__name__,
+                addr=self.connected_addr(),
+                id=id(self))
+
+    async def raw_query(self, query_context: abstract.QueryContext):
+        if self.is_closed():
+            await self.connect()
+
+        reconnect = False
+        capabilities = None
+        i = 0
+        while True:
+            i += 1
+            try:
+                if reconnect:
+                    await self.connect(single_attempt=True)
+                return await self._protocol.execute_anonymous(
+                    query=query_context.query.query,
+                    args=query_context.query.args,
+                    kwargs=query_context.query.kwargs,
+                    reg=query_context.cache.codecs_registry,
+                    qc=query_context.cache.query_cache,
+                    io_format=query_context.query_options.io_format,
+                    expect_one=query_context.query_options.expect_one,
+                    required_one=query_context.query_options.required_one,
+                    allow_capabilities=enums.Capability.EXECUTE,
+                )
+            except errors.EdgeDBError as e:
+                if query_context.retry_options is None:
+                    raise
+                if not e.has_tag(errors.SHOULD_RETRY):
+                    raise e
+                if capabilities is None:
+                    cache_item = query_context.cache.query_cache.get(
+                        query=query_context.query.query,
+                        io_format=query_context.query_options.io_format,
+                        implicit_limit=0,
+                        inline_typenames=False,
+                        inline_typeids=False,
+                        expect_one=query_context.query_options.expect_one,
+                    )
+                    if cache_item is not None:
+                        _, _, _, capabilities = cache_item
+                # A query is read-only if it has no capabilities i.e.
+                # capabilities == 0. Read-only queries are safe to retry.
+                # Explicit transaction conflicts as well.
+                if (
+                    capabilities != 0
+                    and not isinstance(e, errors.TransactionConflictError)
+                ):
+                    raise e
+                rule = query_context.retry_options.get_rule_for_exception(e)
+                if i >= rule.attempts:
+                    raise e
+                await asyncio.sleep(rule.backoff(i))
+                reconnect = self.is_closed()
+
+    async def execute(self, query: str) -> None:
+        await self._protocol.simple_query(
+            query, enums.Capability.EXECUTE)
 
 
 class PoolConnectionHolder:
@@ -103,11 +281,11 @@ class PoolConnectionHolder:
                 'connection already exists')
 
         self._con = await self._pool._get_new_connection()
-        assert self._con._inner._holder is None
-        self._con._inner._holder = self
+        assert self._con._holder is None
+        self._con._holder = self
         self._generation = self._pool._generation
 
-    async def acquire(self) -> PoolConnection:
+    async def acquire(self) -> AsyncIOConnection:
         if self._con is None or self._con.is_closed():
             self._con = None
             await self.connect()
@@ -217,40 +395,36 @@ class PoolConnectionHolder:
             self._in_use.set_result(None)
         self._in_use = None
 
-        self._con = self._con._detach()
-
         # Put ourselves back to the pool queue.
         self._pool._queue.put_nowait(self)
 
 
-class _AsyncIOPoolImpl:
+class _AsyncIOPoolImpl(base_client.BaseImpl):
     __slots__ = ('_queue', '_loop', '_user_concurrency', '_concurrency',
-                 '_on_connect', '_connect_args', '_connect_kwargs',
+                 '_first_connect_lock',
+                 '_on_connect',
                  '_working_addr', '_working_config', '_working_params',
-                 '_codecs_registry', '_query_cache',
                  '_holders', '_initialized', '_initializing', '_closing',
                  '_closed', '_connection_class', '_generation',
                  '_on_acquire', '_on_release')
 
-    def __init__(self, *connect_args,
+    def __init__(self, connect_args, *,
                  concurrency: typing.Optional[int],
                  on_acquire,
                  on_release,
                  on_connect,
-                 connection_class,
-                 **connect_kwargs):
-        super().__init__()
+                 connection_class):
+        super().__init__(connect_args)
 
-        loop = asyncio.get_event_loop()
-        self._loop = loop
+        self._loop = None
 
         if concurrency is not None and concurrency <= 0:
             raise ValueError('concurrency is expected to be greater than zero')
 
-        if not issubclass(connection_class, PoolConnection):
+        if not issubclass(connection_class, AsyncIOConnection):
             raise TypeError(
                 f'connection_class is expected to be a subclass of '
-                f'edgedb.asyncio_pool.PoolConnection, '
+                f'edgedb.asyncio_client.AsyncIOConnection, '
                 f'got {connection_class}')
 
         self._user_concurrency = concurrency
@@ -260,8 +434,9 @@ class _AsyncIOPoolImpl:
         self._on_release = on_release
 
         self._holders = []
-        self._queue = asyncio.LifoQueue(maxsize=self._concurrency)
+        self._queue = None
 
+        self._first_connect_lock = None
         self._working_addr = None
         self._working_config = None
         self._working_params = None
@@ -272,10 +447,16 @@ class _AsyncIOPoolImpl:
         self._closed = False
         self._generation = 0
         self._on_connect = on_connect
-        self._connect_args = connect_args
-        self._connect_kwargs = connect_kwargs
 
-        self._resize_holder_pool()
+    def get_concurrency(self):
+        return self._concurrency
+
+    def _ensure_initialized(self):
+        if self._loop is None:
+            self._loop = asyncio.get_event_loop()
+            self._queue = asyncio.LifoQueue(maxsize=self._concurrency)
+            self._first_connect_lock = asyncio.Lock()
+            self._resize_holder_pool()
 
     def _resize_holder_pool(self):
         resize_diff = self._concurrency - len(self._holders)
@@ -297,63 +478,48 @@ class _AsyncIOPoolImpl:
             pass
 
     def set_connect_args(self, dsn=None, **connect_kwargs):
-        r"""Set the new connection arguments for this pool.
-
-        The new connection arguments will be used for all subsequent
-        new connection attempts.  Existing connections will remain until
-        they expire. Use AsyncIOPool.expire_connections() to expedite
-        the connection expiry.
-
-        :param str dsn:
-            Connection arguments specified using as a single string in
-            the following format:
-            ``edgedb://user:pass@host:port/database?option=value``.
-
-        :param \*\*connect_kwargs:
-            Keyword arguments for the :func:`~edgedb.asyncio_con.connect`
-            function.
-        """
-
-        self._connect_args = [dsn]
-        self._connect_kwargs = connect_kwargs
+        super().set_connect_args(dsn=dsn, **connect_kwargs)
         self._working_addr = None
         self._working_config = None
         self._working_params = None
-        self._codecs_registry = None
-        self._query_cache = None
+
+    async def _get_first_connection(self):
+        # First connection attempt on this pool.
+        connect_config, client_config = self._parse_connect_args()
+        con = self._connection_class(
+            self._loop, [connect_config.address], client_config, connect_config
+        )
+        await con.connect()
+
+        self._working_addr = con.connected_addr()
+        self._working_config = client_config
+        self._working_params = connect_config
+
+        if self._user_concurrency is None:
+            suggested_concurrency = con.get_settings().get(
+                'suggested_pool_concurrency')
+            if suggested_concurrency:
+                self._concurrency = suggested_concurrency
+                self._resize_holder_pool()
+        return con
 
     async def _get_new_connection(self):
+        con = None
         if self._working_addr is None:
-            # First connection attempt on this pool.
-            con = await asyncio_con.async_connect_raw(
-                *self._connect_args,
-                connection_class=self._connection_class,
-                **self._connect_kwargs)
-
-            self._working_addr = con.connected_addr()
-            self._working_config = con._inner._config
-            self._working_params = con._inner._params
-            self._codecs_registry = con._inner._codecs_registry
-            self._query_cache = con._inner._query_cache
-
-            if self._user_concurrency is None:
-                suggested_concurrency = con.get_settings().get(
-                    'suggested_pool_concurrency')
-                if suggested_concurrency:
-                    self._concurrency = suggested_concurrency
-                    self._resize_holder_pool()
-
-        else:
+            async with self._first_connect_lock:
+                if self._working_addr is None:
+                    con = await self._get_first_connection()
+        if con is None:
+            assert self._working_addr is not None
             # We've connected before and have a resolved address,
             # and parsed options and config.
-            con = await asyncio_con._connect_addr(
-                loop=self._loop,
-                addrs=[self._working_addr],
-                config=self._working_config,
-                params=self._working_params,
-                query_cache=self._query_cache,
-                codecs_registry=self._codecs_registry,
-                connection_class=self._connection_class)
+            con = self._connection_class(
+                self._loop,
+                [self._working_addr],
+                self._working_config,
+                self._working_params,
+            )
+            await con.connect()
 
         if self._on_connect is not None:
             try:
@@ -374,11 +540,13 @@ class _AsyncIOPoolImpl:
 
         return con
 
-    async def _acquire(self, timeout, options):
+    async def _acquire(self, timeout=None):
+        self._ensure_initialized()
+
         async def _acquire_impl():
             ch = await self._queue.get()  # type: PoolConnectionHolder
             try:
-                proxy = await ch.acquire()  # type: PoolConnection
+                proxy = await ch.acquire()  # type: AsyncIOConnection
             except (Exception, asyncio.CancelledError):
                 self._queue.put_nowait(ch)
                 raise
@@ -386,7 +554,6 @@ class _AsyncIOPoolImpl:
                 # Record the timeout, as we will apply it by default
                 # in release().
                 ch._timeout = timeout
-                proxy._options = options
                 return proxy
 
         if self._closing:
@@ -400,13 +567,13 @@ class _AsyncIOPoolImpl:
 
     async def release(self, connection):
 
-        if not isinstance(connection, PoolConnection):
+        if not isinstance(connection, AsyncIOConnection):
             raise errors.InterfaceError(
                 f'AsyncIOPool.release() received invalid connection: '
                 f'{connection!r} does not belong to any connection pool'
             )
 
-        ch = connection._inner._holder
+        ch = connection._holder
         if ch is None:
             # Already released, do nothing.
             return
@@ -436,6 +603,10 @@ class _AsyncIOPoolImpl:
         a timeout.
         """
         if self._closed:
+            return
+
+        if not self._loop:
+            self._closed = True
             return
 
         self._closing = True
@@ -484,20 +655,32 @@ class _AsyncIOPoolImpl:
         """
         self._generation += 1
 
-    def _drop_statement_cache(self):
-        # Drop statement cache for all connections in the pool.
+    async def ensure_connected(self):
+        self._ensure_initialized()
+
         for ch in self._holders:
-            if ch._con is not None:
-                ch._con._drop_local_statement_cache()
+            if ch._con is not None and not ch._con.is_closed():
+                return
 
-    def _drop_type_cache(self):
-        # Drop type codec cache for all connections in the pool.
-        for ch in self._holders:
-            if ch._con is not None:
-                ch._con._drop_local_type_cache()
+        ch = self._holders[0]
+        ch._con = None
+        await ch.connect()
+
+    # TODO: never implemented or used?
+    # def _drop_statement_cache(self):
+    #     # Drop statement cache for all connections in the pool.
+    #     for ch in self._holders:
+    #         if ch._con is not None:
+    #             ch._con._drop_local_statement_cache()
+    #
+    # def _drop_type_cache(self):
+    #     # Drop type codec cache for all connections in the pool.
+    #     for ch in self._holders:
+    #         if ch._con is not None:
+    #             ch._con._drop_local_type_cache()
 
 
-class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
+class AsyncIOClient(base_client.BaseClient):
     """A lazy connection pool.
 
     A Client can be used to manage a set of connections to the database.
@@ -506,79 +689,76 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
     open cursors and other resources *except* prepared statements.
 
     Clients are created by calling
-    :func:`~edgedb.asyncio_pool.create_async_client`.
+    :func:`~edgedb.asyncio_client.create_async_client`.
     """
 
-    __slots__ = ('_impl', '_options')
-
-    def __init__(self, *connect_args,
-                 concurrency: int,
+    def __init__(self, *,
                  on_acquire,
                  on_release,
                  on_connect,
                  connection_class,
-                 **connect_kwargs):
-        super().__init__()
-        self._impl = _AsyncIOPoolImpl(
-            *connect_args,
-            concurrency=concurrency,
+                 **kwargs):
+        super().__init__(
             on_acquire=on_acquire,
             on_release=on_release,
             on_connect=on_connect,
             connection_class=connection_class,
-            **connect_kwargs,
+            **kwargs,
         )
 
-    @property
-    def concurrency(self) -> int:
-        """Max number of connections in the pool."""
-
-        return self._impl._concurrency
+    def _create_connection_pool(self, connect_args, *, concurrency, **kwargs):
+        return _AsyncIOPoolImpl(
+            connect_args, concurrency=concurrency, **kwargs
+        )
 
     async def ensure_connected(self):
-        for ch in self._impl._holders:
-            if ch._con is not None and ch._con.is_closed():
-                return self
-
-        ch = self._impl._holders[0]
-        ch._con = None
-        await ch.connect()
-
+        await self._impl.ensure_connected()
         return self
 
-    async def query(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query(query, *args, **kwargs)
+    def _clear_codecs_cache(self):
+        self._impl.codecs_registry.clear_cache()
 
-    async def query_single(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query_single(query, *args, **kwargs)
+    def _set_type_codec(
+        self,
+        typeid: uuid.UUID,
+        *,
+        encoder: typing.Callable[[typing.Any], typing.Any],
+        decoder: typing.Callable[[typing.Any], typing.Any],
+        format: str
+    ):
+        self._impl.codecs_registry.set_type_codec(
+            typeid,
+            encoder=encoder,
+            decoder=decoder,
+            format=format,
+        )
 
-    async def query_required_single(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query_required_single(query, *args, **kwargs)
+    async def _query(self, query_context: abstract.QueryContext):
+        con = await self._impl._acquire()
+        try:
+            result, _ = await con.raw_query(query_context)
+            return result
+        finally:
+            await self._impl.release(con)
 
-    async def query_json(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query_json(query, *args, **kwargs)
+    async def execute(self, query: str) -> None:
+        """Execute an EdgeQL command (or commands).
 
-    async def query_single_json(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query_single_json(query, *args, **kwargs)
+        Example:
 
-    async def query_required_single_json(self, query, *args, **kwargs):
-        async with self._acquire() as con:
-            return await con.query_required_single_json(query, *args, **kwargs)
+        .. code-block:: pycon
 
-    async def execute(self, query):
-        async with self._acquire() as con:
-            return await con.execute(query)
-
-    def _acquire(self):
-        return PoolAcquireContext(self, timeout=None, options=self._options)
-
-    async def _release(self, connection):
-        await self._impl.release(connection)
+            >>> await con.execute('''
+            ...     CREATE TYPE MyType { CREATE PROPERTY a -> int64 };
+            ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
+            ... ''')
+        """
+        con = await self._impl._acquire()
+        try:
+            await con._protocol.simple_query(
+                query, enums.Capability.EXECUTE)
+        finally:
+            await self._impl.release(con)
 
     async def aclose(self):
         """Attempt to gracefully close all connections in the pool.
@@ -600,244 +780,16 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
     def transaction(self) -> _retry.AsyncIORetry:
         return _retry.AsyncIORetry(self)
 
-    def _shallow_clone(self):
-        new_pool = self.__class__.__new__(self.__class__)
-        new_pool._options = self._options
-        new_pool._impl = self._impl
-        return new_pool
 
-
-class AsyncIOPool(AsyncIOClient):
-
-    @property
-    def free_size(self) -> int:
-        """Number of available connections in the pool."""
-
-        if self._impl._queue is None:
-            # Queue has not been initialized yet
-            return self._impl._concurrency
-
-        return self._impl._queue.qsize()
-
-    def set_connect_args(self, dsn=None, **connect_kwargs):
-        r"""Set the new connection arguments for this pool.
-
-        The new connection arguments will be used for all subsequent
-        new connection attempts.  Existing connections will remain until
-        they expire. Use AsyncIOClient.expire_connections() to expedite
-        the connection expiry.
-
-        :param str dsn:
-            Connection arguments specified using as a single string in
-            the following format:
-            ``edgedb://user:pass@host:port/database?option=value``.
-
-        :param \*\*connect_kwargs:
-            Keyword arguments for the :func:`~edgedb.asyncio_con.connect`
-            function.
-        """
-        self._impl.set_connect_args(dsn, **connect_kwargs)
-
-    async def expire_connections(self):
-        """Expire all currently open connections.
-
-        Cause all currently open connections to get replaced on the
-        next AsyncIOPool.acquire() call.
-        """
-        await self._impl.expire_connections()
-
-    def acquire(self):
-        """Acquire a database connection from the pool.
-
-        :return: An instance of :class:`~edgedb.asyncio_con.AsyncIOConnection`.
-
-        Can be used in an ``await`` expression or with an ``async with`` block.
-
-        .. code-block:: python
-
-            async with pool.acquire() as con:
-                await con.execute(...)
-
-        Or:
-
-        .. code-block:: python
-
-            con = await pool.acquire()
-            try:
-                await con.execute(...)
-            finally:
-                await pool.release(con)
-        """
-        return self._acquire()
-
-    async def release(self, connection):
-        """Release a database connection back to the pool.
-
-        :param Connection connection:
-            A :class:`~edgedb.asyncio_con.AsyncIOConnection` object
-            to release.
-        """
-        return await self._release(connection)
-
-    def __await__(self):
-        return self.__aenter__().__await__()
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *exc):
-        await self.aclose()
-
-    def raw_transaction(self) -> _transaction.AsyncIOTransaction:
-        warnings.warn(
-            'The "raw_transaction()" method is deprecated and is scheduled '
-            'to be removed. Use the "transaction()" method with '
-            'retry attempts=1 instead',
-            DeprecationWarning, 2)
-        return _transaction.AsyncIOTransaction(
-            self,
-            self._options.transaction_options,
-        )
-
-    def retrying_transaction(self) -> _retry.AsyncIORetry:
-        warnings.warn(
-            'The "retrying_transaction()" method has been renamed to '
-            '"transaction()"',
-            DeprecationWarning, 2)
-        return _retry.AsyncIORetry(self)
-
-
-class PoolAcquireContext:
-
-    __slots__ = ('timeout', 'connection', 'done', 'pool')
-
-    def __init__(self, pool, timeout, options):
-        self.pool = pool
-        self.timeout = timeout
-        self.connection = None
-        self.done = False
-
-    async def __aenter__(self):
-        if self.connection is not None or self.done:
-            raise errors.InterfaceError('a connection is already acquired')
-        self.connection = await self.pool._impl._acquire(
-            self.timeout,
-            self.pool._options,
-        )
-        return self.connection
-
-    async def __aexit__(self, *exc):
-        self.done = True
-        con = self.connection
-        self.connection = None
-        await self.pool._release(con)
-
-    def __await__(self):
-        self.done = True
-        return self.pool._impl._acquire(
-            self.timeout,
-            self.pool._options,
-        ).__await__()
-
-
-def create_async_client(
-    dsn=None,
-    *,
-    concurrency=None,
-    **connect_kwargs
-):
-    r"""Create an AsyncIOClient with a lazy connection pool.
-
-    .. code-block:: python
-
-        client = edgedb.create_async_client(user='edgedb')
-        con = await client.acquire()
-        try:
-            await con.fetchall('SELECT {1, 2, 3}')
-        finally:
-            await pool.release(con)
-
-    :param str dsn:
-        If this parameter does not start with ``edgedb://`` then this is
-        a :ref:`name of an instance <ref_reference_connection_instance_name>`.
-
-        Otherwies it specifies as a single string in the following format:
-        ``edgedb://user:pass@host:port/database?option=value``.
-
-    :param \*\*connect_kwargs:
-        Keyword arguments for the async_connect() function.
-
-    :param Connection connection_class:
-        The class to use for connections.  Must be a subclass of
-        :class:`~edgedb.asyncio_con.AsyncIOConnection`.
-
-    :param int concurrency:
-        Max number of connections in the pool. If not set, the suggested
-        concurrency value sent by the server will be used.
-
-    :return: An instance of :class:`~edgedb.AsyncIOPool`.
-    """
+def create_async_client(dsn=None, *, concurrency=None, **kwargs):
     return AsyncIOClient(
-        dsn,
-        connection_class=PoolConnection,
+        connection_class=AsyncIOConnection,
         concurrency=concurrency,
         on_acquire=None,
         on_release=None,
         on_connect=None,
-        **connect_kwargs
+
+        # connect arguments
+        dsn=dsn,
+        **kwargs,
     )
-
-
-def create_async_pool(
-    dsn=None, *,
-    min_size=10,
-    max_size=10,
-    on_acquire=None,
-    on_release=None,
-    on_connect=None,
-    connection_class=PoolConnection,
-    **connect_kwargs
-):
-    warnings.warn(
-        'The "create_async_pool()" API is deprecated and is scheduled to be '
-        'removed. Use the "create_async_client()" API instead.',
-        DeprecationWarning, 2)
-
-    pool = AsyncIOPool(
-        dsn,
-        connection_class=connection_class,
-        concurrency=max_size,
-        on_acquire=on_acquire,
-        on_release=on_release,
-        on_connect=on_connect,
-        **connect_kwargs
-    )
-    return pool
-
-
-async def async_connect(
-    dsn: str = None, *,
-    credentials_file: str = None,
-    host: str = None, port: int = None,
-    user: str = None, password: str = None,
-    database: str = None,
-    tls_ca_file: str = None,
-    tls_security: str = None,
-    connection_class=None,
-    wait_until_available: int = 30,
-    timeout: int = 10
-) -> AsyncIOClient:
-    warnings.warn(
-        'The "async_connect()" API is deprecated and is scheduled to be '
-        'removed. Use "create_async_client(concurrency=1)" instead.',
-        DeprecationWarning, 2)
-
-    client = create_async_client(
-        dsn, concurrency=1,
-        wait_until_available=wait_until_available, timeout=timeout,
-        credentials_file=credentials_file, host=host, port=port,
-        user=user, password=password, database=database,
-        tls_ca_file=tls_ca_file, tls_security=tls_security
-    )
-    await client.ensure_connected()
-    return client

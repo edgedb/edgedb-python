@@ -44,7 +44,6 @@ Client connection pool
 
 .. py:function:: create_async_client(dsn=None, *, \
             host=None, port=None, \
-            admin=None, \
             user=None, password=None, \
             database=None, \
             timeout=60, \
@@ -99,9 +98,6 @@ Client connection pool
         If not specified, the value parsed from the *dsn* argument is used,
         or the value of the ``EDGEDB_PORT`` environment variable, or ``5656``
         if neither is specified.
-
-    :param admin:
-        If ``True``, try to connect to the special administration socket.
 
     :param user:
         The name of the database role used for authentication.

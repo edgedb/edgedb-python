@@ -25,17 +25,15 @@ from edgedb import _testbase as tb
 
 class TestEnum(tb.AsyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     SETUP = '''
         CREATE SCALAR TYPE CellType EXTENDING enum<'red', 'white'>;
         CREATE SCALAR TYPE Color EXTENDING enum<'red', 'white'>;
     '''
 
     async def test_enum_01(self):
-        ct_red = await self.con.query_single('SELECT <CellType>"red"')
-        ct_white = await self.con.query_single('SELECT <CellType>"white"')
-        c_red = await self.con.query_single('SELECT <Color>"red"')
+        ct_red = await self.client.query_single('SELECT <CellType>"red"')
+        ct_white = await self.client.query_single('SELECT <CellType>"white"')
+        c_red = await self.client.query_single('SELECT <Color>"red"')
 
         self.assertTrue(isinstance(ct_red, edgedb.EnumValue))
         self.assertTrue(isinstance(ct_red.__tid__, uuid.UUID))

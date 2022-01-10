@@ -16,18 +16,11 @@
 # limitations under the License.
 #
 
-
 import asyncio
-import inspect
-import random
 
 import edgedb
 
-from edgedb import compat
 from edgedb import _testbase as tb
-from edgedb import asyncio_con
-from edgedb import asyncio_pool
-from edgedb import errors
 
 
 class TestClient(tb.AsyncQueryTestCase):
@@ -65,28 +58,6 @@ class TestClient(tb.AsyncQueryTestCase):
 
                     tasks = [worker() for _ in range(n)]
                     await asyncio.gather(*tasks)
-
-    async def test_client_04(self):
-        client = await self.create_client(max_size=1)
-
-        con = await client.acquire()
-
-        # Manual termination of pool connections releases the
-        # pool item immediately.
-        con.terminate()
-        self.assertIsNone(client._impl._holders[0]._con)
-        self.assertIsNone(client._impl._holders[0]._in_use)
-
-        con = await client.acquire()
-        self.assertEqual(await con.query_single("SELECT 1"), 1)
-
-        await con.aclose()
-        self.assertIsNone(client._impl._holders[0]._con)
-        self.assertIsNone(client._impl._holders[0]._in_use)
-        # Calling release should not hurt.
-        await client.release(con)
-
-        client.terminate()
 
     async def test_client_05(self):
         for n in {1, 3, 5, 10, 20, 100}:
@@ -148,112 +119,7 @@ class TestClient(tb.AsyncQueryTestCase):
 
         self.assertEqual(len(cons), 5)
 
-    async def test_client_08(self):
-        client = await self.create_client(max_size=1)
-
-        try:
-            con = await client.acquire()
-            with self.assertRaisesRegex(
-                    edgedb.InterfaceError,
-                    "does not belong to any connection pool"):
-                await client.release(con._inner._impl)
-        finally:
-            await client.release(con)
-            await client.aclose()
-
-    async def test_client_09(self):
-        client1 = await self.create_client(max_size=1)
-
-        client2 = await self.create_client(max_size=1)
-
-        try:
-            con = await client1.acquire()
-            with self.assertRaisesRegex(
-                edgedb.InterfaceError, "is not a member"
-            ):
-                await client2.release(con)
-        finally:
-            await client1.release(con)
-
-        await client1.aclose()
-        await client2.aclose()
-
-    async def test_client_10(self):
-        client = await self.create_client(max_size=1)
-
-        con = await client.acquire()
-        await client.release(con)
-        await client.release(con)
-
-        await client.aclose()
-
-    async def test_client_11(self):
-        client = await self.create_client(max_size=1)
-
-        async with client.acquire() as con:
-            txn = con.raw_transaction()
-
-        self.assertIn("[released]", repr(con))
-
-        for meth in (
-            "query_single",
-            "query",
-            "execute",
-        ):
-            with self.assertRaisesRegex(
-                edgedb.InterfaceError,
-                r"released back to the pool",
-            ):
-                await getattr(con, meth)("select 1")
-
-        with self.assertRaisesRegex(
-            edgedb.InterfaceError,
-            r"released back to the pool",
-        ):
-            await txn.start()
-
-        for meth in ("commit", "rollback"):
-            with self.assertRaisesRegex(
-                edgedb.InterfaceError,
-                r"transaction is not yet started",
-            ):
-                await getattr(txn, meth)()
-
-        await client.aclose()
-
-    async def test_client_12(self):
-        client = await self.create_client(max_size=1)
-
-        async with client.acquire() as con:
-            self.assertTrue(isinstance(con, asyncio_con.AsyncIOConnection))
-            self.assertFalse(isinstance(con, list))
-
-        await client.aclose()
-
-    async def test_client_13(self):
-        client = await self.create_client(max_size=1)
-
-        async with client.acquire() as con:
-            self.assertIn("Execute an EdgeQL command", con.execute.__doc__)
-            self.assertEqual(con.execute.__name__, "execute")
-
-            self.assertIn(
-                str(inspect.signature(con.execute))[1:],
-                str(inspect.signature(asyncio_con.AsyncIOConnection.execute)),
-            )
-
-        await client.aclose()
-
     async def test_client_transaction(self):
-        client = await self.create_client(max_size=1)
-
-        async for tx in client.transaction():
-            async with tx:
-                self.assertEqual(await tx.query_single("SELECT 7*8"), 56)
-
-        await client.aclose()
-
-    async def test_client_retry(self):
         client = await self.create_client(max_size=1)
 
         async for tx in client.transaction():
@@ -644,7 +510,7 @@ class TestClient(tb.AsyncQueryTestCase):
 
     async def test_client_suggested_concurrency(self):
         conargs = self.get_connect_args().copy()
-        conargs["database"] = self.con.dbname
+        conargs["database"] = self.client.dbname
         conargs["timeout"] = 120
 
         client = edgedb.create_async_client(**conargs)
@@ -665,11 +531,21 @@ class TestClient(tb.AsyncQueryTestCase):
 
         await client.aclose()
 
-    async def test_client_deprecated_pool(self):
-        conargs = self.get_connect_args().copy()
-        conargs["database"] = self.con.dbname
-        conargs["timeout"] = 120
+    def test_client_with_different_loop(self):
+        conargs = self.get_connect_args()
+        client = edgedb.create_async_client(**conargs)
 
-        pool = await edgedb.create_async_pool(**conargs)
+        async def test():
+            self.assertIsNot(asyncio.get_event_loop(), self.loop)
+            result = await client.query_single("SELECT 42")
+            self.assertEqual(result, 42)
+            await asyncio.gather(
+                client.query_single("SELECT 42"),
+                client.query_single("SELECT 42"),
+            )
+            await client.aclose()
 
-        await pool.aclose()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(test())
+        asyncio.set_event_loop(self.loop)

@@ -60,6 +60,9 @@ class TestConUtils(unittest.TestCase):
         'multiple_compound_opts': (
             errors.ClientConnectionError,
             'Cannot have more than one of the following connection options'),
+        'exclusive_options': (
+            errors.ClientConnectionError,
+            'are mutually exclusive'),
         'env_not_found': (
             ValueError, 'environment variable ".*" doesn\'t exist'),
         'file_not_found': (FileNotFoundError, 'No such file or directory'),
@@ -103,12 +106,14 @@ class TestConUtils(unittest.TestCase):
 
         opts = testcase.get('opts', {})
         dsn = opts.get('dsn')
+        credentials = opts.get('credentials')
         credentials_file = opts.get('credentialsFile')
         host = opts.get('host')
         port = opts.get('port')
         database = opts.get('database')
         user = opts.get('user')
         password = opts.get('password')
+        tls_ca = opts.get('tlsCA')
         tls_ca_file = opts.get('tlsCAFile')
         tls_security = opts.get('tlsSecurity')
         server_settings = opts.get('serverSettings')
@@ -205,14 +210,22 @@ class TestConUtils(unittest.TestCase):
                 es.enter_context(self.assertRaisesRegex(*expected_error))
 
             connect_config, client_config = con_utils.parse_connect_arguments(
-                dsn=dsn, credentials_file=credentials_file,
-                host=host, port=port, database=database,
-                user=user, password=password,
+                dsn=dsn,
+                host=host,
+                port=port,
+                credentials=credentials,
+                credentials_file=credentials_file,
+                database=database,
+                user=user,
+                password=password,
+                tls_ca=tls_ca,
                 tls_ca_file=tls_ca_file,
                 tls_security=tls_security,
-                timeout=timeout, command_timeout=command_timeout,
+                timeout=timeout,
+                command_timeout=command_timeout,
                 server_settings=server_settings,
-                wait_until_available=30)
+                wait_until_available=30,
+            )
 
             result = (
                 {
@@ -363,12 +376,21 @@ class TestConUtils(unittest.TestCase):
 
                 connect_config, client_config = (
                     con_utils.parse_connect_arguments(
-                        dsn=None, credentials_file=None, host=None, port=None,
-                        user=None, password=None, database=None,
-                        tls_ca_file=None, tls_security=None,
-                        timeout=10, command_timeout=None,
+                        dsn=None,
+                        host=None,
+                        port=None,
+                        credentials=None,
+                        credentials_file=None,
+                        user=None,
+                        password=None,
+                        database=None,
+                        tls_ca=None,
+                        tls_ca_file=None,
+                        tls_security=None,
+                        timeout=10,
+                        command_timeout=None,
                         server_settings=None,
-                        wait_until_available=30
+                        wait_until_available=30,
                     )
                 )
 

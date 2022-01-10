@@ -46,8 +46,6 @@ class Barrier:
 
 class TestSyncRetry(tb.SyncQueryTestCase):
 
-    ISOLATED_METHODS = False
-
     SETUP = '''
         CREATE TYPE test::Counter EXTENDING std::Object {
             CREATE PROPERTY name -> std::str {
@@ -64,7 +62,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
     '''
 
     def test_sync_retry_01(self):
-        for tx in self.con.transaction():
+        for tx in self.client.transaction():
             with tx:
                 tx.execute('''
                     INSERT test::Counter {
@@ -74,7 +72,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
 
     def test_sync_retry_02(self):
         with self.assertRaises(ZeroDivisionError):
-            for tx in self.con.transaction():
+            for tx in self.client.transaction():
                 with tx:
                     tx.execute('''
                         INSERT test::Counter {
@@ -83,12 +81,12 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                     ''')
                     1 / 0
         with self.assertRaises(edgedb.NoDataError):
-            self.con.query_required_single('''
+            self.client.query_required_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
             ''')
         self.assertEqual(
-            self.con.query_single('''
+            self.client.query_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
             '''),
@@ -110,7 +108,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         _start.side_effect = errors.BackendUnavailableError()
 
         with self.assertRaises(errors.BackendUnavailableError):
-            for tx in self.con.transaction():
+            for tx in self.client.transaction():
                 with tx:
                     tx.execute('''
                         INSERT test::Counter {
@@ -118,12 +116,12 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                         };
                     ''')
         with self.assertRaises(edgedb.NoDataError):
-            self.con.query_required_single('''
+            self.client.query_required_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_begin'
             ''')
         self.assertEqual(
-            self.con.query_single('''
+            self.client.query_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_begin'
             '''),
@@ -137,7 +135,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         _start.side_effect = recover_after_first_error
         call_count = _start.call_count
 
-        for tx in self.con.transaction():
+        for tx in self.client.transaction():
             with tx:
                 tx.execute('''
                     INSERT test::Counter {
@@ -145,16 +143,14 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                     };
                 ''')
         self.assertEqual(_start.call_count, call_count + 1)
-        self.con.query_single('''
+        self.client.query_single('''
             SELECT test::Counter
             FILTER .name = 'counter_retry_begin'
         ''')
 
-    @unittest.skip('https://github.com/edgedb/edgedb/issues/2869')
     def test_sync_retry_conflict(self):
         self.execute_conflict('counter2')
 
-    @unittest.skip('https://github.com/edgedb/edgedb/issues/2869')
     def test_sync_conflict_no_retry(self):
         with self.assertRaises(edgedb.TransactionSerializationError):
             self.execute_conflict(
@@ -165,16 +161,16 @@ class TestSyncRetry(tb.SyncQueryTestCase):
     def execute_conflict(self, name='counter2', options=None):
         con_args = self.get_connect_args().copy()
         con_args.update(database=self.get_database_name())
-        con2 = edgedb.connect(**con_args)
-        self.addCleanup(con2.close)
+        client2 = edgedb.create_client(**con_args)
+        self.addCleanup(client2.close)
 
         barrier = Barrier(2)
         lock = threading.Lock()
 
         iterations = 0
 
-        def transaction1(con):
-            for tx in con.transaction():
+        def transaction1(client):
+            for tx in client.transaction():
                 nonlocal iterations
                 iterations += 1
                 with tx:
@@ -206,14 +202,14 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                 lock.release()
             return res
 
-        con = self.con
+        client = self.client
         if options:
-            con = con.with_retry_options(options)
-            con2 = con2.with_retry_options(options)
+            client = client.with_retry_options(options)
+            client2 = client2.with_retry_options(options)
 
         with futures.ThreadPoolExecutor(2) as pool:
-            f1 = pool.submit(transaction1, con)
-            f2 = pool.submit(transaction1, con2)
+            f1 = pool.submit(transaction1, client)
+            f2 = pool.submit(transaction1, client2)
             results = {f1.result(), f2.result()}
 
         self.assertEqual(results, {1, 2})
@@ -224,7 +220,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
             AttributeError,
             "'Iteration' object has no attribute 'start'",
         ):
-            for tx in self.con.transaction():
+            for tx in self.client.transaction():
                 with tx:
                     tx.start()
 
@@ -232,7 +228,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
             AttributeError,
             "'Iteration' object has no attribute 'rollback'",
         ):
-            for tx in self.con.transaction():
+            for tx in self.client.transaction():
                 with tx:
                     tx.rollback()
 
@@ -240,24 +236,19 @@ class TestSyncRetry(tb.SyncQueryTestCase):
             AttributeError,
             "'Iteration' object has no attribute 'start'",
         ):
-            for tx in self.con.transaction():
+            for tx in self.client.transaction():
                 tx.start()
 
         with self.assertRaisesRegex(edgedb.InterfaceError,
                                     r'.*Use `with transaction:`'):
-            for tx in self.con.transaction():
+            for tx in self.client.transaction():
                 tx.execute("SELECT 123")
 
         with self.assertRaisesRegex(
             edgedb.InterfaceError,
             r"already in a `with` block",
         ):
-            for tx in self.con.transaction():
+            for tx in self.client.transaction():
                 with tx:
                     with tx:
                         pass
-
-        with self.assertRaisesRegex(edgedb.InterfaceError, r".*is borrowed.*"):
-            for tx in self.con.transaction():
-                with tx:
-                    self.con.execute("SELECT 123")
