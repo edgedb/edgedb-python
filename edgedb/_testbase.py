@@ -33,7 +33,7 @@ import time
 import unittest
 
 import edgedb
-from edgedb import asyncio_pool
+from edgedb import asyncio_client
 
 
 log = logging.getLogger(__name__)
@@ -340,7 +340,7 @@ class ConnectedTestCaseMixin:
         database='edgedb',
         user='edgedb',
         password='test',
-        connection_class=asyncio_pool.PoolConnection,
+        connection_class=asyncio_client.AsyncIOConnection,
     ):
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
