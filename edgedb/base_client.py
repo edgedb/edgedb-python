@@ -17,12 +17,14 @@
 #
 
 
+import abc
 import typing
 
+from . import abstract
+from . import con_utils
 from . import errors
-
-from .con_utils import ClientConfiguration
-from .con_utils import ResolvedConnectConfig
+from . import options
+from .protocol import protocol
 
 
 BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
@@ -32,8 +34,8 @@ class BaseConnection:
     _protocol: typing.Any
     _addr: typing.Optional[typing.Union[str, typing.Tuple[str, int]]]
     _addrs: typing.Iterable[typing.Union[str, typing.Tuple[str, int]]]
-    _config: ClientConfiguration
-    _params: ResolvedConnectConfig
+    _config: con_utils.ClientConfiguration
+    _params: con_utils.ResolvedConnectConfig
     _log_listeners: typing.Set[
         typing.Callable[[BaseConnection_T, errors.EdgeDBMessage], None]
     ]
@@ -41,8 +43,8 @@ class BaseConnection:
     def __init__(
         self,
         addrs: typing.Iterable[typing.Union[str, typing.Tuple[str, int]]],
-        config: ClientConfiguration,
-        params: ResolvedConnectConfig,
+        config: con_utils.ClientConfiguration,
+        params: con_utils.ResolvedConnectConfig,
     ):
         self._addr = None
         self._protocol = None
@@ -110,3 +112,133 @@ class BaseConnection:
 
     def get_settings(self) -> typing.Dict[str, typing.Any]:
         return self._protocol.get_settings()
+
+
+class BaseImpl(abc.ABC):
+    __slots__ = ("_connect_args", "_codecs_registry", "_query_cache")
+
+    def __init__(self, connect_args):
+        self._connect_args = connect_args
+        self._codecs_registry = protocol.CodecsRegistry()
+        self._query_cache = protocol.QueryCodecsCache()
+
+    def _parse_connect_args(self):
+        return con_utils.parse_connect_arguments(
+            **self._connect_args,
+            # ToDos
+            command_timeout=None,
+            server_settings=None,
+        )
+
+    @abc.abstractmethod
+    def get_concurrency(self):
+        ...
+
+    def set_connect_args(self, dsn=None, **connect_kwargs):
+        r"""Set the new connection arguments for this pool.
+
+        The new connection arguments will be used for all subsequent
+        new connection attempts.  Existing connections will remain until
+        they expire. Use AsyncIOPool.expire_connections() to expedite
+        the connection expiry.
+
+        :param str dsn:
+            Connection arguments specified using as a single string in
+            the following format:
+            ``edgedb://user:pass@host:port/database?option=value``.
+
+        :param \*\*connect_kwargs:
+            Keyword arguments for the
+            :func:`~edgedb.asyncio_client.create_async_client` function.
+        """
+
+        connect_kwargs["dsn"] = dsn
+        self._connect_args = connect_kwargs
+        self._codecs_registry = protocol.CodecsRegistry()
+        self._query_cache = protocol.QueryCodecsCache()
+
+    @property
+    def codecs_registry(self):
+        return self._codecs_registry
+
+    @property
+    def query_cache(self):
+        return self._query_cache
+
+
+class BaseClient(abstract.Executor, options._OptionsMixin, abc.ABC):
+    __slots__ = ("_impl", "_options")
+
+    def __init__(
+        self,
+        *,
+        concurrency: typing.Optional[int],
+        dsn=None,
+        host: str = None,
+        port: int = None,
+        credentials: str = None,
+        credentials_file: str = None,
+        user: str = None,
+        password: str = None,
+        database: str = None,
+        tls_ca: str = None,
+        tls_ca_file: str = None,
+        tls_security: str = None,
+        wait_until_available: int = 30,
+        timeout: int = 10,
+        **kwargs,
+    ):
+        super().__init__()
+        connect_args = {
+            "dsn": dsn,
+            "host": host,
+            "port": port,
+            "credentials": credentials,
+            "credentials_file": credentials_file,
+            "user": user,
+            "password": password,
+            "database": database,
+            "timeout": timeout,
+            "tls_ca": tls_ca,
+            "tls_ca_file": tls_ca_file,
+            "tls_security": tls_security,
+            "wait_until_available": wait_until_available,
+        }
+        if concurrency == 0:
+            self._impl = self._create_single_connection_pool(
+                connect_args, **kwargs
+            )
+        else:
+            self._impl = self._create_connection_pool(
+                connect_args, concurrency=concurrency, **kwargs
+            )
+
+    def _shallow_clone(self):
+        new_client = self.__class__.__new__(self.__class__)
+        new_client._impl = self._impl
+        return new_client
+
+    def _get_query_cache(self) -> abstract.QueryCache:
+        return abstract.QueryCache(
+            codecs_registry=self._impl.codecs_registry,
+            query_cache=self._impl.query_cache,
+        )
+
+    def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
+        return self._options.retry_options
+
+    def _create_single_connection_pool(
+        self, connect_args, **kwargs
+    ) -> BaseImpl:
+        raise errors.InterfaceError("single-connection is not implemented")
+
+    def _create_connection_pool(
+        self, connect_args, *, concurrency, **kwargs
+    ) -> BaseImpl:
+        raise errors.InterfaceError("concurrency is not implemented")
+
+    @property
+    def concurrency(self) -> int:
+        """Max number of connections in the pool."""
+
+        return self._impl.get_concurrency()

@@ -28,10 +28,8 @@ from . import base_client
 from . import con_utils
 from . import enums
 from . import errors
-from . import options
 from . import retry as _retry
 from .protocol import blocking_proto
-from .protocol import protocol
 
 
 class BlockingIOConnection(base_client.BaseConnection):
@@ -254,23 +252,17 @@ class BlockingIOConnection(base_client.BaseConnection):
         self._get_protocol().sync_simple_query(query, enums.Capability.EXECUTE)
 
 
-class _SingleConnectionPoolImpl:
-    __slots__ = (
-        "_connect_args",
-        "_connection",
-        "_acquired",
-        "_closed",
-        "_codecs_registry",
-        "_query_cache",
-    )
+class _SingleConnectionPoolImpl(base_client.BaseImpl):
+    __slots__ = ("_connection", "_acquired", "_closed")
 
     def __init__(self, connect_args):
-        self._connect_args = connect_args
+        super().__init__(connect_args)
         self._connection = None
         self._acquired = False
         self._closed = False
-        self._codecs_registry = protocol.CodecsRegistry()
-        self._query_cache = protocol.QueryCodecsCache()
+
+    def get_concurrency(self):
+        return 0
 
     def ensure_connected(self):
         self.release(self.acquire())
@@ -280,12 +272,7 @@ class _SingleConnectionPoolImpl:
             raise errors.InterfaceError("cannot acquire twice")
         self._acquired = True
         if self._connection is None:
-            connect_config, client_config = con_utils.parse_connect_arguments(
-                **self._connect_args,
-                # ToDos
-                command_timeout=None,
-                server_settings=None,
-            )
+            connect_config, client_config = self._parse_connect_args()
             con = BlockingIOConnection(
                 addrs=[connect_config.address],
                 params=connect_config,
@@ -312,63 +299,9 @@ class _SingleConnectionPoolImpl:
             self._closed = True
 
 
-class Client(abstract.Executor, options._OptionsMixin):
-    __slots__ = ("_impl", "_options")
-
-    def __init__(
-        self,
-        *,
-        concurrency: typing.Optional[int],
-        dsn=None,
-        host: str = None,
-        port: int = None,
-        credentials: str = None,
-        credentials_file: str = None,
-        user: str = None,
-        password: str = None,
-        database: str = None,
-        tls_ca: str = None,
-        tls_ca_file: str = None,
-        tls_security: str = None,
-        wait_until_available: int = 30,
-        timeout: int = 10,
-    ):
-        super().__init__()
-
-        if concurrency == 0:
-            self._impl = _SingleConnectionPoolImpl(
-                {
-                    "dsn": dsn,
-                    "host": host,
-                    "port": port,
-                    "credentials": credentials,
-                    "credentials_file": credentials_file,
-                    "user": user,
-                    "password": password,
-                    "database": database,
-                    "timeout": timeout,
-                    "tls_ca": tls_ca,
-                    "tls_ca_file": tls_ca_file,
-                    "tls_security": tls_security,
-                    "wait_until_available": wait_until_available,
-                }
-            )
-        else:
-            raise errors.InterfaceError("concurrency is not implemented")
-
-    def _shallow_clone(self):
-        new_pool = self.__class__.__new__(self.__class__)
-        new_pool._impl = self._impl
-        return new_pool
-
-    def _get_query_cache(self) -> abstract.QueryCache:
-        return abstract.QueryCache(
-            codecs_registry=self._impl._codecs_registry,
-            query_cache=self._impl._query_cache,
-        )
-
-    def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
-        return self._options.retry_options
+class Client(base_client.BaseClient):
+    def _create_single_connection_pool(self, connect_args, **kwargs):
+        return _SingleConnectionPoolImpl(connect_args)
 
     def _query(self, query_context: abstract.QueryContext):
         con = self._impl.acquire()

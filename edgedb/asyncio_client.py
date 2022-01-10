@@ -33,11 +33,8 @@ from . import compat
 from . import con_utils
 from . import enums
 from . import errors
-from . import options
 from . import retry as _retry
 from .protocol import asyncio_proto
-from .protocol.protocol import CodecsRegistry as _CodecsRegistry
-from .protocol.protocol import QueryCodecsCache as _QueryCodecsCache
 
 
 __all__ = (
@@ -402,12 +399,11 @@ class PoolConnectionHolder:
         self._pool._queue.put_nowait(self)
 
 
-class _AsyncIOPoolImpl:
+class _AsyncIOPoolImpl(base_client.BaseImpl):
     __slots__ = ('_queue', '_loop', '_user_concurrency', '_concurrency',
                  '_first_connect_lock',
-                 '_on_connect', '_connect_args',
+                 '_on_connect',
                  '_working_addr', '_working_config', '_working_params',
-                 '_codecs_registry', '_query_cache',
                  '_holders', '_initialized', '_initializing', '_closing',
                  '_closed', '_connection_class', '_generation',
                  '_on_acquire', '_on_release')
@@ -418,7 +414,7 @@ class _AsyncIOPoolImpl:
                  on_release,
                  on_connect,
                  connection_class):
-        super().__init__()
+        super().__init__(connect_args)
 
         self._loop = None
 
@@ -451,9 +447,9 @@ class _AsyncIOPoolImpl:
         self._closed = False
         self._generation = 0
         self._on_connect = on_connect
-        self._connect_args = connect_args
-        self._codecs_registry = _CodecsRegistry()
-        self._query_cache = _QueryCodecsCache()
+
+    def get_concurrency(self):
+        return self._concurrency
 
     def _ensure_initialized(self):
         if self._loop is None:
@@ -482,39 +478,14 @@ class _AsyncIOPoolImpl:
             pass
 
     def set_connect_args(self, dsn=None, **connect_kwargs):
-        r"""Set the new connection arguments for this pool.
-
-        The new connection arguments will be used for all subsequent
-        new connection attempts.  Existing connections will remain until
-        they expire. Use AsyncIOPool.expire_connections() to expedite
-        the connection expiry.
-
-        :param str dsn:
-            Connection arguments specified using as a single string in
-            the following format:
-            ``edgedb://user:pass@host:port/database?option=value``.
-
-        :param \*\*connect_kwargs:
-            Keyword arguments for the
-            :func:`~edgedb.asyncio_client.create_async_client` function.
-        """
-
-        connect_kwargs["dsn"] = dsn
-        self._connect_args = connect_kwargs
+        super().set_connect_args(dsn=dsn, **connect_kwargs)
         self._working_addr = None
         self._working_config = None
         self._working_params = None
-        self._codecs_registry = _CodecsRegistry()
-        self._query_cache = _QueryCodecsCache()
 
     async def _get_first_connection(self):
         # First connection attempt on this pool.
-        connect_config, client_config = con_utils.parse_connect_arguments(
-            **self._connect_args,
-            # ToDos
-            command_timeout=None,
-            server_settings=None,
-        )
+        connect_config, client_config = self._parse_connect_args()
         con = self._connection_class(
             self._loop, [connect_config.address], client_config, connect_config
         )
@@ -709,7 +680,7 @@ class _AsyncIOPoolImpl:
     #             ch._con._drop_local_type_cache()
 
 
-class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
+class AsyncIOClient(base_client.BaseClient):
     """A lazy connection pool.
 
     A Client can be used to manage a set of connections to the database.
@@ -721,63 +692,31 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
     :func:`~edgedb.asyncio_client.create_async_client`.
     """
 
-    __slots__ = ('_impl', '_options')
-
     def __init__(self, *,
-                 concurrency: typing.Optional[int],
                  on_acquire,
                  on_release,
                  on_connect,
                  connection_class,
-                 dsn=None,
-                 host: str = None,
-                 port: int = None,
-                 credentials: str = None,
-                 credentials_file: str = None,
-                 user: str = None,
-                 password: str = None,
-                 database: str = None,
-                 tls_ca: str = None,
-                 tls_ca_file: str = None,
-                 tls_security: str = None,
-                 wait_until_available: int = 30,
-                 timeout: int = 10):
-        super().__init__()
-        self._impl = _AsyncIOPoolImpl(
-            {
-                "dsn": dsn,
-                "host": host,
-                "port": port,
-                "credentials": credentials,
-                "credentials_file": credentials_file,
-                "user": user,
-                "password": password,
-                "database": database,
-                "timeout": timeout,
-                "tls_ca": tls_ca,
-                "tls_ca_file": tls_ca_file,
-                "tls_security": tls_security,
-                "wait_until_available": wait_until_available,
-            },
-            concurrency=concurrency,
+                 **kwargs):
+        super().__init__(
             on_acquire=on_acquire,
             on_release=on_release,
             on_connect=on_connect,
             connection_class=connection_class,
+            **kwargs,
         )
 
-    @property
-    def concurrency(self) -> int:
-        """Max number of connections in the pool."""
-
-        return self._impl._concurrency
+    def _create_connection_pool(self, connect_args, *, concurrency, **kwargs):
+        return _AsyncIOPoolImpl(
+            connect_args, concurrency=concurrency, **kwargs
+        )
 
     async def ensure_connected(self):
         await self._impl.ensure_connected()
         return self
 
     def _clear_codecs_cache(self):
-        self._impl._codecs_registry.clear_cache()
+        self._impl.codecs_registry.clear_cache()
 
     def _set_type_codec(
         self,
@@ -787,21 +726,12 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
         decoder: typing.Callable[[typing.Any], typing.Any],
         format: str
     ):
-        self._impl._codecs_registry.set_type_codec(
+        self._impl.codecs_registry.set_type_codec(
             typeid,
             encoder=encoder,
             decoder=decoder,
             format=format,
         )
-
-    def _get_query_cache(self) -> abstract.QueryCache:
-        return abstract.QueryCache(
-            codecs_registry=self._impl._codecs_registry,
-            query_cache=self._impl._query_cache,
-        )
-
-    def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
-        return self._options.retry_options
 
     async def _query(self, query_context: abstract.QueryContext):
         con = await self._impl._acquire()
@@ -849,11 +779,6 @@ class AsyncIOClient(abstract.AsyncIOExecutor, options._OptionsMixin):
 
     def transaction(self) -> _retry.AsyncIORetry:
         return _retry.AsyncIORetry(self)
-
-    def _shallow_clone(self):
-        new_pool = self.__class__.__new__(self.__class__)
-        new_pool._impl = self._impl
-        return new_pool
 
 
 def create_async_client(dsn=None, *, concurrency=None, **kwargs):
