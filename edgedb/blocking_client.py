@@ -33,6 +33,7 @@ from .protocol import blocking_proto
 
 
 class BlockingIOConnection(base_client.BaseConnection):
+    __slots__ = ()
 
     def connect(self, *, single_attempt=False):
         start = time.monotonic()

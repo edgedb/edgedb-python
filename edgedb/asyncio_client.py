@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 class AsyncIOConnection(base_client.BaseConnection):
+    __slots__ = ("_loop", "_holder")
 
     def __init__(self, loop, *args, **kwargs):
         super().__init__(*args, **kwargs)

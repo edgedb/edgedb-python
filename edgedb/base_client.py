@@ -39,6 +39,15 @@ class BaseConnection:
     _log_listeners: typing.Set[
         typing.Callable[[BaseConnection_T, errors.EdgeDBMessage], None]
     ]
+    __slots__ = (
+        "__weakref__",
+        "_protocol",
+        "_addr",
+        "_addrs",
+        "_config",
+        "_params",
+        "_log_listeners",
+    )
 
     def __init__(
         self,
