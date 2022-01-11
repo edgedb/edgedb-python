@@ -184,6 +184,7 @@ class AsyncIOConnection(base_client.BaseConnection):
     def _cleanup(self):
         if self._holder:
             self._holder._release_on_close()
+            self._holder = None
 
     def _dispatch_log_message(self, msg):
         for cb in self._log_listeners:
@@ -451,6 +452,13 @@ class _AsyncIOPoolImpl(base_client.BaseImpl):
     def get_concurrency(self):
         return self._concurrency
 
+    def get_free_size(self):
+        if self._queue is None:
+            # Queue has not been initialized yet
+            return self._concurrency
+
+        return self._queue.qsize()
+
     def _ensure_initialized(self):
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
@@ -648,11 +656,6 @@ class _AsyncIOPoolImpl(base_client.BaseImpl):
         self._closed = True
 
     async def expire_connections(self):
-        """Expire all currently open connections.
-
-        Cause all currently open connections to get replaced on the
-        next AsyncIOPool.acquire() call.
-        """
         self._generation += 1
 
     async def ensure_connected(self):
@@ -680,7 +683,7 @@ class _AsyncIOPoolImpl(base_client.BaseImpl):
     #             ch._con._drop_local_type_cache()
 
 
-class AsyncIOClient(base_client.BaseClient):
+class AsyncIOClient(abstract.AsyncIOExecutor, base_client.BaseClient):
     """A lazy connection pool.
 
     A Client can be used to manage a set of connections to the database.
@@ -779,6 +782,20 @@ class AsyncIOClient(base_client.BaseClient):
 
     def transaction(self) -> _retry.AsyncIORetry:
         return _retry.AsyncIORetry(self)
+
+    async def expire_connections(self):
+        """Expire all currently open connections.
+
+        Cause all currently open connections to get replaced on the
+        next AsyncIOPool.acquire() call.
+        """
+        await self._impl.expire_connections()
+
+    async def __aenter__(self):
+        return await self.ensure_connected()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.aclose()
 
 
 def create_async_client(dsn=None, *, concurrency=None, **kwargs):

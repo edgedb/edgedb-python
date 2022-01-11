@@ -17,30 +17,39 @@
 #
 
 import asyncio
+import random
 
 import edgedb
 
+from edgedb import compat
 from edgedb import _testbase as tb
+from edgedb import errors
+from edgedb import asyncio_client
 
 
 class TestClient(tb.AsyncQueryTestCase):
     def create_client(self, **kwargs):
         conargs = self.get_connect_args().copy()
-        conargs["database"] = self.con.dbname
+        conargs["database"] = self.get_database_name()
         conargs["timeout"] = 120
         conargs.update(kwargs)
+        conargs.setdefault("on_acquire", None)
+        conargs.setdefault("on_release", None)
+        conargs.setdefault("on_connect", None)
+        conargs.setdefault(
+            "connection_class", asyncio_client.AsyncIOConnection
+        )
+        conargs.setdefault("concurrency", None)
 
-        return edgedb.create_async_pool(**conargs)
+        return tb.TestClient(**conargs)
 
     async def test_client_01(self):
         for n in {1, 5, 10, 20, 100}:
             with self.subTest(tasksnum=n):
-                client = await self.create_client(max_size=10)
+                client = self.create_client(concurrency=10)
 
                 async def worker():
-                    con = await client.acquire()
-                    self.assertEqual(await con.query_single("SELECT 1"), 1)
-                    await client.release(con)
+                    self.assertEqual(await client.query_single("SELECT 1"), 1)
 
                 tasks = [worker() for _ in range(n)]
                 await asyncio.gather(*tasks)
@@ -49,12 +58,12 @@ class TestClient(tb.AsyncQueryTestCase):
     async def test_client_02(self):
         for n in {1, 3, 5, 10, 20, 100}:
             with self.subTest(tasksnum=n):
-                async with self.create_client(max_size=5) as client:
+                async with self.create_client(concurrency=5) as client:
 
                     async def worker():
-                        con = await client.acquire()
-                        self.assertEqual(await con.query_single("SELECT 1"), 1)
-                        await client.release(con)
+                        self.assertEqual(
+                            await client.query_single("SELECT 1"), 1
+                        )
 
                     tasks = [worker() for _ in range(n)]
                     await asyncio.gather(*tasks)
@@ -62,12 +71,9 @@ class TestClient(tb.AsyncQueryTestCase):
     async def test_client_05(self):
         for n in {1, 3, 5, 10, 20, 100}:
             with self.subTest(tasksnum=n):
-                client = await self.create_client(max_size=10)
+                client = self.create_client(concurrency=10)
 
                 async def worker():
-                    async with client.acquire() as con:
-                        self.assertEqual(await con.query_single("SELECT 1"), 1)
-
                     self.assertEqual(await client.query('SELECT 1'), [1])
                     self.assertEqual(await client.query_single('SELECT 1'), 1)
                     self.assertEqual(
@@ -86,41 +92,38 @@ class TestClient(tb.AsyncQueryTestCase):
             fut.set_result(con)
 
         async with self.create_client(
-            max_size=5, on_acquire=on_acquire
+            concurrency=5, on_acquire=on_acquire
         ) as client:
-            async with client.acquire() as con:
-                pass
+            self.assertEqual(await client.query('SELECT 1'), [1])
 
-        self.assertIs(con, await fut)
+        self.assertIsNotNone(await fut)
 
     async def test_client_07(self):
         cons = set()
 
         async def on_acquire(con):
-            if con._inner._impl not in cons:  # check underlying connection
+            if con not in cons:  # check underlying connection
                 raise RuntimeError("on_connect was not called")
 
         async def on_connect(con):
-            if con._inner._impl in cons:  # check underlying connection
+            if con in cons:  # check underlying connection
                 raise RuntimeError("on_connect was called more than once")
-            cons.add(con._inner._impl)
+            cons.add(con)
 
-        async def user(pool):
-            async with pool.acquire() as con:
-                if con._inner._impl not in cons:
-                    raise RuntimeError("init was not called")
+        async def user():
+            self.assertEqual(await client.query('SELECT 1'), [1])
 
         async with self.create_client(
-            max_size=5, on_connect=on_connect,
+            concurrency=5, on_connect=on_connect,
             on_acquire=on_acquire,
         ) as client:
-            users = asyncio.gather(*[user(client) for _ in range(10)])
+            users = asyncio.gather(*[user() for _ in range(10)])
             await users
 
         self.assertEqual(len(cons), 5)
 
     async def test_client_transaction(self):
-        client = await self.create_client(max_size=1)
+        client = self.create_client(concurrency=1)
 
         async for tx in client.transaction():
             async with tx:
@@ -129,7 +132,7 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_options(self):
-        client = await self.create_client(max_size=1)
+        client = self.create_client(concurrency=1)
 
         client.with_transaction_options(
             edgedb.TransactionOptions(readonly=True))
@@ -142,8 +145,8 @@ class TestClient(tb.AsyncQueryTestCase):
         await client.aclose()
 
     async def test_client_init_run_until_complete(self):
-        client = await self.create_client()
-        self.assertIsInstance(client, asyncio_pool.AsyncIOClient)
+        client = self.create_client()
+        self.assertIsInstance(client, asyncio_client.AsyncIOClient)
         await client.aclose()
 
     async def test_client_exception_in_on_acquire_and_on_connect(self):
@@ -164,82 +167,89 @@ class TestClient(tb.AsyncQueryTestCase):
             setup_calls = 0
             last_con = None
             cons = []
-            async with self.create_client(
-                max_size=1, on_acquire=callback
-            ) as client:
+            client = self.create_client(concurrency=1, on_acquire=callback)
+            try:
                 with self.assertRaises(Error):
-                    await client.acquire()
+                    await client.query("SELECT 42")
                 self.assertTrue(last_con.is_closed())
 
-                async with client.acquire() as con:
-                    self.assertEqual(cons, ["error", con])
+                await client.query("SELECT 42")
+                self.assertEqual(cons, ["error", last_con])
+            finally:
+                await client.aclose()
 
         with self.subTest(method="on_connect"):
             setup_calls = 0
             last_con = None
             cons = []
-            async with self.create_client(
-                max_size=1, on_connect=callback
-            ) as client:
+            client = self.create_client(concurrency=1, on_connect=callback)
+            try:
                 with self.assertRaises(Error):
-                    await client.acquire()
+                    await client.query("SELECT 42")
                 self.assertTrue(last_con.is_closed())
 
-                async with client.acquire() as con:
-                    self.assertEqual(await con.query_single("select 1"), 1)
-                    self.assertEqual(cons, ["error", con])
+                self.assertEqual(await client.query_single("select 1"), 1)
+                self.assertEqual(cons, ["error", last_con])
+            finally:
+                await client.aclose()
 
     async def test_client_no_acquire_deadlock(self):
         async with self.create_client(
-            max_size=1,
+            concurrency=1,
         ) as client:
 
-            async with client.acquire() as con:
-                has_sleep = await con.query_single("""
-                    SELECT EXISTS(
-                        SELECT schema::Function FILTER .name = 'sys::_sleep'
-                    )
-                """)
-                if not has_sleep:
-                    self.skipTest("No sys::_sleep function")
+            has_sleep = await client.query_single("""
+                SELECT EXISTS(
+                    SELECT schema::Function FILTER .name = 'sys::_sleep'
+                )
+            """)
+            if not has_sleep:
+                self.skipTest("No sys::_sleep function")
 
             async def sleep_and_release():
-                async with client.acquire() as con:
-                    await con.execute("SELECT sys::_sleep(1)")
+                await client.execute("SELECT sys::_sleep(1)")
 
             asyncio.ensure_future(sleep_and_release())
             await asyncio.sleep(0.5)
 
-            async with client.acquire() as con:
-                await con.query_single("SELECT 1")
+            await client.query_single("SELECT 1")
 
     async def test_client_config_persistence(self):
         N = 100
         cons = set()
+        num_acquires = 0
 
-        class MyConnection(asyncio_pool.PoolConnection):
+        async def on_acquire(con):
+            nonlocal num_acquires
+
+            self.assertTrue(isinstance(con, MyConnection))
+            self.assertEqual(await con.foo(), 42)
+            cons.add(con)
+            num_acquires += 1
+
+        class MyConnection(asyncio_client.AsyncIOConnection):
             async def foo(self):
                 return 42
 
-            async def query_single(self, query):
-                res = await super().query_single(query)
-                return res + 1
+            async def raw_query(self, query_context):
+                res, h = await super().raw_query(query_context)
+                return res + 1, h
 
         async def test(client):
-            async with client.acquire() as con:
-                self.assertEqual(await con.query_single("SELECT 1"), 2)
-                self.assertEqual(await con.foo(), 42)
-                self.assertTrue(isinstance(con, MyConnection))
-                cons.add(con)
+            async for tx in client.transaction():
+                async with tx:
+                    self.assertEqual(await tx.query_single("SELECT 1"), 2)
 
         async with self.create_client(
-            max_size=10,
+            concurrency=10,
             connection_class=MyConnection,
+            on_acquire=on_acquire,
         ) as client:
 
             await asyncio.gather(*[test(client) for _ in range(N)])
 
-        self.assertEqual(len(cons), N)
+        self.assertEqual(num_acquires, N)
+        self.assertEqual(len(cons), 10)
 
     async def test_client_connection_methods(self):
         async def test_query(client):
@@ -262,7 +272,7 @@ class TestClient(tb.AsyncQueryTestCase):
             return 1
 
         async def run(N, meth):
-            async with self.create_client(max_size=10) as client:
+            async with self.create_client(concurrency=10) as client:
 
                 coros = [meth(client) for _ in range(N)]
                 res = await asyncio.gather(*coros)
@@ -280,10 +290,10 @@ class TestClient(tb.AsyncQueryTestCase):
                     await run(200, method)
 
     async def test_client_handles_transaction_exit_in_asyncgen_1(self):
-        client = await self.create_client(max_size=1)
+        client = self.create_client(concurrency=1)
 
-        async def iterate(con):
-            async for tx in con.transaction():
+        async def iterate():
+            async for tx in client.transaction():
                 async with tx:
                     for record in await tx.query("SELECT {1, 2, 3}"):
                         yield record
@@ -292,21 +302,20 @@ class TestClient(tb.AsyncQueryTestCase):
             pass
 
         with self.assertRaises(MyException):
-            async with client.acquire() as con:
-                agen = iterate(con)
-                try:
-                    async for _ in agen:  # noqa
-                        raise MyException()
-                finally:
-                    await agen.aclose()
+            agen = iterate()
+            try:
+                async for _ in agen:  # noqa
+                    raise MyException()
+            finally:
+                await agen.aclose()
 
         await client.aclose()
 
     async def test_client_handles_transaction_exit_in_asyncgen_2(self):
-        client = await self.create_client(max_size=1)
+        client = self.create_client(concurrency=1)
 
-        async def iterate(con):
-            async for tx in con.transaction():
+        async def iterate():
+            async for tx in client.transaction():
                 async with tx:
                     for record in await tx.query("SELECT {1, 2, 3}"):
                         yield record
@@ -315,20 +324,19 @@ class TestClient(tb.AsyncQueryTestCase):
             pass
 
         with self.assertRaises(MyException):
-            async with client.acquire() as con:
-                iterator = iterate(con)
-                try:
-                    async for _ in iterator:  # noqa
-                        raise MyException()
-                finally:
-                    await iterator.aclose()
+            iterator = iterate()
+            try:
+                async for _ in iterator:  # noqa
+                    raise MyException()
+            finally:
+                await iterator.aclose()
 
             del iterator
 
         await client.aclose()
 
     async def test_client_handles_asyncgen_finalization(self):
-        client = await self.create_client(max_size=1)
+        client = self.create_client(concurrency=1)
 
         async def iterate(tx):
             for record in await tx.query("SELECT {1, 2, 3}"):
@@ -338,20 +346,19 @@ class TestClient(tb.AsyncQueryTestCase):
             pass
 
         with self.assertRaises(MyException):
-            async with client.acquire() as con:
-                async for tx in con.transaction():
-                    async with tx:
-                        agen = iterate(tx)
-                        try:
-                            async for _ in agen:  # noqa
-                                raise MyException()
-                        finally:
-                            await agen.aclose()
+            async for tx in client.transaction():
+                async with tx:
+                    agen = iterate(tx)
+                    try:
+                        async for _ in agen:  # noqa
+                            raise MyException()
+                    finally:
+                        await agen.aclose()
 
         await client.aclose()
 
     async def test_client_close_waits_for_release(self):
-        client = await self.create_client(max_size=1)
+        client = self.create_client(concurrency=1)
 
         flag = self.loop.create_future()
         conn_released = False
@@ -359,8 +366,9 @@ class TestClient(tb.AsyncQueryTestCase):
         async def worker():
             nonlocal conn_released
 
-            async with client.acquire() as connection:
-                async with connection.raw_transaction():
+            async for tx in client.transaction():
+                async with tx:
+                    await tx.query("SELECT 42")
                     flag.set_result(True)
                     await asyncio.sleep(0.1)
 
@@ -373,14 +381,16 @@ class TestClient(tb.AsyncQueryTestCase):
         self.assertTrue(conn_released)
 
     async def test_client_close_timeout(self):
-        client = await self.create_client(max_size=1)
+        client = self.create_client(concurrency=1)
 
         flag = self.loop.create_future()
 
         async def worker():
-            async with client.acquire():
-                flag.set_result(True)
-                await asyncio.sleep(0.5)
+            async for tx in client.transaction():
+                async with tx:
+                    await tx.query_single("SELECT 42")
+                    flag.set_result(True)
+                    await asyncio.sleep(0.5)
 
         task = self.loop.create_task(worker())
 
@@ -388,16 +398,16 @@ class TestClient(tb.AsyncQueryTestCase):
             await flag
             await compat.wait_for(client.aclose(), timeout=0.1)
 
-        await task
+        with self.assertRaises(errors.ClientConnectionClosedError):
+            await task
 
     async def test_client_expire_connections(self):
-        client = await self.create_client(max_size=1)
+        client = self.create_client(concurrency=1)
 
-        con = await client.acquire()
-        try:
-            await client.expire_connections()
-        finally:
-            await client.release(con)
+        async for tx in client.transaction():
+            async with tx:
+                await tx.query("SELECT 42")
+                await client.expire_connections()
 
         self.assertIsNone(client._impl._holders[0]._con)
         await client.aclose()
@@ -405,12 +415,14 @@ class TestClient(tb.AsyncQueryTestCase):
     async def test_client_properties(self):
         concurrency = 2
 
-        client = await self.create_client(max_size=concurrency)
+        client = self.create_client(concurrency=concurrency)
         self.assertEqual(client.concurrency, concurrency)
         self.assertEqual(client.concurrency, concurrency)
 
-        async with client.acquire() as _:
-            self.assertEqual(client.free_size, concurrency - 1)
+        async for tx in client.transaction():
+            async with tx:
+                await tx.query("SELECT 42")
+                self.assertEqual(client.free_size, concurrency - 1)
 
         self.assertEqual(client.free_size, concurrency)
 
@@ -489,22 +501,14 @@ class TestClient(tb.AsyncQueryTestCase):
             cb, '127.0.0.1', 0
         )
         port = server.sockets[0].getsockname()[1]
-        client = await self.create_client(
-            host='127.0.0.1', port=port, max_size=1)
-        conargs = self.get_connect_args().copy()
-        conargs["database"] = self.con.dbname
-        conargs["timeout"] = 120
-        conargs["host"] = "127.0.0.1"
-        conargs["port"] = port
-        conn = await edgedb.async_connect_raw(**conargs)
+        client = self.create_client(
+            host='127.0.0.1', port=port, concurrency=1)
         try:
-            await self._test_connection_broken(conn, broken)
             await self._test_connection_broken(client, broken)
         finally:
             server.close()
             await server.wait_closed()
             await asyncio.wait_for(client.aclose(), 5)
-            await asyncio.wait_for(conn.aclose(), 1)
             broken.set()
             await done.wait()
 

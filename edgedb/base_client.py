@@ -134,6 +134,10 @@ class BaseImpl(abc.ABC):
     def get_concurrency(self):
         ...
 
+    @abc.abstractmethod
+    def get_free_size(self):
+        ...
+
     def set_connect_args(self, dsn=None, **connect_kwargs):
         r"""Set the new connection arguments for this pool.
 
@@ -166,7 +170,9 @@ class BaseImpl(abc.ABC):
         return self._query_cache
 
 
-class BaseClient(abstract.Executor, options._OptionsMixin, abc.ABC):
+class BaseClient(
+    abstract.BaseReadOnlyExecutor, options._OptionsMixin, abc.ABC
+):
     __slots__ = ("_impl", "_options")
 
     def __init__(
@@ -242,3 +248,9 @@ class BaseClient(abstract.Executor, options._OptionsMixin, abc.ABC):
         """Max number of connections in the pool."""
 
         return self._impl.get_concurrency()
+
+    @property
+    def free_size(self) -> int:
+        """Number of available connections in the pool."""
+
+        return self._impl.get_free_size()

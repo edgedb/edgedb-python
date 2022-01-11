@@ -264,6 +264,9 @@ class _SingleConnectionPoolImpl(base_client.BaseImpl):
     def get_concurrency(self):
         return 0
 
+    def get_free_size(self):
+        return 0 if self._acquired else 1
+
     def ensure_connected(self):
         self.release(self.acquire())
 
@@ -299,7 +302,7 @@ class _SingleConnectionPoolImpl(base_client.BaseImpl):
             self._closed = True
 
 
-class Client(base_client.BaseClient):
+class Client(abstract.Executor, base_client.BaseClient):
     def _create_single_connection_pool(self, connect_args, **kwargs):
         return _SingleConnectionPoolImpl(connect_args)
 
