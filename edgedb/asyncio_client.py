@@ -46,12 +46,11 @@ logger = logging.getLogger(__name__)
 
 
 class AsyncIOConnection(base_client.BaseConnection):
-    __slots__ = ("_loop", "_holder")
+    __slots__ = ("_loop",)
 
     def __init__(self, loop, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._loop = loop
-        self._holder = None
 
     def is_closed(self):
         protocol = self._protocol
@@ -175,18 +174,6 @@ class AsyncIOConnection(base_client.BaseConnection):
             finally:
                 self._cleanup()
 
-    def terminate(self):
-        if not self.is_closed():
-            try:
-                self._protocol.abort()
-            finally:
-                self._cleanup()
-
-    def _cleanup(self):
-        if self._holder:
-            self._holder._release_on_close()
-            self._holder = None
-
     def _dispatch_log_message(self, msg):
         for cb in self._log_listeners:
             self._loop.call_soon(cb, self, msg)
@@ -259,206 +246,52 @@ class AsyncIOConnection(base_client.BaseConnection):
             query, enums.Capability.EXECUTE)
 
 
-class PoolConnectionHolder:
+class _PoolConnectionHolder(base_client.PoolConnectionHolder):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._release_event = asyncio.Event()
+        self._release_event.set()
 
-    __slots__ = ('_con', '_pool',
-                 '_on_acquire', '_on_release',
-                 '_in_use', '_timeout', '_generation')
-
-    def __init__(self, pool, *, on_acquire, on_release):
-
-        self._pool = pool
-        self._con = None
-
-        self._on_acquire = on_acquire
-        self._on_release = on_release
-        self._in_use = None  # type: asyncio.Future
-        self._timeout = None
-        self._generation = None
-
-    async def connect(self):
-        if self._con is not None:
-            raise errors.InternalClientError(
-                'PoolConnectionHolder.connect() called while another '
-                'connection already exists')
-
-        self._con = await self._pool._get_new_connection()
-        assert self._con._holder is None
-        self._con._holder = self
-        self._generation = self._pool._generation
-
-    async def acquire(self) -> AsyncIOConnection:
-        if self._con is None or self._con.is_closed():
-            self._con = None
-            await self.connect()
-
-        elif self._generation != self._pool._generation:
-            # Connections have been expired, re-connect the holder.
-            self._pool._loop.create_task(
-                self._con.aclose(timeout=self._timeout))
-            self._con = None
-            await self.connect()
-
-        if self._on_acquire is not None:
-            try:
-                await self._on_acquire(self._con)
-            except (Exception, asyncio.CancelledError) as ex:
-                # If a user-defined `on_acquire` function fails, we don't
-                # know if the connection is safe for re-use, hence
-                # we close it.  A new connection will be created
-                # when `acquire` is called again.
-                try:
-                    # Use `close()` to close the connection gracefully.
-                    # An exception in `on_acquire` isn't necessarily caused
-                    # by an IO or a protocol error.  close() will
-                    # do the necessary cleanup via _release_on_close().
-                    await self._con.aclose()
-                finally:
-                    raise ex
-
-        self._in_use = self._pool._loop.create_future()
-
-        return self._con
-
-    async def release(self, timeout):
-        if self._in_use is None:
-            raise errors.InternalClientError(
-                'PoolConnectionHolder.release() called on '
-                'a free connection holder')
-
-        if self._con.is_closed():
-            # This is usually the case when the connection is broken rather
-            # than closed by the user, so we need to call _release_on_close()
-            # here to release the holder back to the queue, because
-            # self._con._cleanup() was never called. On the other hand, it is
-            # safe to call self._release() twice - the second call is no-op.
-            self._release_on_close()
+    async def close(self, *, wait=True):
+        if self._con is None:
             return
-
-        self._timeout = None
-
-        if self._generation != self._pool._generation:
-            # The connection has expired because it belongs to
-            # an older generation (AsyncIOPool.expire_connections() has
-            # been called.)
+        if wait:
             await self._con.aclose()
-            return
-
-        if self._on_release is not None:
-            try:
-                await self._on_release(self._con)
-            except (Exception, asyncio.CancelledError) as ex:
-                # If a user-defined `on_release` function fails, we don't
-                # know if the connection is safe for re-use, hence
-                # we close it.  A new connection will be created
-                # when `acquire` is called again.
-                try:
-                    # Use `close()` to close the connection gracefully.
-                    # An exception in `setup` isn't necessarily caused
-                    # by an IO or a protocol error.  close() will
-                    # do the necessary cleanup via _release_on_close().
-                    await self._con.aclose()
-                finally:
-                    raise ex
-
-        # Free this connection holder and invalidate the
-        # connection proxy.
-        self._release()
-
-    async def wait_until_released(self):
-        if self._in_use is None:
-            return
         else:
-            await self._in_use
+            self._pool._loop.create_task(self._con.aclose())
 
-    async def aclose(self):
-        if self._con is not None:
-            # AsyncIOConnection.aclose() will call _release_on_close() to
-            # finish holder cleanup.
-            await self._con.aclose()
-
-    def terminate(self):
-        if self._con is not None:
-            # AsyncIOConnection.terminate() will call _release_on_close() to
-            # finish holder cleanup.
-            self._con.terminate()
-
-    def _release_on_close(self):
-        self._release()
-        self._con = None
-
-    def _release(self):
-        """Release this connection holder."""
-        if self._in_use is None:
-            # The holder is not checked out.
-            return
-
-        if not self._in_use.done():
-            self._in_use.set_result(None)
-        self._in_use = None
-
-        # Put ourselves back to the pool queue.
-        self._pool._queue.put_nowait(self)
+    async def wait_until_released(self, timeout=None):
+        await self._release_event.wait()
 
 
-class _AsyncIOPoolImpl(base_client.BaseImpl):
-    __slots__ = ('_queue', '_loop', '_user_concurrency', '_concurrency',
-                 '_first_connect_lock',
-                 '_on_connect',
-                 '_working_addr', '_working_config', '_working_params',
-                 '_holders', '_initialized', '_initializing', '_closing',
-                 '_closed', '_connection_class', '_generation',
-                 '_on_acquire', '_on_release')
+class _AsyncIOPoolImpl(base_client.BasePoolImpl):
+    __slots__ = ('_loop',)
+    _holder_class = _PoolConnectionHolder
 
-    def __init__(self, connect_args, *,
-                 concurrency: typing.Optional[int],
-                 on_acquire,
-                 on_release,
-                 on_connect,
-                 connection_class):
-        super().__init__(connect_args)
-
+    def __init__(
+        self,
+        connect_args,
+        *,
+        concurrency: typing.Optional[int],
+        on_connect=None,
+        on_acquire=None,
+        on_release=None,
+        connection_class,
+    ):
+        super().__init__(
+            connect_args,
+            connection_class=connection_class,
+            concurrency=concurrency,
+            on_connect=on_connect,
+            on_acquire=on_acquire,
+            on_release=on_release,
+        )
         self._loop = None
-
-        if concurrency is not None and concurrency <= 0:
-            raise ValueError('concurrency is expected to be greater than zero')
-
         if not issubclass(connection_class, AsyncIOConnection):
             raise TypeError(
                 f'connection_class is expected to be a subclass of '
                 f'edgedb.asyncio_client.AsyncIOConnection, '
                 f'got {connection_class}')
-
-        self._user_concurrency = concurrency
-        self._concurrency = concurrency if concurrency else 1
-
-        self._on_acquire = on_acquire
-        self._on_release = on_release
-
-        self._holders = []
-        self._queue = None
-
-        self._first_connect_lock = None
-        self._working_addr = None
-        self._working_config = None
-        self._working_params = None
-
-        self._connection_class = connection_class
-
-        self._closing = False
-        self._closed = False
-        self._generation = 0
-        self._on_connect = on_connect
-
-    def get_concurrency(self):
-        return self._concurrency
-
-    def get_free_size(self):
-        if self._queue is None:
-            # Queue has not been initialized yet
-            return self._concurrency
-
-        return self._queue.qsize()
 
     def _ensure_initialized(self):
         if self._loop is None:
@@ -467,93 +300,41 @@ class _AsyncIOPoolImpl(base_client.BaseImpl):
             self._first_connect_lock = asyncio.Lock()
             self._resize_holder_pool()
 
-    def _resize_holder_pool(self):
-        resize_diff = self._concurrency - len(self._holders)
+    def _set_queue_maxsize(self, maxsize):
+        self._queue._maxsize = maxsize
 
-        if (resize_diff > 0):
-            if self._queue.maxsize != self._concurrency:
-                self._queue._maxsize = self._concurrency
-
-            for _ in range(resize_diff):
-                ch = PoolConnectionHolder(
-                    self,
-                    on_acquire=self._on_acquire,
-                    on_release=self._on_release)
-
-                self._holders.append(ch)
-                self._queue.put_nowait(ch)
-        elif resize_diff < 0:
-            # TODO: shrink the pool
-            pass
-
-    def set_connect_args(self, dsn=None, **connect_kwargs):
-        super().set_connect_args(dsn=dsn, **connect_kwargs)
-        self._working_addr = None
-        self._working_config = None
-        self._working_params = None
-
-    async def _get_first_connection(self):
-        # First connection attempt on this pool.
-        connect_config, client_config = self._parse_connect_args()
-        con = self._connection_class(
-            self._loop, [connect_config.address], client_config, connect_config
-        )
+    async def _new_connection_with_params(self, addr, config, params):
+        con = self._connection_class(self._loop, [addr], config, params)
         await con.connect()
-
-        self._working_addr = con.connected_addr()
-        self._working_config = client_config
-        self._working_params = connect_config
-
-        if self._user_concurrency is None:
-            suggested_concurrency = con.get_settings().get(
-                'suggested_pool_concurrency')
-            if suggested_concurrency:
-                self._concurrency = suggested_concurrency
-                self._resize_holder_pool()
         return con
 
-    async def _get_new_connection(self):
-        con = None
-        if self._working_addr is None:
-            async with self._first_connect_lock:
-                if self._working_addr is None:
-                    con = await self._get_first_connection()
-        if con is None:
-            assert self._working_addr is not None
-            # We've connected before and have a resolved address,
-            # and parsed options and config.
-            con = self._connection_class(
-                self._loop,
-                [self._working_addr],
-                self._working_config,
-                self._working_params,
-            )
-            await con.connect()
+    async def _maybe_get_first_connection(self):
+        async with self._first_connect_lock:
+            if self._working_addr is None:
+                return await self._get_first_connection()
 
-        if self._on_connect is not None:
+    async def _callback(self, cb, con):
+        try:
+            await cb(con)
+        except (Exception, asyncio.CancelledError) as ex:
+            # If a user-defined callback function fails, we don't
+            # know if the connection is safe for re-use, hence
+            # we close it.  A new connection will be created
+            # when `acquire` is called again.
             try:
-                await self._on_connect(con)
-            except (Exception, asyncio.CancelledError) as ex:
-                # If a user-defined `connect` function fails, we don't
-                # know if the connection is safe for re-use, hence
-                # we close it.  A new connection will be created
-                # when `acquire` is called again.
-                try:
-                    # Use `close()` to close the connection gracefully.
-                    # An exception in `init` isn't necessarily caused
-                    # by an IO or a protocol error.  close() will
-                    # do the necessary cleanup via _release_on_close().
-                    await con.aclose()
-                finally:
-                    raise ex
+                # Use `aclose()` to close the connection gracefully.
+                # An exception in `setup` isn't necessarily caused
+                # by an IO or a protocol error.  aclose() will
+                # do the necessary cleanup via _release_on_close().
+                await con.aclose()
+            finally:
+                raise ex
 
-        return con
-
-    async def _acquire(self, timeout=None):
+    async def acquire(self, timeout=None):
         self._ensure_initialized()
 
         async def _acquire_impl():
-            ch = await self._queue.get()  # type: PoolConnectionHolder
+            ch = await self._queue.get()  # type: _PoolConnectionHolder
             try:
                 proxy = await ch.acquire()  # type: AsyncIOConnection
             except (Exception, asyncio.CancelledError):
@@ -574,23 +355,12 @@ class _AsyncIOPoolImpl(base_client.BaseImpl):
             return await compat.wait_for(
                 _acquire_impl(), timeout=timeout)
 
-    async def release(self, connection):
+    async def _release(self, holder):
 
-        if not isinstance(connection, AsyncIOConnection):
+        if not isinstance(holder._con, AsyncIOConnection):
             raise errors.InterfaceError(
                 f'AsyncIOPool.release() received invalid connection: '
-                f'{connection!r} does not belong to any connection pool'
-            )
-
-        ch = connection._holder
-        if ch is None:
-            # Already released, do nothing.
-            return
-
-        if ch._pool is not self:
-            raise errors.InterfaceError(
-                f'AsyncIOPool.release() received invalid connection: '
-                f'{connection!r} is not a member of this pool'
+                f'{holder._con!r} does not belong to any connection pool'
             )
 
         timeout = None
@@ -598,7 +368,7 @@ class _AsyncIOPoolImpl(base_client.BaseImpl):
         # Use asyncio.shield() to guarantee that task cancellation
         # does not prevent the connection from being returned to the
         # pool properly.
-        return await asyncio.shield(ch.release(timeout))
+        return await asyncio.shield(holder.release(timeout))
 
     async def aclose(self):
         """Attempt to gracefully close all connections in the pool.
@@ -629,7 +399,7 @@ class _AsyncIOPoolImpl(base_client.BaseImpl):
             await asyncio.gather(*release_coros)
 
             close_coros = [
-                ch.aclose() for ch in self._holders]
+                ch.close() for ch in self._holders]
             await asyncio.gather(*close_coros)
 
         except (Exception, asyncio.CancelledError):
@@ -648,41 +418,6 @@ class _AsyncIOPoolImpl(base_client.BaseImpl):
             'Use asyncio.wait_for() to set a timeout for '
             'AsyncIOPool.aclose().')
 
-    def terminate(self):
-        """Terminate all connections in the pool."""
-        if self._closed:
-            return
-        for ch in self._holders:
-            ch.terminate()
-        self._closed = True
-
-    async def expire_connections(self):
-        self._generation += 1
-
-    async def ensure_connected(self):
-        self._ensure_initialized()
-
-        for ch in self._holders:
-            if ch._con is not None and not ch._con.is_closed():
-                return
-
-        ch = self._holders[0]
-        ch._con = None
-        await ch.connect()
-
-    # TODO: never implemented or used?
-    # def _drop_statement_cache(self):
-    #     # Drop statement cache for all connections in the pool.
-    #     for ch in self._holders:
-    #         if ch._con is not None:
-    #             ch._con._drop_local_statement_cache()
-    #
-    # def _drop_type_cache(self):
-    #     # Drop type codec cache for all connections in the pool.
-    #     for ch in self._holders:
-    #         if ch._con is not None:
-    #             ch._con._drop_local_type_cache()
-
 
 class AsyncIOClient(abstract.AsyncIOExecutor, base_client.BaseClient):
     """A lazy connection pool.
@@ -696,24 +431,7 @@ class AsyncIOClient(abstract.AsyncIOExecutor, base_client.BaseClient):
     :func:`~edgedb.asyncio_client.create_async_client`.
     """
 
-    def __init__(self, *,
-                 on_acquire,
-                 on_release,
-                 on_connect,
-                 connection_class,
-                 **kwargs):
-        super().__init__(
-            on_acquire=on_acquire,
-            on_release=on_release,
-            on_connect=on_connect,
-            connection_class=connection_class,
-            **kwargs,
-        )
-
-    def _create_connection_pool(self, connect_args, *, concurrency, **kwargs):
-        return _AsyncIOPoolImpl(
-            connect_args, concurrency=concurrency, **kwargs
-        )
+    _impl_class = _AsyncIOPoolImpl
 
     async def ensure_connected(self):
         await self._impl.ensure_connected()
@@ -738,7 +456,7 @@ class AsyncIOClient(abstract.AsyncIOExecutor, base_client.BaseClient):
         )
 
     async def _query(self, query_context: abstract.QueryContext):
-        con = await self._impl._acquire()
+        con = await self._impl.acquire()
         try:
             result, _ = await con.raw_query(query_context)
             return result
@@ -757,7 +475,7 @@ class AsyncIOClient(abstract.AsyncIOExecutor, base_client.BaseClient):
             ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
             ... ''')
         """
-        con = await self._impl._acquire()
+        con = await self._impl.acquire()
         try:
             await con._protocol.simple_query(
                 query, enums.Capability.EXECUTE)
@@ -788,7 +506,7 @@ class AsyncIOClient(abstract.AsyncIOExecutor, base_client.BaseClient):
         """Expire all currently open connections.
 
         Cause all currently open connections to get replaced on the
-        next AsyncIOPool.acquire() call.
+        next query.
         """
         await self._impl.expire_connections()
 
@@ -803,9 +521,6 @@ def create_async_client(dsn=None, *, concurrency=None, **kwargs):
     return AsyncIOClient(
         connection_class=AsyncIOConnection,
         concurrency=concurrency,
-        on_acquire=None,
-        on_release=None,
-        on_connect=None,
 
         # connect arguments
         dsn=dsn,

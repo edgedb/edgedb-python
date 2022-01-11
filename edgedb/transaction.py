@@ -109,7 +109,7 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def _start(self, single_connect=False) -> None:
         query = self._make_start_query()
-        self._connection = await self._client._impl._acquire()
+        self._connection = await self._client._impl.acquire()
         if self._connection.is_closed():
             await self._connection.connect(
                 single_attempt=single_connect

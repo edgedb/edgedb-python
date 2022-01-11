@@ -35,7 +35,7 @@ class TestProto(tb.SyncQueryTestCase):
     def test_json_elements(self):
         self.client.ensure_connected()
         self.assertEqual(
-            self.client._impl._connection.raw_query(
+            self.client.connection.raw_query(
                 abstract.QueryContext(
                     query=abstract.QueryWithArgs(
                         'SELECT {"aaa", "bbb"}', (), {}

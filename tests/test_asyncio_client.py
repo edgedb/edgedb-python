@@ -27,7 +27,7 @@ from edgedb import errors
 from edgedb import asyncio_client
 
 
-class TestClient(tb.AsyncQueryTestCase):
+class TestAsyncIOClient(tb.AsyncQueryTestCase):
     def create_client(self, **kwargs):
         conargs = self.get_connect_args().copy()
         conargs["database"] = self.get_database_name()
@@ -41,7 +41,7 @@ class TestClient(tb.AsyncQueryTestCase):
         )
         conargs.setdefault("concurrency", None)
 
-        return tb.TestClient(**conargs)
+        return tb.TestAsyncIOClient(**conargs)
 
     async def test_client_01(self):
         for n in {1, 5, 10, 20, 100}:
@@ -496,6 +496,8 @@ class TestClient(tb.AsyncQueryTestCase):
                     await task
                 finally:
                     done.set()
+                    w.close()
+                    uw.close()
 
         server = await asyncio.start_server(
             cb, '127.0.0.1', 0
@@ -514,7 +516,7 @@ class TestClient(tb.AsyncQueryTestCase):
 
     async def test_client_suggested_concurrency(self):
         conargs = self.get_connect_args().copy()
-        conargs["database"] = self.client.dbname
+        conargs["database"] = self.get_database_name()
         conargs["timeout"] = 120
 
         client = edgedb.create_async_client(**conargs)

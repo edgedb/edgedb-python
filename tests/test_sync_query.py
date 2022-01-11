@@ -56,7 +56,7 @@ class TestSyncQuery(tb.SyncQueryTestCase):
                     self.client.query('select 1;'),
                     edgedb.Set((1,)))
 
-            self.assertFalse(self.client._impl._connection.is_closed())
+            self.assertFalse(self.client.connection.is_closed())
 
     def test_sync_parse_error_recover_02(self):
         for _ in range(2):
@@ -172,7 +172,7 @@ class TestSyncQuery(tb.SyncQueryTestCase):
         self.assertEqual(r, '[]')
 
         self.assertTrue(
-            self.client._impl._connection._get_last_status().startswith('DROP')
+            self.client.connection._get_last_status().startswith('DROP')
         )
 
     def test_sync_query_single_command_02(self):
@@ -440,7 +440,7 @@ class TestSyncQuery(tb.SyncQueryTestCase):
             msgs.append(msg)
 
         self.client.ensure_connected()
-        con = self.client._impl._connection
+        con = self.client.connection
         con.add_log_listener(on_log)
         try:
             self.client.query(

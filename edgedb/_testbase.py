@@ -34,6 +34,7 @@ import unittest
 
 import edgedb
 from edgedb import asyncio_client
+from edgedb import blocking_client
 
 
 log = logging.getLogger(__name__)
@@ -321,7 +322,7 @@ class ClusterTestCase(TestCase):
         cls.cluster = _start_cluster(cleanup_atexit=True)
 
 
-class TestClient(edgedb.AsyncIOClient):
+class TestAsyncIOClient(edgedb.AsyncIOClient):
     @property
     def connection(self):
         return self._impl._holders[0]._con
@@ -329,6 +330,12 @@ class TestClient(edgedb.AsyncIOClient):
     @property
     def dbname(self):
         return self._impl._working_params.database
+
+
+class TestClient(edgedb.Client):
+    @property
+    def connection(self):
+        return self._impl._holders[0]._con
 
 
 class ConnectedTestCaseMixin:
@@ -344,12 +351,9 @@ class ConnectedTestCaseMixin:
     ):
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
-        return TestClient(
+        return TestAsyncIOClient(
             connection_class=connection_class,
             concurrency=1,
-            on_acquire=None,
-            on_release=None,
-            on_connect=None,
             **conargs,
         )
 
@@ -380,6 +384,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     INTERNAL_TESTMODE = True
 
     BASE_TEST_CLASS = True
+    TEARDOWN_RETRY_DROP_DB = 1
 
     def setUp(self):
         if self.INTERNAL_TESTMODE:
@@ -512,8 +517,18 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     dbname = cls.get_database_name()
                     script = f'DROP DATABASE {dbname};'
 
-                    cls.loop.run_until_complete(
-                        cls.admin_client.execute(script))
+                    retry = cls.TEARDOWN_RETRY_DROP_DB
+                    for i in range(retry):
+                        try:
+                            cls.loop.run_until_complete(
+                                cls.admin_client.execute(script))
+                        except edgedb.errors.ExecutionError:
+                            if i < retry - 1:
+                                time.sleep(0.1)
+                            else:
+                                raise
+                        except edgedb.errors.UnknownDatabaseError:
+                            break
 
             except Exception:
                 log.exception('error running teardown')
@@ -534,6 +549,7 @@ class AsyncQueryTestCase(DatabaseTestCase):
 
 class SyncQueryTestCase(DatabaseTestCase):
     BASE_TEST_CLASS = True
+    TEARDOWN_RETRY_DROP_DB = 5
 
     def setUp(self):
         super().setUp()
@@ -544,7 +560,11 @@ class SyncQueryTestCase(DatabaseTestCase):
         conargs = cls.get_connect_args().copy()
         conargs.update(dict(database=cls.async_client.dbname))
 
-        cls.client = edgedb.create_client(**conargs)
+        cls.client = TestClient(
+            connection_class=blocking_client.BlockingIOConnection,
+            concurrency=1,
+            **conargs
+        )
 
     def tearDown(self):
         cls = type(self)

@@ -17,9 +17,11 @@
 #
 
 
+import queue
 import random
 import socket
 import ssl
+import threading
 import time
 import typing
 
@@ -168,7 +170,10 @@ class BlockingIOConnection(base_client.BaseConnection):
 
     def close(self):
         if self._protocol:
-            self._protocol.abort()
+            try:
+                self._protocol.abort()
+            finally:
+                self._cleanup()
 
     def _get_protocol(self):
         if self.is_closed():
@@ -205,6 +210,7 @@ class BlockingIOConnection(base_client.BaseConnection):
         capabilities = None
         i = 0
         while True:
+            i += 1
             try:
                 if reconnect:
                     self.connect(single_attempt=True)
@@ -253,59 +259,154 @@ class BlockingIOConnection(base_client.BaseConnection):
         self._get_protocol().sync_simple_query(query, enums.Capability.EXECUTE)
 
 
-class _SingleConnectionPoolImpl(base_client.BaseImpl):
-    __slots__ = ("_connection", "_acquired", "_closed")
+def _iter_coroutine(coro):
+    try:
+        coro.send(None)
+    except StopIteration as ex:
+        if ex.args:
+            result = ex.args[0]
+        else:
+            result = None
+    finally:
+        coro.close()
+    return result
 
-    def __init__(self, connect_args):
-        super().__init__(connect_args)
-        self._connection = None
-        self._acquired = False
-        self._closed = False
 
-    def get_concurrency(self):
-        return 0
+class _PoolConnectionHolder(base_client.PoolConnectionHolder):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._release_event = threading.Event()
+        self._release_event.set()
 
-    def get_free_size(self):
-        return 0 if self._acquired else 1
+    async def close(self, *, wait=True):
+        if self._con is None:
+            return
+        self._con.close()
 
-    def ensure_connected(self):
-        self.release(self.acquire())
+    async def wait_until_released(self, timeout=None):
+        self._release_event.wait(timeout)
 
-    def acquire(self):
-        if self._acquired:
-            raise errors.InterfaceError("cannot acquire twice")
-        self._acquired = True
-        if self._connection is None:
-            connect_config, client_config = self._parse_connect_args()
-            con = BlockingIOConnection(
-                addrs=[connect_config.address],
-                params=connect_config,
-                config=client_config,
+
+class _PoolImpl(base_client.BasePoolImpl):
+    _holder_class = _PoolConnectionHolder
+
+    def __init__(
+        self,
+        connect_args,
+        *,
+        concurrency: typing.Optional[int],
+        on_connect=None,
+        on_acquire=None,
+        on_release=None,
+        connection_class,
+    ):
+        super().__init__(
+            connect_args,
+            connection_class=connection_class,
+            concurrency=concurrency,
+            on_connect=on_connect,
+            on_acquire=on_acquire,
+            on_release=on_release,
+        )
+        if not issubclass(connection_class, BlockingIOConnection):
+            raise TypeError(
+                f'connection_class is expected to be a subclass of '
+                f'edgedb.blocking_client.BlockingIOConnection, '
+                f'got {connection_class}')
+
+    def _ensure_initialized(self):
+        if self._queue is None:
+            self._queue = queue.LifoQueue(maxsize=self._concurrency)
+            self._first_connect_lock = threading.Lock()
+            self._resize_holder_pool()
+
+    def _set_queue_maxsize(self, maxsize):
+        with self._queue.mutex:
+            self._queue.maxsize = maxsize
+
+    async def _new_connection_with_params(self, addr, config, params):
+        con = self._connection_class([addr], config, params)
+        con.connect()
+        return con
+
+    async def _maybe_get_first_connection(self):
+        with self._first_connect_lock:
+            if self._working_addr is None:
+                return await self._get_first_connection()
+
+    async def _callback(self, cb, con):
+        try:
+            cb(con)
+        except Exception as ex:
+            try:
+                con.close()
+            finally:
+                raise ex
+
+    def acquire(self, timeout=None):
+        self._ensure_initialized()
+
+        if self._closing:
+            raise errors.InterfaceError('pool is closing')
+
+        ch = self._queue.get(timeout=timeout)
+        try:
+            con = _iter_coroutine(ch.acquire())
+        except Exception:
+            self._queue.put_nowait(ch)
+            raise
+        else:
+            # Record the timeout, as we will apply it by default
+            # in release().
+            ch._timeout = timeout
+            return con
+
+    async def _release(self, holder):
+        if not isinstance(holder._con, BlockingIOConnection):
+            raise errors.InterfaceError(
+                f'AsyncIOPool.release() received invalid connection: '
+                f'{holder._con!r} does not belong to any connection pool'
             )
-            con.connect()
-            self._connection = con
-        return self._connection
+
+        timeout = None
+        return await holder.release(timeout)
 
     def release(self, connection):
-        if self._connection is not connection:
-            raise errors.InterfaceError("cannot release foreign connections")
-        if not self._acquired:
-            raise errors.InterfaceError("cannot release twice")
-        self._acquired = False
+        return _iter_coroutine(super().release(connection))
 
-    def close(self):
+    def close(self, timeout=None):
         if self._closed:
             return
+        self._closing = True
         try:
-            if self._connection is not None:
-                self._connection.close()
+            if timeout is None:
+                for ch in self._holders:
+                    _iter_coroutine(ch.wait_until_released())
+            else:
+                for ch in self._holders:
+                    start = time.monotonic()
+                    _iter_coroutine(ch.wait_until_released(timeout))
+                    timeout -= time.monotonic() - start
+                    if timeout < 0:
+                        break
+            for ch in self._holders:
+                _iter_coroutine(ch.close())
+        except Exception:
+            self.terminate()
+            raise
         finally:
             self._closed = True
+            self._closing = False
+
+    def expire_connections(self):
+        _iter_coroutine(super().expire_connections())
+
+    def ensure_connected(self):
+        _iter_coroutine(super().ensure_connected())
 
 
 class Client(abstract.Executor, base_client.BaseClient):
-    def _create_single_connection_pool(self, connect_args, **kwargs):
-        return _SingleConnectionPoolImpl(connect_args)
+    _impl_class = _PoolImpl
 
     def _query(self, query_context: abstract.QueryContext):
         con = self._impl.acquire()
@@ -323,17 +424,34 @@ class Client(abstract.Executor, base_client.BaseClient):
 
     def ensure_connected(self):
         self._impl.ensure_connected()
+        return self
 
     def transaction(self) -> _retry.Retry:
         return _retry.Retry(self)
 
-    def close(self):
-        self._impl.close()
+    def close(self, timeout=None):
+        self._impl.close(timeout)
+
+    def expire_connections(self):
+        """Expire all currently open connections.
+
+        Cause all currently open connections to get replaced on the
+        next query.
+        """
+        self._impl.expire_connections()
+
+    def __enter__(self):
+        return self.ensure_connected()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
 
-def create_client(dsn=None, *, concurrency=0, **kwargs):
+def create_client(dsn=None, *, concurrency=None, **kwargs):
     return Client(
+        connection_class=BlockingIOConnection,
         concurrency=concurrency,
+
         # connect arguments
         dsn=dsn,
         **kwargs,
