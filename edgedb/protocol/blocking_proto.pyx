@@ -38,6 +38,9 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
 
     cpdef abort(self):
         self.terminate()
+        self._disconnect()
+
+    cdef _disconnect(self):
         self.connected = False
         if self.sock is not None:
             self.sock.close()
@@ -47,7 +50,7 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
         try:
             self.sock.send(buf)
         except OSError as e:
-            self.connected = False
+            self._disconnect()
             raise con_utils.wrap_error(e) from e
 
     async def wait_for_message(self):
@@ -55,10 +58,10 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
             try:
                 data = self.sock.recv(RECV_BUF)
             except OSError as e:
-                self.connected = False
+                self._disconnect()
                 raise con_utils.wrap_error(e) from e
             if not data:
-                self.connected = False
+                self._disconnect()
                 raise errors.ClientConnectionClosedError()
             self.buffer.feed_data(data)
 
@@ -71,20 +74,34 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
             while not self.buffer.take_message():
                 data = self.sock.recv(RECV_BUF)
                 if not data:
-                    self.connected = False
+                    self._disconnect()
                     raise errors.ClientConnectionClosedError()
                 self.buffer.feed_data(data)
         except BlockingIOError:
             # No data in the socket net buffer.
             return
         except OSError as e:
-            self.connected = False
+            self._disconnect()
             raise con_utils.wrap_error(e) from e
         finally:
             self.sock.settimeout(None)
 
     async def wait_for_connect(self):
         return True
+
+    def wait_for_disconnect(self):
+        self._iter_coroutine(self._wait_for_disconnect())
+
+    async def _wait_for_disconnect(self):
+        if self.cancelled or not self.connected:
+            return
+        try:
+            while True:
+                if not self.buffer.take_message():
+                    await self.wait_for_message()
+                self.fallthrough()
+        except errors.ClientConnectionClosedError:
+            pass
 
     cdef _iter_coroutine(self, coro):
         try:

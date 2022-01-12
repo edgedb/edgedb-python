@@ -128,7 +128,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
             concurrency=5, on_connect=on_connect,
             on_acquire=on_acquire,
         ) as client:
-            tasks = [threading.Thread(target=user) for _ in range(10)]
+            tasks = [threading.Thread(target=user) for _ in range(20)]
             for task in tasks:
                 task.start()
             for task in tasks:
@@ -510,6 +510,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
                     waiter.cancel()
                     data = await reader
                     if not data:
+                        w.close()
                         break
                     w.write(data)
 
@@ -534,7 +535,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         )
         port = server.sockets[0].getsockname()[1]
         client = self.create_client(
-            host='127.0.0.1', port=port, concurrency=1)
+            host='127.0.0.1', port=port, concurrency=1, wait_until_available=5)
         try:
             await self.loop.run_in_executor(
                 None, self._test_connection_broken, client, broken
@@ -542,7 +543,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         finally:
             server.close()
             await server.wait_closed()
-            client.close(timeout=5)
+            await self.loop.run_in_executor(None, client.close, 5)
             broken.set()
             await done.wait()
 

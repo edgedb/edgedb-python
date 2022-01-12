@@ -480,6 +480,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
                     waiter.cancel()
                     data = await reader
                     if not data:
+                        w.close()
                         break
                     w.write(data)
 

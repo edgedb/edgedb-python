@@ -171,7 +171,11 @@ class BlockingIOConnection(base_client.BaseConnection):
     def close(self):
         if self._protocol:
             try:
-                self._protocol.abort()
+                self._protocol.terminate()
+                self._protocol.wait_for_disconnect()
+            except Exception:
+                self.terminate()
+                raise
             finally:
                 self._cleanup()
 
@@ -383,12 +387,14 @@ class _PoolImpl(base_client.BasePoolImpl):
                 for ch in self._holders:
                     _iter_coroutine(ch.wait_until_released())
             else:
+                remaining = timeout
                 for ch in self._holders:
                     start = time.monotonic()
-                    _iter_coroutine(ch.wait_until_released(timeout))
-                    timeout -= time.monotonic() - start
-                    if timeout < 0:
-                        break
+                    _iter_coroutine(ch.wait_until_released(remaining))
+                    remaining -= time.monotonic() - start
+                    if remaining <= 0:
+                        self.terminate()
+                        return
             for ch in self._holders:
                 _iter_coroutine(ch.close())
         except Exception:
