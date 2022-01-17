@@ -90,7 +90,9 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
             ''')
 
     async def test_async_retry_begin(self):
-        patcher = unittest.mock.patch("edgedb.retry.AsyncIOIteration._start")
+        patcher = unittest.mock.patch(
+            "edgedb.base_client.BaseConnection.privileged_execute"
+        )
         _start = patcher.start()
 
         def cleanup():

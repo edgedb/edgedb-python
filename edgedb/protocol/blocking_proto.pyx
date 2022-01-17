@@ -89,10 +89,7 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
     async def wait_for_connect(self):
         return True
 
-    def wait_for_disconnect(self):
-        self._iter_coroutine(self._wait_for_disconnect())
-
-    async def _wait_for_disconnect(self):
+    async def wait_for_disconnect(self):
         if self.cancelled or not self.connected:
             return
         try:
@@ -102,47 +99,3 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
                 self.fallthrough()
         except errors.ClientConnectionClosedError:
             pass
-
-    cdef _iter_coroutine(self, coro):
-        try:
-            coro.send(None)
-        except StopIteration as ex:
-            if ex.args:
-                result = ex.args[0]
-            else:
-                result = None
-        finally:
-            coro.close()
-        return result
-
-    def sync_connect(self):
-        return self._iter_coroutine(self.connect())
-
-    def sync_execute_anonymous(self, *args, **kwargs):
-        result, _headers = self._iter_coroutine(
-            self.execute_anonymous(*args, **kwargs),
-        )
-        # don't expose headers to blocking client for now
-        return result
-
-    def sync_simple_query(self, *args, **kwargs):
-        return self._iter_coroutine(self.simple_query(*args, **kwargs))
-
-    def sync_dump(self, *, header_callback, block_callback):
-        async def header_wrapper(data):
-            header_callback(data)
-        async def block_wrapper(data):
-            block_callback(data)
-        return self._iter_coroutine(self.dump(header_wrapper, block_wrapper))
-
-    def sync_restore(self, *, header, data_gen):
-        async def wrapper():
-            while True:
-                try:
-                    block = next(data_gen)
-                except StopIteration:
-                    return
-                yield block
-
-        return self._iter_coroutine(self.restore(
-            header, wrapper()))

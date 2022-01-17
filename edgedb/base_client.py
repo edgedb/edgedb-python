@@ -18,12 +18,15 @@
 
 
 import abc
+import random
+import time
 import typing
 
 from . import abstract
 from . import con_utils
+from . import enums
 from . import errors
-from . import options
+from . import options as _options
 from .protocol import protocol
 
 
@@ -39,6 +42,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
     _log_listeners: typing.Set[
         typing.Callable[[BaseConnection_T, errors.EdgeDBMessage], None]
     ]
+    _close_exceptions = (Exception,)
     __slots__ = (
         "__weakref__",
         "_protocol",
@@ -119,6 +123,57 @@ class BaseConnection(metaclass=abc.ABCMeta):
     def is_closed(self) -> bool:
         ...
 
+    @abc.abstractmethod
+    async def connect_addr(self, addr, timeout):
+        ...
+
+    @abc.abstractmethod
+    async def sleep(self, seconds):
+        ...
+
+    async def connect(self, *, single_attempt=False):
+        start = time.monotonic()
+        if single_attempt:
+            max_time = 0
+        else:
+            max_time = start + self._config.wait_until_available
+        iteration = 1
+
+        while True:
+            for addr in self._addrs:
+                try:
+                    await self.connect_addr(addr, self._config.connect_timeout)
+                except TimeoutError as e:
+                    if iteration == 1 or time.monotonic() < max_time:
+                        continue
+                    else:
+                        raise errors.ClientConnectionTimeoutError(
+                            f"connecting to {addr} failed in"
+                            f" {self._config.connect_timeout} sec"
+                        ) from e
+                except errors.ClientConnectionError as e:
+                    if (
+                        e.has_tag(errors.SHOULD_RECONNECT) and
+                        (iteration == 1 or time.monotonic() < max_time)
+                    ):
+                        continue
+                    nice_err = e.__class__(
+                        con_utils.render_client_no_connection_error(
+                            e,
+                            addr,
+                            attempts=iteration,
+                            duration=time.monotonic() - start,
+                        ))
+                    raise nice_err from e.__cause__
+                else:
+                    return
+
+            iteration += 1
+            await self.sleep(0.01 + random.random() * 0.2)
+
+    async def privileged_execute(self, query):
+        await self._protocol.simple_query(query, enums.Capability.ALL)
+
     def is_in_transaction(self) -> bool:
         """Return True if Connection is currently inside a transaction.
 
@@ -129,6 +184,64 @@ class BaseConnection(metaclass=abc.ABCMeta):
     def get_settings(self) -> typing.Dict[str, typing.Any]:
         return self._protocol.get_settings()
 
+    async def raw_query(self, query_context: abstract.QueryContext):
+        if self.is_closed():
+            await self.connect()
+
+        reconnect = False
+        capabilities = None
+        i = 0
+        while True:
+            i += 1
+            try:
+                if reconnect:
+                    await self.connect(single_attempt=True)
+                return await self._protocol.execute_anonymous(
+                    query=query_context.query.query,
+                    args=query_context.query.args,
+                    kwargs=query_context.query.kwargs,
+                    reg=query_context.cache.codecs_registry,
+                    qc=query_context.cache.query_cache,
+                    io_format=query_context.query_options.io_format,
+                    expect_one=query_context.query_options.expect_one,
+                    required_one=query_context.query_options.required_one,
+                    allow_capabilities=enums.Capability.EXECUTE,
+                )
+            except errors.EdgeDBError as e:
+                if query_context.retry_options is None:
+                    raise
+                if not e.has_tag(errors.SHOULD_RETRY):
+                    raise e
+                if capabilities is None:
+                    cache_item = query_context.cache.query_cache.get(
+                        query=query_context.query.query,
+                        io_format=query_context.query_options.io_format,
+                        implicit_limit=0,
+                        inline_typenames=False,
+                        inline_typeids=False,
+                        expect_one=query_context.query_options.expect_one,
+                    )
+                    if cache_item is not None:
+                        _, _, _, capabilities = cache_item
+                # A query is read-only if it has no capabilities i.e.
+                # capabilities == 0. Read-only queries are safe to retry.
+                # Explicit transaction conflicts as well.
+                if (
+                    capabilities != 0
+                    and not isinstance(e, errors.TransactionConflictError)
+                ):
+                    raise e
+                rule = query_context.retry_options.get_rule_for_exception(e)
+                if i >= rule.attempts:
+                    raise e
+                await self.sleep(rule.backoff(i))
+                reconnect = self.is_closed()
+
+    async def execute(self, query: str) -> None:
+        await self._protocol.simple_query(
+            query, enums.Capability.EXECUTE
+        )
+
     def terminate(self):
         if not self.is_closed():
             try:
@@ -136,90 +249,27 @@ class BaseConnection(metaclass=abc.ABCMeta):
             finally:
                 self._cleanup()
 
+    async def close(self):
+        """Send graceful termination message wait for connection to drop."""
+        if not self.is_closed():
+            try:
+                self._protocol.terminate()
+                await self._protocol.wait_for_disconnect()
+            except self._close_exceptions:
+                self.terminate()
+                raise
+            finally:
+                self._cleanup()
 
-class BaseImpl(abc.ABC):
-    __slots__ = (
-        "_connect_args",
-        "_codecs_registry",
-        "_query_cache",
-        "_connection_class",
-        "_on_connect",
-        "_on_acquire",
-        "_on_release",
-    )
-
-    def __init__(
-        self,
-        connect_args,
-        *,
-        connection_class,
-        on_connect,
-        on_acquire,
-        on_release,
-    ):
-        if not issubclass(connection_class, BaseConnection):
-            raise TypeError(
-                f'connection_class is expected to be a subclass of '
-                f'edgedb.base_client.BaseConnection, '
-                f'got {connection_class}')
-        self._connection_class = connection_class
-        self._connect_args = connect_args
-        self._on_connect = on_connect
-        self._on_acquire = on_acquire
-        self._on_release = on_release
-        self._codecs_registry = protocol.CodecsRegistry()
-        self._query_cache = protocol.QueryCodecsCache()
-
-    def _parse_connect_args(self):
-        return con_utils.parse_connect_arguments(
-            **self._connect_args,
-            # ToDos
-            command_timeout=None,
-            server_settings=None,
-        )
-
-    @abc.abstractmethod
-    def get_concurrency(self):
-        ...
-
-    @abc.abstractmethod
-    def get_free_size(self):
-        ...
-
-    @abc.abstractmethod
-    async def ensure_connected(self):
-        ...
-
-    def set_connect_args(self, dsn=None, **connect_kwargs):
-        r"""Set the new connection arguments for this pool.
-
-        The new connection arguments will be used for all subsequent
-        new connection attempts.  Existing connections will remain until
-        they expire. Use AsyncIOPool.expire_connections() to expedite
-        the connection expiry.
-
-        :param str dsn:
-            Connection arguments specified using as a single string in
-            the following format:
-            ``edgedb://user:pass@host:port/database?option=value``.
-
-        :param \*\*connect_kwargs:
-            Keyword arguments for the
-            :func:`~edgedb.asyncio_client.create_async_client` function.
-        """
-
-        connect_kwargs["dsn"] = dsn
-        self._connect_args = connect_kwargs
-        self._codecs_registry = protocol.CodecsRegistry()
-        self._query_cache = protocol.QueryCodecsCache()
-
-    @property
-    def codecs_registry(self):
-        return self._codecs_registry
-
-    @property
-    def query_cache(self):
-        return self._query_cache
+    def __repr__(self):
+        if self.is_closed():
+            return '<{classname} [closed] {id:#x}>'.format(
+                classname=self.__class__.__name__, id=id(self))
+        else:
+            return '<{classname} [connected to {addr}] {id:#x}>'.format(
+                classname=self.__class__.__name__,
+                addr=self.connected_addr(),
+                id=id(self))
 
 
 class PoolConnectionHolder(abc.ABC):
@@ -232,6 +282,7 @@ class PoolConnectionHolder(abc.ABC):
         "_timeout",
         "_generation",
     )
+    _event_class = NotImplemented
 
     def __init__(self, pool, *, on_acquire, on_release):
 
@@ -242,6 +293,9 @@ class PoolConnectionHolder(abc.ABC):
         self._on_release = on_release
         self._timeout = None
         self._generation = None
+
+        self._release_event = self._event_class()
+        self._release_event.set()
 
     @abc.abstractmethod
     async def close(self, *, wait=True):
@@ -333,8 +387,15 @@ class PoolConnectionHolder(abc.ABC):
         self._pool._queue.put_nowait(self)
 
 
-class BasePoolImpl(BaseImpl, abc.ABC):
+class BasePoolImpl(abc.ABC):
     __slots__ = (
+        "_connect_args",
+        "_codecs_registry",
+        "_query_cache",
+        "_connection_factory",
+        "_on_connect",
+        "_on_acquire",
+        "_on_release",
         "_queue",
         "_user_concurrency",
         "_concurrency",
@@ -355,20 +416,20 @@ class BasePoolImpl(BaseImpl, abc.ABC):
     def __init__(
         self,
         connect_args,
+        connection_factory,
         *,
         concurrency: typing.Optional[int],
         on_connect=None,
         on_acquire=None,
         on_release=None,
-        connection_class,
     ):
-        super().__init__(
-            connect_args,
-            on_connect=on_connect,
-            on_acquire=on_acquire,
-            on_release=on_release,
-            connection_class=connection_class,
-        )
+        self._connection_factory = connection_factory
+        self._connect_args = connect_args
+        self._on_connect = on_connect
+        self._on_acquire = on_acquire
+        self._on_release = on_release
+        self._codecs_registry = protocol.CodecsRegistry()
+        self._query_cache = protocol.QueryCodecsCache()
 
         if concurrency is not None and concurrency <= 0:
             raise ValueError('concurrency is expected to be greater than zero')
@@ -397,10 +458,6 @@ class BasePoolImpl(BaseImpl, abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def _new_connection_with_params(self, addr, config, params):
-        ...
-
-    @abc.abstractmethod
     async def _maybe_get_first_connection(self):
         ...
 
@@ -415,6 +472,14 @@ class BasePoolImpl(BaseImpl, abc.ABC):
     @abc.abstractmethod
     async def _release(self, connection):
         ...
+
+    @property
+    def codecs_registry(self):
+        return self._codecs_registry
+
+    @property
+    def query_cache(self):
+        return self._query_cache
 
     def _resize_holder_pool(self):
         resize_diff = self._concurrency - len(self._holders)
@@ -446,17 +511,43 @@ class BasePoolImpl(BaseImpl, abc.ABC):
         return self._queue.qsize()
 
     def set_connect_args(self, dsn=None, **connect_kwargs):
-        super().set_connect_args(dsn=dsn, **connect_kwargs)
+        r"""Set the new connection arguments for this pool.
+
+        The new connection arguments will be used for all subsequent
+        new connection attempts.  Existing connections will remain until
+        they expire. Use AsyncIOPool.expire_connections() to expedite
+        the connection expiry.
+
+        :param str dsn:
+            Connection arguments specified using as a single string in
+            the following format:
+            ``edgedb://user:pass@host:port/database?option=value``.
+
+        :param \*\*connect_kwargs:
+            Keyword arguments for the
+            :func:`~edgedb.asyncio_client.create_async_client` function.
+        """
+
+        connect_kwargs["dsn"] = dsn
+        self._connect_args = connect_kwargs
+        self._codecs_registry = protocol.CodecsRegistry()
+        self._query_cache = protocol.QueryCodecsCache()
         self._working_addr = None
         self._working_config = None
         self._working_params = None
 
     async def _get_first_connection(self):
         # First connection attempt on this pool.
-        connect_config, client_config = self._parse_connect_args()
-        con = await self._new_connection_with_params(
-            connect_config.address, client_config, connect_config
+        connect_config, client_config = con_utils.parse_connect_arguments(
+            **self._connect_args,
+            # ToDos
+            command_timeout=None,
+            server_settings=None,
         )
+        con = self._connection_factory(
+            [connect_config.address], client_config, connect_config
+        )
+        await con.connect()
         self._working_addr = con.connected_addr()
         self._working_config = client_config
         self._working_params = connect_config
@@ -477,11 +568,12 @@ class BasePoolImpl(BaseImpl, abc.ABC):
             assert self._working_addr is not None
             # We've connected before and have a resolved address,
             # and parsed options and config.
-            con = await self._new_connection_with_params(
-                self._working_addr,
+            con = self._connection_factory(
+                [self._working_addr],
                 self._working_config,
                 self._working_params,
             )
+            await con.connect()
 
         if self._on_connect is not None:
             await self._callback(self._on_connect, con)
@@ -532,9 +624,7 @@ class BasePoolImpl(BaseImpl, abc.ABC):
         await ch.connect()
 
 
-class BaseClient(
-    abstract.BaseReadOnlyExecutor, options._OptionsMixin, abc.ABC
-):
+class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
     __slots__ = ("_impl", "_options")
     _impl_class = NotImplemented
 
@@ -599,8 +689,11 @@ class BaseClient(
             query_cache=self._impl.query_cache,
         )
 
-    def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
+    def _get_retry_options(self) -> typing.Optional[_options.RetryOptions]:
         return self._options.retry_options
+
+    def _clear_codecs_cache(self):
+        self._impl.codecs_registry.clear_cache()
 
     @property
     def concurrency(self) -> int:
@@ -613,3 +706,22 @@ class BaseClient(
         """Number of available connections in the pool."""
 
         return self._impl.get_free_size()
+
+    async def _query(self, query_context: abstract.QueryContext):
+        con = await self._impl.acquire()
+        try:
+            result, _ = await con.raw_query(query_context)
+            return result
+        finally:
+            await self._impl.release(con)
+
+    async def execute(self, query: str) -> None:
+        con = await self._impl.acquire()
+        try:
+            await con.execute(query)
+        finally:
+            await self._impl.release(con)
+
+    def terminate(self):
+        """Terminate all connections in the pool."""
+        self._impl.terminate()

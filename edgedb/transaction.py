@@ -21,7 +21,6 @@ import enum
 
 from . import abstract
 from . import errors
-from . import options
 
 
 class TransactionState(enum.Enum):
@@ -39,15 +38,19 @@ class BaseTransaction:
         '_connection',
         '_options',
         '_state',
-        '_managed',
+        '__retry',
+        '__iteration',
+        '__started',
     )
 
-    def __init__(self, client, options: options.TransactionOptions):
+    def __init__(self, retry, client, iteration):
         self._client = client
         self._connection = None
-        self._options = options
+        self._options = retry._options.transaction_options
         self._state = TransactionState.NEW
-        self._managed = False
+        self.__retry = retry
+        self.__iteration = iteration
+        self.__started = False
 
     def is_active(self) -> bool:
         return self._state is TransactionState.STARTED
@@ -103,53 +106,65 @@ class BaseTransaction:
         return '<{}.{} {} {:#x}>'.format(
             mod, self.__class__.__name__, ' '.join(attrs), id(self))
 
-
-class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
-    __slots__ = ()
-
-    async def _start(self, single_connect=False) -> None:
-        query = self._make_start_query()
-        self._connection = await self._client._impl.acquire()
-        if self._connection.is_closed():
-            await self._connection.connect(
-                single_attempt=single_connect
-            )
-        try:
-            await self._connection.privileged_execute(query)
-        except BaseException:
-            self._state = TransactionState.FAILED
-            raise
-        else:
-            self._state = TransactionState.STARTED
-
-    async def _commit(self):
-        try:
-            query = self._make_commit_query()
-            try:
-                await self._connection.privileged_execute(query)
-            except BaseException:
-                self._state = TransactionState.FAILED
-                raise
-            else:
-                self._state = TransactionState.COMMITTED
-        finally:
-            await self._client._impl.release(self._connection)
-
-    async def _rollback(self):
-        try:
-            query = self._make_rollback_query()
-            try:
-                await self._connection.privileged_execute(query)
-            except BaseException:
-                self._state = TransactionState.FAILED
-                raise
-            else:
-                self._state = TransactionState.ROLLEDBACK
-        finally:
-            await self._client._impl.release(self._connection)
-
     async def _ensure_transaction(self):
-        pass
+        if not self.__started:
+            self.__started = True
+            query = self._make_start_query()
+            self._connection = await self._client._impl.acquire()
+            if self._connection.is_closed():
+                await self._connection.connect(
+                    single_attempt=self.__iteration != 0
+                )
+            try:
+                await self._connection.privileged_execute(query)
+            except BaseException:
+                self._state = TransactionState.FAILED
+                raise
+            else:
+                self._state = TransactionState.STARTED
+
+    async def _exit(self, extype, ex):
+        if not self.__started:
+            return False
+
+        try:
+            if extype is None:
+                query = self._make_commit_query()
+                state = TransactionState.COMMITTED
+            else:
+                query = self._make_rollback_query()
+                state = TransactionState.ROLLEDBACK
+            try:
+                await self._connection.privileged_execute(query)
+            except BaseException:
+                self._state = TransactionState.FAILED
+                raise
+            else:
+                self._state = state
+        except errors.EdgeDBError as err:
+            if ex is None:
+                # On commit we don't know if commit is succeeded before the
+                # database have received it or after it have been done but
+                # network is dropped before we were able to receive a response
+                # TODO(tailhook) retry on some errors
+                raise err
+            # If we were going to rollback, look at original error
+            # to find out whether we want to retry, regardless of
+            # the rollback error.
+            # In this case we ignore rollback issue as original error is more
+            # important, e.g. in case `CancelledError` it's important
+            # to propagate it to cancel the whole task.
+            # NOTE: rollback error is always swallowed, should we use
+            # on_log_message for it?
+        finally:
+            await self._client._impl.release(self._connection)
+
+        if (
+            extype is not None and
+            issubclass(extype, errors.EdgeDBError) and
+            ex.has_tag(errors.SHOULD_RETRY)
+        ):
+            return self.__retry._retry(ex)
 
     def _get_query_cache(self) -> abstract.QueryCache:
         return self._client._get_query_cache()
@@ -175,58 +190,20 @@ class BaseAsyncIOTransaction(BaseTransaction, abstract.AsyncIOExecutor):
         await self._connection.execute(query)
 
 
-class BaseBlockingIOTransaction(BaseTransaction, abstract.Executor):
-    __slots__ = ()
+class BaseRetry:
 
-    def _start(self, single_connect=False) -> None:
-        query = self._make_start_query()
-        self._connection = self._client._impl.acquire()
-        if self._connection.is_closed():
-            self._connection.connect(single_attempt=single_connect)
-        try:
-            self._connection.privileged_execute(query)
-        except BaseException:
-            self._state = TransactionState.FAILED
-            raise
-        else:
-            self._state = TransactionState.STARTED
+    def __init__(self, owner):
+        self._owner = owner
+        self._iteration = 0
+        self._done = False
+        self._next_backoff = 0
+        self._options = owner._options
 
-    def _commit(self):
-        try:
-            query = self._make_commit_query()
-            try:
-                self._connection.privileged_execute(query)
-            except BaseException:
-                self._state = TransactionState.FAILED
-                raise
-            else:
-                self._state = TransactionState.COMMITTED
-        finally:
-            self._client._impl.release(self._connection)
-
-    def _rollback(self):
-        try:
-            query = self._make_rollback_query()
-            try:
-                self._connection.privileged_execute(query)
-            except BaseException:
-                self._state = TransactionState.FAILED
-                raise
-            else:
-                self._state = TransactionState.ROLLEDBACK
-        finally:
-            self._client._impl.release(self._connection)
-
-    def _ensure_transaction(self):
-        pass
-
-    def _get_query_cache(self) -> abstract.QueryCache:
-        return self._client._get_query_cache()
-
-    def _query(self, query_context: abstract.QueryContext):
-        self._ensure_transaction()
-        return self._connection.raw_query(query_context)
-
-    def execute(self, query: str) -> None:
-        self._ensure_transaction()
-        self._connection.execute(query)
+    def _retry(self, exc):
+        self._last_exception = exc
+        rule = self._options.retry_options.get_rule_for_exception(exc)
+        if self._iteration >= rule.attempts:
+            return False
+        self._done = False
+        self._next_backoff = rule.backoff(self._iteration)
+        return True

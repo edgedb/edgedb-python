@@ -505,7 +505,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         )
         port = server.sockets[0].getsockname()[1]
         client = self.create_client(
-            host='127.0.0.1', port=port, concurrency=1)
+            host='127.0.0.1', port=port, concurrency=1, wait_until_available=5)
         try:
             await self._test_connection_broken(client, broken)
         finally:

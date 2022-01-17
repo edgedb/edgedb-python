@@ -94,7 +94,9 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         )
 
     def test_sync_retry_begin(self):
-        patcher = unittest.mock.patch("edgedb.retry.Iteration._start")
+        patcher = unittest.mock.patch(
+            "edgedb.base_client.BaseConnection.privileged_execute"
+        )
         _start = patcher.start()
 
         def cleanup():

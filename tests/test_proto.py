@@ -34,7 +34,7 @@ class TestProto(tb.SyncQueryTestCase):
 
     def test_json_elements(self):
         self.client.ensure_connected()
-        self.assertEqual(
+        result, _ = self.client._iter_coroutine(
             self.client.connection.raw_query(
                 abstract.QueryContext(
                     query=abstract.QueryWithArgs(
@@ -48,7 +48,10 @@ class TestProto(tb.SyncQueryTestCase):
                     ),
                     retry_options=None,
                 )
-            ),
+            )
+        )
+        self.assertEqual(
+            result,
             edgedb.Set(['"aaa"', '"bbb"']))
 
     # std::datetime is now in range of Python datetime,
