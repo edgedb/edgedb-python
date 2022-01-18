@@ -402,14 +402,33 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
             await task
 
     async def test_client_expire_connections(self):
-        client = self.create_client(concurrency=1)
+        class SlowCloseConnection(asyncio_client.AsyncIOConnection):
+            async def close(self):
+                await asyncio.sleep(0.2)
+                await super().close()
+
+        client = self.create_client(
+            concurrency=1, connection_class=SlowCloseConnection
+        )
 
         async for tx in client.transaction():
             async with tx:
                 await tx.query("SELECT 42")
+                self.assertIsNotNone(client._impl._holders[0]._con)
                 await client.expire_connections()
 
         self.assertIsNone(client._impl._holders[0]._con)
+
+        await client.query("SELECT 42")
+        self.assertIsNotNone(client._impl._holders[0]._con)
+
+        await client.expire_connections()
+        async for tx in client.transaction():
+            async with tx:
+                await tx.query("SELECT 42")
+                with self.assertRaises(asyncio.TimeoutError):
+                    await asyncio.wait_for(client.query("SELECT 42"), 1)
+
         await client.aclose()
 
     async def test_client_properties(self):

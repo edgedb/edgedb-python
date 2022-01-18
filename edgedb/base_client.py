@@ -323,6 +323,7 @@ class PoolConnectionHolder(abc.ABC):
 
         elif self._generation != self._pool._generation:
             # Connections have been expired, re-connect the holder.
+            self._con._holder = None  # don't release the connection
             await self.close(wait=False)
             self._con = None
             await self.connect()
