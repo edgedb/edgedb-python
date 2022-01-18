@@ -255,6 +255,9 @@ class TestBlockingClient(tb.SyncQueryTestCase):
             for tx in client.transaction():
                 with tx:
                     self.assertEqual(tx.query_single("SELECT 1"), 2)
+                    # make this test more reliable by spending more time in
+                    # the transaction to hit top concurrency sooner
+                    time.sleep(random.random() / 100)
 
         with self.create_client(
             concurrency=10,
