@@ -385,8 +385,8 @@ class BasePoolImpl(abc.ABC):
         "_query_cache",
         "_connection_factory",
         "_queue",
-        "_user_concurrency",
-        "_concurrency",
+        "_user_max_concurrency",
+        "_max_concurrency",
         "_first_connect_lock",
         "_working_addr",
         "_working_config",
@@ -406,18 +406,20 @@ class BasePoolImpl(abc.ABC):
         connect_args,
         connection_factory,
         *,
-        concurrency: typing.Optional[int],
+        max_concurrency: typing.Optional[int],
     ):
         self._connection_factory = connection_factory
         self._connect_args = connect_args
         self._codecs_registry = protocol.CodecsRegistry()
         self._query_cache = protocol.QueryCodecsCache()
 
-        if concurrency is not None and concurrency <= 0:
-            raise ValueError('concurrency is expected to be greater than zero')
+        if max_concurrency is not None and max_concurrency <= 0:
+            raise ValueError(
+                'max_concurrency is expected to be greater than zero'
+            )
 
-        self._user_concurrency = concurrency
-        self._concurrency = concurrency if concurrency else 1
+        self._user_max_concurrency = max_concurrency
+        self._max_concurrency = max_concurrency if max_concurrency else 1
 
         self._holders = []
         self._queue = None
@@ -460,11 +462,11 @@ class BasePoolImpl(abc.ABC):
         return self._query_cache
 
     def _resize_holder_pool(self):
-        resize_diff = self._concurrency - len(self._holders)
+        resize_diff = self._max_concurrency - len(self._holders)
 
         if (resize_diff > 0):
-            if self._queue.maxsize != self._concurrency:
-                self._set_queue_maxsize(self._concurrency)
+            if self._queue.maxsize != self._max_concurrency:
+                self._set_queue_maxsize(self._max_concurrency)
 
             for _ in range(resize_diff):
                 ch = self._holder_class(self)
@@ -475,13 +477,13 @@ class BasePoolImpl(abc.ABC):
             # TODO: shrink the pool
             pass
 
-    def get_concurrency(self):
-        return self._concurrency
+    def get_max_concurrency(self):
+        return self._max_concurrency
 
     def get_free_size(self):
         if self._queue is None:
             # Queue has not been initialized yet
-            return self._concurrency
+            return self._max_concurrency
 
         return self._queue.qsize()
 
@@ -527,11 +529,11 @@ class BasePoolImpl(abc.ABC):
         self._working_config = client_config
         self._working_params = connect_config
 
-        if self._user_concurrency is None:
+        if self._user_max_concurrency is None:
             suggested_concurrency = con.get_settings().get(
                 'suggested_pool_concurrency')
             if suggested_concurrency:
-                self._concurrency = suggested_concurrency
+                self._max_concurrency = suggested_concurrency
                 self._resize_holder_pool()
         return con
 
@@ -609,7 +611,7 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         self,
         *,
         connection_class,
-        concurrency: typing.Optional[int],
+        max_concurrency: typing.Optional[int],
         dsn=None,
         host: str = None,
         port: int = None,
@@ -645,7 +647,7 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         self._impl = self._impl_class(
             connect_args,
             connection_class=connection_class,
-            concurrency=concurrency,
+            max_concurrency=max_concurrency,
             **kwargs,
         )
 
@@ -667,10 +669,10 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         self._impl.codecs_registry.clear_cache()
 
     @property
-    def concurrency(self) -> int:
+    def max_concurrency(self) -> int:
         """Max number of connections in the pool."""
 
-        return self._impl.get_concurrency()
+        return self._impl.get_max_concurrency()
 
     @property
     def free_size(self) -> int:

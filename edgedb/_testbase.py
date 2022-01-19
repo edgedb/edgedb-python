@@ -353,7 +353,7 @@ class ConnectedTestCaseMixin:
             cluster=cluster, database=database, user=user, password=password)
         return TestAsyncIOClient(
             connection_class=connection_class,
-            concurrency=1,
+            max_concurrency=1,
             **conargs,
         )
 
@@ -562,7 +562,7 @@ class SyncQueryTestCase(DatabaseTestCase):
 
         cls.client = TestClient(
             connection_class=blocking_client.BlockingIOConnection,
-            concurrency=1,
+            max_concurrency=1,
             **conargs
         )
 

@@ -151,7 +151,7 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
         self,
         connect_args,
         *,
-        concurrency: typing.Optional[int],
+        max_concurrency: typing.Optional[int],
         connection_class,
     ):
         if not issubclass(connection_class, AsyncIOConnection):
@@ -163,13 +163,13 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
         super().__init__(
             connect_args,
             lambda *args: connection_class(self._loop, *args),
-            concurrency=concurrency,
+            max_concurrency=max_concurrency,
         )
 
     def _ensure_initialized(self):
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
-            self._queue = asyncio.LifoQueue(maxsize=self._concurrency)
+            self._queue = asyncio.LifoQueue(maxsize=self._max_concurrency)
             self._first_connect_lock = asyncio.Lock()
             self._resize_holder_pool()
 
@@ -358,10 +358,10 @@ class AsyncIOClient(base_client.BaseClient, abstract.AsyncIOExecutor):
         await self.aclose()
 
 
-def create_async_client(dsn=None, *, concurrency=None, **kwargs):
+def create_async_client(dsn=None, *, max_concurrency=None, **kwargs):
     return AsyncIOClient(
         connection_class=AsyncIOConnection,
-        concurrency=concurrency,
+        max_concurrency=max_concurrency,
 
         # connect arguments
         dsn=dsn,

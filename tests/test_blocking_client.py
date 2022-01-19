@@ -38,14 +38,14 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         conargs.setdefault(
             "connection_class", blocking_client.BlockingIOConnection
         )
-        conargs.setdefault("concurrency", None)
+        conargs.setdefault("max_concurrency", None)
 
         return tb.TestClient(**conargs)
 
     def test_client_01(self):
         for n in {1, 5, 10, 20, 100}:
             with self.subTest(tasksnum=n):
-                client = self.create_client(concurrency=10)
+                client = self.create_client(max_concurrency=10)
 
                 def worker():
                     self.assertEqual(client.query_single("SELECT 1"), 1)
@@ -60,7 +60,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
     def test_client_02(self):
         for n in {1, 3, 5, 10, 20, 100}:
             with self.subTest(tasksnum=n):
-                with self.create_client(concurrency=5) as client:
+                with self.create_client(max_concurrency=5) as client:
 
                     def worker():
                         self.assertEqual(client.query_single("SELECT 1"), 1)
@@ -74,7 +74,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
     def test_client_05(self):
         for n in {1, 3, 5, 10, 20, 100}:
             with self.subTest(tasksnum=n):
-                client = self.create_client(concurrency=10)
+                client = self.create_client(max_concurrency=10)
 
                 def worker():
                     self.assertEqual(client.query('SELECT 1'), [1])
@@ -90,7 +90,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
                 client.close()
 
     def test_client_transaction(self):
-        client = self.create_client(concurrency=1)
+        client = self.create_client(max_concurrency=1)
 
         for tx in client.transaction():
             with tx:
@@ -99,7 +99,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         client.close()
 
     def test_client_options(self):
-        client = self.create_client(concurrency=1)
+        client = self.create_client(max_concurrency=1)
 
         client.with_transaction_options(
             edgedb.TransactionOptions(readonly=True))
@@ -118,7 +118,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
 
     def test_client_no_acquire_deadlock(self):
         with self.create_client(
-            concurrency=1,
+            max_concurrency=1,
         ) as client:
 
             has_sleep = client.query_single("""
@@ -152,11 +152,11 @@ class TestBlockingClient(tb.SyncQueryTestCase):
                 with tx:
                     self.assertEqual(tx.query_single("SELECT 1"), 2)
                     # make this test more reliable by spending more time in
-                    # the transaction to hit top concurrency sooner
+                    # the transaction to hit max_concurrency sooner
                     time.sleep(random.random() / 100)
 
         with self.create_client(
-            concurrency=10,
+            max_concurrency=10,
             connection_class=MyConnection,
         ) as client:
 
@@ -196,7 +196,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
             q.put(1)
 
         def run(N, meth):
-            with self.create_client(concurrency=10) as client:
+            with self.create_client(max_concurrency=10) as client:
                 q = queue.Queue()
                 coros = [
                     threading.Thread(target=meth, args=(client, q))
@@ -222,7 +222,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
                 run(200, method)
 
     def test_client_handles_transaction_exit_in_gen_1(self):
-        client = self.create_client(concurrency=1)
+        client = self.create_client(max_concurrency=1)
 
         def iterate():
             for tx in client.transaction():
@@ -244,7 +244,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         client.close()
 
     def test_client_handles_transaction_exit_in_gen_2(self):
-        client = self.create_client(concurrency=1)
+        client = self.create_client(max_concurrency=1)
 
         def iterate():
             for tx in client.transaction():
@@ -268,7 +268,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         client.close()
 
     def test_client_handles_gen_finalization(self):
-        client = self.create_client(concurrency=1)
+        client = self.create_client(max_concurrency=1)
 
         def iterate(tx):
             for record in tx.query("SELECT {1, 2, 3}"):
@@ -290,7 +290,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         client.close()
 
     def test_client_close_waits_for_release(self):
-        client = self.create_client(concurrency=1)
+        client = self.create_client(max_concurrency=1)
 
         flag = threading.Event()
         conn_released = False
@@ -315,7 +315,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         task.join()
 
     def test_client_close_timeout(self):
-        client = self.create_client(concurrency=1)
+        client = self.create_client(max_concurrency=1)
 
         flag = threading.Event()
 
@@ -336,7 +336,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         task.join()
 
     def test_client_expire_connections(self):
-        client = self.create_client(concurrency=1)
+        client = self.create_client(max_concurrency=1)
 
         for tx in client.transaction():
             with tx:
@@ -347,18 +347,18 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         client.close()
 
     def test_client_properties(self):
-        concurrency = 2
+        max_concurrency = 2
 
-        client = self.create_client(concurrency=concurrency)
-        self.assertEqual(client.concurrency, concurrency)
-        self.assertEqual(client.concurrency, concurrency)
+        client = self.create_client(max_concurrency=max_concurrency)
+        self.assertEqual(client.max_concurrency, max_concurrency)
+        self.assertEqual(client.max_concurrency, max_concurrency)
 
         for tx in client.transaction():
             with tx:
                 tx.query("SELECT 42")
-                self.assertEqual(client.free_size, concurrency - 1)
+                self.assertEqual(client.free_size, max_concurrency - 1)
 
-        self.assertEqual(client.free_size, concurrency)
+        self.assertEqual(client.free_size, max_concurrency)
 
         client.close()
 
@@ -439,7 +439,11 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         )
         port = server.sockets[0].getsockname()[1]
         client = self.create_client(
-            host='127.0.0.1', port=port, concurrency=1, wait_until_available=5)
+            host='127.0.0.1',
+            port=port,
+            max_concurrency=1,
+            wait_until_available=5,
+        )
         try:
             await self.loop.run_in_executor(
                 None, self._test_connection_broken, client, broken
@@ -458,18 +462,18 @@ class TestBlockingClient(tb.SyncQueryTestCase):
 
         client = edgedb.create_client(**conargs)
 
-        self.assertEqual(client.concurrency, 1)
+        self.assertEqual(client.max_concurrency, 1)
 
         client.ensure_connected()
-        self.assertGreater(client.concurrency, 1)
+        self.assertGreater(client.max_concurrency, 1)
 
         client.close()
 
-        client = edgedb.create_client(**conargs, concurrency=5)
+        client = edgedb.create_client(**conargs, max_concurrency=5)
 
-        self.assertEqual(client.concurrency, 5)
+        self.assertEqual(client.max_concurrency, 5)
 
         client.ensure_connected()
-        self.assertEqual(client.concurrency, 5)
+        self.assertEqual(client.max_concurrency, 5)
 
         client.close()

@@ -149,7 +149,7 @@ class _PoolImpl(base_client.BasePoolImpl):
         self,
         connect_args,
         *,
-        concurrency: typing.Optional[int],
+        max_concurrency: typing.Optional[int],
         connection_class,
     ):
         if not issubclass(connection_class, BlockingIOConnection):
@@ -160,12 +160,12 @@ class _PoolImpl(base_client.BasePoolImpl):
         super().__init__(
             connect_args,
             connection_class,
-            concurrency=concurrency,
+            max_concurrency=max_concurrency,
         )
 
     def _ensure_initialized(self):
         if self._queue is None:
-            self._queue = queue.LifoQueue(maxsize=self._concurrency)
+            self._queue = queue.LifoQueue(maxsize=self._max_concurrency)
             self._first_connect_lock = threading.Lock()
             self._resize_holder_pool()
 
@@ -342,10 +342,10 @@ class Client(base_client.BaseClient, abstract.Executor):
         self.close()
 
 
-def create_client(dsn=None, *, concurrency=None, **kwargs):
+def create_client(dsn=None, *, max_concurrency=None, **kwargs):
     return Client(
         connection_class=BlockingIOConnection,
-        concurrency=concurrency,
+        max_concurrency=max_concurrency,
 
         # connect arguments
         dsn=dsn,
