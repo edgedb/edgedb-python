@@ -33,9 +33,6 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         conargs["database"] = self.get_database_name()
         conargs["timeout"] = 120
         conargs.update(kwargs)
-        conargs.setdefault("on_acquire", None)
-        conargs.setdefault("on_release", None)
-        conargs.setdefault("on_connect", None)
         conargs.setdefault(
             "connection_class", asyncio_client.AsyncIOConnection
         )
@@ -85,43 +82,6 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
                 await asyncio.gather(*tasks)
                 await client.aclose()
 
-    async def test_client_06(self):
-        fut = asyncio.Future()
-
-        async def on_acquire(con):
-            fut.set_result(con)
-
-        async with self.create_client(
-            concurrency=5, on_acquire=on_acquire
-        ) as client:
-            self.assertEqual(await client.query('SELECT 1'), [1])
-
-        self.assertIsNotNone(await fut)
-
-    async def test_client_07(self):
-        cons = set()
-
-        async def on_acquire(con):
-            if con not in cons:  # check underlying connection
-                raise RuntimeError("on_connect was not called")
-
-        async def on_connect(con):
-            if con in cons:  # check underlying connection
-                raise RuntimeError("on_connect was called more than once")
-            cons.add(con)
-
-        async def user():
-            self.assertEqual(await client.query('SELECT 1'), [1])
-
-        async with self.create_client(
-            concurrency=5, on_connect=on_connect,
-            on_acquire=on_acquire,
-        ) as client:
-            users = asyncio.gather(*[user() for _ in range(10)])
-            await users
-
-        self.assertEqual(len(cons), 5)
-
     async def test_client_transaction(self):
         client = self.create_client(concurrency=1)
 
@@ -149,50 +109,6 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         self.assertIsInstance(client, asyncio_client.AsyncIOClient)
         await client.aclose()
 
-    async def test_client_exception_in_on_acquire_and_on_connect(self):
-        class Error(Exception):
-            pass
-
-        async def callback(con):
-            nonlocal setup_calls, last_con
-            last_con = con
-            setup_calls += 1
-            if setup_calls > 1:
-                cons.append(con)
-            else:
-                cons.append("error")
-                raise Error
-
-        with self.subTest(method="on_acquire"):
-            setup_calls = 0
-            last_con = None
-            cons = []
-            client = self.create_client(concurrency=1, on_acquire=callback)
-            try:
-                with self.assertRaises(Error):
-                    await client.query("SELECT 42")
-                self.assertTrue(last_con.is_closed())
-
-                await client.query("SELECT 42")
-                self.assertEqual(cons, ["error", last_con])
-            finally:
-                await client.aclose()
-
-        with self.subTest(method="on_connect"):
-            setup_calls = 0
-            last_con = None
-            cons = []
-            client = self.create_client(concurrency=1, on_connect=callback)
-            try:
-                with self.assertRaises(Error):
-                    await client.query("SELECT 42")
-                self.assertTrue(last_con.is_closed())
-
-                self.assertEqual(await client.query_single("select 1"), 1)
-                self.assertEqual(cons, ["error", last_con])
-            finally:
-                await client.aclose()
-
     async def test_client_no_acquire_deadlock(self):
         async with self.create_client(
             concurrency=1,
@@ -216,21 +132,8 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
 
     async def test_client_config_persistence(self):
         N = 100
-        cons = set()
-        num_acquires = 0
-
-        async def on_acquire(con):
-            nonlocal num_acquires
-
-            self.assertTrue(isinstance(con, MyConnection))
-            self.assertEqual(await con.foo(), 42)
-            cons.add(con)
-            num_acquires += 1
 
         class MyConnection(asyncio_client.AsyncIOConnection):
-            async def foo(self):
-                return 42
-
             async def raw_query(self, query_context):
                 res, h = await super().raw_query(query_context)
                 return res + 1, h
@@ -243,13 +146,18 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         async with self.create_client(
             concurrency=10,
             connection_class=MyConnection,
-            on_acquire=on_acquire,
         ) as client:
 
             await asyncio.gather(*[test(client) for _ in range(N)])
 
-        self.assertEqual(num_acquires, N)
-        self.assertEqual(len(cons), 10)
+            self.assertEqual(
+                sum(
+                    1
+                    for ch in client._impl._holders
+                    if ch._con and not ch._con.is_closed()
+                ),
+                10,
+            )
 
     async def test_client_connection_methods(self):
         async def test_query(client):

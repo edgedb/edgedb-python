@@ -276,21 +276,17 @@ class PoolConnectionHolder(abc.ABC):
     __slots__ = (
         "_con",
         "_pool",
-        "_on_acquire",
-        "_on_release",
         "_release_event",
         "_timeout",
         "_generation",
     )
     _event_class = NotImplemented
 
-    def __init__(self, pool, *, on_acquire, on_release):
+    def __init__(self, pool):
 
         self._pool = pool
         self._con = None
 
-        self._on_acquire = on_acquire
-        self._on_release = on_release
         self._timeout = None
         self._generation = None
 
@@ -328,9 +324,6 @@ class PoolConnectionHolder(abc.ABC):
             self._con = None
             await self.connect()
 
-        if self._on_acquire is not None:
-            await self._pool._callback(self._on_acquire, self._con)
-
         self._release_event.clear()
 
         return self._con
@@ -358,9 +351,6 @@ class PoolConnectionHolder(abc.ABC):
             # been called.)
             await self.close()
             return
-
-        if self._on_release is not None:
-            await self._pool._callback(self._on_release, self._con)
 
         # Free this connection holder and invalidate the
         # connection proxy.
@@ -394,9 +384,6 @@ class BasePoolImpl(abc.ABC):
         "_codecs_registry",
         "_query_cache",
         "_connection_factory",
-        "_on_connect",
-        "_on_acquire",
-        "_on_release",
         "_queue",
         "_user_concurrency",
         "_concurrency",
@@ -420,15 +407,9 @@ class BasePoolImpl(abc.ABC):
         connection_factory,
         *,
         concurrency: typing.Optional[int],
-        on_connect=None,
-        on_acquire=None,
-        on_release=None,
     ):
         self._connection_factory = connection_factory
         self._connect_args = connect_args
-        self._on_connect = on_connect
-        self._on_acquire = on_acquire
-        self._on_release = on_release
         self._codecs_registry = protocol.CodecsRegistry()
         self._query_cache = protocol.QueryCodecsCache()
 
@@ -463,10 +444,6 @@ class BasePoolImpl(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def _callback(self, cb, con):
-        ...
-
-    @abc.abstractmethod
     async def acquire(self, timeout=None):
         ...
 
@@ -490,10 +467,7 @@ class BasePoolImpl(abc.ABC):
                 self._set_queue_maxsize(self._concurrency)
 
             for _ in range(resize_diff):
-                ch = self._holder_class(
-                    self,
-                    on_acquire=self._on_acquire,
-                    on_release=self._on_release)
+                ch = self._holder_class(self)
 
                 self._holders.append(ch)
                 self._queue.put_nowait(ch)
@@ -576,9 +550,6 @@ class BasePoolImpl(abc.ABC):
             )
             await con.connect()
 
-        if self._on_connect is not None:
-            await self._callback(self._on_connect, con)
-
         return con
 
     async def release(self, connection):
@@ -647,9 +618,6 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         tls_security: str = None,
         wait_until_available: int = 30,
         timeout: int = 10,
-        on_connect=None,
-        on_acquire=None,
-        on_release=None,
         **kwargs,
     ):
         super().__init__()
@@ -673,9 +641,6 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
             connect_args,
             connection_class=connection_class,
             concurrency=concurrency,
-            on_connect=on_connect,
-            on_acquire=on_acquire,
-            on_release=on_release,
             **kwargs,
         )
 

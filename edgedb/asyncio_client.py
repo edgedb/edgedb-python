@@ -152,9 +152,6 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
         connect_args,
         *,
         concurrency: typing.Optional[int],
-        on_connect=None,
-        on_acquire=None,
-        on_release=None,
         connection_class,
     ):
         if not issubclass(connection_class, AsyncIOConnection):
@@ -167,9 +164,6 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
             connect_args,
             lambda *args: connection_class(self._loop, *args),
             concurrency=concurrency,
-            on_connect=on_connect,
-            on_acquire=on_acquire,
-            on_release=on_release,
         )
 
     def _ensure_initialized(self):
@@ -186,23 +180,6 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
         async with self._first_connect_lock:
             if self._working_addr is None:
                 return await self._get_first_connection()
-
-    async def _callback(self, cb, con):
-        try:
-            await cb(con)
-        except (Exception, asyncio.CancelledError) as ex:
-            # If a user-defined callback function fails, we don't
-            # know if the connection is safe for re-use, hence
-            # we close it.  A new connection will be created
-            # when `acquire` is called again.
-            try:
-                # Use `close()` to close the connection gracefully.
-                # An exception in `setup` isn't necessarily caused
-                # by an IO or a protocol error.  close() will
-                # do the necessary cleanup via _release_on_close().
-                await con.close()
-            finally:
-                raise ex
 
     async def acquire(self, timeout=None):
         self._ensure_initialized()

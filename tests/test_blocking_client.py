@@ -35,9 +35,6 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         conargs["database"] = self.get_database_name()
         conargs["timeout"] = 120
         conargs.update(kwargs)
-        conargs.setdefault("on_acquire", None)
-        conargs.setdefault("on_release", None)
-        conargs.setdefault("on_connect", None)
         conargs.setdefault(
             "connection_class", blocking_client.BlockingIOConnection
         )
@@ -92,50 +89,6 @@ class TestBlockingClient(tb.SyncQueryTestCase):
                     task.join()
                 client.close()
 
-    def test_client_06(self):
-        evt = threading.Event()
-        connection = None
-
-        def on_acquire(con):
-            nonlocal connection
-            connection = con
-            evt.set()
-
-        with self.create_client(
-            concurrency=5, on_acquire=on_acquire
-        ) as client:
-            self.assertEqual(client.query('SELECT 1'), [1])
-
-        evt.wait(timeout=1)
-        self.assertIsNotNone(connection)
-
-    def test_client_07(self):
-        cons = set()
-
-        def on_acquire(con):
-            if con not in cons:  # check underlying connection
-                raise RuntimeError("on_connect was not called")
-
-        def on_connect(con):
-            if con in cons:  # check underlying connection
-                raise RuntimeError("on_connect was called more than once")
-            cons.add(con)
-
-        def user():
-            self.assertEqual(client.query('SELECT 1'), [1])
-
-        with self.create_client(
-            concurrency=5, on_connect=on_connect,
-            on_acquire=on_acquire,
-        ) as client:
-            tasks = [threading.Thread(target=user) for _ in range(20)]
-            for task in tasks:
-                task.start()
-            for task in tasks:
-                task.join()
-
-        self.assertEqual(len(cons), 5)
-
     def test_client_transaction(self):
         client = self.create_client(concurrency=1)
 
@@ -163,50 +116,6 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         self.assertIsInstance(client, blocking_client.Client)
         client.close()
 
-    def test_client_exception_in_on_acquire_and_on_connect(self):
-        class Error(Exception):
-            pass
-
-        def callback(con):
-            nonlocal setup_calls, last_con
-            last_con = con
-            setup_calls += 1
-            if setup_calls > 1:
-                cons.append(con)
-            else:
-                cons.append("error")
-                raise Error
-
-        with self.subTest(method="on_acquire"):
-            setup_calls = 0
-            last_con = None
-            cons = []
-            client = self.create_client(concurrency=1, on_acquire=callback)
-            try:
-                with self.assertRaises(Error):
-                    client.query("SELECT 42")
-                self.assertTrue(last_con.is_closed())
-
-                client.query("SELECT 42")
-                self.assertEqual(cons, ["error", last_con])
-            finally:
-                client.close()
-
-        with self.subTest(method="on_connect"):
-            setup_calls = 0
-            last_con = None
-            cons = []
-            client = self.create_client(concurrency=1, on_connect=callback)
-            try:
-                with self.assertRaises(Error):
-                    client.query("SELECT 42")
-                self.assertTrue(last_con.is_closed())
-
-                self.assertEqual(client.query_single("select 1"), 1)
-                self.assertEqual(cons, ["error", last_con])
-            finally:
-                client.close()
-
     def test_client_no_acquire_deadlock(self):
         with self.create_client(
             concurrency=1,
@@ -232,21 +141,8 @@ class TestBlockingClient(tb.SyncQueryTestCase):
 
     def test_client_config_persistence(self):
         N = 100
-        cons = set()
-        num_acquires = 0
-
-        def on_acquire(con):
-            nonlocal num_acquires
-
-            self.assertTrue(isinstance(con, MyConnection))
-            self.assertEqual(con.foo(), 42)
-            cons.add(con)
-            num_acquires += 1
 
         class MyConnection(blocking_client.BlockingIOConnection):
-            def foo(self):
-                return 42
-
             async def raw_query(self, query_context):
                 res, h = await super().raw_query(query_context)
                 return res + 1, h
@@ -262,7 +158,6 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         with self.create_client(
             concurrency=10,
             connection_class=MyConnection,
-            on_acquire=on_acquire,
         ) as client:
 
             tasks = [threading.Thread(target=test) for _ in range(N)]
@@ -271,8 +166,14 @@ class TestBlockingClient(tb.SyncQueryTestCase):
             for task in tasks:
                 task.join()
 
-        self.assertEqual(num_acquires, N)
-        self.assertEqual(len(cons), 10)
+            self.assertEqual(
+                sum(
+                    1
+                    for ch in client._impl._holders
+                    if ch._con and not ch._con.is_closed()
+                ),
+                10,
+            )
 
     def test_client_connection_methods(self):
         def test_query(client, q):

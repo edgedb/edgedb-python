@@ -150,9 +150,6 @@ class _PoolImpl(base_client.BasePoolImpl):
         connect_args,
         *,
         concurrency: typing.Optional[int],
-        on_connect=None,
-        on_acquire=None,
-        on_release=None,
         connection_class,
     ):
         if not issubclass(connection_class, BlockingIOConnection):
@@ -164,9 +161,6 @@ class _PoolImpl(base_client.BasePoolImpl):
             connect_args,
             connection_class,
             concurrency=concurrency,
-            on_connect=on_connect,
-            on_acquire=on_acquire,
-            on_release=on_release,
         )
 
     def _ensure_initialized(self):
@@ -183,15 +177,6 @@ class _PoolImpl(base_client.BasePoolImpl):
         with self._first_connect_lock:
             if self._working_addr is None:
                 return await self._get_first_connection()
-
-    async def _callback(self, cb, con):
-        try:
-            cb(con)
-        except Exception as ex:
-            try:
-                await con.close()
-            finally:
-                raise ex
 
     async def acquire(self, timeout=None):
         self._ensure_initialized()
