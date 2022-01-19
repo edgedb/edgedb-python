@@ -323,14 +323,14 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
             async with tx:
                 await tx.query("SELECT 42")
                 self.assertIsNotNone(client._impl._holders[0]._con)
-                await client.expire_connections()
+                client._impl.expire_connections()
 
         self.assertIsNone(client._impl._holders[0]._con)
 
         await client.query("SELECT 42")
         self.assertIsNotNone(client._impl._holders[0]._con)
 
-        await client.expire_connections()
+        client._impl.expire_connections()
         async for tx in client.transaction():
             async with tx:
                 await tx.query("SELECT 42")

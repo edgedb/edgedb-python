@@ -341,7 +341,7 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         for tx in client.transaction():
             with tx:
                 tx.query("SELECT 42")
-                client.expire_connections()
+                client._impl.expire_connections()
 
         self.assertIsNone(client._impl._holders[0]._con)
         client.close()

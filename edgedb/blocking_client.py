@@ -335,14 +335,6 @@ class Client(base_client.BaseClient, abstract.Executor):
         """
         self._iter_coroutine(self._impl.close(timeout))
 
-    def expire_connections(self):
-        """Expire all currently open connections.
-
-        Cause all currently open connections to get replaced on the
-        next query.
-        """
-        self._iter_coroutine(self._impl.expire_connections())
-
     def __enter__(self):
         return self.ensure_connected()
 

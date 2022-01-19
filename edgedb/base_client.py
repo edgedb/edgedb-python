@@ -347,7 +347,7 @@ class PoolConnectionHolder(abc.ABC):
 
         if self._generation != self._pool._generation:
             # The connection has expired because it belongs to
-            # an older generation (AsyncIOPool.expire_connections() has
+            # an older generation (BasePoolImpl.expire_connections() has
             # been called.)
             await self.close()
             return
@@ -490,7 +490,7 @@ class BasePoolImpl(abc.ABC):
 
         The new connection arguments will be used for all subsequent
         new connection attempts.  Existing connections will remain until
-        they expire. Use AsyncIOPool.expire_connections() to expedite
+        they expire. Use BasePoolImpl.expire_connections() to expedite
         the connection expiry.
 
         :param str dsn:
@@ -581,7 +581,12 @@ class BasePoolImpl(abc.ABC):
             ch.terminate()
         self._closed = True
 
-    async def expire_connections(self):
+    def expire_connections(self):
+        """Expire all currently open connections.
+
+        Cause all currently open connections to get replaced on the
+        next query.
+        """
         self._generation += 1
 
     async def ensure_connected(self):

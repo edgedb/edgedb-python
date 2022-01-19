@@ -351,14 +351,6 @@ class AsyncIOClient(base_client.BaseClient, abstract.AsyncIOExecutor):
     def transaction(self) -> AsyncIORetry:
         return AsyncIORetry(self)
 
-    async def expire_connections(self):
-        """Expire all currently open connections.
-
-        Cause all currently open connections to get replaced on the
-        next query.
-        """
-        await self._impl.expire_connections()
-
     async def __aenter__(self):
         return await self.ensure_connected()
 
