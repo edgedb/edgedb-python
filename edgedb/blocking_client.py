@@ -342,12 +342,39 @@ class Client(base_client.BaseClient, abstract.Executor):
         self.close()
 
 
-def create_client(dsn=None, *, max_concurrency=None, **kwargs):
+def create_client(
+    dsn=None,
+    *,
+    max_concurrency=None,
+    host: str = None,
+    port: int = None,
+    credentials: str = None,
+    credentials_file: str = None,
+    user: str = None,
+    password: str = None,
+    database: str = None,
+    tls_ca: str = None,
+    tls_ca_file: str = None,
+    tls_security: str = None,
+    wait_until_available: int = 30,
+    timeout: int = 10,
+):
     return Client(
         connection_class=BlockingIOConnection,
         max_concurrency=max_concurrency,
 
         # connect arguments
         dsn=dsn,
-        **kwargs,
+        host=host,
+        port=port,
+        credentials=credentials,
+        credentials_file=credentials_file,
+        user=user,
+        password=password,
+        database=database,
+        tls_ca=tls_ca,
+        tls_ca_file=tls_ca_file,
+        tls_security=tls_security,
+        wait_until_available=wait_until_available,
+        timeout=timeout,
     )

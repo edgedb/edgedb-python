@@ -12,6 +12,8 @@ __all__ = (
     "QueryContext",
     "Executor",
     "AsyncIOExecutor",
+    "ReadOnlyExecutor",
+    "AsyncIOReadOnlyExecutor",
 )
 
 

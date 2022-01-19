@@ -26,7 +26,9 @@ from edgedb.datatypes.datatypes import (
 )
 from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
 
-from .abstract import Executor, AsyncIOExecutor
+from .abstract import (
+    Executor, AsyncIOExecutor, ReadOnlyExecutor, AsyncIOReadOnlyExecutor
+)
 
 from .asyncio_client import (
     create_async_client,

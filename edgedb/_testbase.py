@@ -323,6 +323,9 @@ class ClusterTestCase(TestCase):
 
 
 class TestAsyncIOClient(edgedb.AsyncIOClient):
+    def _clear_codecs_cache(self):
+        self._impl.codecs_registry.clear_cache()
+
     @property
     def connection(self):
         return self._impl._holders[0]._con

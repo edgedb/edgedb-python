@@ -665,9 +665,6 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
     def _get_retry_options(self) -> typing.Optional[_options.RetryOptions]:
         return self._options.retry_options
 
-    def _clear_codecs_cache(self):
-        self._impl.codecs_registry.clear_cache()
-
     @property
     def max_concurrency(self) -> int:
         """Max number of connections in the pool."""
