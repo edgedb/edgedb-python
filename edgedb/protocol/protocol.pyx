@@ -184,6 +184,9 @@ cdef class SansIOProtocol:
     async def wait_for_connect(self):
         raise NotImplementedError
 
+    async def wait_for_disconnect(self):
+        raise NotImplementedError
+
     cdef inline ignore_headers(self):
         cdef uint16_t num_fields = <uint16_t>self.buffer.read_int16()
         if self.is_legacy:
