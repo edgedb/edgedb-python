@@ -311,9 +311,9 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
 
     async def test_client_expire_connections(self):
         class SlowCloseConnection(asyncio_client.AsyncIOConnection):
-            async def close(self):
+            async def close(self, timeout=None):
                 await asyncio.sleep(0.2)
-                await super().close()
+                await super().close(timeout=timeout)
 
         client = self.create_client(
             max_concurrency=1, connection_class=SlowCloseConnection
@@ -335,7 +335,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
             async with tx:
                 await tx.query("SELECT 42")
                 with self.assertRaises(asyncio.TimeoutError):
-                    await asyncio.wait_for(client.query("SELECT 42"), 1)
+                    await compat.wait_for(client.query("SELECT 42"), 1)
 
         await client.aclose()
 
@@ -442,7 +442,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         finally:
             server.close()
             await server.wait_closed()
-            await asyncio.wait_for(client.aclose(), 5)
+            await compat.wait_for(client.aclose(), 5)
             broken.set()
             await done.wait()
 

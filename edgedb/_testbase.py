@@ -340,8 +340,13 @@ class TestClient(edgedb.Client):
     def connection(self):
         return self._impl._holders[0]._con
 
+    @property
+    def dbname(self):
+        return self._impl._working_params.database
+
 
 class ConnectedTestCaseMixin:
+    is_client_async = True
 
     @classmethod
     def test_client(
@@ -350,11 +355,17 @@ class ConnectedTestCaseMixin:
         database='edgedb',
         user='edgedb',
         password='test',
-        connection_class=asyncio_client.AsyncIOConnection,
+        connection_class=...,
     ):
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
-        return TestAsyncIOClient(
+        if connection_class is ...:
+            connection_class = (
+                asyncio_client.AsyncIOConnection
+                if cls.is_client_async
+                else blocking_client.BlockingIOConnection
+            )
+        return (TestAsyncIOClient if cls.is_client_async else TestClient)(
             connection_class=connection_class,
             max_concurrency=1,
             **conargs,
@@ -371,6 +382,10 @@ class ConnectedTestCaseMixin:
                             password=password,
                             database=database))
         return conargs
+
+    @classmethod
+    def adapt_call(cls, coro):
+        return cls.loop.run_until_complete(coro)
 
 
 class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
@@ -391,12 +406,12 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
     def setUp(self):
         if self.INTERNAL_TESTMODE:
-            self.loop.run_until_complete(
+            self.adapt_call(
                 self.client.execute(
                     'CONFIGURE SESSION SET __internal_testmode := true;'))
 
         if self.SETUP_METHOD:
-            self.loop.run_until_complete(
+            self.adapt_call(
                 self.client.execute(self.SETUP_METHOD))
 
         super().setUp()
@@ -404,7 +419,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     def tearDown(self):
         try:
             if self.TEARDOWN_METHOD:
-                self.loop.run_until_complete(
+                self.adapt_call(
                     self.client.execute(self.TEARDOWN_METHOD))
         finally:
             try:
@@ -413,7 +428,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                         'test connection is still in transaction '
                         '*after* the test')
 
-                self.loop.run_until_complete(
+                self.adapt_call(
                     self.client.execute('RESET ALIAS *;'))
 
             finally:
@@ -432,7 +447,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         if not class_set_up:
             script = f'CREATE DATABASE {dbname};'
             cls.admin_client = cls.test_client()
-            cls.loop.run_until_complete(cls.admin_client.execute(script))
+            cls.adapt_call(cls.admin_client.execute(script))
 
         cls.client = cls.test_client(database=dbname)
 
@@ -441,11 +456,17 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             if script:
                 # The setup is expected to contain a CREATE MIGRATION,
                 # which needs to be wrapped in a transaction.
-                async def execute():
-                    async for tr in cls.client.transaction():
-                        async with tr:
-                            await tr.execute(script)
-                cls.loop.run_until_complete(execute())
+                if cls.is_client_async:
+                    async def execute():
+                        async for tr in cls.client.transaction():
+                            async with tr:
+                                await tr.execute(script)
+                else:
+                    def execute():
+                        for tr in cls.client.transaction():
+                            with tr:
+                                tr.execute(script)
+                cls.adapt_call(execute())
 
     @classmethod
     def get_database_name(cls):
@@ -510,11 +531,14 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
         try:
             if script:
-                cls.loop.run_until_complete(
+                cls.adapt_call(
                     cls.client.execute(script))
         finally:
             try:
-                cls.loop.run_until_complete(cls.client.aclose())
+                if cls.is_client_async:
+                    cls.adapt_call(cls.client.aclose())
+                else:
+                    cls.client.close()
 
                 if not class_set_up:
                     dbname = cls.get_database_name()
@@ -523,7 +547,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     retry = cls.TEARDOWN_RETRY_DROP_DB
                     for i in range(retry):
                         try:
-                            cls.loop.run_until_complete(
+                            cls.adapt_call(
                                 cls.admin_client.execute(script))
                         except edgedb.errors.ExecutionError:
                             if i < retry - 1:
@@ -540,8 +564,11 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             finally:
                 try:
                     if cls.admin_client is not None:
-                        cls.loop.run_until_complete(
-                            cls.admin_client.aclose())
+                        if cls.is_client_async:
+                            cls.adapt_call(
+                                cls.admin_client.aclose())
+                        else:
+                            cls.admin_client.close()
                 finally:
                     super().tearDownClass()
 
@@ -553,27 +580,11 @@ class AsyncQueryTestCase(DatabaseTestCase):
 class SyncQueryTestCase(DatabaseTestCase):
     BASE_TEST_CLASS = True
     TEARDOWN_RETRY_DROP_DB = 5
+    is_client_async = False
 
-    def setUp(self):
-        super().setUp()
-
-        cls = type(self)
-        cls.async_client = cls.client
-
-        conargs = cls.get_connect_args().copy()
-        conargs.update(dict(database=cls.async_client.dbname))
-
-        cls.client = TestClient(
-            connection_class=blocking_client.BlockingIOConnection,
-            max_concurrency=1,
-            **conargs
-        )
-
-    def tearDown(self):
-        cls = type(self)
-        cls.client.close()
-        cls.client = cls.async_client
-        del cls.async_client
+    @classmethod
+    def adapt_call(cls, coro):
+        return coro
 
 
 _lock_cnt = 0

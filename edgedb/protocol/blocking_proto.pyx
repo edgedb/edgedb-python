@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import time
 
 from edgedb.pgproto.pgproto cimport (
     WriteBuffer,
@@ -35,6 +36,7 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
     def __init__(self, con_params, sock, tls_compat):
         protocol.SansIOProtocol.__init__(self, con_params, tls_compat)
         self.sock = sock
+        self.deadline = 0
 
     cpdef abort(self):
         self.terminate()
@@ -54,16 +56,38 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
             raise con_utils.wrap_error(e) from e
 
     async def wait_for_message(self):
-        while not self.buffer.take_message():
-            try:
-                data = self.sock.recv(RECV_BUF)
-            except OSError as e:
-                self._disconnect()
-                raise con_utils.wrap_error(e) from e
-            if not data:
-                self._disconnect()
-                raise errors.ClientConnectionClosedError()
-            self.buffer.feed_data(data)
+        cdef float timeout
+        if self.deadline > 0:
+            timeout = self.deadline - time.monotonic()
+            if timeout <= 0:
+                self.abort()
+                raise errors.QueryTimeoutError()
+            while not self.buffer.take_message():
+                try:
+                    self.sock.settimeout(timeout)
+                    data = self.sock.recv(RECV_BUF)
+                    timeout = self.deadline - time.monotonic()
+                    if timeout <= 0:
+                        self.abort()
+                        raise TimeoutError
+                except OSError as e:
+                    self._disconnect()
+                    raise con_utils.wrap_error(e) from e
+                if not data:
+                    self._disconnect()
+                    raise errors.ClientConnectionClosedError()
+                self.buffer.feed_data(data)
+        else:
+            while not self.buffer.take_message():
+                try:
+                    data = self.sock.recv(RECV_BUF)
+                except OSError as e:
+                    self._disconnect()
+                    raise con_utils.wrap_error(e) from e
+                if not data:
+                    self._disconnect()
+                    raise errors.ClientConnectionClosedError()
+                self.buffer.feed_data(data)
 
     async def try_recv_eagerly(self):
         if self.buffer.take_message():
@@ -99,3 +123,15 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
                 self.fallthrough()
         except errors.ClientConnectionClosedError:
             pass
+
+    async def wait_for(self, coro, timeout):
+        if timeout is None:
+            return await coro
+        else:
+            self.deadline = time.monotonic() + timeout
+            try:
+                return await coro
+            finally:
+                self.deadline = 0
+                if self.sock is not None:
+                    self.sock.settimeout(None)

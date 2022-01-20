@@ -114,7 +114,7 @@ class AsyncIOConnection(base_client.BaseConnection):
             if tr is not None:
                 tr.close()
             raise con_utils.wrap_error(e) from e
-        except Exception:
+        except BaseException:
             if tr is not None:
                 tr.close()
             raise

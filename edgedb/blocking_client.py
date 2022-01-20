@@ -133,13 +133,13 @@ class _PoolConnectionHolder(base_client.PoolConnectionHolder):
     __slots__ = ()
     _event_class = threading.Event
 
-    async def close(self, *, wait=True):
+    async def close(self, *, wait=True, timeout=None):
         if self._con is None:
             return
-        await self._con.close()
+        await self._con.close(timeout=timeout)
 
     async def wait_until_released(self, timeout=None):
-        self._release_event.wait(timeout)
+        return self._release_event.wait(timeout)
 
 
 class _PoolImpl(base_client.BasePoolImpl):
@@ -214,17 +214,27 @@ class _PoolImpl(base_client.BasePoolImpl):
             if timeout is None:
                 for ch in self._holders:
                     await ch.wait_until_released()
-            else:
-                remaining = timeout
                 for ch in self._holders:
-                    start = time.monotonic()
-                    await ch.wait_until_released(remaining)
-                    remaining -= time.monotonic() - start
-                    if remaining <= 0:
-                        self.terminate()
-                        return
-            for ch in self._holders:
-                await ch.close()
+                    await ch.close()
+            else:
+                deadline = time.monotonic() + timeout
+                for ch in self._holders:
+                    secs = deadline - time.monotonic()
+                    if secs <= 0:
+                        raise TimeoutError
+                    if not await ch.wait_until_released(secs):
+                        raise TimeoutError
+                for ch in self._holders:
+                    secs = deadline - time.monotonic()
+                    if secs <= 0:
+                        raise TimeoutError
+                    await ch.close(timeout=secs)
+        except TimeoutError as e:
+            self.terminate()
+            raise errors.InterfaceError(
+                "client is not fully closed in {} seconds; "
+                "terminating now.".format(timeout)
+            ) from e
         except Exception:
             self.terminate()
             raise

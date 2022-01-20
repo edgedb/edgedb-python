@@ -249,12 +249,17 @@ class BaseConnection(metaclass=abc.ABCMeta):
             finally:
                 self._cleanup()
 
-    async def close(self):
+    async def close(self, timeout=None):
         """Send graceful termination message wait for connection to drop."""
         if not self.is_closed():
             try:
                 self._protocol.terminate()
-                await self._protocol.wait_for_disconnect()
+                if timeout is None:
+                    await self._protocol.wait_for_disconnect()
+                else:
+                    await self._protocol.wait_for(
+                        self._protocol.wait_for_disconnect(), timeout
+                    )
             except self._close_exceptions:
                 self.terminate()
                 raise

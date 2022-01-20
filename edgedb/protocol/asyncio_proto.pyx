@@ -20,6 +20,7 @@
 import asyncio
 
 from edgedb import errors
+from edgedb import compat
 from edgedb.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
@@ -89,6 +90,12 @@ cdef class AsyncIOProtocol(protocol.SansIOProtocol):
                 pass
             finally:
                 self.disconnected_fut = None
+
+    async def wait_for(self, coro, timeout):
+        try:
+            return await compat.wait_for(coro, timeout)
+        except asyncio.TimeoutError as e:
+            raise TimeoutError from e
 
     def connection_made(self, transport):
         if self.transport is not None:
