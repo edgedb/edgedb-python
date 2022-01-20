@@ -42,7 +42,6 @@ class BaseConnection(metaclass=abc.ABCMeta):
     _log_listeners: typing.Set[
         typing.Callable[[BaseConnection_T, errors.EdgeDBMessage], None]
     ]
-    _close_exceptions = (Exception,)
     __slots__ = (
         "__weakref__",
         "_protocol",
@@ -310,18 +309,6 @@ class BaseConnection(metaclass=abc.ABCMeta):
         if not self.is_closed():
             try:
                 self._protocol.abort()
-            finally:
-                self._cleanup()
-
-    async def close(self):
-        """Send graceful termination message wait for connection to drop."""
-        if not self.is_closed():
-            try:
-                self._protocol.terminate()
-                await self._protocol.wait_for_disconnect()
-            except self._close_exceptions:
-                self.terminate()
-                raise
             finally:
                 self._cleanup()
 

@@ -20,6 +20,7 @@
 import asyncio
 
 from edgedb import errors
+from edgedb import compat
 from edgedb.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,

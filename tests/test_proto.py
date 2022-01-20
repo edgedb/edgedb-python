@@ -21,8 +21,6 @@ import unittest
 import edgedb
 
 from edgedb import _testbase as tb
-from edgedb import abstract
-from edgedb.protocol import protocol
 
 
 class TestProto(tb.SyncQueryTestCase):
@@ -31,29 +29,6 @@ class TestProto(tb.SyncQueryTestCase):
         self.assertEqual(
             self.client.query_json('SELECT {"aaa", "bbb"}'),
             '["aaa", "bbb"]')
-
-    def test_json_elements(self):
-        self.client.ensure_connected()
-        result = self.client._iter_coroutine(
-            self.client.connection.raw_query(
-                abstract.QueryContext(
-                    query=abstract.QueryWithArgs(
-                        'SELECT {"aaa", "bbb"}', (), {}
-                    ),
-                    cache=self.client._get_query_cache(),
-                    query_options=abstract.QueryOptions(
-                        output_format=protocol.OutputFormat.JSON_ELEMENTS,
-                        expect_one=False,
-                        required_one=False,
-                    ),
-                    retry_options=None,
-                    state=None,
-                )
-            )
-        )
-        self.assertEqual(
-            result,
-            edgedb.Set(['"aaa"', '"bbb"']))
 
     # std::datetime is now in range of Python datetime,
     # so another way to trigger codec failure is needed.

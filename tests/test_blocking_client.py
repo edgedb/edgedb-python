@@ -330,8 +330,9 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         task = threading.Thread(target=worker)
         task.start()
 
-        flag.wait()
-        client.close(timeout=0.1)
+        with self.assertRaises(errors.InterfaceError):
+            flag.wait()
+            client.close(timeout=0.1)
 
         task.join()
 

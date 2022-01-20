@@ -827,10 +827,9 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                         fut = asyncio.Future()
 
                         async def exec_to_fail():
-                            with self.assertRaises((
+                            with self.assertRaises(
                                 edgedb.ClientConnectionClosedError,
-                                ConnectionResetError,
-                            )):
+                            ):
                                 async for tx2 in client2.transaction():
                                     async with tx2:
                                         # start the lazy transaction
