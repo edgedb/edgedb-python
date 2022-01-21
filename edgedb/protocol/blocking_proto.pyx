@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import socket
 import time
 
 from edgedb.pgproto.pgproto cimport (
@@ -70,6 +71,9 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
                     if timeout <= 0:
                         self.abort()
                         raise TimeoutError
+                except (socket.timeout, TimeoutError) as e:
+                    self._disconnect()
+                    raise errors.InterfaceError() from e
                 except OSError as e:
                     self._disconnect()
                     raise con_utils.wrap_error(e) from e

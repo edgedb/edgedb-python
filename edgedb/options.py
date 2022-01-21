@@ -1,3 +1,5 @@
+import typing
+
 import abc
 import enum
 import random
@@ -108,6 +110,21 @@ class TransactionOptions:
         )
 
 
+class TimeoutOptions:
+    __slots__ = ["_query_timeout"]
+
+    def __init__(self, query_timeout: typing.Optional[float] = None):
+        self._query_timeout = query_timeout
+
+    @classmethod
+    def defaults(cls):
+        return cls()
+
+    @property
+    def query_timeout(self):
+        return self._query_timeout
+
+
 class _OptionsMixin:
     def __init__(self, *args, **kwargs):
         self._options = _Options.defaults()
@@ -137,35 +154,54 @@ class _OptionsMixin:
 
     def with_retry_options(self, options: RetryOptions=None):
         """Returns object with adjusted options for future retrying
-        transactions.
+        transactions and queries outside transactions.
 
         :param options RetryOptions:
             Object that encapsulates retry options.
 
         This method returns a "shallow copy" of the current object
-        with modified transaction options.
+        with modified retry options.
 
         Both ``self`` and returned object can be used after, but when using
-        them transaction options applied will be different.
+        them retry options applied will be different.
         """
 
         result = self._shallow_clone()
         result._options = self._options.with_retry_options(options)
         return result
 
+    def with_timeout_options(self, options: TimeoutOptions = None):
+        """Returns object with adjusted options for future timeouts.
+        
+        :param options TimeoutOptions
+            Object that encapsulates timeout options.
+
+        This method returns a "shallow copy" of the current object
+        with modified timeout options.
+
+        Both ``self`` and returned object can be used after, but when using
+        them timeout options applied will be different.
+        """
+
+        result = self._shallow_clone()
+        result._options = self._options.with_timeout_options(options)
+        return result
+
 
 class _Options:
     """Internal class for storing connection options"""
 
-    __slots__ = ['_retry_options', '_transaction_options']
+    __slots__ = ['_retry_options', '_transaction_options', '_timeout_options']
 
     def __init__(
         self,
         retry_options: RetryOptions,
         transaction_options: TransactionOptions,
+        timeout_options: TimeoutOptions,
     ):
         self._retry_options = retry_options
         self._transaction_options = transaction_options
+        self._timeout_options = timeout_options
 
     @property
     def retry_options(self):
@@ -175,15 +211,28 @@ class _Options:
     def transaction_options(self):
         return self._transaction_options
 
+    @property
+    def timeout_options(self):
+        return self._timeout_options
+
     def with_retry_options(self, options: RetryOptions):
         return _Options(
             options,
             self._transaction_options,
+            self._timeout_options,
         )
 
     def with_transaction_options(self, options: TransactionOptions):
         return _Options(
             self._retry_options,
+            options,
+            self._timeout_options,
+        )
+
+    def with_timeout_options(self, options: TimeoutOptions):
+        return _Options(
+            self.retry_options,
+            self._transaction_options,
             options,
         )
 
@@ -192,4 +241,5 @@ class _Options:
         return cls(
             RetryOptions.defaults(),
             TransactionOptions.defaults(),
+            TimeoutOptions.defaults(),
         )

@@ -846,8 +846,7 @@ class TestSyncQuery(tb.SyncQueryTestCase):
             result,
             edgedb.Set(['"aaa"', '"bbb"']))
 
-    def _test_sync_cancel_01(self):
-        # TODO(fantix): enable when command_timeout is implemented
+    def test_sync_cancel_01(self):
         has_sleep = self.client.query_single("""
             SELECT EXISTS(
                 SELECT schema::Function FILTER .name = 'sys::_sleep'
@@ -864,7 +863,9 @@ class TestSyncQuery(tb.SyncQueryTestCase):
             protocol_before = client._impl._holders[0]._con._protocol
 
             with self.assertRaises(edgedb.InterfaceError):
-                client.with_timeout_options(command_timeout=0.1).query_single(
+                client.with_timeout_options(
+                    edgedb.TimeoutOptions(query_timeout=0.1)
+                ).query_single(
                     'SELECT sys::_sleep(10)'
                 )
 

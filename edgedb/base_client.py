@@ -190,13 +190,16 @@ class BaseConnection(metaclass=abc.ABCMeta):
 
         reconnect = False
         capabilities = None
+        timeout = None
+        if query_context.timeout_options is not None:
+            timeout = query_context.timeout_options.query_timeout
         i = 0
         while True:
             i += 1
             try:
                 if reconnect:
                     await self.connect(single_attempt=True)
-                return await self._protocol.execute_anonymous(
+                coro = self._protocol.execute_anonymous(
                     query=query_context.query.query,
                     args=query_context.query.args,
                     kwargs=query_context.query.kwargs,
@@ -207,6 +210,10 @@ class BaseConnection(metaclass=abc.ABCMeta):
                     required_one=query_context.query_options.required_one,
                     allow_capabilities=enums.Capability.EXECUTE,
                 )
+                if timeout is None:
+                    return await coro
+                else:
+                    return await self._protocol.wait_for(coro, timeout)
             except errors.EdgeDBError as e:
                 if query_context.retry_options is None:
                     raise
@@ -669,6 +676,9 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
 
     def _get_retry_options(self) -> typing.Optional[_options.RetryOptions]:
         return self._options.retry_options
+
+    def _get_timeout_options(self) -> typing.Optional[_options.TimeoutOptions]:
+        return self._options.timeout_options
 
     @property
     def max_concurrency(self) -> int:

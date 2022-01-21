@@ -39,6 +39,7 @@ class QueryContext(typing.NamedTuple):
     cache: QueryCache
     query_options: QueryOptions
     retry_options: typing.Optional[options.RetryOptions]
+    timeout_options: typing.Optional[options.TimeoutOptions]
 
 
 _query_opts = QueryOptions(
@@ -83,6 +84,9 @@ class BaseReadOnlyExecutor(abc.ABC):
     def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
         return None
 
+    def _get_timeout_options(self) -> typing.Optional[options.TimeoutOptions]:
+        return None
+
 
 class ReadOnlyExecutor(BaseReadOnlyExecutor):
     """Subclasses can execute *at least* read-only queries"""
@@ -99,6 +103,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     def query_single(
@@ -109,6 +114,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -117,6 +123,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     def query_json(self, query: str, *args, **kwargs) -> str:
@@ -125,6 +132,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -133,6 +141,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     def query_required_single_json(self, query: str, *args, **kwargs) -> str:
@@ -141,6 +150,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     # TODO(tailhook) add *args, **kwargs, when they are supported
@@ -170,6 +180,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -178,6 +189,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     async def query_required_single(
@@ -191,6 +203,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
@@ -199,6 +212,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     async def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -207,6 +221,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     async def query_required_single_json(
@@ -220,6 +235,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
+            timeout_options=self._get_timeout_options(),
         ))
 
     # TODO(tailhook) add *args, **kwargs, when they are supported
