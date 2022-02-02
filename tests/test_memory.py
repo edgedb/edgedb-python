@@ -23,7 +23,7 @@ class TestConfigMemory(tb.SyncQueryTestCase):
 
     async def test_config_memory_01(self):
         if (
-            self.con.query_required_single(
+            self.client.query_required_single(
                 "select exists "
                 "(select schema::Type filter .name = 'cfg::memory')"
             ) is False
@@ -44,7 +44,7 @@ class TestConfigMemory(tb.SyncQueryTestCase):
 
         # Test that ConfigMemory.__str__ formats the
         # same as <str><cfg::memory>
-        mem_tuples = self.con.query('''
+        mem_tuples = self.client.query('''
             WITH args := array_unpack(<array<str>>$0)
             SELECT (
                 <cfg::memory>args,
@@ -56,7 +56,7 @@ class TestConfigMemory(tb.SyncQueryTestCase):
         mem_vals = [t[0] for t in mem_tuples]
 
         # Test encode/decode roundtrip
-        roundtrip = self.con.query('''
+        roundtrip = self.client.query('''
             WITH args := array_unpack(<array<cfg::memory>>$0)
             SELECT args;
         ''', mem_vals)

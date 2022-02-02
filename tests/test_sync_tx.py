@@ -37,9 +37,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
     '''
 
     def test_sync_transaction_regular_01(self):
-        self.assertIsNone(self.con._inner._borrowed_for)
-        tr = self.con.transaction()
-        self.assertIsNone(self.con._inner._borrowed_for)
+        tr = self.client.transaction()
 
         with self.assertRaises(ZeroDivisionError):
             for with_tr in tr:
@@ -52,9 +50,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
 
                     1 / 0
 
-        self.assertIsNone(self.con._inner._borrowed_for)
-
-        result = self.con.query('''
+        result = self.client.query('''
             SELECT
                 test::TransactionTest
             FILTER
@@ -78,9 +74,11 @@ class TestSyncTx(tb.SyncQueryTestCase):
             )
             # skip None
             opt = {k: v for k, v in opt.items() if v is not None}
-            con = self.con.with_transaction_options(TransactionOptions(**opt))
+            client = self.client.with_transaction_options(
+                TransactionOptions(**opt)
+            )
             try:
-                for tx in con.transaction():
+                for tx in client.transaction():
                     with tx:
                         tx.execute(
                             'INSERT test::TransactionTest {name := "test"}')
@@ -89,6 +87,6 @@ class TestSyncTx(tb.SyncQueryTestCase):
             else:
                 self.assertFalse(readonly)
 
-            for tx in con.transaction():
+            for tx in client.transaction():
                 with tx:
                     pass

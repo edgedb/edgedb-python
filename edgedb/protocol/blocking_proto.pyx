@@ -38,6 +38,9 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
 
     cpdef abort(self):
         self.terminate()
+        self._disconnect()
+
+    cdef _disconnect(self):
         self.connected = False
         if self.sock is not None:
             self.sock.close()
@@ -47,7 +50,7 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
         try:
             self.sock.send(buf)
         except OSError as e:
-            self.connected = False
+            self._disconnect()
             raise con_utils.wrap_error(e) from e
 
     async def wait_for_message(self):
@@ -55,10 +58,10 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
             try:
                 data = self.sock.recv(RECV_BUF)
             except OSError as e:
-                self.connected = False
+                self._disconnect()
                 raise con_utils.wrap_error(e) from e
             if not data:
-                self.connected = False
+                self._disconnect()
                 raise errors.ClientConnectionClosedError()
             self.buffer.feed_data(data)
 
@@ -71,14 +74,14 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
             while not self.buffer.take_message():
                 data = self.sock.recv(RECV_BUF)
                 if not data:
-                    self.connected = False
+                    self._disconnect()
                     raise errors.ClientConnectionClosedError()
                 self.buffer.feed_data(data)
         except BlockingIOError:
             # No data in the socket net buffer.
             return
         except OSError as e:
-            self.connected = False
+            self._disconnect()
             raise con_utils.wrap_error(e) from e
         finally:
             self.sock.settimeout(None)
@@ -86,46 +89,13 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
     async def wait_for_connect(self):
         return True
 
-    cdef _iter_coroutine(self, coro):
+    async def wait_for_disconnect(self):
+        if self.cancelled or not self.connected:
+            return
         try:
-            coro.send(None)
-        except StopIteration as ex:
-            if ex.args:
-                result = ex.args[0]
-            else:
-                result = None
-        finally:
-            coro.close()
-        return result
-
-    def sync_connect(self):
-        return self._iter_coroutine(self.connect())
-
-    def sync_execute_anonymous(self, *args, **kwargs):
-        result, _headers = self._iter_coroutine(
-            self.execute_anonymous(*args, **kwargs),
-        )
-        # don't expose headers to blocking client for now
-        return result
-
-    def sync_simple_query(self, *args, **kwargs):
-        return self._iter_coroutine(self.simple_query(*args, **kwargs))
-
-    def sync_dump(self, *, header_callback, block_callback):
-        async def header_wrapper(data):
-            header_callback(data)
-        async def block_wrapper(data):
-            block_callback(data)
-        return self._iter_coroutine(self.dump(header_wrapper, block_wrapper))
-
-    def sync_restore(self, *, header, data_gen):
-        async def wrapper():
             while True:
-                try:
-                    block = next(data_gen)
-                except StopIteration:
-                    return
-                yield block
-
-        return self._iter_coroutine(self.restore(
-            header, wrapper()))
+                if not self.buffer.take_message():
+                    await self.wait_for_message()
+                self.fallthrough()
+        except errors.ClientConnectionClosedError:
+            pass

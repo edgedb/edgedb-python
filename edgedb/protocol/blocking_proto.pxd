@@ -27,4 +27,4 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocol):
     cdef:
         readonly object sock
 
-    cdef _iter_coroutine(self, coro)
+    cdef _disconnect(self)

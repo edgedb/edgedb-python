@@ -73,12 +73,12 @@ cpython.datetime.import_datetime()
 _QUERY_SINGLE_METHOD = {
     True: {
         IoFormat.JSON: 'query_required_single_json',
-        IoFormat.JSON_ELEMENTS: '_fetchall_json_elements',
+        IoFormat.JSON_ELEMENTS: 'raw_query',
         IoFormat.BINARY: 'query_required_single',
     },
     False: {
         IoFormat.JSON: 'query_single_json',
-        IoFormat.JSON_ELEMENTS: '_fetchall_json_elements',
+        IoFormat.JSON_ELEMENTS: 'raw_query',
         IoFormat.BINARY: 'query_single',
     },
 }
