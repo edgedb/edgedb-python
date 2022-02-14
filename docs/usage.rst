@@ -3,83 +3,33 @@
 Basic Usage
 ===========
 
-
-Connection
-----------
-
-The client library must be able to establish a connection to a running EdgeDB
-instance to execute queries. Refer to the :ref:`Client Library Connection
-<edgedb_client_connection>` docs for details on configuring connections.
-
-
-Async vs blocking API
----------------------
-
-This libraray provides two APIs: asynchronous and blocking. Both are
-nearly equivalent, with the exception of connection pooling functionality,
-which is currently only supported in asynchronous mode.
-
-For an async client, call :py:func:`create_async_client()
-<edgedb.create_async_client>` to create an instance of
-:py:class:`AsyncIOClient <edgedb.AsyncIOClient>`. This class maintains
-a pool of connections under the hood and provides methods for executing
-queries and transactions.
-
-For a blocking client, use :py:func:`connect() <edgedb.connect>` to create an
-instance of :py:class:`BlockingIOConnection <edgedb.BlockingIOConnection>`.
-
-
-Examples
---------
-
-Blocking connection example:
-
+To start using EdgeDB in Python, create an :py:class:`edgedb.Client` instance
+using :py:func:`edgedb.create_client`:
 
 .. code-block:: python
 
     import datetime
     import edgedb
 
-    def main():
-        # Establish a connection to an existing database
-        # named "test" as an "edgedb" user.
-        conn = edgedb.connect(
-            'edgedb://edgedb@localhost/test')
+    client = edgedb.create_client()
 
-        # Create a User object type
-        conn.execute('''
-            CREATE TYPE User {
-                CREATE REQUIRED PROPERTY name -> str;
-                CREATE PROPERTY dob -> cal::local_date;
-            }
-        ''')
+    client.query("""
+        INSERT User {
+            name := <str>$name,
+            dob := <cal::local_date>$dob
+        }
+    """, name="Bob", dob=datetime.date(1984, 3, 1))
 
-        # Insert a new User object
-        conn.query('''
-            INSERT User {
-                name := <str>$name,
-                dob := <cal::local_date>$dob
-            }
-        ''', name='Bob', dob=datetime.date(1984, 3, 1))
+    user_set = client.query(
+        "SELECT User {name, dob} FILTER .name = <str>$name", name="Bob")
+    # *user_set* now contains
+    # Set{Object{name := 'Bob', dob := datetime.date(1984, 3, 1)}}
 
-        # Select User objects.
-        user_set = conn.query(
-            'SELECT User {name, dob} FILTER .name = <str>$name',
-            name='Bob')
+    client.close()
 
-        # *user_set* now contains
-        # Set{Object{name := 'Bob',
-        #            dob := datetime.date(1984, 3, 1)}}
-        print(user_set)
-
-        # Close the connection.
-        conn.close()
-
-    if __name__ == '__main__':
-        main()
-
-
-An equivalent example using the **asyncio** API:
+When used with asyncio, this should be replaced with
+:py:func:`edgedb.create_async_client` which creates an instance of the
+:py:class:`~edgedb.AsyncIOClient`:
 
 .. code-block:: python
 
@@ -87,44 +37,33 @@ An equivalent example using the **asyncio** API:
     import datetime
     import edgedb
 
+    client = edgedb.create_async_client()
+
     async def main():
-        # Establish a connection to an existing database
-        # named "test" as an "edgedb" user.
-        conn = await edgedb.async_connect(
-            'edgedb://edgedb@localhost/test')
-
-        # Create a User object type
-        await conn.execute('''
-            CREATE TYPE User {
-                CREATE REQUIRED PROPERTY name -> str;
-                CREATE PROPERTY dob -> cal::local_date;
-            }
-        ''')
-
-        # Insert a new User object
-        await conn.query('''
+        await client.query("""
             INSERT User {
                 name := <str>$name,
                 dob := <cal::local_date>$dob
             }
-        ''', name='Bob', dob=datetime.date(1984, 3, 1))
+        """, name="Bob", dob=datetime.date(1984, 3, 1))
 
-        # Select User objects.
-        user_set = await conn.query('''
-            SELECT User {name, dob}
-            FILTER .name = <str>$name
-        ''', name='Bob')
-
+        user_set = await client.query(
+            "SELECT User {name, dob} FILTER .name = <str>$name", name="Bob")
         # *user_set* now contains
-        # Set{Object{name := 'Bob',
-        #            dob := datetime.date(1984, 3, 1)}}
-        print(user_set)
+        # Set{Object{name := 'Bob', dob := datetime.date(1984, 3, 1)}}
 
-        # Close the connection.
-        await conn.aclose()
+        await client.aclose()
 
-    if __name__ == '__main__':
-        asyncio.run(main())
+    asyncio.run(main())
+
+
+Connect to EdgeDB
+-----------------
+
+The examples above only work under an :ref:`EdgeDB project
+<ref_guide_using_projects>`. You could also provide your own connection
+parameters, refer to the :ref:`Client Library Connection
+<edgedb_client_connection>` docs for details.
 
 
 Type conversion
@@ -141,16 +80,16 @@ Client connection pools
 
 For server-type type applications that handle frequent requests and need
 the database connection for a short period time while handling a request,
-the use of a connection pool is recommended.  The edgedb-python asyncio API
-provides an implementation of such a pool.
+the use of a connection pool is recommended. Both :py:class:`edgedb.Client`
+and :py:class:`edgedb.AsyncIOClient` come with such a pool.
 
-To create a connection pool, use the
-:py:func:`edgedb.create_async_client() <edgedb.create_async_client>`
-function.  The resulting :py:class:`AsyncIOClient <edgedb.AsyncIOClient>`
-object can then be used to borrow connections from the pool.
+For :py:class:`edgedb.Client`, all methods are thread-safe. You can share the
+same client instance safely across multiple threads, and run queries
+concurrently. Likewise, :py:class:`~edgedb.AsyncIOClient` is designed to be
+shared among different :py:class:`asyncio.Task`/coroutines for concurrency.
 
-Below is an example of a connection pool usage:
-
+Below is an example of a web API server running `aiohttp
+<https://docs.aiohttp.org/>`_:
 
 .. code-block:: python
 
@@ -178,7 +117,7 @@ Below is an example of a connection pool usage:
     def init_app():
         """Initialize the application server."""
         app = web.Application()
-        # Create a database connection client
+        # Create a database client
         app['client'] = edgedb.create_async_client(
             database='my_service',
             user='my_service')
@@ -191,15 +130,13 @@ Below is an example of a connection pool usage:
     app = init_app()
     web.run_app(app)
 
-But if you have a bunch of tightly related queries it's better to use
-transactions.
-
 Note that the client is created synchronously. Pool connections are created
 lazily as they are needed. If you want to explicitly connect to the
 database in ``init_app()``, use the ``ensure_connected()`` method on the client.
 
-See :ref:`edgedb-python-asyncio-api-pool` API documentation for
-more information.
+For more information, see API documentation of :ref:`the blocking client
+<edgedb-python-blocking-api-client>` and :ref:`the asynchronous client
+<edgedb-python-async-api-client>`.
 
 
 Transactions
@@ -210,22 +147,22 @@ The most robust way to create a
 ``transaction()`` method:
 
 * :py:meth:`AsyncIOClient.transaction() <edgedb.AsyncIOClient.transaction>`
-* :py:meth:`BlockingIOConnection.transaction() <edgedb.BlockingIOConnection.transaction>`
+* :py:meth:`Client.transaction() <edgedb.Client.transaction>`
 
 
 Example:
 
 .. code-block:: python
 
-    for tx in connection.transaction():
+    for tx in client.transaction():
         with tx:
             tx.execute("INSERT User {name := 'Don'}")
 
-or, if using the async API on connection pool:
+or, if using the async API:
 
 .. code-block:: python
 
-    async for tx in connection.transaction():
+    async for tx in client.transaction():
         async with tx:
             await tx.execute("INSERT User {name := 'Don'}")
 
@@ -234,5 +171,6 @@ or, if using the async API on connection pool:
    When not in an explicit transaction block, any changes to the database
    will be applied immediately.
 
-See :ref:`edgedb-python-asyncio-api-transaction` API documentation for
-more information.
+For more information, see API documentation of transactions for :ref:`the
+blocking client <edgedb-python-blocking-api-transaction>` and :ref:`the
+asynchronous client <edgedb-python-asyncio-api-transaction>`.

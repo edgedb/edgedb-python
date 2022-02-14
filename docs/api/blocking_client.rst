@@ -7,28 +7,41 @@ Blocking API
 .. py:currentmodule:: edgedb
 
 
-.. _edgedb-blocking-api-connection:
+.. _edgedb-python-blocking-api-client:
 
-Connection
-==========
+Client
+======
 
-.. py:function:: connect(dsn=None, *, \
+.. py:function:: create_client(dsn=None, *, \
             host=None, port=None, \
-            admin=None, \
             user=None, password=None, \
             database=None, \
-            timeout=60)
+            timeout=60, \
+            concurrency=None)
 
-    Establish a connection to an EdgeDB server.
+    Create a blocking client with a lazy connection pool.
+
+    The connection parameters may be specified either as a connection
+    URI in *dsn*, or as specific keyword arguments, or both.
+    If both *dsn* and keyword arguments are specified, the latter
+    override the corresponding values parsed from the connection URI.
+
+    If no connection parameter is specified, the client will try to search in
+    environment variables and then the current project, see :ref:`Client
+    Library Connection <edgedb_client_connection>` docs for more information.
+
+    Returns a new :py:class:`Client` object.
 
     :param dsn:
         If this parameter does not start with ``edgedb://`` then this is
-        a :ref:`name of an instance <ref_reference_connection_instance_name>`.
+        interpreted as the :ref:`name of a local instance
+        <ref_reference_connection_instance_name>`.
 
-        Otherwise it specifies a single string in the connection URI format:
+        Otherwise it specifies a single string in the following format:
         ``edgedb://user:password@host:port/database?option=value``.
         The following options are recognized: host, port,
-        user, database, password.
+        user, database, password. For a complete reference on DSN, see
+        the :ref:`DSN Specification <ref_dsn>`.
 
     :param host:
         Database host address as one of the following:
@@ -37,8 +50,8 @@ Connection
         - an absolute path to the directory containing the database
           server Unix-domain socket (not supported on Windows);
         - a sequence of any of the above, in which case the addresses
-          will be tried in order, and the first successful connection
-          will be returned.
+          will be tried in order, and the host of the first successful
+          connection will be used for the whole connection pool.
 
         If not specified, the following will be tried, in order:
 
@@ -57,11 +70,8 @@ Connection
         addresses.
 
         If not specified, the value parsed from the *dsn* argument is used,
-        or the value of the ``EDGEB_PORT`` environment variable, or ``5656``
+        or the value of the ``EDGEDB_PORT`` environment variable, or ``5656``
         if neither is specified.
-
-    :param admin:
-        If ``True``, try to connect to the special administration socket.
 
     :param user:
         The name of the database role used for authentication.
@@ -88,43 +98,56 @@ Connection
     :param float timeout:
         Connection timeout in seconds.
 
-    :return: A :py:class:`~edgedb.BlockingIOConnection` instance.
+    :return: An instance of :py:class:`Client`.
 
-    The connection parameters may be specified either as a connection
-    URI in *dsn*, or as specific keyword arguments, or both.
-    If both *dsn* and keyword arguments are specified, the latter
-    override the corresponding values parsed from the connection URI.
+    The APIs on the returned client instance can be safely used by different
+    threads, because under the hood they are
+    checking out different connections from the pool to run the queries:
 
-    Returns a new :py:class:`~edgedb.BlockingIOConnection` object.
+    * :py:meth:`Client.query()`
+    * :py:meth:`Client.query_single()`
+    * :py:meth:`Client.query_required_single()`
+    * :py:meth:`Client.query_json()`
+    * :py:meth:`Client.query_single_json()`
+    * :py:meth:`Client.query_required_single_json()`
+    * :py:meth:`Client.execute()`
+    * :py:meth:`Client.transaction()`
 
-    Example:
+    .. code-block:: python
 
-    .. code-block:: pycon
+        client = edgedb.create_client()
+        client.query('SELECT {1, 2, 3}')
 
-        >>> import edgedb
-        >>> con = edgedb.connect(user='edgedeb')
-        >>> con.query_single('SELECT 1 + 1')
-        {2}
+    The same for transactions:
+
+    .. code-block:: python
+
+        client = edgedb.create_client()
+        for tx in client.transaction():
+            with tx:
+                tx.query('SELECT {1, 2, 3}')
 
 
-.. py:class:: BlockingIOConnection
 
-    A representation of a database session.
+.. py:class:: Client
 
-    Connections are created by calling :py:func:`~edgedb.connect`.
+    A thread-safe blocking client with a connection pool.
+
+    Blocking clients are created by calling :py:func:`create_client`.
 
 
     .. py:method:: query(query, *args, **kwargs)
 
-        Run a query and return the results as a
-        :py:class:`edgedb.Set <edgedb.Set>` instance.
+        Acquire a connection and use it to run a query and return the results
+        as an :py:class:`edgedb.Set` instance. The temporary
+        connection is automatically returned back to the pool.
 
         :param str query: Query text.
         :param args: Positional query arguments.
         :param kwargs: Named query arguments.
 
         :return:
-            An instance of :py:class:`edgedb.Set <edgedb.Set>` containing
+            An instance of :py:class:`edgedb.Set` containing
             the query result.
 
         Note that positional and named query arguments cannot be mixed.
@@ -132,7 +155,9 @@ Connection
 
     .. py:method:: query_single(query, *args, **kwargs)
 
-        Run an optional singleton-returning query and return its element.
+        Acquire a connection and use it to run an optional singleton-returning
+        query and return its element. The temporary connection is automatically
+        returned back to the pool.
 
         :param str query: Query text.
         :param args: Positional query arguments.
@@ -141,7 +166,7 @@ Connection
         :return:
             Query result.
 
-        The *query* must return at most one element.  If the query returns
+        The *query* must return no more than one element.  If the query returns
         more than one element, an ``edgedb.ResultCardinalityMismatchError``
         is raised, if it returns an empty set, ``None`` is returned.
 
@@ -150,7 +175,9 @@ Connection
 
     .. py:method:: query_required_single(query, *args, **kwargs)
 
-        Run a singleton-returning query and return its element.
+        Acquire a connection and use it to run a singleton-returning query
+        and return its element. The temporary connection is automatically
+        returned back to the pool.
 
         :param str query: Query text.
         :param args: Positional query arguments.
@@ -169,7 +196,9 @@ Connection
 
     .. py:method:: query_json(query, *args, **kwargs)
 
-        Run a query and return the results as JSON.
+        Acquire a connection and use it to run a query and
+        return the results as JSON. The temporary connection is automatically
+        returned back to the pool.
 
         :param str query: Query text.
         :param args: Positional query arguments.
@@ -195,8 +224,9 @@ Connection
 
     .. py:method:: query_single_json(query, *args, **kwargs)
 
-        Run an optional singleton-returning query and return its element
-        in JSON.
+        Acquire a connection and use it to run an optional singleton-returning
+        query and return its element in JSON. The temporary connection is
+        automatically returned back to the pool.
 
         :param str query: Query text.
         :param args: Positional query arguments.
@@ -205,7 +235,7 @@ Connection
         :return:
             Query result encoded in JSON.
 
-        The *query* must return at most one element.  If the query returns
+        The *query* must return no more than one element.  If the query returns
         more than one element, an ``edgedb.ResultCardinalityMismatchError``
         is raised, if it returns an empty set, ``"null"`` is returned.
 
@@ -226,7 +256,9 @@ Connection
 
     .. py:method:: query_required_single_json(query, *args, **kwargs)
 
-        Run a singleton-returning query and return its element in JSON.
+        Acquire a connection and use it to run a singleton-returning
+        query and return its element in JSON. The temporary connection is
+        automatically returned back to the pool.
 
         :param str query: Query text.
         :param args: Positional query arguments.
@@ -257,7 +289,9 @@ Connection
 
     .. py:method:: execute(query)
 
-        Execute an EdgeQL command (or commands).
+        Acquire a connection and use it to execute an EdgeQL command
+        (or commands).  The temporary connection is automatically
+        returned back to the pool.
 
         :param str query: Query text.
 
@@ -267,7 +301,7 @@ Connection
 
         .. code-block:: pycon
 
-            >>> con.execute('''
+            >>> client.execute('''
             ...     CREATE TYPE MyType {
             ...         CREATE PROPERTY a -> int64
             ...     };
@@ -277,7 +311,7 @@ Connection
 
         .. note::
             If the results of *query* are desired, :py:meth:`query`,
-            :py:meth:`query_required_single` or :py:meth:`query_single`
+            :py:meth:`query_single` or :py:meth:`query_required_single`
             should be used instead.
 
     .. py:method:: transaction()
@@ -298,7 +332,7 @@ Connection
 
         .. code-block:: python
 
-            for tx in con.transaction():
+            for tx in client.transaction():
                 with tx:
                     value = tx.query_single("SELECT Counter.value")
                     tx.execute(
@@ -309,46 +343,39 @@ Connection
         Note that we are executing queries on the ``tx`` object rather
         than on the original connection.
 
-    .. py:method:: raw_transaction()
-
-        **Deprecated**. Use :py:meth:`transaction` along with
-        ``with_retry_options(RetryOptions(attempts=1))`` instead.
-
-        Execute a non-retryable transaction.
-
-        Contrary to ``transaction()``, ``raw_transaction()``
-        will not attempt to re-run the nested code block in case a retryable
-        error happens.
-
-        This is a low-level API and it is advised to use the
-        ``transaction()`` method instead.
-
-        A call to ``raw_transaction()`` returns
-        :py:class:`AsyncIOTransaction`.
-
-        Example:
-
-        .. code-block:: python
-
-            with con.raw_transaction() as tx:
-                value = tx.query_single("SELECT Counter.value")
-                tx.execute(
-                    "UPDATE Counter SET { value := <int64>$value }",
-                    value=value + 1,
-                )
-
-        Note that we are executing queries on the ``tx`` object,
-        rather than on the original connection ``con``.
+        .. note::
+            The transaction starts lazily. A connection is only acquired from
+            the pool when the first query is issued on the transaction instance.
 
 
-    .. py:method:: close()
+    .. py:method:: close(timeout=None)
 
-        Close the connection gracefully.
+        Attempt to gracefully close all connections in the pool.
+
+        Wait until all pool connections are released, close them and
+        shut down the pool.  If any error (including timeout) occurs
+        in ``close()`` the pool will terminate by calling
+        :py:meth:`~edgedb.Client.terminate`.
+
+        :param float timeout: Seconds to wait, ``None`` for wait forever.
 
 
-    .. py:method:: is_closed()
+    .. py:method:: terminate()
 
-        Return ``True`` if the connection is closed.
+        Terminate all connections in the pool.
+
+
+    .. py:method:: ensure_connected()
+
+        If the client does not yet have any open connections in its pool,
+        attempts to open a connection, else returns immediately.
+
+        Since the client lazily creates new connections as needed (up to the
+        configured ``concurrency`` limit), the first connection attempt will
+        only occur when the first query is run on a client. ``ensureConnected``
+        can be useful to catch any errors resulting from connection
+        mis-configuration by triggering the first connection attempt
+        explicitly.
 
 
 .. _edgedb-python-blocking-api-transaction:
@@ -361,12 +388,20 @@ The most robust way to execute transactional code is to use the
 
 .. code-block:: python
 
-    for tx in con.transaction():
+    for tx in client.transaction():
         with tx:
             tx.execute("INSERT User { name := 'Don' }")
 
 Note that we execute queries on the ``tx`` object in the above
-example, rather than on the original connection ``con`` object.
+example, rather than on the original ``client`` object.
+
+The ``tx`` object stores a connection acquired from the pool, so that all
+queries can be executed on the same connection in the same transaction.
+Transaction start is lazy. ``for tx`` or ``with tx`` won't acquire
+the connection and start the transaction. It's only done when executing the
+first query on the ``tx`` object. That connection is pinned to the ``tx``
+object even when a reconnection is needed, until leaving the final
+``with`` transaction block.
 
 The ``transaction()`` API guarantees that:
 
@@ -384,7 +419,7 @@ Python code. Here is an example:
 
 .. code-block:: python
 
-    for tx in con.transaction():
+    for tx in client.transaction():
         with tx:
             user = tx.query_single(
                 "SELECT User { email } FILTER .login = <str>$login",
@@ -417,46 +452,103 @@ negatively impact the performance of the DB server.
 See also:
 
 * RFC1004_
-* :py:meth:`BlockingIOConnection.transaction()`
-* :py:meth:`BlockingIOConnection.raw_transaction()`
+* :py:meth:`Client.transaction()`
 
 
 .. py:class:: Transaction()
 
-    Represents a transaction or savepoint block.
+    Represents a transaction.
 
-    Transactions are created by calling the
-    :py:meth:`BlockingIOConnection.transaction()` method.
-
-
-    .. py:method:: start()
-
-        Enter the transaction or savepoint block.
-
-    .. py:method:: commit()
-
-        Exit the transaction or savepoint block and commit changes.
-
-    .. py:method:: rollback()
-
-        Exit the transaction or savepoint block and discard changes.
+    Instances of this type are yielded by a :py:class`Retry` iterator.
 
     .. describe:: with c:
 
-        start and commit/rollback the transaction or savepoint block
+        start and commit/rollback the transaction
         automatically when entering and exiting the code inside the
         context manager block.
 
+    .. py:method:: query(query, *args, **kwargs)
+
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run a query and return the results
+        as an :py:class:`edgedb.Set` instance. The temporary
+        connection is automatically returned back to the pool when exiting the
+        transaction block.
+
+        See :py:meth:`Client.query()
+        <edgedb.Client.query>` for details.
+
+    .. py:method:: query_single(query, *args, **kwargs)
+
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run an optional singleton-returning
+        query and return its element. The temporary connection is automatically
+        returned back to the pool when exiting the transaction block.
+
+        See :py:meth:`Client.query_single()
+        <edgedb.Client.query_single>` for details.
+
+    .. py:method:: query_required_single(query, *args, **kwargs)
+
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run a singleton-returning query
+        and return its element. The temporary connection is automatically
+        returned back to the pool when exiting the transaction block.
+
+        See :py:meth:`Client.query_required_single()
+        <edgedb.Client.query_required_single>` for details.
+
+    .. py:method:: query_json(query, *args, **kwargs)
+
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run a query and
+        return the results as JSON. The temporary connection is automatically
+        returned back to the pool when exiting the transaction block.
+
+        See :py:meth:`Client.query_json()
+        <edgedb.Client.query_json>` for details.
+
+    .. py:method:: query_single_json(query, *args, **kwargs)
+
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run an optional singleton-returning
+        query and return its element in JSON. The temporary connection is
+        automatically returned back to the pool when exiting the transaction
+        block.
+
+        See :py:meth:`Client.query_single_json()
+        <edgedb.Client.query_single_json>` for details.
+
+    .. py:method:: query_required_single_json(query, *args, **kwargs)
+
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run a singleton-returning
+        query and return its element in JSON. The temporary connection is
+        automatically returned back to the pool when exiting the transaction
+        block.
+
+        See :py:meth:`Client.query_requried_single_json()
+        <edgedb.Client.query_required_single_json>` for details.
+
+    .. py:method:: execute(query)
+
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to execute an EdgeQL command
+        (or commands).  The temporary connection is automatically
+        returned back to the pool when exiting the transaction block.
+
+        See :py:meth:`Client.execute()
+        <edgedb.Client.execute>` for details.
 
 .. py:class:: Retry
 
     Represents a wrapper that yields :py:class:`Transaction`
     object when iterating.
 
-    See :py:meth:`BlockingIOConnection.transaction()` method for
+    See :py:meth:`Client.transaction()` method for
     an example.
 
-    .. py:coroutinemethod:: __next__()
+    .. py:method:: __next__()
 
         Yields :py:class:`Transaction` object every time transaction has to
         be repeated.
