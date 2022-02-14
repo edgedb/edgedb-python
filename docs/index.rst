@@ -39,6 +39,6 @@ and :ref:`asyncio <edgedb-python-asyncio-api-reference>` implementations.
 
    installation
    usage
-   api/asyncio_con
-   api/blocking_con
+   api/asyncio_client
+   api/blocking_client
    api/types

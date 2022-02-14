@@ -82,7 +82,7 @@ Sets
     A representation of an immutable set of values returned by a query.
 
     The :py:meth:`AsyncIOClient.query() <edgedb.AsyncIOClient.query>` and
-    :py:meth:`BlockingIOConnection.query() <edgedb.BlockingIOConnection.query>`
+    :py:meth:`Client.query() <edgedb.Client.query>`
     methods return an instance of this type.  Nested sets in the result are
     also returned as ``Set`` objects.
 
@@ -110,8 +110,8 @@ Objects
     .. code-block:: pycon
 
         >>> import edgedb
-        >>> conn = edgedb.connect()
-        >>> r = conn.query_single('''
+        >>> client = edgedb.create_client()
+        >>> r = client.query_single('''
         ...     SELECT schema::ObjectType {name}
         ...     FILTER .name = 'std::Object'
         ...     LIMIT 1''')
@@ -131,8 +131,8 @@ Objects
        .. code-block:: pycon
 
           >>> import edgedb
-          >>> conn = edgedb.connect()
-          >>> r = conn.query_single('''
+          >>> client = edgedb.create_client()
+          >>> r = client.query_single('''
           ...     SELECT schema::Property {name, annotations: {name, @value}}
           ...     FILTER .name = 'listen_port'
           ...            AND .source.name = 'cfg::Config'
@@ -187,8 +187,8 @@ Tuples
     .. code-block:: pycon
 
         >>> import edgedb
-        >>> conn = edgedb.connect()
-        >>> r = conn.query_single('''SELECT (1, 'a', [3])''')
+        >>> client = edgedb.create_client()
+        >>> r = client.query_single('''SELECT (1, 'a', [3])''')
         >>> r
         (1, 'a', [3])
         >>> len(r)
@@ -212,8 +212,8 @@ Named Tuples
     .. code-block:: pycon
 
         >>> import edgedb
-        >>> conn = edgedb.connect()
-        >>> r = conn.query_single('''SELECT (a := 1, b := 'a', c := [3])''')
+        >>> client = edgedb.create_client()
+        >>> r = client.query_single('''SELECT (a := 1, b := 'a', c := [3])''')
         >>> r
         (a := 1, b := 'a', c := [3])
         >>> r.b
@@ -234,8 +234,8 @@ Arrays
     .. code-block:: pycon
 
         >>> import edgedb
-        >>> conn = edgedb.connect()
-        >>> r = conn.query_single('''SELECT [1, 2, 3]''')
+        >>> client = edgedb.create_client()
+        >>> r = client.query_single('''SELECT [1, 2, 3]''')
         >>> r
         [1, 2, 3]
         >>> len(r)
@@ -255,8 +255,8 @@ RelativeDuration
     .. code-block:: pycon
 
         >>> import edgedb
-        >>> conn = edgedb.connect()
-        >>> r = conn.query_single('''SELECT <cal::relative_duration>"1 year 2 days"''')
+        >>> client = edgedb.create_client()
+        >>> r = client.query_single('''SELECT <cal::relative_duration>"1 year 2 days"''')
         >>> r
         <edgedb.RelativeDuration "P1Y2D">
         >>> r.months

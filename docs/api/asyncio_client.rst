@@ -7,40 +7,10 @@ AsyncIO API
 .. py:currentmodule:: edgedb
 
 
-.. _edgedb-asyncio-api-connection:
+.. _edgedb-python-async-api-client:
 
-Connection
-==========
-
-.. py:coroutinefunction:: async_connect(dsn=None, *, \
-            host=None, port=None, \
-            admin=None, \
-            user=None, password=None, \
-            database=None, \
-            timeout=60)
-
-    Establish a connection to an EdgeDB server.
-
-    Deprecated. Use ``create_async_client()`` instead.
-
-    Example:
-
-    .. code-block:: pycon
-
-        >>> import asyncio
-        >>> import edgedb
-        >>> async def main():
-        ...     con = await edgedb.async_connect(user='edgedb')
-        ...     print(await con.query_single('SELECT 1 + 1'))
-        ...
-        >>> asyncio.run(main())
-        {2}
-
-
-.. _edgedb-python-asyncio-api-pool:
-
-Client connection pool
-======================
+Client
+======
 
 .. py:function:: create_async_client(dsn=None, *, \
             host=None, port=None, \
@@ -49,12 +19,16 @@ Client connection pool
             timeout=60, \
             concurrency=None)
 
-    Create an asynchronous lazy connection pool.
+    Create an asynchronous client with a lazy connection pool.
 
     The connection parameters may be specified either as a connection
     URI in *dsn*, or as specific keyword arguments, or both.
     If both *dsn* and keyword arguments are specified, the latter
     override the corresponding values parsed from the connection URI.
+
+    If no connection parameter is specified, the client will try to search in
+    environment variables and then the current project, see :ref:`Client
+    Library Connection <edgedb_client_connection>` docs for more information.
 
     Returns a new :py:class:`AsyncIOClient` object.
 
@@ -76,8 +50,8 @@ Client connection pool
         - an absolute path to the directory containing the database
           server Unix-domain socket (not supported on Windows);
         - a sequence of any of the above, in which case the addresses
-          will be tried in order, and the first successful connection
-          will be returned.
+          will be tried in order, and the host of the first successful
+          connection will be used for the whole connection pool.
 
         If not specified, the following will be tried, in order:
 
@@ -130,9 +104,9 @@ Client connection pool
 
     :return: An instance of :py:class:`AsyncIOClient`.
 
-    The connection pool has high-level APIs to access Connection[link]
-    APIs directly, without manually acquiring and releasing connections
-    from the pool:
+    The APIs on the returned client instance can be safely used by different
+    :py:class:`asyncio.Task`/coroutines, because under the hood they are
+    checking out different connections from the pool to run the queries:
 
     * :py:meth:`AsyncIOClient.query()`
     * :py:meth:`AsyncIOClient.query_single()`
@@ -145,14 +119,14 @@ Client connection pool
 
     .. code-block:: python
 
-        client = edgedb.create_async_client(user='edgedb')
+        client = edgedb.create_async_client()
         await client.query('SELECT {1, 2, 3}')
 
-    Transactions can be executed as well:
+    The same for transactions:
 
     .. code-block:: python
 
-        client = edgedb.create_async_client(user='edgedb')
+        client = edgedb.create_async_client()
         async for tx in client.transaction():
             async with tx:
                 await tx.query('SELECT {1, 2, 3}')
@@ -161,18 +135,15 @@ Client connection pool
 
 .. py:class:: AsyncIOClient()
 
-    A connection pool.
+    An asynchronous client with a connection pool, safe for concurrent use.
 
-    A connection pool can be used in a similar manner as a single connection
-    except that the pool is safe for concurrent use.
-
-    Pools are created by calling
+    Async clients are created by calling
     :py:func:`~edgedb.create_async_client`.
 
     .. py:coroutinemethod:: query(query, *args, **kwargs)
 
         Acquire a connection and use it to run a query and return the results
-        as an :py:class:`edgedb.Set <edgedb.Set>` instance. The temporary
+        as an :py:class:`edgedb.Set` instance. The temporary
         connection is automatically returned back to the pool.
 
         :param str query: Query text.
@@ -180,7 +151,7 @@ Client connection pool
         :param kwargs: Named query arguments.
 
         :return:
-            An instance of :py:class:`edgedb.Set <edgedb.Set>` containing
+            An instance of :py:class:`edgedb.Set` containing
             the query result.
 
         Note that positional and named query arguments cannot be mixed.
@@ -191,7 +162,6 @@ Client connection pool
         Acquire a connection and use it to run an optional singleton-returning
         query and return its element. The temporary connection is automatically
         returned back to the pool.
-
 
         :param str query: Query text.
         :param args: Positional query arguments.
@@ -233,7 +203,6 @@ Client connection pool
         Acquire a connection and use it to run a query and
         return the results as JSON. The temporary connection is automatically
         returned back to the pool.
-
 
         :param str query: Query text.
         :param args: Positional query arguments.
@@ -355,9 +324,9 @@ Client connection pool
 
         This is the preferred method of initiating and running a database
         transaction in a robust fashion.  The ``transaction()``
-        transaction loop will attempt to re-execute the transaction loop
-        body if a transient error occurs, such as a network error or a
-        transaction serialization error.
+        transaction loop will attempt to re-execute the transaction loop body
+        if a transient error occurs, such as a network error or a transaction
+        serialization error.
 
         Returns an instance of :py:class:`AsyncIORetry`.
 
@@ -378,6 +347,9 @@ Client connection pool
         Note that we are executing queries on the ``tx`` object rather
         than on the original connection.
 
+        .. note::
+            The transaction starts lazily. A connection is only acquired from
+            the pool when the first query is issued on the transaction instance.
 
 
     .. py:coroutinemethod:: aclose()
@@ -386,8 +358,8 @@ Client connection pool
 
         Wait until all pool connections are released, close them and
         shut down the pool.  If any error (including cancellation) occurs
-        in ``close()`` the pool will terminate by calling
-        :py:meth:`Client.terminate() <edgedb.AsyncIOClient.terminate>`.
+        in ``aclose()`` the pool will terminate by calling
+        :py:meth:`~edgedb.AsyncIOClient.terminate`.
 
         It is advisable to use :py:func:`python:asyncio.wait_for` to set
         a timeout.
@@ -425,8 +397,15 @@ the ``transaction()`` loop API:
             await tx.execute("INSERT User { name := 'Don' }")
 
 Note that we execute queries on the ``tx`` object in the above
-example, rather than on the original connection pool ``client``
-object.
+example, rather than on the original ``client`` object.
+
+The ``tx`` object stores a connection acquired from the pool, so that all
+queries can be executed on the same connection in the same transaction.
+Transaction start is lazy. ``async for tx`` or ``async with tx`` won't acquire
+the connection and start the transaction. It's only done when executing the
+first query on the ``tx`` object. That connection is pinned to the ``tx``
+object even when a reconnection is needed, until leaving the final
+``async with`` transaction block.
 
 The ``transaction()`` API guarantees that:
 
@@ -496,87 +475,85 @@ See also:
 
 .. py:class:: AsyncIOTransaction
 
-    Represents a transaction or a savepoint block.
+    Represents a transaction.
 
     Instances of this type are yielded by a :py:class`AsyncIORetry` iterator.
 
-    .. py:coroutinemethod:: start()
-
-        Start a transaction or create a savepoint.
-
-    .. py:coroutinemethod:: commit()
-
-        Exit the transaction or savepoint block and commit changes.
-
-    .. py:coroutinemethod:: rollback()
-
-        Exit the transaction or savepoint block and discard changes.
-
     .. describe:: async with c:
 
-        Start and commit/rollback the transaction or savepoint block
+        Start and commit/rollback the transaction
         automatically when entering and exiting the code inside the
         context manager block.
 
     .. py:coroutinemethod:: query(query, *args, **kwargs)
 
-        Acquire a connection and use it to run a query and return the results
-        as an :py:class:`edgedb.Set <edgedb.Set>` instance. The temporary
-        connection is automatically returned back to the pool.
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run a query and return the results
+        as an :py:class:`edgedb.Set` instance. The temporary
+        connection is automatically returned back to the pool when exiting the
+        transaction block.
 
         See :py:meth:`AsyncIOClient.query()
         <edgedb.AsyncIOClient.query>` for details.
 
     .. py:coroutinemethod:: query_single(query, *args, **kwargs)
 
-        Acquire a connection and use it to run an optional singleton-returning
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run an optional singleton-returning
         query and return its element. The temporary connection is automatically
-        returned back to the pool.
+        returned back to the pool when exiting the transaction block.
 
         See :py:meth:`AsyncIOClient.query_single()
         <edgedb.AsyncIOClient.query_single>` for details.
 
     .. py:coroutinemethod:: query_required_single(query, *args, **kwargs)
 
-        Acquire a connection and use it to run a singleton-returning query
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run a singleton-returning query
         and return its element. The temporary connection is automatically
-        returned back to the pool.
+        returned back to the pool when exiting the transaction block.
 
         See :py:meth:`AsyncIOClient.query_required_single()
         <edgedb.AsyncIOClient.query_required_single>` for details.
 
     .. py:coroutinemethod:: query_json(query, *args, **kwargs)
 
-        Acquire a connection and use it to run a query and
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run a query and
         return the results as JSON. The temporary connection is automatically
-        returned back to the pool.
+        returned back to the pool when exiting the transaction block.
 
         See :py:meth:`AsyncIOClient.query_json()
         <edgedb.AsyncIOClient.query_json>` for details.
 
     .. py:coroutinemethod:: query_single_json(query, *args, **kwargs)
 
-        Acquire a connection and use it to run an optional singleton-returning
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run an optional singleton-returning
         query and return its element in JSON. The temporary connection is
-        automatically returned back to the pool.
+        automatically returned back to the pool when exiting the transaction
+        block.
 
         See :py:meth:`AsyncIOClient.query_single_json()
         <edgedb.AsyncIOClient.query_single_json>` for details.
 
     .. py:coroutinemethod:: query_required_single_json(query, *args, **kwargs)
 
-        Acquire a connection and use it to run a singleton-returning
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to run a singleton-returning
         query and return its element in JSON. The temporary connection is
-        automatically returned back to the pool.
+        automatically returned back to the pool when exiting the transaction
+        block.
 
         See :py:meth:`AsyncIOClient.query_requried_single_json()
         <edgedb.AsyncIOClient.query_required_single_json>` for details.
 
     .. py:coroutinemethod:: execute(query)
 
-        Acquire a connection and use it to execute an EdgeQL command
+        Acquire a connection if the current transaction doesn't have one yet,
+        and use it to execute an EdgeQL command
         (or commands).  The temporary connection is automatically
-        returned back to the pool.
+        returned back to the pool when exiting the transaction block.
 
         See :py:meth:`AsyncIOClient.execute()
         <edgedb.AsyncIOClient.execute>` for details.

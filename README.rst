@@ -41,11 +41,11 @@ Basic Usage
     import edgedb
 
     def main():
-        # Establish a connection to an existing database named "test"
+        # Create a client for an existing database named "test"
         # as an "edgedb" user.
-        conn = edgedb.connect('edgedb://edgedb@localhost/test')
+        client = edgedb.create_client('edgedb://edgedb@localhost/test')
         # Create a User object type
-        conn.execute('''
+        client.execute('''
             CREATE TYPE User {
                 CREATE REQUIRED PROPERTY name -> str;
                 CREATE PROPERTY dob -> cal::local_date;
@@ -53,7 +53,7 @@ Basic Usage
         ''')
 
         # Insert a new User object
-        conn.query('''
+        client.query('''
             INSERT User {
                 name := <str>$name,
                 dob := <cal::local_date>$dob
@@ -61,13 +61,13 @@ Basic Usage
         ''', name='Bob', dob=datetime.date(1984, 3, 1))
 
         # Select User objects.
-        user_set = conn.query(
+        user_set = client.query(
             'SELECT User {name, dob} FILTER .name = <str>$name', name='Bob')
         # *user_set* now contains
         # Set{Object{name := 'Bob', dob := datetime.date(1984, 3, 1)}}
 
-        # Close the connection.
-        conn.close()
+        # Close the client.
+        client.close()
 
     if __name__ == '__main__':
         main()
