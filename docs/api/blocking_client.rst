@@ -17,7 +17,7 @@ Client
             user=None, password=None, \
             database=None, \
             timeout=60, \
-            concurrency=None)
+            max_concurrency=None)
 
     Create a blocking client with a lazy connection pool.
 
@@ -370,12 +370,12 @@ Client
         If the client does not yet have any open connections in its pool,
         attempts to open a connection, else returns immediately.
 
-        Since the client lazily creates new connections as needed (up to the
-        configured ``concurrency`` limit), the first connection attempt will
-        only occur when the first query is run on a client. ``ensureConnected``
-        can be useful to catch any errors resulting from connection
-        mis-configuration by triggering the first connection attempt
-        explicitly.
+        Since the client lazily creates new connections as needed (up
+        to the configured ``max_concurrency`` limit), the first
+        connection attempt will only occur when the first query is run
+        on a client. ``ensureConnected`` can be useful to catch any
+        errors resulting from connection mis-configuration by
+        triggering the first connection attempt explicitly.
 
 
 .. _edgedb-python-blocking-api-transaction:

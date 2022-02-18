@@ -17,7 +17,7 @@ Client
             user=None, password=None, \
             database=None, \
             timeout=60, \
-            concurrency=None)
+            max_concurrency=None)
 
     Create an asynchronous client with a lazy connection pool.
 
@@ -98,7 +98,7 @@ Client
     :param float timeout:
         Connection timeout in seconds.
 
-    :param int concurrency:
+    :param int max_concurrency:
         Max number of connections in the pool. If not set, the suggested
         concurrency value provided by the server is used.
 
