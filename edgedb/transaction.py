@@ -145,9 +145,18 @@ class BaseTransaction:
             if ex is None:
                 # On commit we don't know if commit is succeeded before the
                 # database have received it or after it have been done but
-                # network is dropped before we were able to receive a response
-                # TODO(tailhook) retry on some errors
-                raise err
+                # network is dropped before we were able to receive a response.
+                # On a TransactionError, though, we know the we need
+                # to retry.
+                # TODO(tailhook) should other errors have retries?
+                if (
+                    isinstance(err, errors.TransactionError)
+                    and err.has_tag(errors.SHOULD_RETRY)
+                    and self.__retry._retry(err)
+                ):
+                    pass
+                else:
+                    raise err
             # If we were going to rollback, look at original error
             # to find out whether we want to retry, regardless of
             # the rollback error.
