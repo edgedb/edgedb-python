@@ -108,7 +108,7 @@ jobs:
     - name: Install EdgeDB
       uses: edgedb/setup-edgedb@v1
 
-    - uses: pypa/cibuildwheel@v2.2.2
+    - uses: pypa/cibuildwheel@v2.3.1
       env:
         CIBW_BUILD_VERBOSITY: 1
         CIBW_BUILD: ${{ matrix.cibw_python }}
