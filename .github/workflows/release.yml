@@ -75,7 +75,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-2019]
         cibw_python: ["cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*"]
         cibw_arch: ["auto64"]
         exclude:
@@ -97,7 +97,7 @@ jobs:
         submodules: true
 
     - name: Setup WSL
-      if: ${{ steps.release.outputs.version == 0 && matrix.os == 'windows-latest' }}
+      if: ${{ steps.release.outputs.version == 0 && matrix.os == 'windows-2019' }}
       uses: vampire/setup-wsl@v1
       with:
         wsl-shell-user: edgedb
