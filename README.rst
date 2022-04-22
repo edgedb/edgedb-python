@@ -41,9 +41,7 @@ Basic Usage
     import edgedb
 
     def main():
-        # Create a client for an existing database named "test"
-        # as an "edgedb" user.
-        client = edgedb.create_client('edgedb://edgedb@localhost/test')
+        client = edgedb.create_client()
         # Create a User object type
         client.execute('''
             CREATE TYPE User {
