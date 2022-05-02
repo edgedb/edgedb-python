@@ -1158,57 +1158,32 @@ cdef class SansIOProtocol:
 
         in_dc_type = type(in_dc)
 
-        if self.protocol_version >= (0, 12):
-            if in_dc_type in {NullCodec, EmptyTupleCodec}:
-                # TODO: drop EmptyTupleCodec when 1.0 RC1 is released.
-                # It's only here because 0.12 protocol is only
-                # partially implemented in edgedb@master right now.
-                if args:
-                    raise errors.QueryArgumentError(
-                        'expected no positional arguments')
-                if kwargs:
-                    raise errors.QueryArgumentError(
-                        'expected no named arguments')
-
-                if in_dc_type is NullCodec:
-                    buf.write_bytes(EMPTY_NULL_DATA)
-                else:
-                    buf.write_bytes(EMPTY_RECORD_DATA)
-
-                return
-
-            if in_dc_type is not ObjectCodec:
-                raise errors.QueryArgumentError(
-                    'unexpected query argument codec')
-
+        if in_dc_type in {NullCodec, EmptyTupleCodec}:
+            # TODO: drop EmptyTupleCodec when 1.0 RC1 is released.
+            # It's only here because 0.12 protocol is only
+            # partially implemented in edgedb@master right now.
             if args:
-                kwargs = {str(i): v for i, v in enumerate(args)}
-
-            (<ObjectCodec>in_dc).encode_args(buf, kwargs)
-            return
-        else:
-            if in_dc_type is EmptyTupleCodec:
-                if args:
-                    raise errors.QueryArgumentError(
-                        'expected no positional arguments')
-                if kwargs:
-                    raise errors.QueryArgumentError(
-                        'expected no named arguments')
-                buf.write_bytes(EMPTY_RECORD_DATA)
-                return
-
+                raise errors.QueryArgumentError(
+                    'expected no positional arguments')
             if kwargs:
-                if in_dc_type is not NamedTupleCodec:
-                    raise errors.QueryArgumentError(
-                        'expected positional arguments, got named arguments')
+                raise errors.QueryArgumentError(
+                    'expected no named arguments')
 
-                (<NamedTupleCodec>in_dc).encode_kwargs(buf, kwargs)
-
+            if in_dc_type is NullCodec:
+                buf.write_bytes(EMPTY_NULL_DATA)
             else:
-                if in_dc_type is not TupleCodec and args:
-                    raise errors.QueryArgumentError(
-                        'expected named arguments, got positional arguments')
-                in_dc.encode(buf, args)
+                buf.write_bytes(EMPTY_RECORD_DATA)
+
+            return
+
+        if in_dc_type is not ObjectCodec:
+            raise errors.QueryArgumentError(
+                'unexpected query argument codec')
+
+        if args:
+            kwargs = {str(i): v for i, v in enumerate(args)}
+
+        (<ObjectCodec>in_dc).encode_args(buf, kwargs)
 
     cdef parse_describe_type_message(self, CodecsRegistry reg):
         assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG
