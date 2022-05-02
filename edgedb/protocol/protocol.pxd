@@ -87,7 +87,6 @@ cdef class SansIOProtocol:
 
         object con
         readonly object con_params
-        readonly bint tls_compat
 
         object backend_secret
 

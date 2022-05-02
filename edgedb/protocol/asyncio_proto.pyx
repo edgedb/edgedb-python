@@ -30,8 +30,8 @@ from . cimport protocol
 
 cdef class AsyncIOProtocol(protocol.SansIOProtocol):
 
-    def __init__(self, con_params, loop, tls_compat=False):
-        protocol.SansIOProtocol.__init__(self, con_params, tls_compat)
+    def __init__(self, con_params, loop):
+        protocol.SansIOProtocol.__init__(self, con_params)
 
         self.loop = loop
         self.transport = None

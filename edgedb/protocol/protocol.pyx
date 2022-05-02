@@ -126,11 +126,10 @@ cdef class QueryCodecsCache:
 
 cdef class SansIOProtocol:
 
-    def __init__(self, con_params, tls_compat):
+    def __init__(self, con_params):
         self.buffer = ReadBuffer()
 
         self.con_params = con_params
-        self.tls_compat = tls_compat
 
         self.connected = False
         self.cancelled = False
@@ -977,14 +976,6 @@ cdef class SansIOProtocol:
                 self.fallthrough()
 
             self.buffer.finish_message()
-
-        if self.tls_compat and \
-                self.protocol_version >= PROTO_VER_MIN_TLS:
-            raise errors.ClientConnectionError(
-                'the protocol version requires TLS: {}.{}'.format(
-                    *self.protocol_version
-                )
-            )
 
     async def _auth_sasl(self):
         num_methods = self.buffer.read_int32()
