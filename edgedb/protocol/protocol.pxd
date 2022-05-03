@@ -99,7 +99,7 @@ cdef class SansIOProtocol:
         readonly bytes last_details
         readonly tuple protocol_version
 
-        bint is_legacy
+        readonly bint is_legacy
 
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
 

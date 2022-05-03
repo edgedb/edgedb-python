@@ -305,76 +305,6 @@ cdef class SansIOProtocol:
             raise errors.ClientConnectionClosedError(
                 'the connection has been closed')
 
-    async def _execute(self, BaseCodec in_dc, BaseCodec out_dc, args, kwargs):
-        cdef:
-            WriteBuffer packet
-            WriteBuffer buf
-            char mtype
-
-        self.ensure_connected()
-        self.reset_status()
-
-        packet = WriteBuffer.new()
-
-        buf = WriteBuffer.new_message(EXECUTE_MSG)
-        buf.write_int16(0)  # no headers
-        self.encode_args(in_dc, buf, args, kwargs)
-        packet.write_buffer(buf.end_message())
-
-        packet.write_bytes(SYNC_MESSAGE)
-        self.write(packet)
-
-        result = datatypes.set_new(0)
-
-        attrs = None
-        exc = None
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-
-            try:
-                if mtype == DATA_MSG:
-                    if exc is None:
-                        try:
-                            self.parse_data_messages(out_dc, result)
-                        except Exception as ex:
-                            # An error during data decoding.  We need to
-                            # handle this as gracefully as possible:
-                            # * save the exception to raise it once SYNC is
-                            #   received;
-                            # * ignore all 'D' messages for this query.
-                            exc = errors.ClientError(
-                                'unable to decode data to Python objects')
-                            exc.__cause__ = ex
-                            # Take care of a partially consumed 'D' message
-                            # and the ones yet unparsed.
-                            while self.buffer.take_message_type(DATA_MSG):
-                                self.buffer.discard_message()
-                    else:
-                        self.buffer.discard_message()
-
-                elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_command_complete_message()
-
-                elif mtype == ERROR_RESPONSE_MSG:
-                    exc = self.parse_error_message()
-
-                elif mtype == READY_FOR_COMMAND_MSG:
-                    self.parse_sync_message()
-                    break
-
-                else:
-                    self.fallthrough()
-
-            finally:
-                self.buffer.finish_message()
-
-        if exc is not None:
-            raise exc
-
-        return result, attrs
-
     async def _optimistic_execute(
         self,
         *,
@@ -392,6 +322,7 @@ cdef class SansIOProtocol:
         allow_capabilities: typing.Optional[int] = None,
         in_dc: BaseCodec,
         out_dc: BaseCodec,
+        allow_re_exec: bint = True,
     ):
         cdef:
             WriteBuffer packet
@@ -450,7 +381,11 @@ cdef class SansIOProtocol:
                     re_exec = True
 
                 elif mtype == DATA_MSG:
-                    assert not re_exec
+                    if re_exec:
+                        raise errors.ProtocolError(
+                            'unexpected DataMessage (D) after '
+                            'CommandDataDescription (T)'
+                        )
                     if exc is None:
                         try:
                             self.parse_data_messages(out_dc, result)
@@ -492,16 +427,34 @@ cdef class SansIOProtocol:
             raise exc
 
         if re_exec:
+            if not allow_re_exec:
+                raise errors.TransactionConflictError(
+                    'in/out type is modified concurrently'
+                )
             assert new_cardinality is not None
             if required_one and new_cardinality == CARDINALITY_NOT_APPLICABLE:
                 methname = _QUERY_SINGLE_METHOD[required_one][io_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
-            execute_func = (
-                self._legacy_execute if self.is_legacy else self._execute
+
+            return await self._optimistic_execute(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                reg=reg,
+                qc=qc,
+                io_format=io_format,
+                expect_one=expect_one,
+                required_one=required_one,
+                implicit_limit=implicit_limit,
+                inline_typenames=inline_typenames,
+                inline_typeids=inline_typeids,
+                allow_capabilities=allow_capabilities,
+                in_dc=in_dc,
+                out_dc=out_dc,
+                allow_re_exec=False,
             )
-            return await execute_func(in_dc, out_dc, args, kwargs)
         else:
             return result, attrs
 
@@ -582,8 +535,7 @@ cdef class SansIOProtocol:
             query, io_format, implicit_limit, inline_typenames, inline_typeids,
             expect_one)
         if codecs is None:
-            parse_func = self._legacy_parse if self.is_legacy else self._parse
-            codecs = await parse_func(
+            codecs = await self._parse(
                 query,
                 reg=reg,
                 io_format=io_format,
@@ -619,10 +571,23 @@ cdef class SansIOProtocol:
                 capabilities,
             )
 
-            execute_func = (
-                self._legacy_execute if self.is_legacy else self._execute
+            ret, attrs = await self._optimistic_execute(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                reg=reg,
+                qc=qc,
+                io_format=io_format,
+                expect_one=expect_one,
+                required_one=required_one,
+                implicit_limit=implicit_limit,
+                inline_typenames=inline_typenames,
+                inline_typeids=inline_typeids,
+                allow_capabilities=allow_capabilities,
+                in_dc=in_dc,
+                out_dc=out_dc,
+                allow_re_exec=False,
             )
-            ret, attrs = await execute_func(in_dc, out_dc, args, kwargs)
 
         else:
             has_na_cardinality = codecs[0]
