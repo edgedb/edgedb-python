@@ -253,7 +253,6 @@ cdef class SansIOProtocol:
             else allow_capabilities)
         buf.write_byte(io_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
-        buf.write_len_prefixed_bytes(b'')  # stmt_name
         buf.write_len_prefixed_utf8(query)
         buf.end_message()
         buf.write_bytes(SYNC_MESSAGE)
