@@ -99,6 +99,8 @@ cdef class SansIOProtocol:
         readonly bytes last_details
         readonly tuple protocol_version
 
+        bint is_legacy
+
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
 
     cdef parse_data_messages(self, BaseCodec out_dc, result)
@@ -135,3 +137,6 @@ cdef class SansIOProtocol:
     )
 
     cdef ensure_connected(self)
+
+
+include "protocol_v0.pxd"

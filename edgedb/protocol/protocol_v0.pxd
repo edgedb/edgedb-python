@@ -16,15 +16,5 @@
 # limitations under the License.
 #
 
-
-from . cimport protocol
-
-from edgedb.pgproto.debug cimport PG_DEBUG
-
-
-cdef class BlockingIOProtocol(protocol.SansIOProtocolBackwardsCompatible):
-
-    cdef:
-        readonly object sock
-
-    cdef _disconnect(self)
+cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
+    pass

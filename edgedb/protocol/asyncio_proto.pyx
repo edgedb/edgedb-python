@@ -28,10 +28,10 @@ from edgedb.pgproto.pgproto cimport (
 from . cimport protocol
 
 
-cdef class AsyncIOProtocol(protocol.SansIOProtocol):
+cdef class AsyncIOProtocol(protocol.SansIOProtocolBackwardsCompatible):
 
     def __init__(self, con_params, loop):
-        protocol.SansIOProtocol.__init__(self, con_params)
+        protocol.SansIOProtocolBackwardsCompatible.__init__(self, con_params)
 
         self.loop = loop
         self.transport = None
