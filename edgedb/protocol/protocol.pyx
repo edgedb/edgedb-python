@@ -270,8 +270,11 @@ cdef class SansIOProtocol:
                 if mtype == PREPARE_COMPLETE_MSG:
                     attrs = self.parse_headers()
                     cardinality = self.buffer.read_byte()
-                    in_type_id = self.buffer.read_bytes(16)
-                    out_type_id = self.buffer.read_bytes(16)
+                    if self.protocol_version >= (0, 14):
+                        in_dc, out_dc = self.parse_type_data(reg)
+                    else:
+                        in_type_id = self.buffer.read_bytes(16)
+                        out_type_id = self.buffer.read_bytes(16)
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -290,47 +293,48 @@ cdef class SansIOProtocol:
         if exc is not None:
             raise exc
 
-        if reg.has_codec(in_type_id):
-            in_dc = reg.get_codec(in_type_id)
-        if reg.has_codec(out_type_id):
-            out_dc = reg.get_codec(out_type_id)
+        if self.protocol_version < (0, 14):
+            if reg.has_codec(in_type_id):
+                in_dc = reg.get_codec(in_type_id)
+            if reg.has_codec(out_type_id):
+                out_dc = reg.get_codec(out_type_id)
 
-        if in_dc is None or out_dc is None:
-            buf = WriteBuffer.new_message(DESCRIBE_STMT_MSG)
-            buf.write_int16(0)  # no headers
-            buf.write_byte(DESCRIBE_ASPECT_DATA)
-            buf.write_len_prefixed_bytes(b'')  # stmt_name
-            buf.end_message()
-            buf.write_bytes(SYNC_MESSAGE)
-            self.write(buf)
+            if in_dc is None or out_dc is None:
+                buf = WriteBuffer.new_message(DESCRIBE_STMT_MSG)
+                buf.write_int16(0)  # no headers
+                buf.write_byte(DESCRIBE_ASPECT_DATA)
+                buf.write_len_prefixed_bytes(b'')  # stmt_name
+                buf.end_message()
+                buf.write_bytes(SYNC_MESSAGE)
+                self.write(buf)
 
-            while True:
-                if not self.buffer.take_message():
-                    await self.wait_for_message()
-                mtype = self.buffer.get_message_type()
+                while True:
+                    if not self.buffer.take_message():
+                        await self.wait_for_message()
+                    mtype = self.buffer.get_message_type()
 
-                try:
-                    if mtype == STMT_DATA_DESC_MSG:
-                        cardinality, in_dc, out_dc, _ = \
-                            self.parse_describe_type_message(reg)
+                    try:
+                        if mtype == STMT_DATA_DESC_MSG:
+                            cardinality, in_dc, out_dc, _ = \
+                                self.parse_describe_type_message(reg)
 
-                    elif mtype == ERROR_RESPONSE_MSG:
-                        exc = self.parse_error_message()
-                        exc = self._amend_parse_error(
-                            exc, io_format, expect_one, required_one)
+                        elif mtype == ERROR_RESPONSE_MSG:
+                            exc = self.parse_error_message()
+                            exc = self._amend_parse_error(
+                                exc, io_format, expect_one, required_one)
 
-                    elif mtype == READY_FOR_COMMAND_MSG:
-                        self.parse_sync_message()
-                        break
+                        elif mtype == READY_FOR_COMMAND_MSG:
+                            self.parse_sync_message()
+                            break
 
-                    else:
-                        self.fallthrough()
+                        else:
+                            self.fallthrough()
 
-                finally:
-                    self.buffer.finish_message()
+                    finally:
+                        self.buffer.finish_message()
 
-        if exc is not None:
-            raise exc
+            if exc is not None:
+                raise exc
 
         if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
             methname = _QUERY_SINGLE_METHOD[required_one][io_format]
@@ -1189,7 +1193,6 @@ cdef class SansIOProtocol:
         assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG
 
         cdef:
-            bytes type_id
             bytes cardinality
 
         headers = self.parse_headers()
@@ -1197,25 +1200,34 @@ cdef class SansIOProtocol:
         try:
             cardinality = self.buffer.read_byte()
 
-            type_id = self.buffer.read_bytes(16)
-            type_data = self.buffer.read_len_prefixed_bytes()
-
-            if reg.has_codec(type_id):
-                in_dc = reg.get_codec(type_id)
-            else:
-                in_dc = reg.build_codec(type_data, self.protocol_version)
-
-            type_id = self.buffer.read_bytes(16)
-            type_data = self.buffer.read_len_prefixed_bytes()
-
-            if reg.has_codec(type_id):
-                out_dc = reg.get_codec(type_id)
-            else:
-                out_dc = reg.build_codec(type_data, self.protocol_version)
+            in_dc, out_dc = self.parse_type_data(reg)
         finally:
             self.buffer.finish_message()
 
         return cardinality, in_dc, out_dc, headers
+
+    cdef parse_type_data(self, CodecsRegistry reg):
+        cdef:
+            bytes type_id
+            BaseCodec in_dc, out_dc
+
+        type_id = self.buffer.read_bytes(16)
+        type_data = self.buffer.read_len_prefixed_bytes()
+
+        if reg.has_codec(type_id):
+            in_dc = reg.get_codec(type_id)
+        else:
+            in_dc = reg.build_codec(type_data, self.protocol_version)
+
+        type_id = self.buffer.read_bytes(16)
+        type_data = self.buffer.read_len_prefixed_bytes()
+
+        if reg.has_codec(type_id):
+            out_dc = reg.get_codec(type_id)
+        else:
+            out_dc = reg.build_codec(type_data, self.protocol_version)
+
+        return in_dc, out_dc
 
     cdef parse_data_messages(self, BaseCodec out_dc, result):
         cdef:
