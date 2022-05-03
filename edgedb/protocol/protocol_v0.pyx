@@ -140,3 +140,76 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 f'does not return any data')
 
         return cardinality, in_dc, out_dc, attrs
+
+    async def _legacy_execute(
+        self, BaseCodec in_dc, BaseCodec out_dc, args, kwargs
+    ):
+        cdef:
+            WriteBuffer packet
+            WriteBuffer buf
+            char mtype
+
+        self.ensure_connected()
+        self.reset_status()
+
+        packet = WriteBuffer.new()
+
+        buf = WriteBuffer.new_message(EXECUTE_MSG)
+        buf.write_int16(0)  # no headers
+        buf.write_len_prefixed_bytes(b'')  # stmt_name
+        self.encode_args(in_dc, buf, args, kwargs)
+        packet.write_buffer(buf.end_message())
+
+        packet.write_bytes(SYNC_MESSAGE)
+        self.write(packet)
+
+        result = datatypes.set_new(0)
+
+        attrs = None
+        exc = None
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            try:
+                if mtype == DATA_MSG:
+                    if exc is None:
+                        try:
+                            self.parse_data_messages(out_dc, result)
+                        except Exception as ex:
+                            # An error during data decoding.  We need to
+                            # handle this as gracefully as possible:
+                            # * save the exception to raise it once SYNC is
+                            #   received;
+                            # * ignore all 'D' messages for this query.
+                            exc = errors.ClientError(
+                                'unable to decode data to Python objects')
+                            exc.__cause__ = ex
+                            # Take care of a partially consumed 'D' message
+                            # and the ones yet unparsed.
+                            while self.buffer.take_message_type(DATA_MSG):
+                                self.buffer.discard_message()
+                    else:
+                        self.buffer.discard_message()
+
+                elif mtype == COMMAND_COMPLETE_MSG:
+                    attrs = self.parse_command_complete_message()
+
+                elif mtype == ERROR_RESPONSE_MSG:
+                    exc = self.parse_error_message()
+
+                elif mtype == READY_FOR_COMMAND_MSG:
+                    self.parse_sync_message()
+                    break
+
+                else:
+                    self.fallthrough()
+
+            finally:
+                self.buffer.finish_message()
+
+        if exc is not None:
+            raise exc
+
+        return result, attrs

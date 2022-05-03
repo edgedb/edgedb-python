@@ -318,7 +318,6 @@ cdef class SansIOProtocol:
 
         buf = WriteBuffer.new_message(EXECUTE_MSG)
         buf.write_int16(0)  # no headers
-        buf.write_len_prefixed_bytes(b'')  # stmt_name
         self.encode_args(in_dc, buf, args, kwargs)
         packet.write_buffer(buf.end_message())
 
@@ -499,7 +498,10 @@ cdef class SansIOProtocol:
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
-            return await self._execute(in_dc, out_dc, args, kwargs)
+            execute_func = (
+                self._legacy_execute if self.is_legacy else self._execute
+            )
+            return await execute_func(in_dc, out_dc, args, kwargs)
         else:
             return result, attrs
 
@@ -617,7 +619,10 @@ cdef class SansIOProtocol:
                 capabilities,
             )
 
-            ret, attrs = await self._execute(in_dc, out_dc, args, kwargs)
+            execute_func = (
+                self._legacy_execute if self.is_legacy else self._execute
+            )
+            ret, attrs = await execute_func(in_dc, out_dc, args, kwargs)
 
         else:
             has_na_cardinality = codecs[0]
