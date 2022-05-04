@@ -867,10 +867,7 @@ cdef class SansIOProtocol:
                     minor >= LEGACY_PROTO_VER_MINOR_MIN
                 ):
                     self.is_legacy = True
-                elif not (
-                    major == PROTO_VER_MAJOR and
-                    PROTO_VER_MINOR_MIN <= minor <= PROTO_VER_MINOR
-                ):
+                elif major != PROTO_VER_MAJOR:
                     raise errors.ClientConnectionError(
                         f'the server requested an unsupported version of '
                         f'the protocol: {major}.{minor}'
