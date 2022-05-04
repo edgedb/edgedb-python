@@ -154,7 +154,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
         packet = WriteBuffer.new()
 
-        buf = WriteBuffer.new_message(EXECUTE_MSG)
+        buf = WriteBuffer.new_message(LEGACY_EXECUTE_MSG)
         buf.write_int16(0)  # no headers
         buf.write_len_prefixed_bytes(b'')  # stmt_name
         self.encode_args(in_dc, buf, args, kwargs)
@@ -240,7 +240,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             object result
             bytes new_cardinality = None
 
-        buf = WriteBuffer.new_message(OPTIMISTIC_EXECUTE_MSG)
+        buf = WriteBuffer.new_message(EXECUTE_MSG)
         self.write_execute_headers(
             buf, implicit_limit, inline_typenames, inline_typeids,
             ALL_CAPABILITIES if allow_capabilities is None

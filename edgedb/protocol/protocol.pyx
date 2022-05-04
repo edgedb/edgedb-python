@@ -305,7 +305,7 @@ cdef class SansIOProtocol:
             raise errors.ClientConnectionClosedError(
                 'the connection has been closed')
 
-    async def _optimistic_execute(
+    async def _execute(
         self,
         *,
         query: str,
@@ -332,7 +332,7 @@ cdef class SansIOProtocol:
             object result
             bytes new_cardinality = None
 
-        buf = WriteBuffer.new_message(OPTIMISTIC_EXECUTE_MSG)
+        buf = WriteBuffer.new_message(EXECUTE_MSG)
         self.write_execute_headers(
             buf, implicit_limit, inline_typenames, inline_typeids,
             ALL_CAPABILITIES if allow_capabilities is None
@@ -438,7 +438,7 @@ cdef class SansIOProtocol:
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
 
-            return await self._optimistic_execute(
+            return await self._execute(
                 query=query,
                 args=args,
                 kwargs=kwargs,
@@ -571,7 +571,7 @@ cdef class SansIOProtocol:
                 capabilities,
             )
 
-            ret, attrs = await self._optimistic_execute(
+            ret, attrs = await self._execute(
                 query=query,
                 args=args,
                 kwargs=kwargs,
@@ -600,7 +600,7 @@ cdef class SansIOProtocol:
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
 
-            ret, attrs = await self._optimistic_execute(
+            ret, attrs = await self._execute(
                 query=query,
                 args=args,
                 kwargs=kwargs,
