@@ -37,7 +37,6 @@ class BlockingIOConnection(base_client.BaseConnection):
 
     async def connect_addr(self, addr, timeout):
         deadline = time.monotonic() + timeout
-        tls_compat = False
 
         if isinstance(addr, str):
             # UNIX socket
@@ -69,18 +68,7 @@ class BlockingIOConnection(base_client.BaseConnection):
                     except ssl.CertificateError as e:
                         raise con_utils.wrap_error(e) from e
                     except ssl.SSLError as e:
-                        if e.reason == 'CERTIFICATE_VERIFY_FAILED':
-                            raise con_utils.wrap_error(e) from e
-
-                        # Retry in plain text
-                        time_left = deadline - time.monotonic()
-                        if time_left <= 0:
-                            raise TimeoutError
-                        sock.close()
-                        sock = socket.socket(socket.AF_INET)
-                        sock.settimeout(time_left)
-                        sock.connect(addr)
-                        tls_compat = True
+                        raise con_utils.wrap_error(e) from e
                     else:
                         con_utils.check_alpn_protocol(sock)
             except socket.gaierror as e:
@@ -97,9 +85,7 @@ class BlockingIOConnection(base_client.BaseConnection):
             if not isinstance(addr, str):
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-            proto = blocking_proto.BlockingIOProtocol(
-                self._params, sock, tls_compat
-            )
+            proto = blocking_proto.BlockingIOProtocol(self._params, sock)
             proto.set_connection(self)
 
             try:

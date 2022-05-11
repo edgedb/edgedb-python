@@ -30,10 +30,10 @@ from . cimport protocol
 DEF RECV_BUF = 65536
 
 
-cdef class BlockingIOProtocol(protocol.SansIOProtocol):
+cdef class BlockingIOProtocol(protocol.SansIOProtocolBackwardsCompatible):
 
-    def __init__(self, con_params, sock, tls_compat):
-        protocol.SansIOProtocol.__init__(self, con_params, tls_compat)
+    def __init__(self, con_params, sock):
+        protocol.SansIOProtocolBackwardsCompatible.__init__(self, con_params)
         self.sock = sock
 
     cpdef abort(self):

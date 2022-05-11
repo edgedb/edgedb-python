@@ -87,7 +87,6 @@ cdef class SansIOProtocol:
 
         object con
         readonly object con_params
-        readonly bint tls_compat
 
         object backend_secret
 
@@ -100,12 +99,15 @@ cdef class SansIOProtocol:
         readonly bytes last_details
         readonly tuple protocol_version
 
+        readonly bint is_legacy
+
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
 
     cdef parse_data_messages(self, BaseCodec out_dc, result)
     cdef parse_sync_message(self)
     cdef parse_command_complete_message(self)
     cdef parse_describe_type_message(self, CodecsRegistry reg)
+    cdef parse_type_data(self, CodecsRegistry reg)
     cdef _amend_parse_error(
         self, exc, IoFormat io_format, bint expect_one, bint required_one)
 
@@ -135,3 +137,6 @@ cdef class SansIOProtocol:
     )
 
     cdef ensure_connected(self)
+
+
+include "protocol_v0.pxd"

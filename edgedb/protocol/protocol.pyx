@@ -126,11 +126,10 @@ cdef class QueryCodecsCache:
 
 cdef class SansIOProtocol:
 
-    def __init__(self, con_params, tls_compat):
+    def __init__(self, con_params):
         self.buffer = ReadBuffer()
 
         self.con_params = con_params
-        self.tls_compat = tls_compat
 
         self.connected = False
         self.cancelled = False
@@ -254,7 +253,6 @@ cdef class SansIOProtocol:
             else allow_capabilities)
         buf.write_byte(io_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
-        buf.write_len_prefixed_bytes(b'')  # stmt_name
         buf.write_len_prefixed_utf8(query)
         buf.end_message()
         buf.write_bytes(SYNC_MESSAGE)
@@ -271,8 +269,7 @@ cdef class SansIOProtocol:
                 if mtype == PREPARE_COMPLETE_MSG:
                     attrs = self.parse_headers()
                     cardinality = self.buffer.read_byte()
-                    in_type_id = self.buffer.read_bytes(16)
-                    out_type_id = self.buffer.read_bytes(16)
+                    in_dc, out_dc = self.parse_type_data(reg)
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -287,48 +284,6 @@ cdef class SansIOProtocol:
                     self.fallthrough()
             finally:
                 self.buffer.finish_message()
-
-        if exc is not None:
-            raise exc
-
-        if reg.has_codec(in_type_id):
-            in_dc = reg.get_codec(in_type_id)
-        if reg.has_codec(out_type_id):
-            out_dc = reg.get_codec(out_type_id)
-
-        if in_dc is None or out_dc is None:
-            buf = WriteBuffer.new_message(DESCRIBE_STMT_MSG)
-            buf.write_int16(0)  # no headers
-            buf.write_byte(DESCRIBE_ASPECT_DATA)
-            buf.write_len_prefixed_bytes(b'')  # stmt_name
-            buf.end_message()
-            buf.write_bytes(SYNC_MESSAGE)
-            self.write(buf)
-
-            while True:
-                if not self.buffer.take_message():
-                    await self.wait_for_message()
-                mtype = self.buffer.get_message_type()
-
-                try:
-                    if mtype == STMT_DATA_DESC_MSG:
-                        cardinality, in_dc, out_dc, _ = \
-                            self.parse_describe_type_message(reg)
-
-                    elif mtype == ERROR_RESPONSE_MSG:
-                        exc = self.parse_error_message()
-                        exc = self._amend_parse_error(
-                            exc, io_format, expect_one, required_one)
-
-                    elif mtype == READY_FOR_COMMAND_MSG:
-                        self.parse_sync_message()
-                        break
-
-                    else:
-                        self.fallthrough()
-
-                finally:
-                    self.buffer.finish_message()
 
         if exc is not None:
             raise exc
@@ -350,77 +305,6 @@ cdef class SansIOProtocol:
             raise errors.ClientConnectionClosedError(
                 'the connection has been closed')
 
-    async def _execute(self, BaseCodec in_dc, BaseCodec out_dc, args, kwargs):
-        cdef:
-            WriteBuffer packet
-            WriteBuffer buf
-            char mtype
-
-        self.ensure_connected()
-        self.reset_status()
-
-        packet = WriteBuffer.new()
-
-        buf = WriteBuffer.new_message(EXECUTE_MSG)
-        buf.write_int16(0)  # no headers
-        buf.write_len_prefixed_bytes(b'')  # stmt_name
-        self.encode_args(in_dc, buf, args, kwargs)
-        packet.write_buffer(buf.end_message())
-
-        packet.write_bytes(SYNC_MESSAGE)
-        self.write(packet)
-
-        result = datatypes.set_new(0)
-
-        attrs = None
-        exc = None
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-
-            try:
-                if mtype == DATA_MSG:
-                    if exc is None:
-                        try:
-                            self.parse_data_messages(out_dc, result)
-                        except Exception as ex:
-                            # An error during data decoding.  We need to
-                            # handle this as gracefully as possible:
-                            # * save the exception to raise it once SYNC is
-                            #   received;
-                            # * ignore all 'D' messages for this query.
-                            exc = errors.ClientError(
-                                'unable to decode data to Python objects')
-                            exc.__cause__ = ex
-                            # Take care of a partially consumed 'D' message
-                            # and the ones yet unparsed.
-                            while self.buffer.take_message_type(DATA_MSG):
-                                self.buffer.discard_message()
-                    else:
-                        self.buffer.discard_message()
-
-                elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_command_complete_message()
-
-                elif mtype == ERROR_RESPONSE_MSG:
-                    exc = self.parse_error_message()
-
-                elif mtype == READY_FOR_COMMAND_MSG:
-                    self.parse_sync_message()
-                    break
-
-                else:
-                    self.fallthrough()
-
-            finally:
-                self.buffer.finish_message()
-
-        if exc is not None:
-            raise exc
-
-        return result, attrs
-
     async def _optimistic_execute(
         self,
         *,
@@ -438,6 +322,7 @@ cdef class SansIOProtocol:
         allow_capabilities: typing.Optional[int] = None,
         in_dc: BaseCodec,
         out_dc: BaseCodec,
+        allow_re_exec: bint = True,
     ):
         cdef:
             WriteBuffer packet
@@ -496,7 +381,11 @@ cdef class SansIOProtocol:
                     re_exec = True
 
                 elif mtype == DATA_MSG:
-                    assert not re_exec
+                    if re_exec:
+                        raise errors.ProtocolError(
+                            'unexpected DataMessage (D) after '
+                            'CommandDataDescription (T)'
+                        )
                     if exc is None:
                         try:
                             self.parse_data_messages(out_dc, result)
@@ -538,13 +427,34 @@ cdef class SansIOProtocol:
             raise exc
 
         if re_exec:
+            if not allow_re_exec:
+                raise errors.TransactionConflictError(
+                    'in/out type is modified concurrently'
+                )
             assert new_cardinality is not None
             if required_one and new_cardinality == CARDINALITY_NOT_APPLICABLE:
                 methname = _QUERY_SINGLE_METHOD[required_one][io_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
-            return await self._execute(in_dc, out_dc, args, kwargs)
+
+            return await self._optimistic_execute(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                reg=reg,
+                qc=qc,
+                io_format=io_format,
+                expect_one=expect_one,
+                required_one=required_one,
+                implicit_limit=implicit_limit,
+                inline_typenames=inline_typenames,
+                inline_typeids=inline_typeids,
+                allow_capabilities=allow_capabilities,
+                in_dc=in_dc,
+                out_dc=out_dc,
+                allow_re_exec=False,
+            )
         else:
             return result, attrs
 
@@ -661,7 +571,23 @@ cdef class SansIOProtocol:
                 capabilities,
             )
 
-            ret, attrs = await self._execute(in_dc, out_dc, args, kwargs)
+            ret, attrs = await self._optimistic_execute(
+                query=query,
+                args=args,
+                kwargs=kwargs,
+                reg=reg,
+                qc=qc,
+                io_format=io_format,
+                expect_one=expect_one,
+                required_one=required_one,
+                implicit_limit=implicit_limit,
+                inline_typenames=inline_typenames,
+                inline_typeids=inline_typeids,
+                allow_capabilities=allow_capabilities,
+                in_dc=in_dc,
+                out_dc=out_dc,
+                allow_re_exec=False,
+            )
 
         else:
             has_na_cardinality = codecs[0]
@@ -936,8 +862,12 @@ cdef class SansIOProtocol:
                 self.parse_headers()
                 self.buffer.finish_message()
 
-                if (major != PROTO_VER_MAJOR or (major == 0 and
-                        not PROTO_VER_MINOR_MIN <= minor <= PROTO_VER_MINOR)):
+                if (
+                    major == LEGACY_PROTO_VER_MAJOR and
+                    minor >= LEGACY_PROTO_VER_MINOR_MIN
+                ):
+                    self.is_legacy = True
+                elif major != PROTO_VER_MAJOR:
                     raise errors.ClientConnectionError(
                         f'the server requested an unsupported version of '
                         f'the protocol: {major}.{minor}'
@@ -977,14 +907,6 @@ cdef class SansIOProtocol:
                 self.fallthrough()
 
             self.buffer.finish_message()
-
-        if self.tls_compat and \
-                self.protocol_version >= PROTO_VER_MIN_TLS:
-            raise errors.ClientConnectionError(
-                'the protocol version requires TLS: {}.{}'.format(
-                    *self.protocol_version
-                )
-            )
 
     async def _auth_sasl(self):
         num_methods = self.buffer.read_int32()
@@ -1167,63 +1089,37 @@ cdef class SansIOProtocol:
 
         in_dc_type = type(in_dc)
 
-        if self.protocol_version >= (0, 12):
-            if in_dc_type in {NullCodec, EmptyTupleCodec}:
-                # TODO: drop EmptyTupleCodec when 1.0 RC1 is released.
-                # It's only here because 0.12 protocol is only
-                # partially implemented in edgedb@master right now.
-                if args:
-                    raise errors.QueryArgumentError(
-                        'expected no positional arguments')
-                if kwargs:
-                    raise errors.QueryArgumentError(
-                        'expected no named arguments')
-
-                if in_dc_type is NullCodec:
-                    buf.write_bytes(EMPTY_NULL_DATA)
-                else:
-                    buf.write_bytes(EMPTY_RECORD_DATA)
-
-                return
-
-            if in_dc_type is not ObjectCodec:
-                raise errors.QueryArgumentError(
-                    'unexpected query argument codec')
-
+        if in_dc_type in {NullCodec, EmptyTupleCodec}:
+            # TODO: drop EmptyTupleCodec when 1.0 RC1 is released.
+            # It's only here because 0.12 protocol is only
+            # partially implemented in edgedb@master right now.
             if args:
-                kwargs = {str(i): v for i, v in enumerate(args)}
-
-            (<ObjectCodec>in_dc).encode_args(buf, kwargs)
-            return
-        else:
-            if in_dc_type is EmptyTupleCodec:
-                if args:
-                    raise errors.QueryArgumentError(
-                        'expected no positional arguments')
-                if kwargs:
-                    raise errors.QueryArgumentError(
-                        'expected no named arguments')
-                buf.write_bytes(EMPTY_RECORD_DATA)
-                return
-
+                raise errors.QueryArgumentError(
+                    'expected no positional arguments')
             if kwargs:
-                if in_dc_type is not NamedTupleCodec:
-                    raise errors.QueryArgumentError(
-                        'expected positional arguments, got named arguments')
+                raise errors.QueryArgumentError(
+                    'expected no named arguments')
 
-                (<NamedTupleCodec>in_dc).encode_kwargs(buf, kwargs)
-
+            if in_dc_type is NullCodec:
+                buf.write_bytes(EMPTY_NULL_DATA)
             else:
-                if in_dc_type is not TupleCodec and args:
-                    raise errors.QueryArgumentError(
-                        'expected named arguments, got positional arguments')
-                in_dc.encode(buf, args)
+                buf.write_bytes(EMPTY_RECORD_DATA)
+
+            return
+
+        if in_dc_type is not ObjectCodec:
+            raise errors.QueryArgumentError(
+                'unexpected query argument codec')
+
+        if args:
+            kwargs = {str(i): v for i, v in enumerate(args)}
+
+        (<ObjectCodec>in_dc).encode_args(buf, kwargs)
 
     cdef parse_describe_type_message(self, CodecsRegistry reg):
         assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG
 
         cdef:
-            bytes type_id
             bytes cardinality
 
         headers = self.parse_headers()
@@ -1231,25 +1127,34 @@ cdef class SansIOProtocol:
         try:
             cardinality = self.buffer.read_byte()
 
-            type_id = self.buffer.read_bytes(16)
-            type_data = self.buffer.read_len_prefixed_bytes()
-
-            if reg.has_codec(type_id):
-                in_dc = reg.get_codec(type_id)
-            else:
-                in_dc = reg.build_codec(type_data, self.protocol_version)
-
-            type_id = self.buffer.read_bytes(16)
-            type_data = self.buffer.read_len_prefixed_bytes()
-
-            if reg.has_codec(type_id):
-                out_dc = reg.get_codec(type_id)
-            else:
-                out_dc = reg.build_codec(type_data, self.protocol_version)
+            in_dc, out_dc = self.parse_type_data(reg)
         finally:
             self.buffer.finish_message()
 
         return cardinality, in_dc, out_dc, headers
+
+    cdef parse_type_data(self, CodecsRegistry reg):
+        cdef:
+            bytes type_id
+            BaseCodec in_dc, out_dc
+
+        type_id = self.buffer.read_bytes(16)
+        type_data = self.buffer.read_len_prefixed_bytes()
+
+        if reg.has_codec(type_id):
+            in_dc = reg.get_codec(type_id)
+        else:
+            in_dc = reg.build_codec(type_data, self.protocol_version)
+
+        type_id = self.buffer.read_bytes(16)
+        type_data = self.buffer.read_len_prefixed_bytes()
+
+        if reg.has_codec(type_id):
+            out_dc = reg.get_codec(type_id)
+        else:
+            out_dc = reg.build_codec(type_data, self.protocol_version)
+
+        return in_dc, out_dc
 
     cdef parse_data_messages(self, BaseCodec out_dc, result):
         cdef:
@@ -1397,3 +1302,6 @@ cdef bytes SYNC_MESSAGE = bytes(
     WriteBuffer.new_message(SYNC_MSG).end_message())
 cdef bytes FLUSH_MESSAGE = bytes(
     WriteBuffer.new_message(FLUSH_MSG).end_message())
+
+
+include "protocol_v0.pyx"

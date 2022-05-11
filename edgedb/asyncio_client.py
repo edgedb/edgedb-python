@@ -18,7 +18,6 @@
 
 
 import asyncio
-import functools
 import logging
 import socket
 import ssl
@@ -62,10 +61,8 @@ class AsyncIOConnection(base_client.BaseConnection):
     async def sleep(self, seconds):
         await asyncio.sleep(seconds)
 
-    def _protocol_factory(self, tls_compat=False):
-        return asyncio_proto.AsyncIOProtocol(
-            self._params, self._loop, tls_compat=tls_compat
-        )
+    def _protocol_factory(self):
+        return asyncio_proto.AsyncIOProtocol(self._params, self._loop)
 
     async def _connect_addr(self, addr):
         tr = None
@@ -84,14 +81,7 @@ class AsyncIOConnection(base_client.BaseConnection):
                 except ssl.CertificateError as e:
                     raise con_utils.wrap_error(e) from e
                 except ssl.SSLError as e:
-                    if e.reason == 'CERTIFICATE_VERIFY_FAILED':
-                        raise con_utils.wrap_error(e) from e
-                    tr, pr = await self._loop.create_connection(
-                        functools.partial(
-                            self._protocol_factory, tls_compat=True
-                        ),
-                        *addr,
-                    )
+                    raise con_utils.wrap_error(e) from e
                 else:
                     con_utils.check_alpn_protocol(
                         tr.get_extra_info('ssl_object')

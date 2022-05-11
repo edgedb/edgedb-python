@@ -22,7 +22,7 @@ from . cimport protocol
 from edgedb.pgproto.debug cimport PG_DEBUG
 
 
-cdef class AsyncIOProtocol(protocol.SansIOProtocol):
+cdef class AsyncIOProtocol(protocol.SansIOProtocolBackwardsCompatible):
 
     cdef:
         object transport

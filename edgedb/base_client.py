@@ -196,7 +196,11 @@ class BaseConnection(metaclass=abc.ABCMeta):
             try:
                 if reconnect:
                     await self.connect(single_attempt=True)
-                return await self._protocol.execute_anonymous(
+                if self._protocol.is_legacy:
+                    execute = self._protocol.legacy_execute_anonymous
+                else:
+                    execute = self._protocol.execute_anonymous
+                return await execute(
                     query=query_context.query.query,
                     args=query_context.query.args,
                     kwargs=query_context.query.kwargs,
