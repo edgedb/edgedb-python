@@ -377,6 +377,34 @@ Client
         mis-configuration by triggering the first connection attempt
         explicitly.
 
+    .. py:method:: with_transaction_options(options=None)
+
+        Returns object with adjusted options for future transactions.
+
+        :param TransactionOptions options:
+            Object that encapsulates transaction options.
+
+        This method returns a "shallow copy" of the current object
+        with modified transaction options.
+
+        Both ``self`` and returned object can be used after, but when using
+        them transaction options applied will be different.
+
+        Transaction options are used by the
+        :py:meth:`~edgedb.Client.transaction` method.
+
+    .. py:method:: with_retry_options(options=None)
+
+        Returns object with adjusted options for future retrying
+        transactions.
+
+        :param RetryOptions options: Object that encapsulates retry options.
+
+        This method returns a "shallow copy" of the current object
+        with modified retry options.
+
+        Both ``self`` and returned object can be used after, but when using
+        them transaction options applied will be different.
 
 .. _edgedb-python-blocking-api-transaction:
 
@@ -552,5 +580,56 @@ See also:
 
         Yields :py:class:`Transaction` object every time transaction has to
         be repeated.
+
+.. py:class:: RetryOptions(attempts, backoff=default_backoff)
+
+    An immutable class that contains rules for :py:meth:`Client.transaction()`
+
+    :param int attempts: the default number of attempts
+    :param Callable[[int], Union[float, int]] backoff: the default backoff function
+
+    .. py:method:: with_rule(condition, attempts=None, backoff=None)
+
+        Adds a backoff rule for a particular condition
+
+        :param RetryCondition condition: condition that will trigger this rule
+        :param int attempts: number of times to retry
+        :param Callable[[int], Union[float, int]] backoff:
+          function taking the current attempt number and returning the number
+          of seconds to wait before the next attempt
+
+    .. py:method:: defaults()
+        :classmethod:
+
+        Returns the default :py:class:`RetryOptions`.
+
+.. py:class:: RetryCondition
+
+    Specific condition to retry on for fine-grained control
+
+    .. py:attribute:: TransactionConflict
+
+        Triggered when a TransactionConflictError occurs.
+
+    .. py:attribute:: NetworkError
+
+        Triggered when a ClientError occurs.
+
+.. py:class:: TransactionOptions(isolation=IsolationLevel.Serializable, readonly=False, deferrable=False)
+
+    Options for :py:meth:`Client.transaction()`
+
+    :param IsolationLevel isolation: transaction isolation level
+    :param bool readonly: if true the transaction will be readonly
+    :param bool deferrable: if true the transaction will be deferrable
+
+
+.. py:class:: IsolationLevel
+
+    Isolation level for transaction
+
+    .. py:attribute:: Serializable
+
+        Serializable isolation level
 
 .. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
