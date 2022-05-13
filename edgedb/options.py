@@ -143,7 +143,7 @@ class _OptionsMixin:
             Object that encapsulates retry options.
 
         This method returns a "shallow copy" of the current object
-        with modified transaction options.
+        with modified retry options.
 
         Both ``self`` and returned object can be used after, but when using
         them transaction options applied will be different.
