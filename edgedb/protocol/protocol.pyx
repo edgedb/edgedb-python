@@ -642,6 +642,17 @@ cdef class SansIOProtocol:
                 else:
                     return ret, attrs
 
+    async def execute_script(
+        self,
+        *,
+        query: str,
+        args,
+        kwargs,
+        reg: CodecsRegistry,
+        qc: QueryCodecsCache,
+    ):
+        raise NotImplementedError
+
     async def dump(self, header_callback, block_callback):
         cdef:
             WriteBuffer buf

@@ -241,10 +241,23 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 await self.sleep(rule.backoff(i))
                 reconnect = self.is_closed()
 
-    async def execute(self, query: str) -> None:
-        await self._protocol.simple_query(
-            query, enums.Capability.EXECUTE
-        )
+    async def _execute(self, script: abstract.ScriptContext) -> None:
+        if self._protocol.is_legacy:
+            if script.query.args or script.query.kwargs:
+                raise errors.InterfaceError(
+                    "Legacy protocol doesn't support arguments in execute()"
+                )
+            await self._protocol.simple_query(
+                script.query.query, enums.Capability.EXECUTE
+            )
+        else:
+            await self._protocol.execute_script(
+                query=script.query.query,
+                args=script.query.args,
+                kwargs=script.query.kwargs,
+                reg=script.cache.codecs_registry,
+                qc=script.cache.query_cache,
+            )
 
     def terminate(self):
         if not self.is_closed():
@@ -689,10 +702,10 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         finally:
             await self._impl.release(con)
 
-    async def execute(self, query: str) -> None:
+    async def _execute(self, script: abstract.ScriptContext) -> None:
         con = await self._impl.acquire()
         try:
-            await con.execute(query)
+            await con._execute(script)
         finally:
             await self._impl.release(con)
 
