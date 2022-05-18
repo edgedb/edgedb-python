@@ -44,6 +44,7 @@ cpdef enum IoFormat:
     BINARY = b'b'
     JSON = b'j'
     JSON_ELEMENTS = b'J'
+    DISCARD = b'd'
 
 
 cdef enum TransactionStatus:

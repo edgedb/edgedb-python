@@ -171,8 +171,21 @@ class BaseConnection(metaclass=abc.ABCMeta):
             iteration += 1
             await self.sleep(0.01 + random.random() * 0.2)
 
-    async def privileged_execute(self, query):
-        await self._protocol.simple_query(query, enums.Capability.ALL)
+    async def privileged_execute(self, script: abstract.ScriptContext):
+        if self._protocol.is_legacy:
+            await self._protocol.simple_query(
+                script.query.query, enums.Capability.ALL
+            )
+        else:
+            await self._protocol.execute(
+                query=script.query.query,
+                args=script.query.args,
+                kwargs=script.query.kwargs,
+                reg=script.cache.codecs_registry,
+                qc=script.cache.query_cache,
+                output_format=protocol.OutputFormat.NULL_,
+                allow_capabilities=enums.Capability.ALL,
+            )
 
     def is_in_transaction(self) -> bool:
         """Return True if Connection is currently inside a transaction.
@@ -199,7 +212,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 if self._protocol.is_legacy:
                     execute = self._protocol.legacy_execute_anonymous
                 else:
-                    execute = self._protocol.execute_anonymous
+                    execute = self._protocol.query
                 return await execute(
                     query=query_context.query.query,
                     args=query_context.query.args,
@@ -251,12 +264,14 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 script.query.query, enums.Capability.EXECUTE
             )
         else:
-            await self._protocol.execute_script(
+            await self._protocol.execute(
                 query=script.query.query,
                 args=script.query.args,
                 kwargs=script.query.kwargs,
                 reg=script.cache.codecs_registry,
                 qc=script.cache.query_cache,
+                io_format=protocol.IoFormat.DISCARD,
+                allow_capabilities=enums.Capability.EXECUTE,
             )
 
     def terminate(self):

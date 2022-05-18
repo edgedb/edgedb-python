@@ -289,6 +289,7 @@ cdef class SansIOProtocol:
             raise exc
 
         if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
+            assert io_format != IoFormat.DISCARD
             methname = _QUERY_SINGLE_METHOD[required_one][io_format]
             raise errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
@@ -433,6 +434,7 @@ cdef class SansIOProtocol:
                 )
             assert new_cardinality is not None
             if required_one and new_cardinality == CARDINALITY_NOT_APPLICABLE:
+                assert io_format != IoFormat.DISCARD
                 methname = _QUERY_SINGLE_METHOD[required_one][io_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
@@ -508,7 +510,7 @@ cdef class SansIOProtocol:
         if exc is not None:
             raise exc
 
-    async def execute_anonymous(
+    async def execute(
         self,
         *,
         query: str,
@@ -571,7 +573,7 @@ cdef class SansIOProtocol:
                 capabilities,
             )
 
-            ret, attrs = await self._execute(
+            return await self._execute(
                 query=query,
                 args=args,
                 kwargs=kwargs,
@@ -595,12 +597,13 @@ cdef class SansIOProtocol:
             out_dc = <BaseCodec>codecs[2]
 
             if required_one and has_na_cardinality:
+                assert io_format != IoFormat.DISCARD
                 methname = _QUERY_SINGLE_METHOD[required_one][io_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
 
-            ret, attrs = await self._execute(
+            return await self._execute(
                 query=query,
                 args=args,
                 kwargs=kwargs,
@@ -616,6 +619,37 @@ cdef class SansIOProtocol:
                 in_dc=in_dc,
                 out_dc=out_dc,
             )
+
+    async def query(
+        self,
+        *,
+        query: str,
+        args,
+        kwargs,
+        reg: CodecsRegistry,
+        qc: QueryCodecsCache,
+        io_format: object,
+        expect_one: bint = False,
+        required_one: bool = False,
+        implicit_limit: int = 0,
+        inline_typenames: bool = False,
+        inline_typeids: bool = False,
+        allow_capabilities: typing.Optional[int] = None,
+    ):
+        ret, attrs = await self.execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=reg,
+            qc=qc,
+            io_format=io_format,
+            expect_one=expect_one,
+            required_one=required_one,
+            implicit_limit=implicit_limit,
+            inline_typenames=inline_typenames,
+            inline_typeids=inline_typeids,
+            allow_capabilities=allow_capabilities,
+        )
 
         if expect_one:
             if ret or not required_one:
@@ -641,17 +675,6 @@ cdef class SansIOProtocol:
                     return '[]', attrs
                 else:
                     return ret, attrs
-
-    async def execute_script(
-        self,
-        *,
-        query: str,
-        args,
-        kwargs,
-        reg: CodecsRegistry,
-        qc: QueryCodecsCache,
-    ):
-        raise NotImplementedError
 
     async def dump(self, header_callback, block_callback):
         cdef:
@@ -1257,6 +1280,7 @@ cdef class SansIOProtocol:
         self, exc, IoFormat io_format, bint expect_one, bint required_one
     ):
         if expect_one and exc.get_code() == result_cardinality_mismatch_code:
+            assert io_format != IoFormat.DISCARD
             methname = _QUERY_SINGLE_METHOD[required_one][io_format]
             new_exc = errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
