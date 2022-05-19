@@ -40,11 +40,11 @@ include "./codecs/codecs.pxd"
 ctypedef object (*decode_row_method)(BaseCodec, FRBuffer *buf)
 
 
-cpdef enum IoFormat:
+cpdef enum OutputFormat:
     BINARY = b'b'
     JSON = b'j'
     JSON_ELEMENTS = b'J'
-    DISCARD = b'd'
+    NULL_ = b'n'
 
 
 cdef enum TransactionStatus:
@@ -72,7 +72,7 @@ cdef class QueryCodecsCache:
     cdef:
         LRUMapping queries
 
-    cdef set(self, str query, IoFormat io_format,
+    cdef set(self, str query, OutputFormat output_format,
              int implicit_limit, bint inline_typenames, bint inline_typeids,
              bint expect_one, bint has_na_cardinality,
              BaseCodec in_type, BaseCodec out_type, int capabilities)
@@ -110,7 +110,12 @@ cdef class SansIOProtocol:
     cdef parse_describe_type_message(self, CodecsRegistry reg)
     cdef parse_type_data(self, CodecsRegistry reg)
     cdef _amend_parse_error(
-        self, exc, IoFormat io_format, bint expect_one, bint required_one)
+        self,
+        exc,
+        OutputFormat output_format,
+        bint expect_one,
+        bint required_one,
+    )
 
     cdef inline ignore_headers(self)
     cdef dict parse_headers(self)

@@ -22,7 +22,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         query: str,
         *,
         reg: CodecsRegistry,
-        io_format: IoFormat=IoFormat.BINARY,
+        output_format: OutputFormat=OutputFormat.BINARY,
         expect_one: bint=False,
         required_one: bool=False,
         implicit_limit: int=0,
@@ -48,7 +48,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             buf, implicit_limit, inline_typenames, inline_typeids,
             ALL_CAPABILITIES if allow_capabilities is None
             else allow_capabilities)
-        buf.write_byte(io_format)
+        buf.write_byte(output_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_bytes(b'')  # stmt_name
         buf.write_len_prefixed_utf8(query)
@@ -76,7 +76,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
                     exc = self._amend_parse_error(
-                        exc, io_format, expect_one, required_one)
+                        exc, output_format, expect_one, required_one)
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -118,7 +118,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                         elif mtype == ERROR_RESPONSE_MSG:
                             exc = self.parse_error_message()
                             exc = self._amend_parse_error(
-                                exc, io_format, expect_one, required_one)
+                                exc, output_format, expect_one, required_one)
 
                         elif mtype == READY_FOR_COMMAND_MSG:
                             self.parse_sync_message()
@@ -134,7 +134,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 raise exc
 
         if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
-            methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+            methname = _QUERY_SINGLE_METHOD[required_one][output_format]
             raise errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
                 f'does not return any data')
@@ -222,7 +222,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
-        io_format: object,
+        output_format: object,
         expect_one: bint,
         required_one: bint,
         implicit_limit: int,
@@ -245,7 +245,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             buf, implicit_limit, inline_typenames, inline_typeids,
             ALL_CAPABILITIES if allow_capabilities is None
             else allow_capabilities)
-        buf.write_byte(io_format)
+        buf.write_byte(output_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
         buf.write_bytes(in_dc.get_tid())
@@ -279,7 +279,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
                     qc.set(
                         query,
-                        io_format,
+                        output_format,
                         implicit_limit,
                         inline_typenames,
                         inline_typeids,
@@ -315,7 +315,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
                     exc = self._amend_parse_error(
-                        exc, io_format, expect_one, required_one)
+                        exc, output_format, expect_one, required_one)
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -333,7 +333,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         if re_exec:
             assert new_cardinality is not None
             if required_one and new_cardinality == CARDINALITY_NOT_APPLICABLE:
-                methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+                methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
@@ -349,7 +349,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
-        io_format: object,
+        output_format: object,
         expect_one: bint = False,
         required_one: bool = False,
         implicit_limit: int = 0,
@@ -365,13 +365,17 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         self.reset_status()
 
         codecs = qc.get(
-            query, io_format, implicit_limit, inline_typenames, inline_typeids,
+            query,
+            output_format,
+            implicit_limit,
+            inline_typenames,
+            inline_typeids,
             expect_one)
         if codecs is None:
             codecs = await self._legacy_parse(
                 query,
                 reg=reg,
-                io_format=io_format,
+                output_format=output_format,
                 expect_one=expect_one,
                 required_one=required_one,
                 implicit_limit=implicit_limit,
@@ -393,7 +397,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
             qc.set(
                 query,
-                io_format,
+                output_format,
                 implicit_limit,
                 inline_typenames,
                 inline_typeids,
@@ -412,7 +416,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             out_dc = <BaseCodec>codecs[2]
 
             if required_one and has_na_cardinality:
-                methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+                methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
@@ -423,7 +427,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 kwargs=kwargs,
                 reg=reg,
                 qc=qc,
-                io_format=io_format,
+                output_format=output_format,
                 expect_one=expect_one,
                 required_one=required_one,
                 implicit_limit=implicit_limit,
@@ -439,22 +443,22 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 if ret:
                     return ret[0], attrs
                 else:
-                    if io_format == IoFormat.JSON:
+                    if output_format == OutputFormat.JSON:
                         return 'null', attrs
                     else:
                         return None, attrs
             else:
-                methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+                methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.NoDataError(
                     f'query executed via {methname}() returned no data')
         else:
             if ret:
-                if io_format == IoFormat.JSON:
+                if output_format == OutputFormat.JSON:
                     return ret[0], attrs
                 else:
                     return ret, attrs
             else:
-                if io_format == IoFormat.JSON:
+                if output_format == OutputFormat.JSON:
                     return '[]', attrs
                 else:
                     return ret, attrs

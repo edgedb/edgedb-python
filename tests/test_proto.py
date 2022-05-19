@@ -42,7 +42,7 @@ class TestProto(tb.SyncQueryTestCase):
                     ),
                     cache=self.client._get_query_cache(),
                     query_options=abstract.QueryOptions(
-                        io_format=protocol.IoFormat.JSON_ELEMENTS,
+                        output_format=protocol.OutputFormat.JSON_ELEMENTS,
                         expect_one=False,
                         required_one=False,
                     ),

@@ -29,7 +29,7 @@ class QueryCache(typing.NamedTuple):
 
 
 class QueryOptions(typing.NamedTuple):
-    io_format: protocol.IoFormat
+    output_format: protocol.OutputFormat
     expect_one: bool
     required_one: bool
 
@@ -47,32 +47,32 @@ class ScriptContext(typing.NamedTuple):
 
 
 _query_opts = QueryOptions(
-    io_format=protocol.IoFormat.BINARY,
+    output_format=protocol.OutputFormat.BINARY,
     expect_one=False,
     required_one=False,
 )
 _query_single_opts = QueryOptions(
-    io_format=protocol.IoFormat.BINARY,
+    output_format=protocol.OutputFormat.BINARY,
     expect_one=True,
     required_one=False,
 )
 _query_required_single_opts = QueryOptions(
-    io_format=protocol.IoFormat.BINARY,
+    output_format=protocol.OutputFormat.BINARY,
     expect_one=True,
     required_one=True,
 )
 _query_json_opts = QueryOptions(
-    io_format=protocol.IoFormat.JSON,
+    output_format=protocol.OutputFormat.JSON,
     expect_one=False,
     required_one=False,
 )
 _query_single_json_opts = QueryOptions(
-    io_format=protocol.IoFormat.JSON,
+    output_format=protocol.OutputFormat.JSON,
     expect_one=True,
     required_one=False,
 )
 _query_required_single_json_opts = QueryOptions(
-    io_format=protocol.IoFormat.JSON,
+    output_format=protocol.OutputFormat.JSON,
     expect_one=True,
     required_one=True,
 )

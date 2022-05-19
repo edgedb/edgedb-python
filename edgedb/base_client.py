@@ -219,7 +219,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                     kwargs=query_context.query.kwargs,
                     reg=query_context.cache.codecs_registry,
                     qc=query_context.cache.query_cache,
-                    io_format=query_context.query_options.io_format,
+                    output_format=query_context.query_options.output_format,
                     expect_one=query_context.query_options.expect_one,
                     required_one=query_context.query_options.required_one,
                     allow_capabilities=enums.Capability.EXECUTE,
@@ -231,8 +231,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
                     raise e
                 if capabilities is None:
                     cache_item = query_context.cache.query_cache.get(
-                        query=query_context.query.query,
-                        io_format=query_context.query_options.io_format,
+                        query_context.query.query,
+                        query_context.query_options.output_format,
                         implicit_limit=0,
                         inline_typenames=False,
                         inline_typeids=False,
@@ -270,7 +270,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 kwargs=script.query.kwargs,
                 reg=script.cache.codecs_registry,
                 qc=script.cache.query_cache,
-                io_format=protocol.IoFormat.DISCARD,
+                output_format=protocol.OutputFormat.NULL_,
                 allow_capabilities=enums.Capability.EXECUTE,
             )
 
