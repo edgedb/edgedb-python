@@ -433,6 +433,15 @@ class TestSyncQuery(tb.SyncQueryTestCase):
 
             self.client.query("""SELECT <int64>$a;""", a=1, b=2)
 
+    def test_sync_mismatched_args_06(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"expected {'a'} arguments, "
+                r"got nothing, "
+                r"missed {'a'}"):
+
+            self.client.query("""SELECT <int64>$a;""")
+
     async def test_sync_log_message(self):
         msgs = []
 
