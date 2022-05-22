@@ -85,7 +85,9 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
         extra_args = passed_args - required_args
 
         error_message = f'expected {required_args} arguments'
-        error_message += f', got {passed_args}'
+
+        passed_args_repr = repr(passed_args) if passed_args else 'nothing'
+        error_message += f', got {passed_args_repr}'
 
         missed_args = set(required_args) - set(passed_args)
         if missed_args:
