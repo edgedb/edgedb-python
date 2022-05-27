@@ -61,49 +61,6 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
 
         return result
 
-    cdef encode_kwargs(self, WriteBuffer buf, dict obj):
-        # Compatibility with old protocols. The 0.12 protocol
-        # uses `ObjectCodec.encode_args()`.
-        cdef:
-            WriteBuffer elem_data
-            Py_ssize_t objlen
-            Py_ssize_t i
-            BaseCodec sub_codec
-
-        self._check_encoder()
-
-        objlen = len(obj)
-        if objlen != len(self.fields_codecs):
-            raise self._make_missing_args_error_message(obj)
-
-        elem_data = WriteBuffer.new()
-        for i in range(objlen):
-            name = datatypes.record_desc_pointer_name(self.descriptor, i)
-            try:
-                arg = obj[name]
-            except KeyError:
-                raise self._make_missing_args_error_message(obj) from None
-
-            elem_data.write_int32(0)  # reserved bytes
-            if arg is None:
-                elem_data.write_int32(-1)
-            else:
-                sub_codec = <BaseCodec>(self.fields_codecs[i])
-                try:
-                    sub_codec.encode(elem_data, arg)
-                except (TypeError, ValueError) as e:
-                    value_repr = repr(arg)
-                    if len(value_repr) > 40:
-                        value_repr = value_repr[:40] + '...'
-                    raise errors.InvalidArgumentError(
-                        'invalid input for query argument'
-                        ' ${n}: {v} ({msg})'.format(
-                            n=name, v=value_repr, msg=e)) from e
-
-        buf.write_int32(4 + elem_data.len())  # buffer length
-        buf.write_int32(<int32_t><uint32_t>objlen)
-        buf.write_buffer(elem_data)
-
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple fields_names, tuple fields_codecs):
         cdef:
@@ -118,27 +75,3 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
         codec.fields_codecs = fields_codecs
 
         return codec
-
-    def _make_missing_args_error_message(self, args):
-        required_args = set()
-
-        for i in range(len(self.fields_codecs)):
-            name = datatypes.record_desc_pointer_name(self.descriptor, i)
-            required_args.add(name)
-
-        passed_args = set(args.keys())
-        missed_args = required_args - passed_args
-        extra_args = passed_args - required_args
-
-        error_message = f'expected {required_args} keyword arguments'
-        error_message += f', got {passed_args}'
-
-        missed_args = set(required_args) - set(passed_args)
-        if missed_args:
-            error_message += f', missed {missed_args}'
-
-        extra_args = set(passed_args) - set(required_args)
-        if extra_args:
-            error_message += f', extra {extra_args}'
-
-        return errors.QueryArgumentError(error_message)

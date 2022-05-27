@@ -1089,10 +1089,7 @@ cdef class SansIOProtocol:
 
         in_dc_type = type(in_dc)
 
-        if in_dc_type in {NullCodec, EmptyTupleCodec}:
-            # TODO: drop EmptyTupleCodec when 1.0 RC1 is released.
-            # It's only here because 0.12 protocol is only
-            # partially implemented in edgedb@master right now.
+        if in_dc_type is NullCodec:
             if args:
                 raise errors.QueryArgumentError(
                     'expected no positional arguments')
@@ -1100,11 +1097,7 @@ cdef class SansIOProtocol:
                 raise errors.QueryArgumentError(
                     'expected no named arguments')
 
-            if in_dc_type is NullCodec:
-                buf.write_bytes(EMPTY_NULL_DATA)
-            else:
-                buf.write_bytes(EMPTY_RECORD_DATA)
-
+            buf.write_bytes(EMPTY_NULL_DATA)
             return
 
         if in_dc_type is not ObjectCodec:
