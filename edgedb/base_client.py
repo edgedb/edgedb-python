@@ -173,7 +173,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
 
     async def privileged_execute(self, script: abstract.ScriptContext):
         if self._protocol.is_legacy:
-            await self._protocol.simple_query(
+            await self._protocol.legacy_simple_query(
                 script.query.query, enums.Capability.ALL
             )
         else:
@@ -260,7 +260,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 raise errors.InterfaceError(
                     "Legacy protocol doesn't support arguments in execute()"
                 )
-            await self._protocol.simple_query(
+            await self._protocol.legacy_simple_query(
                 script.query.query, enums.Capability.EXECUTE
             )
         else:

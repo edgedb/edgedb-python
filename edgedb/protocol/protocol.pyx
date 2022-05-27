@@ -468,56 +468,6 @@ cdef class SansIOProtocol:
         else:
             return result, attrs
 
-    async def simple_query(self, str query, capabilities: enums.Capability):
-        cdef:
-            WriteBuffer buf
-            char mtype
-
-        self.ensure_connected()
-        self.reset_status()
-
-
-        buf = WriteBuffer.new_message(EXECUTE_SCRIPT_MSG)
-        cap_bytes = cpython.PyBytes_FromStringAndSize(NULL, sizeof(uint64_t))
-        hton.pack_int64(
-            cpython.PyBytes_AsString(cap_bytes),
-            <int64_t><uint64_t>capabilities,
-        )
-        self.write_headers(
-            buf,
-            {QUERY_OPT_ALLOW_CAPABILITIES: cap_bytes},
-        )
-        buf.write_len_prefixed_utf8(query)
-        self.write(buf.end_message())
-
-        exc = None
-
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-
-            try:
-                if mtype == COMMAND_COMPLETE_MSG:
-                    self.parse_command_complete_message()
-
-                elif mtype == ERROR_RESPONSE_MSG:
-                    # ErrorResponse
-                    exc = self.parse_error_message()
-
-                elif mtype == READY_FOR_COMMAND_MSG:
-                    self.parse_sync_message()
-                    break
-
-                else:
-                    self.fallthrough()
-
-            finally:
-                self.buffer.finish_message()
-
-        if exc is not None:
-            raise exc
-
     async def execute(
         self,
         *,
