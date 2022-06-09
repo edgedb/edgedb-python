@@ -19,6 +19,7 @@
 
 cimport cython
 cimport cpython
+from libc cimport stdlib
 
 include "./relative_duration.pyx"
 include "./enum.pyx"
@@ -96,6 +97,29 @@ cdef record_desc_pointer_card(object desc, Py_ssize_t pos):
     return EdgeRecordDesc_PointerCardinality(desc, pos)
 
 
+cdef input_shape_new(object names):
+    return EdgeInputShape_New(names)
+
+
+cdef input_shape_pointer_name(object desc, Py_ssize_t pos):
+    return EdgeInputShape_PointerName(desc, pos)
+
+
+cdef Py_ssize_t input_shape_get_pos(object desc, object key) except -1:
+    cdef:
+        Py_ssize_t pos
+        EdgeAttrLookup res = EdgeInputShape_Lookup(desc, key, &pos)
+
+    if res == L_ERROR:
+        return -1
+    elif res == L_NOT_FOUND:
+        raise LookupError(key)
+    elif res == L_PROPERTY:
+        return pos
+    else:
+        stdlib.abort()
+
+
 cdef tuple_new(Py_ssize_t size):
     return EdgeTuple_New(size)
 
@@ -118,6 +142,14 @@ cdef object_new(object desc):
 
 cdef object_set(object obj, Py_ssize_t pos, object elem):
     EdgeObject_SetItem(obj, pos, elem)
+
+
+cdef sparse_object_new(object desc):
+    return EdgeSparseObject_New(desc)
+
+
+cdef sparse_object_set(object obj, Py_ssize_t pos, object elem):
+    EdgeSparseObject_SetItem(obj, pos, elem)
 
 
 cdef bint set_check(object set):

@@ -213,6 +213,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                     execute = self._protocol.legacy_execute_anonymous
                 else:
                     execute = self._protocol.query
+                    self._protocol.set_state(query_context.session)
                 return await execute(
                     query=query_context.query.query,
                     args=query_context.query.args,
@@ -264,6 +265,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 script.query.query, enums.Capability.EXECUTE
             )
         else:
+            self._protocol.set_state(script.session)
             await self._protocol.execute(
                 query=script.query.query,
                 args=script.query.args,
@@ -696,6 +698,9 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
 
     def _get_retry_options(self) -> typing.Optional[_options.RetryOptions]:
         return self._options.retry_options
+
+    def _get_session(self) -> _options.Session:
+        return self._options.session
 
     @property
     def max_concurrency(self) -> int:

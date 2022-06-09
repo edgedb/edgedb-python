@@ -31,6 +31,7 @@ include "./scalar.pyx"
 include "./tuple.pyx"
 include "./namedtuple.pyx"
 include "./object.pyx"
+include "./sparse_object.pyx"
 include "./array.pyx"
 include "./set.pyx"
 include "./enum.pyx"
@@ -44,6 +45,7 @@ DEF CTYPE_TUPLE = 4
 DEF CTYPE_NAMEDTUPLE = 5
 DEF CTYPE_ARRAY = 6
 DEF CTYPE_ENUM = 7
+DEF CTYPE_INPUT_SHAPE = 8
 
 DEF _CODECS_BUILD_CACHE_SIZE = 200
 
@@ -146,6 +148,13 @@ cdef class CodecsRegistry:
                 for i in range(els):
                     str_len = hton.unpack_uint32(frb_read(spec, 4))
                     frb_read(spec, str_len)
+
+            elif t == CTYPE_INPUT_SHAPE:
+                els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                for i in range(els):
+                    str_len = hton.unpack_uint32(frb_read(spec, 4))
+                    # read the <str> (`str_len` bytes) and <pos> (2 bytes)
+                    frb_read(spec, str_len + 2)
 
             elif (t >= 0x7f and t <= 0xff):
                 # Ignore all type annotations.
@@ -263,6 +272,25 @@ cdef class CodecsRegistry:
             dim_len = hton.unpack_int32(frb_read(spec, 4))
             sub_codec = <BaseCodec>codecs_list[pos]
             res = ArrayCodec.new(tid, sub_codec, dim_len)
+
+        elif t == CTYPE_INPUT_SHAPE:
+            els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            codecs = cpython.PyTuple_New(els)
+            names = cpython.PyTuple_New(els)
+            for i in range(els):
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+
+                cpython.Py_INCREF(name)
+                cpython.PyTuple_SetItem(names, i, name)
+
+                sub_codec = codecs_list[pos]
+                cpython.Py_INCREF(sub_codec)
+                cpython.PyTuple_SetItem(codecs, i, sub_codec)
+
+            res = SparseObjectCodec.new(tid, names, codecs)
 
         else:
             raise NotImplementedError(

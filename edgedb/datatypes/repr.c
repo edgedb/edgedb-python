@@ -169,3 +169,77 @@ error:
     Py_ReprLeave((PyObject *)host);
     return -1;
 }
+
+
+int
+_EdgeGeneric_RenderSparseItems(_PyUnicodeWriter *writer,
+                               PyObject *host, PyObject *desc,
+                               PyObject **items, Py_ssize_t len)
+{
+    assert(EdgeInputShape_GetSize(desc) == len);
+
+    PyObject *item_repr = NULL;
+    PyObject *item_name = NULL;
+    int first = 1;
+
+    int res = Py_ReprEnter(host);
+    if (res != 0) {
+        if (res > 0) {
+            if (_PyUnicodeWriter_WriteASCIIString(writer, "...", 3) < 0) {
+                return -1;
+            }
+            return 0;
+        }
+        else {
+            return -1;
+        }
+    }
+
+    for (Py_ssize_t i = 0; i < len; i++) {
+        if (items[i] == Py_None) {
+            continue;
+        }
+
+        item_repr = _EdgeGeneric_RenderObject(items[i]);
+        if (item_repr == NULL) {
+            goto error;
+        }
+
+        item_name = EdgeInputShape_PointerName(desc, i);
+        if (item_name == NULL) {
+            goto error;
+        }
+        assert(PyUnicode_CheckExact(item_name));
+
+        if (first) {
+            first = 0;
+        } else {
+            if (_PyUnicodeWriter_WriteASCIIString(writer, ", ", 2) < 0) {
+                goto error;
+            }
+        }
+
+        if (_PyUnicodeWriter_WriteStr(writer, item_name) < 0) {
+            goto error;
+        }
+        Py_CLEAR(item_name);
+
+        if (_PyUnicodeWriter_WriteASCIIString(writer, " := ", 4) < 0) {
+            goto error;
+        }
+
+        if (_PyUnicodeWriter_WriteStr(writer, item_repr) < 0) {
+            goto error;
+        }
+        Py_CLEAR(item_repr);
+    }
+
+    Py_ReprLeave((PyObject *)host);
+    return 0;
+
+error:
+    Py_CLEAR(item_repr);
+    Py_CLEAR(item_name);
+    Py_ReprLeave((PyObject *)host);
+    return -1;
+}

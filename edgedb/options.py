@@ -1,6 +1,7 @@
 import abc
 import enum
 import random
+import typing
 from collections import namedtuple
 
 from . import errors
@@ -108,6 +109,67 @@ class TransactionOptions:
         )
 
 
+class Session:
+    __slots__ = ['_module', '_aliases', '_configs', '_globals']
+
+    def __init__(
+        self,
+        module: str = 'default',
+        aliases: typing.Mapping[str, str] = None,
+        configs: typing.Mapping[str, typing.Any] = None,
+        globals_: typing.Mapping[str, typing.Any] = None,
+    ):
+        self._module = module
+        self._aliases = {} if aliases is None else dict(aliases)
+        self._configs = {} if configs is None else dict(configs)
+        self._globals = {} if globals_ is None else dict(globals_)
+
+    @classmethod
+    def defaults(cls):
+        return cls()
+
+    def with_aliases(self, module=None, **aliases):
+        new_aliases = self._aliases.copy()
+        new_aliases.update(aliases)
+        return Session(
+            module=self._module if module is None else module,
+            aliases=new_aliases,
+            configs=self._configs,
+            globals_=self._globals,
+        )
+
+    def with_configs(self, **configs):
+        new_configs = self._configs.copy()
+        new_configs.update(configs)
+        return Session(
+            module=self._module,
+            aliases=self._aliases,
+            configs=new_configs,
+            globals_=self._globals,
+        )
+
+    def with_globals(self, **globals_):
+        new_globals = self._globals.copy()
+        new_globals.update(globals_)
+        return Session(
+            module=self._module,
+            aliases=self._aliases,
+            configs=self._configs,
+            globals_=new_globals,
+        )
+
+    def as_dict(self):
+        return {
+            "module": self._module,
+            "aliases": list(self._aliases.items()),
+            "config": self._configs,
+            "globals": {
+                (k if '::' in k else f'{self._module}::{k}'): v
+                for k, v in self._globals.items()
+            },
+        }
+
+
 class _OptionsMixin:
     def __init__(self, *args, **kwargs):
         self._options = _Options.defaults()
@@ -153,19 +215,47 @@ class _OptionsMixin:
         result._options = self._options.with_retry_options(options)
         return result
 
+    def with_session(self, session: Session):
+        result = self._shallow_clone()
+        result._options = self._options.with_session(session)
+        return result
+
+    def with_aliases(self, module=None, **aliases):
+        result = self._shallow_clone()
+        result._options = self._options.with_session(
+            self._options.session.with_aliases(module=module, **aliases)
+        )
+        return result
+
+    def with_configs(self, **configs):
+        result = self._shallow_clone()
+        result._options = self._options.with_session(
+            self._options.session.with_configs(**configs)
+        )
+        return result
+
+    def with_globals(self, **globals_):
+        result = self._shallow_clone()
+        result._options = self._options.with_session(
+            self._options.session.with_globals(**globals_)
+        )
+        return result
+
 
 class _Options:
     """Internal class for storing connection options"""
 
-    __slots__ = ['_retry_options', '_transaction_options']
+    __slots__ = ['_retry_options', '_transaction_options', '_session']
 
     def __init__(
         self,
         retry_options: RetryOptions,
         transaction_options: TransactionOptions,
+        session: Session,
     ):
         self._retry_options = retry_options
         self._transaction_options = transaction_options
+        self._session = session
 
     @property
     def retry_options(self):
@@ -175,16 +265,29 @@ class _Options:
     def transaction_options(self):
         return self._transaction_options
 
+    @property
+    def session(self):
+        return self._session
+
     def with_retry_options(self, options: RetryOptions):
         return _Options(
             options,
             self._transaction_options,
+            self._session,
         )
 
     def with_transaction_options(self, options: TransactionOptions):
         return _Options(
             self._retry_options,
             options,
+            self._session,
+        )
+
+    def with_session(self, session: Session):
+        return _Options(
+            self._retry_options,
+            self._transaction_options,
+            session,
         )
 
     @classmethod
@@ -192,4 +295,5 @@ class _Options:
         return cls(
             RetryOptions.defaults(),
             TransactionOptions.defaults(),
+            Session.defaults(),
         )

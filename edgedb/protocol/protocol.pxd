@@ -103,6 +103,11 @@ cdef class SansIOProtocol:
 
         readonly bint is_legacy
 
+        bytes state_type_id
+        BaseCodec state_codec
+        WriteBuffer state
+        object user_state
+
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
 
     cdef parse_data_messages(self, BaseCodec out_dc, result)

@@ -85,6 +85,29 @@ PyObject * EdgeRecordDesc_List(PyObject *, uint8_t, uint8_t);
 
 
 
+/* === edgedb.InputShape ==================================== */
+
+extern PyTypeObject EdgeInputShape_Type;
+
+#define EdgeInputShape_Check(d) (Py_TYPE(d) == &EdgeInputShape_Type)
+
+typedef struct {
+    PyObject_HEAD
+    PyObject *index;
+    PyObject *names;
+    Py_ssize_t size;
+} EdgeInputShapeObject;
+
+PyObject * EdgeInputShape_InitType(void);
+PyObject * EdgeInputShape_New(PyObject *);
+PyObject * EdgeInputShape_PointerName(PyObject *, Py_ssize_t);
+
+Py_ssize_t EdgeInputShape_GetSize(PyObject *);
+edge_attr_lookup_t EdgeInputShape_Lookup(PyObject *, PyObject *, Py_ssize_t *);
+PyObject * EdgeInputShape_List(PyObject *);
+
+
+
 /* === edgedb.Tuple ========================================= */
 
 #define EDGE_TUPLE_FREELIST_SIZE 500
@@ -152,6 +175,31 @@ int EdgeObject_SetItem(PyObject *, Py_ssize_t, PyObject *);
 PyObject * EdgeObject_GetItem(PyObject *, Py_ssize_t);
 
 PyObject * EdgeObject_GetID(PyObject *ob);
+
+
+/* === edgedb.SparseObject ======================================== */
+
+#define EDGE_SPARSE_OBJECT_FREELIST_SIZE 2000
+#define EDGE_SPARSE_OBJECT_FREELIST_MAXSAVE 20
+
+extern PyTypeObject EdgeSparseObject_Type;
+
+#define EdgeSparseObject_Check(d) (Py_TYPE(d) == &EdgeSparseObject_Type)
+
+typedef struct {
+    PyObject_VAR_HEAD
+    PyObject *weakreflist;
+    PyObject *desc;
+    Py_hash_t cached_hash;
+    PyObject *ob_item[1];
+} EdgeSparseObject;
+
+PyObject * EdgeSparseObject_InitType(void);
+PyObject * EdgeSparseObject_New(PyObject *);
+PyObject * EdgeSparseObject_GetInputShape(PyObject *);
+
+int EdgeSparseObject_SetItem(PyObject *, Py_ssize_t, PyObject *);
+PyObject * EdgeSparseObject_GetItem(PyObject *, Py_ssize_t);
 
 
 /* === edgedb.Set =========================================== */

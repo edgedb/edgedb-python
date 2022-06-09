@@ -47,6 +47,7 @@ class TestProto(tb.SyncQueryTestCase):
                         required_one=False,
                     ),
                     retry_options=None,
+                    session=None,
                 )
             )
         )
