@@ -116,7 +116,7 @@ class BaseTransaction:
                     single_attempt=self.__iteration != 0
                 )
             try:
-                await self._connection.privileged_execute(query)
+                await self._privileged_execute(query)
             except BaseException:
                 self._state = TransactionState.FAILED
                 raise
@@ -135,7 +135,7 @@ class BaseTransaction:
                 query = self._make_rollback_query()
                 state = TransactionState.ROLLEDBACK
             try:
-                await self._connection.privileged_execute(query)
+                await self._privileged_execute(query)
             except BaseException:
                 self._state = TransactionState.FAILED
                 raise
@@ -183,20 +183,15 @@ class BaseTransaction:
         result, _ = await self._connection.raw_query(query_context)
         return result
 
-    async def execute(self, query: str) -> None:
-        """Execute an EdgeQL command (or commands).
-
-        Example:
-
-        .. code-block:: pycon
-
-            >>> await con.execute('''
-            ...     CREATE TYPE MyType { CREATE PROPERTY a -> int64 };
-            ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
-            ... ''')
-        """
+    async def _execute(self, query: abstract.ScriptContext) -> None:
         await self._ensure_transaction()
-        await self._connection.execute(query)
+        await self._connection._execute(query)
+
+    async def _privileged_execute(self, query: str) -> None:
+        await self._connection.privileged_execute(abstract.ScriptContext(
+            query=abstract.QueryWithArgs(query, (), {}),
+            cache=self._get_query_cache(),
+        ))
 
 
 class BaseRetry:

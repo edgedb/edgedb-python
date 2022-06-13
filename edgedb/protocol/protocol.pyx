@@ -72,14 +72,14 @@ cpython.datetime.import_datetime()
 
 _QUERY_SINGLE_METHOD = {
     True: {
-        IoFormat.JSON: 'query_required_single_json',
-        IoFormat.JSON_ELEMENTS: 'raw_query',
-        IoFormat.BINARY: 'query_required_single',
+        OutputFormat.JSON: 'query_required_single_json',
+        OutputFormat.JSON_ELEMENTS: 'raw_query',
+        OutputFormat.BINARY: 'query_required_single',
     },
     False: {
-        IoFormat.JSON: 'query_single_json',
-        IoFormat.JSON_ELEMENTS: 'raw_query',
-        IoFormat.BINARY: 'query_single',
+        OutputFormat.JSON: 'query_single_json',
+        OutputFormat.JSON_ELEMENTS: 'raw_query',
+        OutputFormat.BINARY: 'query_single',
     },
 }
 
@@ -97,25 +97,33 @@ cdef class QueryCodecsCache:
         self.queries = LRUMapping(maxsize=cache_size)
 
     def get(
-        self, str query, IoFormat io_format,
+        self, str query, OutputFormat output_format,
         int implicit_limit, bint inline_typenames, bint inline_typeids,
         bint expect_one
     ):
         key = (
-            query, io_format, implicit_limit, inline_typenames, inline_typeids,
-            expect_one
+            query,
+            output_format,
+            implicit_limit,
+            inline_typenames,
+            inline_typeids,
+            expect_one,
         )
         return self.queries.get(key, None)
 
     cdef set(
-        self, str query, IoFormat io_format,
+        self, str query, OutputFormat output_format,
         int implicit_limit, bint inline_typenames, bint inline_typeids,
         bint expect_one, bint has_na_cardinality,
         BaseCodec in_type, BaseCodec out_type, int capabilities,
     ):
         key = (
-            query, io_format, implicit_limit, inline_typenames, inline_typeids,
-            expect_one
+            query,
+            output_format,
+            implicit_limit,
+            inline_typenames,
+            inline_typeids,
+            expect_one,
         )
         assert in_type is not None
         assert out_type is not None
@@ -225,7 +233,7 @@ cdef class SansIOProtocol:
         query: str,
         *,
         reg: CodecsRegistry,
-        io_format: IoFormat=IoFormat.BINARY,
+        output_format: OutputFormat=OutputFormat.BINARY,
         expect_one: bint=False,
         required_one: bool=False,
         implicit_limit: int=0,
@@ -251,7 +259,7 @@ cdef class SansIOProtocol:
             buf, implicit_limit, inline_typenames, inline_typeids,
             ALL_CAPABILITIES if allow_capabilities is None
             else allow_capabilities)
-        buf.write_byte(io_format)
+        buf.write_byte(output_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
         buf.end_message()
@@ -274,7 +282,7 @@ cdef class SansIOProtocol:
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
                     exc = self._amend_parse_error(
-                        exc, io_format, expect_one, required_one)
+                        exc, output_format, expect_one, required_one)
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -289,7 +297,8 @@ cdef class SansIOProtocol:
             raise exc
 
         if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
-            methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+            assert output_format != OutputFormat.NONE
+            methname = _QUERY_SINGLE_METHOD[required_one][output_format]
             raise errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
                 f'does not return any data')
@@ -305,7 +314,7 @@ cdef class SansIOProtocol:
             raise errors.ClientConnectionClosedError(
                 'the connection has been closed')
 
-    async def _optimistic_execute(
+    async def _execute(
         self,
         *,
         query: str,
@@ -313,7 +322,7 @@ cdef class SansIOProtocol:
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
-        io_format: object,
+        output_format: object,
         expect_one: bint,
         required_one: bint,
         implicit_limit: int,
@@ -332,12 +341,12 @@ cdef class SansIOProtocol:
             object result
             bytes new_cardinality = None
 
-        buf = WriteBuffer.new_message(OPTIMISTIC_EXECUTE_MSG)
+        buf = WriteBuffer.new_message(EXECUTE_MSG)
         self.write_execute_headers(
             buf, implicit_limit, inline_typenames, inline_typeids,
             ALL_CAPABILITIES if allow_capabilities is None
             else allow_capabilities)
-        buf.write_byte(io_format)
+        buf.write_byte(output_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
         buf.write_bytes(in_dc.get_tid())
@@ -371,7 +380,7 @@ cdef class SansIOProtocol:
 
                     qc.set(
                         query,
-                        io_format,
+                        output_format,
                         implicit_limit,
                         inline_typenames,
                         inline_typeids,
@@ -411,7 +420,7 @@ cdef class SansIOProtocol:
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
                     exc = self._amend_parse_error(
-                        exc, io_format, expect_one, required_one)
+                        exc, output_format, expect_one, required_one)
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -433,18 +442,19 @@ cdef class SansIOProtocol:
                 )
             assert new_cardinality is not None
             if required_one and new_cardinality == CARDINALITY_NOT_APPLICABLE:
-                methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+                assert output_format != OutputFormat.NONE
+                methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
 
-            return await self._optimistic_execute(
+            return await self._execute(
                 query=query,
                 args=args,
                 kwargs=kwargs,
                 reg=reg,
                 qc=qc,
-                io_format=io_format,
+                output_format=output_format,
                 expect_one=expect_one,
                 required_one=required_one,
                 implicit_limit=implicit_limit,
@@ -458,57 +468,7 @@ cdef class SansIOProtocol:
         else:
             return result, attrs
 
-    async def simple_query(self, str query, capabilities: enums.Capability):
-        cdef:
-            WriteBuffer buf
-            char mtype
-
-        self.ensure_connected()
-        self.reset_status()
-
-
-        buf = WriteBuffer.new_message(EXECUTE_SCRIPT_MSG)
-        cap_bytes = cpython.PyBytes_FromStringAndSize(NULL, sizeof(uint64_t))
-        hton.pack_int64(
-            cpython.PyBytes_AsString(cap_bytes),
-            <int64_t><uint64_t>capabilities,
-        )
-        self.write_headers(
-            buf,
-            {QUERY_OPT_ALLOW_CAPABILITIES: cap_bytes},
-        )
-        buf.write_len_prefixed_utf8(query)
-        self.write(buf.end_message())
-
-        exc = None
-
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-
-            try:
-                if mtype == COMMAND_COMPLETE_MSG:
-                    self.parse_command_complete_message()
-
-                elif mtype == ERROR_RESPONSE_MSG:
-                    # ErrorResponse
-                    exc = self.parse_error_message()
-
-                elif mtype == READY_FOR_COMMAND_MSG:
-                    self.parse_sync_message()
-                    break
-
-                else:
-                    self.fallthrough()
-
-            finally:
-                self.buffer.finish_message()
-
-        if exc is not None:
-            raise exc
-
-    async def execute_anonymous(
+    async def execute(
         self,
         *,
         query: str,
@@ -516,7 +476,7 @@ cdef class SansIOProtocol:
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
-        io_format: object,
+        output_format: object,
         expect_one: bint = False,
         required_one: bool = False,
         implicit_limit: int = 0,
@@ -532,13 +492,17 @@ cdef class SansIOProtocol:
         self.reset_status()
 
         codecs = qc.get(
-            query, io_format, implicit_limit, inline_typenames, inline_typeids,
+            query,
+            output_format,
+            implicit_limit,
+            inline_typenames,
+            inline_typeids,
             expect_one)
         if codecs is None:
             codecs = await self._parse(
                 query,
                 reg=reg,
-                io_format=io_format,
+                output_format=output_format,
                 expect_one=expect_one,
                 required_one=required_one,
                 implicit_limit=implicit_limit,
@@ -560,7 +524,7 @@ cdef class SansIOProtocol:
 
             qc.set(
                 query,
-                io_format,
+                output_format,
                 implicit_limit,
                 inline_typenames,
                 inline_typeids,
@@ -571,13 +535,13 @@ cdef class SansIOProtocol:
                 capabilities,
             )
 
-            ret, attrs = await self._optimistic_execute(
+            return await self._execute(
                 query=query,
                 args=args,
                 kwargs=kwargs,
                 reg=reg,
                 qc=qc,
-                io_format=io_format,
+                output_format=output_format,
                 expect_one=expect_one,
                 required_one=required_one,
                 implicit_limit=implicit_limit,
@@ -595,18 +559,19 @@ cdef class SansIOProtocol:
             out_dc = <BaseCodec>codecs[2]
 
             if required_one and has_na_cardinality:
-                methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+                assert output_format != OutputFormat.NONE
+                methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
 
-            ret, attrs = await self._optimistic_execute(
+            return await self._execute(
                 query=query,
                 args=args,
                 kwargs=kwargs,
                 reg=reg,
                 qc=qc,
-                io_format=io_format,
+                output_format=output_format,
                 expect_one=expect_one,
                 required_one=required_one,
                 implicit_limit=implicit_limit,
@@ -617,27 +582,58 @@ cdef class SansIOProtocol:
                 out_dc=out_dc,
             )
 
+    async def query(
+        self,
+        *,
+        query: str,
+        args,
+        kwargs,
+        reg: CodecsRegistry,
+        qc: QueryCodecsCache,
+        output_format: object,
+        expect_one: bint = False,
+        required_one: bool = False,
+        implicit_limit: int = 0,
+        inline_typenames: bool = False,
+        inline_typeids: bool = False,
+        allow_capabilities: typing.Optional[int] = None,
+    ):
+        ret, attrs = await self.execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=reg,
+            qc=qc,
+            output_format=output_format,
+            expect_one=expect_one,
+            required_one=required_one,
+            implicit_limit=implicit_limit,
+            inline_typenames=inline_typenames,
+            inline_typeids=inline_typeids,
+            allow_capabilities=allow_capabilities,
+        )
+
         if expect_one:
             if ret or not required_one:
                 if ret:
                     return ret[0], attrs
                 else:
-                    if io_format == IoFormat.JSON:
+                    if output_format == OutputFormat.JSON:
                         return 'null', attrs
                     else:
                         return None, attrs
             else:
-                methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+                methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.NoDataError(
                     f'query executed via {methname}() returned no data')
         else:
             if ret:
-                if io_format == IoFormat.JSON:
+                if output_format == OutputFormat.JSON:
                     return ret[0], attrs
                 else:
                     return ret, attrs
             else:
-                if io_format == IoFormat.JSON:
+                if output_format == OutputFormat.JSON:
                     return '[]', attrs
                 else:
                     return ret, attrs
@@ -1243,10 +1239,15 @@ cdef class SansIOProtocol:
         self.buffer.finish_message()
 
     cdef _amend_parse_error(
-        self, exc, IoFormat io_format, bint expect_one, bint required_one
+        self,
+        exc,
+        OutputFormat output_format,
+        bint expect_one,
+        bint required_one,
     ):
         if expect_one and exc.get_code() == result_cardinality_mismatch_code:
-            methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+            assert output_format != OutputFormat.NONE
+            methname = _QUERY_SINGLE_METHOD[required_one][output_format]
             new_exc = errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
                 f'returns a multiset')

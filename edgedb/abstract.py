@@ -29,7 +29,7 @@ class QueryCache(typing.NamedTuple):
 
 
 class QueryOptions(typing.NamedTuple):
-    io_format: protocol.IoFormat
+    output_format: protocol.OutputFormat
     expect_one: bool
     required_one: bool
 
@@ -41,33 +41,38 @@ class QueryContext(typing.NamedTuple):
     retry_options: typing.Optional[options.RetryOptions]
 
 
+class ScriptContext(typing.NamedTuple):
+    query: QueryWithArgs
+    cache: QueryCache
+
+
 _query_opts = QueryOptions(
-    io_format=protocol.IoFormat.BINARY,
+    output_format=protocol.OutputFormat.BINARY,
     expect_one=False,
     required_one=False,
 )
 _query_single_opts = QueryOptions(
-    io_format=protocol.IoFormat.BINARY,
+    output_format=protocol.OutputFormat.BINARY,
     expect_one=True,
     required_one=False,
 )
 _query_required_single_opts = QueryOptions(
-    io_format=protocol.IoFormat.BINARY,
+    output_format=protocol.OutputFormat.BINARY,
     expect_one=True,
     required_one=True,
 )
 _query_json_opts = QueryOptions(
-    io_format=protocol.IoFormat.JSON,
+    output_format=protocol.OutputFormat.JSON,
     expect_one=False,
     required_one=False,
 )
 _query_single_json_opts = QueryOptions(
-    io_format=protocol.IoFormat.JSON,
+    output_format=protocol.OutputFormat.JSON,
     expect_one=True,
     required_one=False,
 )
 _query_required_single_json_opts = QueryOptions(
-    io_format=protocol.IoFormat.JSON,
+    output_format=protocol.OutputFormat.JSON,
     expect_one=True,
     required_one=True,
 )
@@ -143,10 +148,15 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
         ))
 
-    # TODO(tailhook) add *args, **kwargs, when they are supported
     @abc.abstractmethod
-    def execute(self, query: str) -> None:
+    def _execute(self, script: ScriptContext):
         ...
+
+    def execute(self, query: str, *args, **kwargs) -> None:
+        self._execute(ScriptContext(
+            query=QueryWithArgs(query, args, kwargs),
+            cache=self._get_query_cache(),
+        ))
 
 
 class Executor(ReadOnlyExecutor):
@@ -222,10 +232,15 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
         ))
 
-    # TODO(tailhook) add *args, **kwargs, when they are supported
     @abc.abstractmethod
-    async def execute(self, query: str) -> None:
+    async def _execute(self, script: ScriptContext) -> None:
         ...
+
+    async def execute(self, query: str, *args, **kwargs) -> None:
+        await self._execute(ScriptContext(
+            query=QueryWithArgs(query, args, kwargs),
+            cache=self._get_query_cache(),
+        ))
 
 
 class AsyncIOExecutor(AsyncIOReadOnlyExecutor):
