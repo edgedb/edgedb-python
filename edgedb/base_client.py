@@ -183,7 +183,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 kwargs=script.query.kwargs,
                 reg=script.cache.codecs_registry,
                 qc=script.cache.query_cache,
-                output_format=protocol.OutputFormat.NULL_,
+                output_format=protocol.OutputFormat.NONE,
                 allow_capabilities=enums.Capability.ALL,
             )
 
@@ -270,7 +270,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 kwargs=script.query.kwargs,
                 reg=script.cache.codecs_registry,
                 qc=script.cache.query_cache,
-                output_format=protocol.OutputFormat.NULL_,
+                output_format=protocol.OutputFormat.NONE,
                 allow_capabilities=enums.Capability.EXECUTE,
             )
 

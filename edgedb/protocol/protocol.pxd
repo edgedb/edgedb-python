@@ -44,7 +44,7 @@ cpdef enum OutputFormat:
     BINARY = b'b'
     JSON = b'j'
     JSON_ELEMENTS = b'J'
-    NULL_ = b'n'
+    NONE = b'n'
 
 
 cdef enum TransactionStatus:

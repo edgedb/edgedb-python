@@ -297,7 +297,7 @@ cdef class SansIOProtocol:
             raise exc
 
         if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
-            assert output_format != OutputFormat.NULL_
+            assert output_format != OutputFormat.NONE
             methname = _QUERY_SINGLE_METHOD[required_one][output_format]
             raise errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
@@ -442,7 +442,7 @@ cdef class SansIOProtocol:
                 )
             assert new_cardinality is not None
             if required_one and new_cardinality == CARDINALITY_NOT_APPLICABLE:
-                assert output_format != OutputFormat.NULL_
+                assert output_format != OutputFormat.NONE
                 methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
@@ -559,7 +559,7 @@ cdef class SansIOProtocol:
             out_dc = <BaseCodec>codecs[2]
 
             if required_one and has_na_cardinality:
-                assert output_format != OutputFormat.NULL_
+                assert output_format != OutputFormat.NONE
                 methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
@@ -1246,7 +1246,7 @@ cdef class SansIOProtocol:
         bint required_one,
     ):
         if expect_one and exc.get_code() == result_cardinality_mismatch_code:
-            assert output_format != OutputFormat.NULL_
+            assert output_format != OutputFormat.NONE
             methname = _QUERY_SINGLE_METHOD[required_one][output_format]
             new_exc = errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
