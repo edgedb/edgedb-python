@@ -393,7 +393,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         if self.INTERNAL_TESTMODE:
             self.loop.run_until_complete(
                 self.client.execute(
-                    'CONFIGURE SESSION SET __internal_testmode := true;'))
+                    'CONFIGURE INSTANCE SET __internal_testmode := true;'))
 
         if self.SETUP_METHOD:
             self.loop.run_until_complete(
