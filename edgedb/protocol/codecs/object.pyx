@@ -21,7 +21,40 @@
 cdef class ObjectCodec(BaseNamedRecordCodec):
 
     cdef encode(self, WriteBuffer buf, object obj):
-        raise NotImplementedError
+        cdef:
+            WriteBuffer elem_data
+            Py_ssize_t objlen = 0
+            Py_ssize_t i
+            BaseCodec sub_codec
+            descriptor = (<BaseNamedRecordCodec>self).descriptor
+
+        if not self.is_sparse:
+            raise NotImplementedError
+
+        elem_data = WriteBuffer.new()
+        for name, arg in obj.items():
+            if arg is not None:
+                try:
+                    i = descriptor.get_pos(name)
+                except LookupError:
+                    raise self._make_missing_args_error_message(obj) from None
+                objlen += 1
+                elem_data.write_int32(i)
+
+                sub_codec = <BaseCodec>(self.fields_codecs[i])
+                try:
+                    sub_codec.encode(elem_data, arg)
+                except (TypeError, ValueError) as e:
+                    value_repr = repr(arg)
+                    if len(value_repr) > 40:
+                        value_repr = value_repr[:40] + '...'
+                    raise errors.InvalidArgumentError(
+                        'invalid input for session argument '
+                        f' {name} := {value_repr} ({e})') from e
+
+        buf.write_int32(4 + elem_data.len())  # buffer length
+        buf.write_int32(<int32_t><uint32_t>objlen)
+        buf.write_buffer(elem_data)
 
     cdef encode_args(self, WriteBuffer buf, dict obj):
         cdef:
@@ -30,6 +63,9 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             Py_ssize_t i
             BaseCodec sub_codec
             descriptor = (<BaseNamedRecordCodec>self).descriptor
+
+        if self.is_sparse:
+            raise NotImplementedError
 
         self._check_encoder()
 
@@ -83,15 +119,17 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
         passed_args = set(args.keys())
         missed_args = required_args - passed_args
         extra_args = passed_args - required_args
+        required = 'acceptable' if self.is_sparse else 'expected'
 
-        error_message = f'expected {required_args} arguments'
+        error_message = f'{required} {required_args} arguments'
 
         passed_args_repr = repr(passed_args) if passed_args else 'nothing'
         error_message += f', got {passed_args_repr}'
 
-        missed_args = set(required_args) - set(passed_args)
-        if missed_args:
-            error_message += f', missed {missed_args}'
+        if not self.is_sparse:
+            missed_args = set(required_args) - set(passed_args)
+            if missed_args:
+                error_message += f', missed {missed_args}'
 
         extra_args = set(passed_args) - set(required_args)
         if extra_args:
@@ -109,6 +147,9 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             FRBuffer elem_buf
             tuple fields_codecs = (<BaseRecordCodec>self).fields_codecs
             descriptor = (<BaseNamedRecordCodec>self).descriptor
+
+        if self.is_sparse:
+            raise NotImplementedError
 
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
 
@@ -140,14 +181,18 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
 
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple names, tuple flags, tuple cards,
-                       tuple codecs):
+                       tuple codecs, bint is_sparse):
         cdef:
             ObjectCodec codec
 
         codec = ObjectCodec.__new__(ObjectCodec)
 
         codec.tid = tid
-        codec.name = 'Object'
+        if is_sparse:
+            codec.name = 'SparseObject'
+        else:
+            codec.name = 'Object'
+        codec.is_sparse = is_sparse
         codec.descriptor = datatypes.record_desc_new(names, flags, cards)
         codec.fields_codecs = codecs
 

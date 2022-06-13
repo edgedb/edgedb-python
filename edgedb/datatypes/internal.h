@@ -50,9 +50,6 @@ int _EdgeGeneric_RenderValues(
 int _EdgeGeneric_RenderItems(_PyUnicodeWriter *,
                              PyObject *, PyObject *,
                              PyObject **, Py_ssize_t, int, int);
-int _EdgeGeneric_RenderSparseItems(_PyUnicodeWriter *writer,
-                                   PyObject *host, PyObject *desc,
-                                   PyObject **items, Py_ssize_t len);
 
 PyObject * _EdgeGeneric_RichCompareValues(PyObject **, Py_ssize_t,
                                           PyObject **, Py_ssize_t,

@@ -40,23 +40,11 @@ cdef extern from "datatypes.h":
         MANY
         AT_LEAST_ONE
 
-    ctypedef enum EdgeAttrLookup "edge_attr_lookup_t":
-        L_ERROR
-        L_NOT_FOUND
-        L_LINKPROP
-        L_PROPERTY
-        L_LINK
-
     object EdgeRecordDesc_InitType()
     object EdgeRecordDesc_New(object, object, object)
     object EdgeRecordDesc_PointerName(object, Py_ssize_t pos)
     EdgeFieldCardinality EdgeRecordDesc_PointerCardinality(
         object, Py_ssize_t pos)
-
-    object EdgeInputShape_InitType()
-    object EdgeInputShape_New(object)
-    object EdgeInputShape_PointerName(object, Py_ssize_t pos)
-    EdgeAttrLookup EdgeInputShape_Lookup(object, object, Py_ssize_t* pos)
 
     object EdgeTuple_InitType()
     object EdgeTuple_New(Py_ssize_t)
@@ -70,11 +58,6 @@ cdef extern from "datatypes.h":
     object EdgeObject_New(object);
     int EdgeObject_SetItem(object, Py_ssize_t, object) except -1
     object EdgeObject_GetRecordDesc(object)
-
-    object EdgeSparseObject_InitType()
-    object EdgeSparseObject_New(object);
-    int EdgeSparseObject_SetItem(object, Py_ssize_t, object) except -1
-    object EdgeSparseObject_GetInputShape(object)
 
     bint EdgeSet_Check(object)
     object EdgeSet_InitType()
@@ -94,17 +77,12 @@ cdef extern from "datatypes.h":
 cdef record_desc_new(object names, object flags, object cards)
 cdef record_desc_pointer_name(object desc, Py_ssize_t pos)
 cdef record_desc_pointer_card(object desc, Py_ssize_t pos)
-cdef input_shape_new(object names)
-cdef input_shape_pointer_name(object desc, Py_ssize_t pos)
-cdef Py_ssize_t input_shape_get_pos(object desc, object key) except -1
 cdef tuple_new(Py_ssize_t size)
 cdef tuple_set(object tuple, Py_ssize_t pos, object elem)
 cdef namedtuple_new(object desc)
 cdef namedtuple_set(object tuple, Py_ssize_t pos, object elem)
 cdef object_new(object desc)
 cdef object_set(object tuple, Py_ssize_t pos, object elem)
-cdef sparse_object_new(object desc)
-cdef sparse_object_set(object tuple, Py_ssize_t pos, object elem)
 cdef bint set_check(object set)
 cdef set_new(Py_ssize_t size)
 cdef set_set(object set, Py_ssize_t pos, object elem)
