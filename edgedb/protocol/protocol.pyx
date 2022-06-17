@@ -228,83 +228,6 @@ cdef class SansIOProtocol:
         else:
             buf.write_int16(0)  # no headers
 
-    async def _parse(
-        self,
-        query: str,
-        *,
-        reg: CodecsRegistry,
-        output_format: OutputFormat=OutputFormat.BINARY,
-        expect_one: bint=False,
-        required_one: bool=False,
-        implicit_limit: int=0,
-        inline_typenames: bool=False,
-        inline_typeids: bool=False,
-        allow_capabilities: typing.Optional[int] = None,
-    ):
-        cdef:
-            WriteBuffer buf
-            char mtype
-            BaseCodec in_dc = None
-            BaseCodec out_dc = None
-            int16_t type_size
-            bytes in_type_id
-            bytes out_type_id
-            bytes cardinality
-
-        if not self.connected:
-            raise RuntimeError('not connected')
-
-        buf = WriteBuffer.new_message(PREPARE_MSG)
-        self.write_execute_headers(
-            buf, implicit_limit, inline_typenames, inline_typeids,
-            ALL_CAPABILITIES if allow_capabilities is None
-            else allow_capabilities)
-        buf.write_byte(output_format)
-        buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
-        buf.write_len_prefixed_utf8(query)
-        buf.end_message()
-        buf.write_bytes(SYNC_MESSAGE)
-        self.write(buf)
-
-        attrs = None
-        exc = None
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-
-            try:
-                if mtype == PREPARE_COMPLETE_MSG:
-                    attrs = self.parse_headers()
-                    cardinality = self.buffer.read_byte()
-                    in_dc, out_dc = self.parse_type_data(reg)
-
-                elif mtype == ERROR_RESPONSE_MSG:
-                    exc = self.parse_error_message()
-                    exc = self._amend_parse_error(
-                        exc, output_format, expect_one, required_one)
-
-                elif mtype == READY_FOR_COMMAND_MSG:
-                    self.parse_sync_message()
-                    break
-
-                else:
-                    self.fallthrough()
-            finally:
-                self.buffer.finish_message()
-
-        if exc is not None:
-            raise exc
-
-        if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
-            assert output_format != OutputFormat.NONE
-            methname = _QUERY_SINGLE_METHOD[required_one][output_format]
-            raise errors.InterfaceError(
-                f'query cannot be executed with {methname}() as it '
-                f'does not return any data')
-
-        return cardinality, in_dc, out_dc, attrs
-
     cdef ensure_connected(self):
         if self.cancelled:
             raise errors.ClientConnectionClosedError(
@@ -328,7 +251,7 @@ cdef class SansIOProtocol:
         implicit_limit: int,
         inline_typenames: bint,
         inline_typeids: bint,
-        allow_capabilities: typing.Optional[int] = None,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
         in_dc: BaseCodec,
         out_dc: BaseCodec,
         allow_re_exec: bint = True,
@@ -341,17 +264,28 @@ cdef class SansIOProtocol:
             object result
             bytes new_cardinality = None
 
+        compilation_flags = 0
+        if inline_typenames:
+            compilation_flags |= enums.CompilationFlag.INJECT_OUTPUT_TYPE_NAMES
+        if inline_typeids:
+            compilation_flags |= enums.CompilationFlag.INJECT_OUTPUT_TYPE_IDS
+
         buf = WriteBuffer.new_message(EXECUTE_MSG)
-        self.write_execute_headers(
-            buf, implicit_limit, inline_typenames, inline_typeids,
-            ALL_CAPABILITIES if allow_capabilities is None
-            else allow_capabilities)
+        buf.write_int16(0)  # no headers
+        buf.write_int64(<int64_t><uint64_t>allow_capabilities)
+        buf.write_int64(<int64_t><uint64_t>compilation_flags)
+        buf.write_int64(<int64_t><uint64_t>implicit_limit)
         buf.write_byte(output_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
-        self.encode_args(in_dc, buf, args, kwargs)
+
+        if not isinstance(in_dc, InvalidCodec):
+            self.encode_args(in_dc, buf, args, kwargs)
+        else:
+            buf.write_bytes(EMPTY_NULL_DATA)
+
         buf.end_message()
 
         packet = WriteBuffer.new()
@@ -371,12 +305,8 @@ cdef class SansIOProtocol:
             try:
                 if mtype == STMT_DATA_DESC_MSG:
                     # our in/out type spec is out-dated
-                    new_cardinality, in_dc, out_dc, headers = \
+                    capabilities, new_cardinality, in_dc, out_dc = \
                         self.parse_describe_type_message(reg)
-
-                    capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
-                    if capabilities is not None:
-                        capabilities = int.from_bytes(capabilities, 'big')
 
                     qc.set(
                         query,
@@ -498,89 +428,30 @@ cdef class SansIOProtocol:
             inline_typenames,
             inline_typeids,
             expect_one)
-        if codecs is None:
-            codecs = await self._parse(
-                query,
-                reg=reg,
-                output_format=output_format,
-                expect_one=expect_one,
-                required_one=required_one,
-                implicit_limit=implicit_limit,
-                inline_typenames=inline_typenames,
-                inline_typeids=inline_typeids,
-                allow_capabilities=allow_capabilities,
-            )
 
-            cardinality = codecs[0]
+        if codecs is not None:
             in_dc = <BaseCodec>codecs[1]
             out_dc = <BaseCodec>codecs[2]
-            headers = <BaseCodec>codecs[3]
-
-            capabilities = None
-            if headers:
-                capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
-                if capabilities is not None:
-                    capabilities = int.from_bytes(capabilities, 'big')
-
-            qc.set(
-                query,
-                output_format,
-                implicit_limit,
-                inline_typenames,
-                inline_typeids,
-                expect_one,
-                cardinality == CARDINALITY_NOT_APPLICABLE,
-                in_dc,
-                out_dc,
-                capabilities,
-            )
-
-            return await self._execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                reg=reg,
-                qc=qc,
-                output_format=output_format,
-                expect_one=expect_one,
-                required_one=required_one,
-                implicit_limit=implicit_limit,
-                inline_typenames=inline_typenames,
-                inline_typeids=inline_typeids,
-                allow_capabilities=allow_capabilities,
-                in_dc=in_dc,
-                out_dc=out_dc,
-                allow_re_exec=False,
-            )
-
         else:
-            has_na_cardinality = codecs[0]
-            in_dc = <BaseCodec>codecs[1]
-            out_dc = <BaseCodec>codecs[2]
+            in_dc = INVALID_CODEC
+            out_dc = INVALID_CODEC
 
-            if required_one and has_na_cardinality:
-                assert output_format != OutputFormat.NONE
-                methname = _QUERY_SINGLE_METHOD[required_one][output_format]
-                raise errors.InterfaceError(
-                    f'query cannot be executed with {methname}() as it '
-                    f'does not return any data')
-
-            return await self._execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                reg=reg,
-                qc=qc,
-                output_format=output_format,
-                expect_one=expect_one,
-                required_one=required_one,
-                implicit_limit=implicit_limit,
-                inline_typenames=inline_typenames,
-                inline_typeids=inline_typeids,
-                allow_capabilities=allow_capabilities,
-                in_dc=in_dc,
-                out_dc=out_dc,
-            )
+        return await self._execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=reg,
+            qc=qc,
+            output_format=output_format,
+            expect_one=expect_one,
+            required_one=required_one,
+            implicit_limit=implicit_limit,
+            inline_typenames=inline_typenames,
+            inline_typeids=inline_typeids,
+            allow_capabilities=allow_capabilities,
+            in_dc=in_dc,
+            out_dc=out_dc,
+        )
 
     async def query(
         self,
@@ -1111,16 +982,14 @@ cdef class SansIOProtocol:
         cdef:
             bytes cardinality
 
-        headers = self.parse_headers()
-
         try:
+            capabilities = self.buffer.read_int64()
             cardinality = self.buffer.read_byte()
-
             in_dc, out_dc = self.parse_type_data(reg)
         finally:
             self.buffer.finish_message()
 
-        return cardinality, in_dc, out_dc, headers
+        return capabilities, cardinality, in_dc, out_dc
 
     cdef parse_type_data(self, CodecsRegistry reg):
         cdef:
@@ -1206,10 +1075,10 @@ cdef class SansIOProtocol:
 
     cdef parse_command_complete_message(self):
         assert self.buffer.get_message_type() == COMMAND_COMPLETE_MSG
-        attrs = self.parse_headers()
+        self.parse_headers()
+        self.buffer.read_int64()
         self.last_status = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
-        return attrs
 
     cdef parse_sync_message(self):
         cdef char status
