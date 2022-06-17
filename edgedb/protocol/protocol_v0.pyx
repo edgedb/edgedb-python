@@ -113,7 +113,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                     try:
                         if mtype == STMT_DATA_DESC_MSG:
                             cardinality, in_dc, out_dc, _ = \
-                                self.parse_describe_type_message(reg)
+                                self.parse_legacy_describe_type_message(reg)
 
                         elif mtype == ERROR_RESPONSE_MSG:
                             exc = self.parse_error_message()
@@ -194,7 +194,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                         self.buffer.discard_message()
 
                 elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_command_complete_message()
+                    attrs = self.parse_legacy_command_complete_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -271,7 +271,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 if mtype == STMT_DATA_DESC_MSG:
                     # our in/out type spec is out-dated
                     new_cardinality, in_dc, out_dc, headers = \
-                        self.parse_describe_type_message(reg)
+                        self.parse_legacy_describe_type_message(reg)
 
                     capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
                     if capabilities is not None:
@@ -310,7 +310,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                         self.buffer.discard_message()
 
                 elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_command_complete_message()
+                    attrs = self.parse_legacy_command_complete_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -496,7 +496,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
             try:
                 if mtype == COMMAND_COMPLETE_MSG:
-                    self.parse_command_complete_message()
+                    self.parse_legacy_command_complete_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     # ErrorResponse
@@ -514,3 +514,26 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
         if exc is not None:
             raise exc
+
+    cdef parse_legacy_describe_type_message(self, CodecsRegistry reg):
+        assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG
+
+        cdef:
+            bytes cardinality
+
+        headers = self.parse_headers()
+
+        try:
+            cardinality = self.buffer.read_byte()
+
+            in_dc, out_dc = self.parse_type_data(reg)
+        finally:
+            self.buffer.finish_message()
+
+        return cardinality, in_dc, out_dc, headers
+
+    cdef parse_legacy_command_complete_message(self):
+        assert self.buffer.get_message_type() == COMMAND_COMPLETE_MSG
+        self.parse_headers()
+        self.last_status = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()

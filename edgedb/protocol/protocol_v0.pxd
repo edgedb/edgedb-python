@@ -17,4 +17,5 @@
 #
 
 cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
-    pass
+    cdef parse_legacy_describe_type_message(self, CodecsRegistry reg)
+    cdef parse_legacy_command_complete_message(self)
