@@ -113,9 +113,8 @@ class TestSyncQuery(tb.SyncQueryTestCase):
                     self.client.query(f'select 10 // {i};')
 
     def test_sync_exec_error_recover_05(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'cannot accept parameters'):
-            self.client.execute(f'select <int64>$0')
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            self.client.execute(f'select 1 / 0')
         self.assertEqual(
             self.client.query('SELECT "HELLO"'),
             ["HELLO"])

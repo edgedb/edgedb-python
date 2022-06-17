@@ -249,8 +249,8 @@ class Iteration(transaction.BaseTransaction, abstract.Executor):
     def _query(self, query_context: abstract.QueryContext):
         return self._client._iter_coroutine(super()._query(query_context))
 
-    def execute(self, query: str) -> None:
-        self._client._iter_coroutine(super().execute(query))
+    def _execute(self, script: abstract.ScriptContext) -> None:
+        self._client._iter_coroutine(super()._execute(script))
 
 
 class Retry(transaction.BaseRetry):
@@ -301,8 +301,8 @@ class Client(base_client.BaseClient, abstract.Executor):
     def _query(self, query_context: abstract.QueryContext):
         return self._iter_coroutine(super()._query(query_context))
 
-    def execute(self, query: str) -> None:
-        self._iter_coroutine(super().execute(query))
+    def _execute(self, script: abstract.ScriptContext) -> None:
+        self._iter_coroutine(super()._execute(script))
 
     def ensure_connected(self):
         self._iter_coroutine(self._impl.ensure_connected())

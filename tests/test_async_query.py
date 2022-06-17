@@ -130,9 +130,8 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                     await self.client.query(f'select 10 // {i};')
 
     async def test_async_exec_error_recover_05(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'cannot accept parameters'):
-            await self.client.execute(f'select <int64>$0')
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            await self.client.execute(f'select 1 / 0')
         self.assertEqual(
             await self.client.query('SELECT "HELLO"'),
             ["HELLO"])
@@ -913,7 +912,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 ),
                 cache=self.client._get_query_cache(),
                 query_options=abstract.QueryOptions(
-                    io_format=protocol.IoFormat.JSON_ELEMENTS,
+                    output_format=protocol.OutputFormat.JSON_ELEMENTS,
                     expect_one=False,
                     required_one=False,
                 ),
