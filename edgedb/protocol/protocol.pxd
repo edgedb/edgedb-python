@@ -118,8 +118,7 @@ cdef class SansIOProtocol:
     )
 
     cdef inline ignore_headers(self)
-    cdef dict parse_headers(self)
-    cdef write_headers(self, WriteBuffer buf, dict headers)
+    cdef dict parse_error_headers(self)
 
     cdef parse_error_message(self)
 
@@ -132,15 +131,6 @@ cdef class SansIOProtocol:
     cdef parse_server_settings(self, str name, bytes val)
 
     cdef fallthrough(self)
-
-    cdef write_execute_headers(
-        self,
-        WriteBuffer buf,
-        int implicit_limit,
-        bint inline_typenames,
-        bint inline_typeids,
-        uint64_t allow_capabilities,
-    )
 
     cdef ensure_connected(self)
 

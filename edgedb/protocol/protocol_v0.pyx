@@ -16,6 +16,15 @@
 # limitations under the License.
 #
 
+
+DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
+DEF QUERY_OPT_INLINE_TYPENAMES = 0xFF02
+DEF QUERY_OPT_INLINE_TYPEIDS = 0xFF03
+DEF QUERY_OPT_ALLOW_CAPABILITIES = 0xFF04
+
+DEF SERVER_HEADER_CAPABILITIES = 0x1001
+
+
 cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
     async def _legacy_parse(
         self,
@@ -44,7 +53,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             raise RuntimeError('not connected')
 
         buf = WriteBuffer.new_message(PREPARE_MSG)
-        self.write_execute_headers(
+        self.legacy_write_execute_headers(
             buf, implicit_limit, inline_typenames, inline_typeids,
             ALL_CAPABILITIES if allow_capabilities is None
             else allow_capabilities)
@@ -65,7 +74,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
             try:
                 if mtype == PREPARE_COMPLETE_MSG:
-                    attrs = self.parse_headers()
+                    attrs = self.legacy_parse_headers()
                     cardinality = self.buffer.read_byte()
                     if self.protocol_version >= (0, 14):
                         in_dc, out_dc = self.parse_type_data(reg)
@@ -241,7 +250,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             bytes new_cardinality = None
 
         buf = WriteBuffer.new_message(EXECUTE_MSG)
-        self.write_execute_headers(
+        self.legacy_write_execute_headers(
             buf, implicit_limit, inline_typenames, inline_typeids,
             ALL_CAPABILITIES if allow_capabilities is None
             else allow_capabilities)
@@ -480,7 +489,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             cpython.PyBytes_AsString(cap_bytes),
             <int64_t><uint64_t>capabilities,
         )
-        self.write_headers(
+        self.legacy_write_headers(
             buf,
             {QUERY_OPT_ALLOW_CAPABILITIES: cap_bytes},
         )
@@ -521,7 +530,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         cdef:
             bytes cardinality
 
-        headers = self.parse_headers()
+        headers = self.legacy_parse_headers()
 
         try:
             cardinality = self.buffer.read_byte()
@@ -534,6 +543,63 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
     cdef parse_legacy_command_complete_message(self):
         assert self.buffer.get_message_type() == COMMAND_COMPLETE_MSG
-        self.parse_headers()
+        self.legacy_parse_headers()
         self.last_status = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
+
+    cdef legacy_write_headers(self, buf: WriteBuffer, headers: dict):
+        buf.write_int16(len(headers))
+        for k, v in headers.items():
+            buf.write_int16(<int16_t><uint16_t>k)
+            if isinstance(v, bytes):
+                buf.write_len_prefixed_bytes(v)
+            else:
+                buf.write_len_prefixed_utf8(str(v))
+
+    cdef legacy_write_execute_headers(
+        self,
+        WriteBuffer buf,
+        int implicit_limit,
+        bint inline_typenames,
+        bint inline_typeids,
+        uint64_t allow_capabilities,
+    ):
+        cdef bytes val
+        if (
+            implicit_limit or
+            inline_typenames or inline_typeids or
+            allow_capabilities != ALL_CAPABILITIES
+        ):
+            headers = {}
+            if implicit_limit:
+                headers[QUERY_OPT_IMPLICIT_LIMIT] = implicit_limit
+            if inline_typenames:
+                headers[QUERY_OPT_INLINE_TYPENAMES] = True
+            if inline_typeids:
+                headers[QUERY_OPT_INLINE_TYPEIDS] = True
+            if allow_capabilities != ALL_CAPABILITIES:
+                val = cpython.PyBytes_FromStringAndSize(NULL, sizeof(uint64_t))
+                hton.pack_int64(
+                    cpython.PyBytes_AsString(val),
+                    <int64_t><uint64_t>allow_capabilities
+                )
+                headers[QUERY_OPT_ALLOW_CAPABILITIES] = val
+            self.legacy_write_headers(buf, headers)
+        else:
+            buf.write_int16(0)  # no headers
+
+    cdef dict legacy_parse_headers(self):
+        cdef:
+            dict attrs
+            uint16_t num_fields
+            uint16_t key
+            bytes value
+
+        attrs = {}
+        num_fields = <uint16_t> self.buffer.read_int16()
+        while num_fields:
+            key = <uint16_t> self.buffer.read_int16()
+            value = self.buffer.read_len_prefixed_bytes()
+            attrs[key] = value
+            num_fields -= 1
+        return attrs
