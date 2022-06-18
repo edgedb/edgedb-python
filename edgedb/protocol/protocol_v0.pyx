@@ -17,6 +17,9 @@
 #
 
 
+from edgedb import enums
+
+
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
 DEF QUERY_OPT_INLINE_TYPENAMES = 0xFF02
 DEF QUERY_OPT_INLINE_TYPEIDS = 0xFF03
@@ -364,7 +367,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         implicit_limit: int = 0,
         inline_typenames: bool = False,
         inline_typeids: bool = False,
-        allow_capabilities: typing.Optional[int] = None,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
     ):
         cdef:
             BaseCodec in_dc

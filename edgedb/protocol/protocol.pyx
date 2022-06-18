@@ -377,7 +377,7 @@ cdef class SansIOProtocol:
         implicit_limit: int = 0,
         inline_typenames: bool = False,
         inline_typeids: bool = False,
-        allow_capabilities: typing.Optional[int] = None,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
     ):
         cdef:
             BaseCodec in_dc
@@ -432,7 +432,7 @@ cdef class SansIOProtocol:
         implicit_limit: int = 0,
         inline_typenames: bool = False,
         inline_typeids: bool = False,
-        allow_capabilities: typing.Optional[int] = None,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
     ):
         ret, attrs = await self.execute(
             query=query,
