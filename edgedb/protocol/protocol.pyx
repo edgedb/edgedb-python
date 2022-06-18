@@ -182,51 +182,16 @@ cdef class SansIOProtocol:
 
     cdef inline ignore_headers(self):
         cdef uint16_t num_fields = <uint16_t>self.buffer.read_int16()
-        while num_fields:
-            self.buffer.read_int16()
-            self.buffer.read_len_prefixed_bytes()
-            num_fields -= 1
-
-    cdef write_headers(self, buf: WriteBuffer, headers: dict):
-        buf.write_int16(len(headers))
-        for k, v in headers.items():
-            buf.write_int16(<int16_t><uint16_t>k)
-            if isinstance(v, bytes):
-                buf.write_len_prefixed_bytes(v)
-            else:
-                buf.write_len_prefixed_utf8(str(v))
-
-    cdef write_execute_headers(
-        self,
-        WriteBuffer buf,
-        int implicit_limit,
-        bint inline_typenames,
-        bint inline_typeids,
-        uint64_t allow_capabilities,
-    ):
-        cdef bytes val
-        if (
-            implicit_limit or
-            inline_typenames or inline_typeids or
-            allow_capabilities != ALL_CAPABILITIES
-        ):
-            headers = {}
-            if implicit_limit:
-                headers[QUERY_OPT_IMPLICIT_LIMIT] = implicit_limit
-            if inline_typenames:
-                headers[QUERY_OPT_INLINE_TYPENAMES] = True
-            if inline_typeids:
-                headers[QUERY_OPT_INLINE_TYPEIDS] = True
-            if allow_capabilities != ALL_CAPABILITIES:
-                val = cpython.PyBytes_FromStringAndSize(NULL, sizeof(uint64_t))
-                hton.pack_int64(
-                    cpython.PyBytes_AsString(val),
-                    <int64_t><uint64_t>allow_capabilities
-                )
-                headers[QUERY_OPT_ALLOW_CAPABILITIES] = val
-            self.write_headers(buf, headers)
+        if self.is_legacy:
+            while num_fields:
+                self.buffer.read_int16()  # key
+                self.buffer.read_len_prefixed_bytes()  # value
+                num_fields -= 1
         else:
-            buf.write_int16(0)  # no headers
+            while num_fields:
+                self.buffer.read_len_prefixed_bytes()  # key
+                self.buffer.read_len_prefixed_bytes()  # value
+                num_fields -= 1
 
     cdef ensure_connected(self):
         if self.cancelled:
@@ -274,7 +239,7 @@ cdef class SansIOProtocol:
         buf.write_int16(0)  # no headers
         buf.write_int64(<int64_t><uint64_t>allow_capabilities)
         buf.write_int64(<int64_t><uint64_t>compilation_flags)
-        buf.write_int64(<int64_t><uint64_t>implicit_limit)
+        buf.write_int64(<int64_t>implicit_limit)
         buf.write_byte(output_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
@@ -294,7 +259,6 @@ cdef class SansIOProtocol:
         self.write(packet)
 
         result = datatypes.set_new(0)
-        attrs = None
         re_exec = False
         exc = None
         while True:
@@ -345,7 +309,7 @@ cdef class SansIOProtocol:
                         self.buffer.discard_message()
 
                 elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_command_complete_message()
+                    self.parse_command_complete_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -396,7 +360,7 @@ cdef class SansIOProtocol:
                 allow_re_exec=False,
             )
         else:
-            return result, attrs
+            return result
 
     async def execute(
         self,
@@ -412,7 +376,7 @@ cdef class SansIOProtocol:
         implicit_limit: int = 0,
         inline_typenames: bool = False,
         inline_typeids: bool = False,
-        allow_capabilities: typing.Optional[int] = None,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
     ):
         cdef:
             BaseCodec in_dc
@@ -467,9 +431,9 @@ cdef class SansIOProtocol:
         implicit_limit: int = 0,
         inline_typenames: bool = False,
         inline_typeids: bool = False,
-        allow_capabilities: typing.Optional[int] = None,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
     ):
-        ret, attrs = await self.execute(
+        ret = await self.execute(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -487,12 +451,12 @@ cdef class SansIOProtocol:
         if expect_one:
             if ret or not required_one:
                 if ret:
-                    return ret[0], attrs
+                    return ret[0]
                 else:
                     if output_format == OutputFormat.JSON:
-                        return 'null', attrs
+                        return 'null'
                     else:
-                        return None, attrs
+                        return None
             else:
                 methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.NoDataError(
@@ -500,14 +464,14 @@ cdef class SansIOProtocol:
         else:
             if ret:
                 if output_format == OutputFormat.JSON:
-                    return ret[0], attrs
+                    return ret[0]
                 else:
-                    return ret, attrs
+                    return ret
             else:
                 if output_format == OutputFormat.JSON:
-                    return '[]', attrs
+                    return '[]'
                 else:
-                    return ret, attrs
+                    return ret
 
     async def dump(self, header_callback, block_callback):
         cdef:
@@ -710,8 +674,7 @@ cdef class SansIOProtocol:
             handshake_buf.write_len_prefixed_utf8(k)
             handshake_buf.write_len_prefixed_utf8(v)
 
-        # no extensions requested
-        handshake_buf.write_int16(0)
+        handshake_buf.write_int16(0)  # reserved
         handshake_buf.end_message()
 
         self.write(handshake_buf)
@@ -726,15 +689,18 @@ cdef class SansIOProtocol:
                 # means protocol negotiation.
                 major = self.buffer.read_int16()
                 minor = self.buffer.read_int16()
-                self.parse_headers()
+
+                # TODO: drop this branch when dropping protocol_v0
+                if major == LEGACY_PROTO_VER_MAJOR:
+                    self.is_legacy = True
+                    self.ignore_headers()
+
                 self.buffer.finish_message()
 
-                if (
+                if major != PROTO_VER_MAJOR and not (
                     major == LEGACY_PROTO_VER_MAJOR and
                     minor >= LEGACY_PROTO_VER_MINOR_MIN
                 ):
-                    self.is_legacy = True
-                elif major != PROTO_VER_MAJOR:
                     raise errors.ClientConnectionError(
                         f'the server requested an unsupported version of '
                         f'the protocol: {major}.{minor}'
@@ -930,7 +896,7 @@ cdef class SansIOProtocol:
             code = <uint32_t>self.buffer.read_int32()
             message = self.buffer.read_len_prefixed_utf8()
             # Ignore any headers: not yet specified for log messages.
-            self.parse_headers()
+            self.ignore_headers()
             self.buffer.finish_message()
 
             msg = errors.EdgeDBMessage._from_code(code, severity, message)
@@ -983,6 +949,7 @@ cdef class SansIOProtocol:
             bytes cardinality
 
         try:
+            self.ignore_headers()
             capabilities = self.buffer.read_int64()
             cardinality = self.buffer.read_byte()
             in_dc, out_dc = self.parse_type_data(reg)
@@ -1075,8 +1042,8 @@ cdef class SansIOProtocol:
 
     cdef parse_command_complete_message(self):
         assert self.buffer.get_message_type() == COMMAND_COMPLETE_MSG
-        self.parse_headers()
-        self.buffer.read_int64()
+        self.ignore_headers()
+        self.last_capabilities = enums.Capability(self.buffer.read_int64())
         self.last_status = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
@@ -1118,7 +1085,7 @@ cdef class SansIOProtocol:
 
         return exc
 
-    cdef dict parse_headers(self):
+    cdef dict parse_error_headers(self):
         cdef:
             dict attrs
             uint16_t num_fields
@@ -1146,7 +1113,7 @@ cdef class SansIOProtocol:
         severity = <uint8_t>self.buffer.read_byte()
         code = <uint32_t>self.buffer.read_int32()
         msg = self.buffer.read_len_prefixed_utf8()
-        attrs = self.parse_headers()
+        attrs = self.parse_error_headers()
 
         # It's safe to always map error codes as we don't reuse them
         code = OLD_ERROR_CODES.get(code, code)

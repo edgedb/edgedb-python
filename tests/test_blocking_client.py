@@ -144,8 +144,8 @@ class TestBlockingClient(tb.SyncQueryTestCase):
 
         class MyConnection(blocking_client.BlockingIOConnection):
             async def raw_query(self, query_context):
-                res, h = await super().raw_query(query_context)
-                return res + 1, h
+                res = await super().raw_query(query_context)
+                return res + 1
 
         def test():
             for tx in client.transaction():

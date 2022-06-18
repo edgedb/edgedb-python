@@ -905,7 +905,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             '["aaa", "bbb"]')
 
     async def test_json_elements(self):
-        result, _ = await self.client.connection.raw_query(
+        result = await self.client.connection.raw_query(
             abstract.QueryContext(
                 query=abstract.QueryWithArgs(
                     'SELECT {"aaa", "bbb"}', (), {}

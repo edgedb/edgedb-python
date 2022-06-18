@@ -712,8 +712,7 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
     async def _query(self, query_context: abstract.QueryContext):
         con = await self._impl.acquire()
         try:
-            result, _ = await con.raw_query(query_context)
-            return result
+            return await con.raw_query(query_context)
         finally:
             await self._impl.release(con)
 

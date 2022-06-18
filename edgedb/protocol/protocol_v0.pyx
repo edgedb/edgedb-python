@@ -16,6 +16,18 @@
 # limitations under the License.
 #
 
+
+from edgedb import enums
+
+
+DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
+DEF QUERY_OPT_INLINE_TYPENAMES = 0xFF02
+DEF QUERY_OPT_INLINE_TYPEIDS = 0xFF03
+DEF QUERY_OPT_ALLOW_CAPABILITIES = 0xFF04
+
+DEF SERVER_HEADER_CAPABILITIES = 0x1001
+
+
 cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
     async def _legacy_parse(
         self,
@@ -44,7 +56,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             raise RuntimeError('not connected')
 
         buf = WriteBuffer.new_message(PREPARE_MSG)
-        self.write_execute_headers(
+        self.legacy_write_execute_headers(
             buf, implicit_limit, inline_typenames, inline_typeids,
             ALL_CAPABILITIES if allow_capabilities is None
             else allow_capabilities)
@@ -65,7 +77,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
             try:
                 if mtype == PREPARE_COMPLETE_MSG:
-                    attrs = self.parse_headers()
+                    attrs = self.legacy_parse_headers()
                     cardinality = self.buffer.read_byte()
                     if self.protocol_version >= (0, 14):
                         in_dc, out_dc = self.parse_type_data(reg)
@@ -165,7 +177,6 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
         result = datatypes.set_new(0)
 
-        attrs = None
         exc = None
         while True:
             if not self.buffer.take_message():
@@ -194,7 +205,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                         self.buffer.discard_message()
 
                 elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_legacy_command_complete_message()
+                    self.parse_legacy_command_complete_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -212,7 +223,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         if exc is not None:
             raise exc
 
-        return result, attrs
+        return result
 
     async def _legacy_optimistic_execute(
         self,
@@ -241,7 +252,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             bytes new_cardinality = None
 
         buf = WriteBuffer.new_message(EXECUTE_MSG)
-        self.write_execute_headers(
+        self.legacy_write_execute_headers(
             buf, implicit_limit, inline_typenames, inline_typeids,
             ALL_CAPABILITIES if allow_capabilities is None
             else allow_capabilities)
@@ -259,7 +270,6 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         self.write(packet)
 
         result = datatypes.set_new(0)
-        attrs = None
         re_exec = False
         exc = None
         while True:
@@ -310,7 +320,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                         self.buffer.discard_message()
 
                 elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_legacy_command_complete_message()
+                    self.parse_legacy_command_complete_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -339,7 +349,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                     f'does not return any data')
             return await self._legacy_execute(in_dc, out_dc, args, kwargs)
         else:
-            return result, attrs
+            return result
 
     async def legacy_execute_anonymous(
         self,
@@ -355,7 +365,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         implicit_limit: int = 0,
         inline_typenames: bool = False,
         inline_typeids: bool = False,
-        allow_capabilities: typing.Optional[int] = None,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
     ):
         cdef:
             BaseCodec in_dc
@@ -408,7 +418,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 capabilities,
                 )
 
-            ret, attrs = await self._legacy_execute(in_dc, out_dc, args, kwargs)
+            ret = await self._legacy_execute(in_dc, out_dc, args, kwargs)
 
         else:
             has_na_cardinality = codecs[0]
@@ -421,7 +431,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
 
-            ret, attrs = await self._legacy_optimistic_execute(
+            ret = await self._legacy_optimistic_execute(
                 query=query,
                 args=args,
                 kwargs=kwargs,
@@ -441,12 +451,12 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         if expect_one:
             if ret or not required_one:
                 if ret:
-                    return ret[0], attrs
+                    return ret[0]
                 else:
                     if output_format == OutputFormat.JSON:
-                        return 'null', attrs
+                        return 'null'
                     else:
-                        return None, attrs
+                        return None
             else:
                 methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.NoDataError(
@@ -454,14 +464,14 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         else:
             if ret:
                 if output_format == OutputFormat.JSON:
-                    return ret[0], attrs
+                    return ret[0]
                 else:
-                    return ret, attrs
+                    return ret
             else:
                 if output_format == OutputFormat.JSON:
-                    return '[]', attrs
+                    return '[]'
                 else:
-                    return ret, attrs
+                    return ret
 
     async def legacy_simple_query(
         self, str query, capabilities: enums.Capability
@@ -480,7 +490,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             cpython.PyBytes_AsString(cap_bytes),
             <int64_t><uint64_t>capabilities,
         )
-        self.write_headers(
+        self.legacy_write_headers(
             buf,
             {QUERY_OPT_ALLOW_CAPABILITIES: cap_bytes},
         )
@@ -521,7 +531,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         cdef:
             bytes cardinality
 
-        headers = self.parse_headers()
+        headers = self.legacy_parse_headers()
 
         try:
             cardinality = self.buffer.read_byte()
@@ -534,6 +544,69 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
     cdef parse_legacy_command_complete_message(self):
         assert self.buffer.get_message_type() == COMMAND_COMPLETE_MSG
-        self.parse_headers()
+        headers = self.legacy_parse_headers()
+        capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
+        if capabilities is not None:
+            self.last_capabilities = enums.Capability(
+                int.from_bytes(capabilities, 'big'))
+        else:
+            self.last_capabilities = None
         self.last_status = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
+
+    cdef legacy_write_headers(self, buf: WriteBuffer, headers: dict):
+        buf.write_int16(len(headers))
+        for k, v in headers.items():
+            buf.write_int16(<int16_t><uint16_t>k)
+            if isinstance(v, bytes):
+                buf.write_len_prefixed_bytes(v)
+            else:
+                buf.write_len_prefixed_utf8(str(v))
+
+    cdef legacy_write_execute_headers(
+        self,
+        WriteBuffer buf,
+        int implicit_limit,
+        bint inline_typenames,
+        bint inline_typeids,
+        uint64_t allow_capabilities,
+    ):
+        cdef bytes val
+        if (
+            implicit_limit or
+            inline_typenames or inline_typeids or
+            allow_capabilities != ALL_CAPABILITIES
+        ):
+            headers = {}
+            if implicit_limit:
+                headers[QUERY_OPT_IMPLICIT_LIMIT] = implicit_limit
+            if inline_typenames:
+                headers[QUERY_OPT_INLINE_TYPENAMES] = True
+            if inline_typeids:
+                headers[QUERY_OPT_INLINE_TYPEIDS] = True
+            if allow_capabilities != ALL_CAPABILITIES:
+                val = cpython.PyBytes_FromStringAndSize(NULL, sizeof(uint64_t))
+                hton.pack_int64(
+                    cpython.PyBytes_AsString(val),
+                    <int64_t><uint64_t>allow_capabilities
+                )
+                headers[QUERY_OPT_ALLOW_CAPABILITIES] = val
+            self.legacy_write_headers(buf, headers)
+        else:
+            buf.write_int16(0)  # no headers
+
+    cdef dict legacy_parse_headers(self):
+        cdef:
+            dict attrs
+            uint16_t num_fields
+            uint16_t key
+            bytes value
+
+        attrs = {}
+        num_fields = <uint16_t> self.buffer.read_int16()
+        while num_fields:
+            key = <uint16_t> self.buffer.read_int16()
+            value = self.buffer.read_len_prefixed_bytes()
+            attrs[key] = value
+            num_fields -= 1
+        return attrs
