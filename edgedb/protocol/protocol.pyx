@@ -239,7 +239,7 @@ cdef class SansIOProtocol:
         buf.write_int16(0)  # no headers
         buf.write_int64(<int64_t><uint64_t>allow_capabilities)
         buf.write_int64(<int64_t><uint64_t>compilation_flags)
-        buf.write_int64(<int64_t><uint64_t>implicit_limit)
+        buf.write_int64(<int64_t>implicit_limit)
         buf.write_byte(output_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
