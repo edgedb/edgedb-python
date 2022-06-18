@@ -71,7 +71,7 @@ EXTRA_DEPENDENCIES = {
 }
 
 
-CFLAGS = ['-O0']
+CFLAGS = ['-O2']
 LDFLAGS = []
 SYSTEM = sys.platform
 
