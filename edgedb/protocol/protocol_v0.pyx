@@ -177,7 +177,6 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
         result = datatypes.set_new(0)
 
-        attrs = None
         exc = None
         while True:
             if not self.buffer.take_message():
@@ -206,7 +205,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                         self.buffer.discard_message()
 
                 elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_legacy_command_complete_message()
+                    self.parse_legacy_command_complete_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -224,7 +223,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         if exc is not None:
             raise exc
 
-        return result, attrs
+        return result
 
     async def _legacy_optimistic_execute(
         self,
@@ -271,7 +270,6 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         self.write(packet)
 
         result = datatypes.set_new(0)
-        attrs = None
         re_exec = False
         exc = None
         while True:
@@ -322,7 +320,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                         self.buffer.discard_message()
 
                 elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_legacy_command_complete_message()
+                    self.parse_legacy_command_complete_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -351,7 +349,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                     f'does not return any data')
             return await self._legacy_execute(in_dc, out_dc, args, kwargs)
         else:
-            return result, attrs
+            return result
 
     async def legacy_execute_anonymous(
         self,
@@ -420,7 +418,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 capabilities,
                 )
 
-            ret, attrs = await self._legacy_execute(in_dc, out_dc, args, kwargs)
+            ret = await self._legacy_execute(in_dc, out_dc, args, kwargs)
 
         else:
             has_na_cardinality = codecs[0]
@@ -433,7 +431,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
 
-            ret, attrs = await self._legacy_optimistic_execute(
+            ret = await self._legacy_optimistic_execute(
                 query=query,
                 args=args,
                 kwargs=kwargs,
@@ -453,12 +451,12 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         if expect_one:
             if ret or not required_one:
                 if ret:
-                    return ret[0], attrs
+                    return ret[0]
                 else:
                     if output_format == OutputFormat.JSON:
-                        return 'null', attrs
+                        return 'null'
                     else:
-                        return None, attrs
+                        return None
             else:
                 methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.NoDataError(
@@ -466,14 +464,14 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         else:
             if ret:
                 if output_format == OutputFormat.JSON:
-                    return ret[0], attrs
+                    return ret[0]
                 else:
-                    return ret, attrs
+                    return ret
             else:
                 if output_format == OutputFormat.JSON:
-                    return '[]', attrs
+                    return '[]'
                 else:
-                    return ret, attrs
+                    return ret
 
     async def legacy_simple_query(
         self, str query, capabilities: enums.Capability
@@ -546,7 +544,13 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
     cdef parse_legacy_command_complete_message(self):
         assert self.buffer.get_message_type() == COMMAND_COMPLETE_MSG
-        self.legacy_parse_headers()
+        headers = self.legacy_parse_headers()
+        capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
+        if capabilities is not None:
+            self.last_capabilities = enums.Capability(
+                int.from_bytes(capabilities, 'big'))
+        else:
+            self.last_capabilities = None
         self.last_status = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 

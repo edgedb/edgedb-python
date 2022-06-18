@@ -180,8 +180,7 @@ class BaseTransaction:
 
     async def _query(self, query_context: abstract.QueryContext):
         await self._ensure_transaction()
-        result, _ = await self._connection.raw_query(query_context)
-        return result
+        return await self._connection.raw_query(query_context)
 
     async def _execute(self, query: abstract.ScriptContext) -> None:
         await self._ensure_transaction()

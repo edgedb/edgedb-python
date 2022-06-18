@@ -98,6 +98,7 @@ cdef class SansIOProtocol:
 
         readonly bytes last_status
         readonly bytes last_details
+        readonly object last_capabilities
         readonly tuple protocol_version
 
         readonly bint is_legacy

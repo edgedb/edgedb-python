@@ -259,7 +259,6 @@ cdef class SansIOProtocol:
         self.write(packet)
 
         result = datatypes.set_new(0)
-        attrs = None
         re_exec = False
         exc = None
         while True:
@@ -310,7 +309,7 @@ cdef class SansIOProtocol:
                         self.buffer.discard_message()
 
                 elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_command_complete_message()
+                    self.parse_command_complete_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -361,7 +360,7 @@ cdef class SansIOProtocol:
                 allow_re_exec=False,
             )
         else:
-            return result, attrs
+            return result
 
     async def execute(
         self,
@@ -434,7 +433,7 @@ cdef class SansIOProtocol:
         inline_typeids: bool = False,
         allow_capabilities: enums.Capability = enums.Capability.ALL,
     ):
-        ret, attrs = await self.execute(
+        ret = await self.execute(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -452,12 +451,12 @@ cdef class SansIOProtocol:
         if expect_one:
             if ret or not required_one:
                 if ret:
-                    return ret[0], attrs
+                    return ret[0]
                 else:
                     if output_format == OutputFormat.JSON:
-                        return 'null', attrs
+                        return 'null'
                     else:
-                        return None, attrs
+                        return None
             else:
                 methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.NoDataError(
@@ -465,14 +464,14 @@ cdef class SansIOProtocol:
         else:
             if ret:
                 if output_format == OutputFormat.JSON:
-                    return ret[0], attrs
+                    return ret[0]
                 else:
-                    return ret, attrs
+                    return ret
             else:
                 if output_format == OutputFormat.JSON:
-                    return '[]', attrs
+                    return '[]'
                 else:
-                    return ret, attrs
+                    return ret
 
     async def dump(self, header_callback, block_callback):
         cdef:
@@ -1044,7 +1043,7 @@ cdef class SansIOProtocol:
     cdef parse_command_complete_message(self):
         assert self.buffer.get_message_type() == COMMAND_COMPLETE_MSG
         self.ignore_headers()
-        self.buffer.read_int64()  # capabilities
+        self.last_capabilities = enums.Capability(self.buffer.read_int64())
         self.last_status = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 

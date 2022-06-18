@@ -135,8 +135,8 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
 
         class MyConnection(asyncio_client.AsyncIOConnection):
             async def raw_query(self, query_context):
-                res, h = await super().raw_query(query_context)
-                return res + 1, h
+                res = await super().raw_query(query_context)
+                return res + 1
 
         async def test(client):
             async for tx in client.transaction():
