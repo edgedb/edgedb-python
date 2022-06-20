@@ -113,6 +113,7 @@ cdef class SansIOProtocol:
     cdef parse_data_messages(self, BaseCodec out_dc, result)
     cdef parse_sync_message(self)
     cdef parse_command_complete_message(self)
+    cdef parse_command_complete_with_conseq_message(self)
     cdef parse_describe_type_message(self, CodecsRegistry reg)
     cdef parse_type_data(self, CodecsRegistry reg)
     cdef _amend_parse_error(

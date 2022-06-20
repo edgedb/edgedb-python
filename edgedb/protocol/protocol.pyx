@@ -444,6 +444,11 @@ cdef class SansIOProtocol:
                 elif mtype == COMMAND_COMPLETE_MSG:
                     self.parse_command_complete_message()
 
+                elif mtype == COMMAND_COMPLETE_WITH_CONSEQUENCE_MSG:
+                    ex = self.parse_command_complete_with_conseq_message()
+                    if not isinstance(ex, errors.StateSerializationError):
+                        exc = ex
+
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
                     exc = self._amend_parse_error(
@@ -1188,6 +1193,27 @@ cdef class SansIOProtocol:
         assert self.buffer.read_int16() == 1
         self.buffer.read_len_prefixed_bytes()  # state
         self.buffer.finish_message()
+
+    cdef parse_command_complete_with_conseq_message(self):
+        assert (
+            self.buffer.get_message_type() ==
+            COMMAND_COMPLETE_WITH_CONSEQUENCE_MSG
+        )
+        self.ignore_headers()
+        self.last_capabilities = enums.Capability(self.buffer.read_int64())
+        self.last_status = self.buffer.read_len_prefixed_bytes()
+
+        code = <uint32_t>self.buffer.read_int32()
+        msg = self.buffer.read_len_prefixed_utf8()
+        attrs = self.parse_error_headers()
+        self.buffer.finish_message()
+
+        # It's safe to always map error codes as we don't reuse them
+        code = OLD_ERROR_CODES.get(code, code)
+
+        exc = errors.EdgeDBError._from_code(code, msg)
+        exc._attrs = attrs
+        return exc
 
     cdef parse_sync_message(self):
         cdef char status
