@@ -110,41 +110,41 @@ class TransactionOptions:
 
 
 class Session:
-    __slots__ = ['_module', '_aliases', '_configs', '_globals']
+    __slots__ = ['_module', '_aliases', '_config', '_globals']
 
     def __init__(
         self,
-        module: str = 'default',
+        module: typing.Optional[str] = None,
         aliases: typing.Mapping[str, str] = None,
-        configs: typing.Mapping[str, typing.Any] = None,
+        config: typing.Mapping[str, typing.Any] = None,
         globals_: typing.Mapping[str, typing.Any] = None,
     ):
         self._module = module
         self._aliases = {} if aliases is None else dict(aliases)
-        self._configs = {} if configs is None else dict(configs)
+        self._config = {} if config is None else dict(config)
         self._globals = {} if globals_ is None else dict(globals_)
 
     @classmethod
     def defaults(cls):
         return cls()
 
-    def with_aliases(self, module=None, **aliases):
+    def with_aliases(self, module=..., **aliases):
         new_aliases = self._aliases.copy()
         new_aliases.update(aliases)
         return Session(
-            module=self._module if module is None else module,
+            module=self._module if module is ... else module,
             aliases=new_aliases,
-            configs=self._configs,
+            config=self._config,
             globals_=self._globals,
         )
 
-    def with_configs(self, **configs):
-        new_configs = self._configs.copy()
-        new_configs.update(configs)
+    def with_config(self, **config):
+        new_config = self._config.copy()
+        new_config.update(config)
         return Session(
             module=self._module,
             aliases=self._aliases,
-            configs=new_configs,
+            config=new_config,
             globals_=self._globals,
         )
 
@@ -154,20 +154,26 @@ class Session:
         return Session(
             module=self._module,
             aliases=self._aliases,
-            configs=self._configs,
+            config=self._config,
             globals_=new_globals,
         )
 
     def as_dict(self):
-        return {
-            "module": self._module,
-            "aliases": list(self._aliases.items()),
-            "config": self._configs,
-            "globals": {
-                (k if '::' in k else f'{self._module}::{k}'): v
+        rv = {}
+        if self._module is not None:
+            module = rv["module"] = self._module
+        else:
+            module = 'default'
+        if self._aliases:
+            rv["aliases"] = list(self._aliases.items())
+        if self._config:
+            rv["config"] = self._config
+        if self._globals:
+            rv["globals"] = {
+                (k if '::' in k else f'{module}::{k}'): v
                 for k, v in self._globals.items()
-            },
-        }
+            }
+        return rv
 
 
 class _OptionsMixin:
@@ -227,10 +233,10 @@ class _OptionsMixin:
         )
         return result
 
-    def with_configs(self, **configs):
+    def with_config(self, **config):
         result = self._shallow_clone()
         result._options = self._options.with_session(
-            self._options.session.with_configs(**configs)
+            self._options.session.with_config(**config)
         )
         return result
 
