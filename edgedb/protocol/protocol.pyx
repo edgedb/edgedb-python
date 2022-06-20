@@ -150,7 +150,7 @@ cdef class SansIOProtocol:
         self.reset_status()
         self.protocol_version = (PROTO_VER_MAJOR, 0)
 
-        self.state_type_id = b'\0' * 16
+        self.state_type_id = NULL_CODEC_ID
         self.state_codec = None
         self.state = None
         self.user_state = None
@@ -372,11 +372,13 @@ cdef class SansIOProtocol:
 
         buf.write_buffer(params)
 
-        buf.write_bytes(self.state_type_id)
-        buf.write_int16(1)
         if self.state is None:
+            buf.write_bytes(NULL_CODEC_ID)
+            buf.write_int16(1)
             buf.write_int32(0)
         else:
+            buf.write_bytes(self.state_type_id)
+            buf.write_int16(1)
             buf.write_buffer(self.state)
 
         buf.write_bytes(in_dc.get_tid())
