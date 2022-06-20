@@ -169,10 +169,19 @@ class Session:
         if self._config:
             rv["config"] = self._config
         if self._globals:
-            rv["globals"] = {
-                (k if '::' in k else f'{module}::{k}'): v
-                for k, v in self._globals.items()
-            }
+            rv["globals"] = g = {}
+            for k, v in self._globals.items():
+                parts = k.split("::")
+                if len(parts) == 1:
+                    g[f"{module}::{k}"] = v
+                elif len(parts) == 2:
+                    mod, glob = parts
+                    mod = self._aliases.get(mod, mod)
+                    g[f"{mod}::{glob}"] = v
+                else:
+                    raise errors.InvalidArgumentError(
+                        f"Illegal global name: {k}"
+                    )
         return rv
 
 
