@@ -205,6 +205,10 @@ cdef class SansIOProtocol:
         if user_state is None:
             self.state = None
         else:
+            # Apply async session_state_description for AsyncClient
+            while self.buffer.take_message():
+                self.fallthrough()
+
             self.state_codec.encode(buf, user_state.as_dict())
             self.state = buf
         self.user_state = user_state
