@@ -135,5 +135,17 @@ cdef class SansIOProtocol:
 
     cdef ensure_connected(self)
 
+    cdef WriteBuffer encode_parse_params(
+        self,
+        str query,
+        object output_format,
+        bint expect_one,
+        bint required_one,
+        int implicit_limit,
+        bint inline_typenames,
+        bint inline_typeids,
+        uint64_t allow_capabilities,
+    )
+
 
 include "protocol_v0.pxd"
