@@ -229,7 +229,7 @@ cdef class SansIOProtocol:
             object result
             bytes new_cardinality = None
 
-        compilation_flags = 0
+        compilation_flags = enums.CompilationFlag.INJECT_OUTPUT_OBJECT_IDS
         if inline_typenames:
             compilation_flags |= enums.CompilationFlag.INJECT_OUTPUT_TYPE_NAMES
         if inline_typeids:
