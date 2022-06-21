@@ -253,6 +253,8 @@ cdef class SansIOProtocol:
 
         buf.end_message()
 
+        in_tid = in_dc.get_tid()
+
         packet = WriteBuffer.new()
         packet.write_buffer(buf)
         packet.write_bytes(SYNC_MESSAGE)
@@ -281,7 +283,9 @@ cdef class SansIOProtocol:
                         expect_one,
                         new_cardinality == CARDINALITY_NOT_APPLICABLE,
                         in_dc, out_dc, capabilities)
-                    re_exec = True
+
+                    if in_tid != in_dc.get_tid():
+                        re_exec = True
 
                 elif mtype == DATA_MSG:
                     if re_exec:
