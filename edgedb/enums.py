@@ -12,6 +12,7 @@ class Capability(enum.IntFlag):
 
     ALL               = 0xFFFF_FFFF_FFFF_FFFF                 # noqa
     EXECUTE           = ALL & ~TRANSACTION & ~SESSION_CONFIG  # noqa
+    LEGACY_EXECUTE    = ALL & ~TRANSACTION                    # noqa
 
 
 class CompilationFlag(enum.IntFlag):
