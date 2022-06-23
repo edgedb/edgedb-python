@@ -477,6 +477,20 @@ Transactions allocate expensive server resources and having
 too many concurrently running long-running transactions will
 negatively impact the performance of the DB server.
 
+To rollback a transaction that is in progress raise an exception.
+
+.. code-block:: python
+
+   class RollBack(Exception):
+       "A user defined exception."
+
+   try:
+       for tx in client.transaction():
+           with tx:
+               raise RollBack
+   except RollBack:
+       pass
+
 See also:
 
 * RFC1004_
