@@ -51,7 +51,6 @@ DEF NBASE = 10000
 DEF NUMERIC_POS = 0x0000
 DEF NUMERIC_NEG = 0x4000
 
-cdef BaseCodec INVALID_CODEC = InvalidCodec.__new__(InvalidCodec)
 cdef BaseCodec NULL_CODEC = NullCodec.__new__(NullCodec)
 cdef BaseCodec EMPTY_TUPLE_CODEC = EmptyTupleCodec.__new__(EmptyTupleCodec)
 
