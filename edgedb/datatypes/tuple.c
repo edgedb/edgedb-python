@@ -172,6 +172,98 @@ tuple_getitem(EdgeTupleObject *o, Py_ssize_t i)
     return el;
 }
 
+static PyObject *
+tuple_getslice(EdgeTupleObject *o, Py_ssize_t start, Py_ssize_t stop, Py_ssize_t step) {
+    Py_ssize_t size = Py_SIZE(o);
+
+    // negative indexes count from the end
+    if (start < 0)
+        start += size;
+    if (stop < 0)
+        stop += size;
+
+    if (step < 0) {
+        if (stop < -1)
+            stop = -1;
+        if (start > size - 1)
+            start = size - 1;
+
+        if (start <= stop)
+            return EdgeTuple_New(0);
+    } else {
+        if (start < 0)
+            start = 0;
+        if (stop > size)
+            stop = size;
+
+        if (stop <= start)
+            return EdgeTuple_New(0);
+
+        if (start == 0 && stop == size && step == 1) {
+            Py_INCREF(o);
+            return o;
+        }
+    }
+
+    Py_ssize_t new_size = 0;
+    if (step < 0) {
+        for (Py_ssize_t i = start; i > stop; i += step) {
+            new_size += 1;
+        }
+    } else {
+        for (Py_ssize_t i = start; i < stop; i += step) {
+            new_size += 1;
+        }
+    }
+
+    PyObject *n = EdgeTuple_New(new_size);
+    Py_ssize_t j = 0;
+    if (step < 0) {
+        for (Py_ssize_t i = start; i > stop; i += step) {
+            PyObject *el = PyTuple_GET_ITEM(o, i + 1);
+            Py_INCREF(el);
+            EdgeTuple_SET_ITEM(n, j++, el);
+        }
+    } else {
+        for (Py_ssize_t i = start; i < stop; i += step) {
+            PyObject *el = PyTuple_GET_ITEM(o, i + 1);
+            Py_INCREF(el);
+            EdgeTuple_SET_ITEM(n, j++, el);
+        }
+    }
+
+    return n;
+}
+
+static PyObject *
+tuple_getsubscript(EdgeTupleObject *o, PyObject *key)
+{
+    if (PySlice_Check(key)) {
+        Py_ssize_t start, stop, step;
+        if (PySlice_Unpack(key, &start, &stop, &step)) {
+            PyErr_SetString(PyExc_RuntimeError, "invalid slice");
+            return NULL;
+        };
+
+        return tuple_getslice(o, start, stop, step);
+    }
+
+    if (PyIndex_Check(key)) {
+        Py_ssize_t val = PyNumber_AsSsize_t(key, PyExc_IndexError);
+        if (val == -1 && PyErr_Occurred()) {
+            return NULL;
+        }
+
+        return PySequence_GetItem(o, val);
+    }
+
+    PyErr_Format(
+        PyExc_TypeError,
+        "tuple indices must be integer or slices, not %s",
+        Py_TYPE(key)->tp_name);
+    return NULL;
+}
+
 
 static PyObject *
 tuple_richcompare(EdgeTupleObject *v, PyObject *w, int op)
@@ -228,6 +320,10 @@ static PySequenceMethods tuple_as_sequence = {
     .sq_item = (ssizeargfunc)tuple_getitem,
 };
 
+static PyMappingMethods tuple_as_map = {
+    .mp_subscript = (ssizeargfunc)tuple_getsubscript,
+};
+
 
 PyTypeObject EdgeTuple_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -236,6 +332,7 @@ PyTypeObject EdgeTuple_Type = {
     .tp_itemsize = sizeof(PyObject *),
     .tp_dealloc = (destructor)tuple_dealloc,
     .tp_as_sequence = &tuple_as_sequence,
+    .tp_as_mapping = &tuple_as_map,
     .tp_hash = (hashfunc)tuple_hash,
     .tp_getattro = PyObject_GenericGetAttr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,

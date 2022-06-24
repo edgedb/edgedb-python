@@ -17,6 +17,7 @@
 #
 
 
+import itertools
 import unittest
 
 
@@ -278,6 +279,26 @@ class TestTuple(unittest.TestCase):
         self.assertNotEqual(
             edgedb.Tuple([1, 2, 3]),
             123)
+
+    def test_tuple_8(self):
+        py_t = (1, 2, 3, 4, 5, 6, 6, 8, 9, 10)
+        edb_t = edgedb.Tuple(py_t)
+        indexes = tuple(range(-20, 20))
+        steps = tuple(set(range(-20, 20)) - {0})
+
+        for i, j, k in itertools.product(indexes, indexes, steps):
+            with self.subTest(f'{i}:{j}:{k}'):
+                self.assertEqual(edb_t[i:j:k], py_t[i:j:k])
+
+    def test_tuple_9(self):
+        for key in ["hello", (1 , 2), {1, 2}, {1: 2}]:
+            with self.subTest(str(key)):
+                with self.assertRaisesRegex(
+                    TypeError,
+                    f'^tuple indices must be integer or slices, '
+                    f'not {type(key).__name__}$',
+                ):
+                    edgedb.Tuple([1, 2, 3])[key]
 
 
 class TestNamedTuple(unittest.TestCase):
