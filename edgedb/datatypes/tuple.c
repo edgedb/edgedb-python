@@ -189,7 +189,7 @@ tuple_getslice(EdgeTupleObject *o, Py_ssize_t start, Py_ssize_t stop, Py_ssize_t
 
     PyObject *result = EdgeTuple_New(slicelength);
     for (cur = start, i = 0; i < slicelength; cur += step, i++) {
-        PyObject *el = PyTuple_GET_ITEM(o, cur + 1);
+        PyObject *el = PySequence_GetItem(o, cur);
         Py_INCREF(el);
         EdgeTuple_SET_ITEM(result, i, el);
     }
