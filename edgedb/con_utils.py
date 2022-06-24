@@ -385,7 +385,8 @@ def _parse_human_duration_unit(re, string):
 
 
 def _parse_human_duration(string: str):
-    hour, remaining = _parse_human_duration_unit(HUMAN_DURATION_HOUR_RE, string)
+    hour, remaining = _parse_human_duration_unit(
+        HUMAN_DURATION_HOUR_RE, string)
     minute, remaining = _parse_human_duration_unit(
         HUMAN_DURATION_MINTUE_RE, remaining)
     second, remaining = _parse_human_duration_unit(
