@@ -174,65 +174,27 @@ tuple_getitem(EdgeTupleObject *o, Py_ssize_t i)
 
 static PyObject *
 tuple_getslice(EdgeTupleObject *o, Py_ssize_t start, Py_ssize_t stop, Py_ssize_t step) {
-    Py_ssize_t size = Py_SIZE(o);
+    Py_ssize_t i, size = Py_SIZE(o);
+    Py_ssize_t slicelength = PySlice_AdjustIndices(size, &start, &stop, step);
+    size_t cur;
 
-    // negative indexes count from the end
-    if (start < 0)
-        start += size;
-    if (stop < 0)
-        stop += size;
-
-    if (step < 0) {
-        if (stop < -1)
-            stop = -1;
-        if (start > size - 1)
-            start = size - 1;
-
-        if (start <= stop)
-            return EdgeTuple_New(0);
-    } else {
-        if (start < 0)
-            start = 0;
-        if (stop > size)
-            stop = size;
-
-        if (stop <= start)
-            return EdgeTuple_New(0);
-
-        if (start == 0 && stop == size && step == 1) {
-            Py_INCREF(o);
-            return o;
-        }
+    if (slicelength <= 0) {
+        return EdgeTuple_New(0);
     }
 
-    Py_ssize_t new_size = 0;
-    if (step < 0) {
-        for (Py_ssize_t i = start; i > stop; i += step) {
-            new_size += 1;
-        }
-    } else {
-        for (Py_ssize_t i = start; i < stop; i += step) {
-            new_size += 1;
-        }
+    if (start == 0 && step == 1 && slicelength == size) {
+        Py_INCREF(o);
+        return o;
     }
 
-    PyObject *n = EdgeTuple_New(new_size);
-    Py_ssize_t j = 0;
-    if (step < 0) {
-        for (Py_ssize_t i = start; i > stop; i += step) {
-            PyObject *el = PyTuple_GET_ITEM(o, i + 1);
-            Py_INCREF(el);
-            EdgeTuple_SET_ITEM(n, j++, el);
-        }
-    } else {
-        for (Py_ssize_t i = start; i < stop; i += step) {
-            PyObject *el = PyTuple_GET_ITEM(o, i + 1);
-            Py_INCREF(el);
-            EdgeTuple_SET_ITEM(n, j++, el);
-        }
+    PyObject *result = EdgeTuple_New(slicelength);
+    for (cur = start, i = 0; i < slicelength; cur += step, i++) {
+        PyObject *el = PyTuple_GET_ITEM(o, cur + 1);
+        Py_INCREF(el);
+        EdgeTuple_SET_ITEM(result, i, el);
     }
 
-    return n;
+    return result;
 }
 
 static PyObject *
@@ -259,7 +221,7 @@ tuple_getsubscript(EdgeTupleObject *o, PyObject *key)
 
     PyErr_Format(
         PyExc_TypeError,
-        "tuple indices must be integer or slices, not %s",
+        "tuple indices must be integer or slices, not %.200s",
         Py_TYPE(key)->tp_name);
     return NULL;
 }
