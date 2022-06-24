@@ -23,13 +23,11 @@ __all__ = _base.__all__ + (  # type: ignore
     'UnexpectedMessageError',
     'InputDataError',
     'ParameterTypeMismatchError',
+    'StateMismatchError',
     'ResultCardinalityMismatchError',
     'CapabilityError',
     'UnsupportedCapabilityError',
     'DisabledCapabilityError',
-    'StateError',
-    'StateSerializationError',
-    'StateMismatchError',
     'QueryError',
     'InvalidSyntaxError',
     'EdgeQLSyntaxError',
@@ -149,6 +147,10 @@ class ParameterTypeMismatchError(InputDataError):
     _code = 0x_03_02_01_00
 
 
+class StateMismatchError(InputDataError):
+    _code = 0x_03_02_02_00
+
+
 class ResultCardinalityMismatchError(ProtocolError):
     _code = 0x_03_03_00_00
 
@@ -163,18 +165,6 @@ class UnsupportedCapabilityError(CapabilityError):
 
 class DisabledCapabilityError(CapabilityError):
     _code = 0x_03_04_02_00
-
-
-class StateError(ProtocolError):
-    _code = 0x_03_05_00_00
-
-
-class StateSerializationError(StateError):
-    _code = 0x_03_05_00_01
-
-
-class StateMismatchError(StateError):
-    _code = 0x_03_05_00_02
 
 
 class QueryError(EdgeDBError):
@@ -502,3 +492,4 @@ class NoDataError(ClientError):
 
 class InternalClientError(ClientError):
     _code = 0x_FF_04_00_00
+
