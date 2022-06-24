@@ -231,13 +231,6 @@ class ResolvedConnectConfig:
         )
 
     def add_server_settings(self, server_settings):
-        if 'wait_until_available' in server_settings:
-            import traceback
-            import sys
-            print(server_settings)
-            traceback.print_stack(file=sys.stdout)
-            print()
-            print()
         _validate_server_settings(server_settings)
         self.server_settings = {**server_settings, **self.server_settings}
 
@@ -386,23 +379,22 @@ def _parse_human_duration_unit(re, string):
     match = re.search(string)
     if match:
         number = match.group('number')
-        tail = match.group('tail')
-        string = re.sub(tail, string, count=1)
+        string = string.replace(match.group(0), match.group('tail'), 1)
 
     return number, string
 
 
 def _parse_human_duration(string: str):
-    hour, string = _parse_human_duration_unit(HUMAN_DURATION_HOUR_RE, string)
-    minute, string = _parse_human_duration_unit(
-        HUMAN_DURATION_MINTUE_RE, string)
-    second, string = _parse_human_duration_unit(
-        HUMAN_DURATION_SECOND_RE, string)
-    ms, string = _parse_human_duration_unit(HUMAN_DURATION_MS_RE, string)
-    us, string = _parse_human_duration_unit(HUMAN_DURATION_US_RE, string)
+    hour, remaining = _parse_human_duration_unit(HUMAN_DURATION_HOUR_RE, string)
+    minute, remaining = _parse_human_duration_unit(
+        HUMAN_DURATION_MINTUE_RE, remaining)
+    second, remaining = _parse_human_duration_unit(
+        HUMAN_DURATION_SECOND_RE, remaining)
+    ms, remaining = _parse_human_duration_unit(HUMAN_DURATION_MS_RE, remaining)
+    us, remaining = _parse_human_duration_unit(HUMAN_DURATION_US_RE, remaining)
 
-    if string.strip() != '':
-        raise ValueError(f'invalid duration {string!r}')
+    if remaining.strip() != '':
+        raise ValueError(f'invalid duration {remaining!r}')
 
     no_value = (
         hour is None and
