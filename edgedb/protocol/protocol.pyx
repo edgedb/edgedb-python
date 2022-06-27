@@ -150,6 +150,11 @@ cdef class SansIOProtocol:
         self.reset_status()
         self.protocol_version = (PROTO_VER_MAJOR, 0)
 
+        self.state_type_id = NULL_CODEC_ID
+        self.state_codec = None
+        self.state = None
+        self.user_state = None
+
     cdef reset_status(self):
         self.last_status = None
         self.last_details = None
@@ -192,6 +197,21 @@ cdef class SansIOProtocol:
                 self.buffer.read_len_prefixed_bytes()  # key
                 self.buffer.read_len_prefixed_bytes()  # value
                 num_fields -= 1
+
+    def set_state(self, user_state):
+        cdef WriteBuffer buf = WriteBuffer.new()
+        if self.user_state is user_state:
+            return
+        if user_state is None:
+            self.state = None
+        else:
+            # Apply async state_description for AsyncClient
+            while self.buffer.take_message():
+                self.fallthrough()
+
+            self.state_codec.encode(buf, user_state.as_dict())
+            self.state = buf
+        self.user_state = user_state
 
     cdef ensure_connected(self):
         if self.cancelled:
@@ -358,9 +378,16 @@ cdef class SansIOProtocol:
 
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
+        buf.write_bytes(
+            NULL_CODEC_ID if self.state is None else self.state_type_id
+        )
 
         if not isinstance(in_dc, NullCodec):
             self.encode_args(in_dc, buf, args, kwargs)
+        else:
+            buf.write_bytes(EMPTY_NULL_DATA)
+        if self.state is not None:
+            buf.write_buffer(self.state)
         else:
             buf.write_bytes(EMPTY_NULL_DATA)
 
@@ -982,6 +1009,16 @@ cdef class SansIOProtocol:
 
             data = buf.read_len_prefixed_bytes()
             self.server_settings[name] = self.parse_system_config(codec, data)
+        elif name == 'state_description':
+            self.state_type_id = typedesc_id = val[:16]
+            typedesc = val[16 + 4:]
+
+            if self.internal_reg.has_codec(typedesc_id):
+                self.state_codec = self.internal_reg.get_codec(typedesc_id)
+            else:
+                self.state_codec = self.internal_reg.build_codec(
+                    typedesc, self.protocol_version
+                )
         else:
             self.server_settings[name] = val
 
@@ -1149,6 +1186,8 @@ cdef class SansIOProtocol:
         self.ignore_headers()
         self.last_capabilities = enums.Capability(self.buffer.read_int64())
         self.last_status = self.buffer.read_len_prefixed_bytes()
+        self.buffer.read_bytes(16)  # state type id
+        self.buffer.read_len_prefixed_bytes()  # state
         self.buffer.finish_message()
 
     cdef parse_sync_message(self):

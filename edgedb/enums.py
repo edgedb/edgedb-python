@@ -10,8 +10,9 @@ class Capability(enum.IntFlag):
     DDL               = 1 << 3    # noqa
     PERSISTENT_CONFIG = 1 << 4    # noqa
 
-    ALL               = 0xFFFF_FFFF_FFFF_FFFF  # noqa
-    EXECUTE           = ALL & ~TRANSACTION     # noqa
+    ALL               = 0xFFFF_FFFF_FFFF_FFFF                 # noqa
+    EXECUTE           = ALL & ~TRANSACTION & ~SESSION_CONFIG  # noqa
+    LEGACY_EXECUTE    = ALL & ~TRANSACTION                    # noqa
 
 
 class CompilationFlag(enum.IntFlag):

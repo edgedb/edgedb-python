@@ -44,6 +44,7 @@ DEF CTYPE_TUPLE = 4
 DEF CTYPE_NAMEDTUPLE = 5
 DEF CTYPE_ARRAY = 6
 DEF CTYPE_ENUM = 7
+DEF CTYPE_INPUT_SHAPE = 8
 
 DEF _CODECS_BUILD_CACHE_SIZE = 200
 
@@ -105,7 +106,7 @@ cdef class CodecsRegistry:
             if t == CTYPE_SET:
                 frb_read(spec, 2)
 
-            elif t == CTYPE_SHAPE:
+            elif t == CTYPE_SHAPE or t == CTYPE_INPUT_SHAPE:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
                 for i in range(els):
                     frb_read(spec, 4)  # flags
@@ -164,7 +165,7 @@ cdef class CodecsRegistry:
             sub_codec = <BaseCodec>codecs_list[pos]
             res = SetCodec.new(tid, sub_codec)
 
-        elif t == CTYPE_SHAPE:
+        elif t == CTYPE_SHAPE or t == CTYPE_INPUT_SHAPE:
             els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             codecs = cpython.PyTuple_New(els)
             names = cpython.PyTuple_New(els)
@@ -192,7 +193,9 @@ cdef class CodecsRegistry:
                 cpython.Py_INCREF(cardinality)
                 cpython.PyTuple_SetItem(cards, i, cardinality)
 
-            res = ObjectCodec.new(tid, names, flags, cards, codecs)
+            res = ObjectCodec.new(
+                tid, names, flags, cards, codecs, t == CTYPE_INPUT_SHAPE
+            )
 
         elif t == CTYPE_BASE_SCALAR:
             if tid in self.base_codec_overrides:

@@ -917,6 +917,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                     required_one=False,
                 ),
                 retry_options=None,
+                session=None,
             )
         )
         self.assertEqual(

@@ -211,8 +211,11 @@ class BaseConnection(metaclass=abc.ABCMeta):
                     await self.connect(single_attempt=True)
                 if self._protocol.is_legacy:
                     execute = self._protocol.legacy_execute_anonymous
+                    allow_capabilities = enums.Capability.LEGACY_EXECUTE
                 else:
                     execute = self._protocol.query
+                    self._protocol.set_state(query_context.session)
+                    allow_capabilities = enums.Capability.EXECUTE
                 return await execute(
                     query=query_context.query.query,
                     args=query_context.query.args,
@@ -222,7 +225,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                     output_format=query_context.query_options.output_format,
                     expect_one=query_context.query_options.expect_one,
                     required_one=query_context.query_options.required_one,
-                    allow_capabilities=enums.Capability.EXECUTE,
+                    allow_capabilities=allow_capabilities,
                 )
             except errors.EdgeDBError as e:
                 if query_context.retry_options is None:
@@ -261,9 +264,10 @@ class BaseConnection(metaclass=abc.ABCMeta):
                     "Legacy protocol doesn't support arguments in execute()"
                 )
             await self._protocol.legacy_simple_query(
-                script.query.query, enums.Capability.EXECUTE
+                script.query.query, enums.Capability.LEGACY_EXECUTE
             )
         else:
+            self._protocol.set_state(script.session)
             await self._protocol.execute(
                 query=script.query.query,
                 args=script.query.args,
@@ -696,6 +700,9 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
 
     def _get_retry_options(self) -> typing.Optional[_options.RetryOptions]:
         return self._options.retry_options
+
+    def _get_session(self) -> _options.Session:
+        return self._options.session
 
     @property
     def max_concurrency(self) -> int:

@@ -44,8 +44,12 @@ cdef class BaseArrayCodec(BaseCodec):
             Py_ssize_t objlen
             Py_ssize_t i
 
-        if not isinstance(self.sub_codec, ScalarCodec):
-            raise TypeError('only arrays of scalars are supported')
+        if not isinstance(self.sub_codec, (ScalarCodec, TupleCodec)):
+            raise TypeError(
+                'only arrays of scalars are supported (got type {!r})'.format(
+                    type(self.sub_codec).__name__
+                )
+            )
 
         if not _is_array_iterable(obj):
             raise TypeError(

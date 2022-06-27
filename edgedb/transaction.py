@@ -21,6 +21,7 @@ import enum
 
 from . import abstract
 from . import errors
+from . import options
 
 
 class TransactionState(enum.Enum):
@@ -178,6 +179,9 @@ class BaseTransaction:
     def _get_query_cache(self) -> abstract.QueryCache:
         return self._client._get_query_cache()
 
+    def _get_session(self) -> options.Session:
+        return self._client._get_session()
+
     async def _query(self, query_context: abstract.QueryContext):
         await self._ensure_transaction()
         return await self._connection.raw_query(query_context)
@@ -190,6 +194,7 @@ class BaseTransaction:
         await self._connection.privileged_execute(abstract.ScriptContext(
             query=abstract.QueryWithArgs(query, (), {}),
             cache=self._get_query_cache(),
+            session=self._get_session(),
         ))
 
 

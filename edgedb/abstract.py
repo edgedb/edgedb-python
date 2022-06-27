@@ -39,11 +39,13 @@ class QueryContext(typing.NamedTuple):
     cache: QueryCache
     query_options: QueryOptions
     retry_options: typing.Optional[options.RetryOptions]
+    session: typing.Optional[options.Session]
 
 
 class ScriptContext(typing.NamedTuple):
     query: QueryWithArgs
     cache: QueryCache
+    session: typing.Optional[options.Session]
 
 
 _query_opts = QueryOptions(
@@ -88,6 +90,9 @@ class BaseReadOnlyExecutor(abc.ABC):
     def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
         return None
 
+    def _get_session(self) -> options.Session:
+        ...
+
 
 class ReadOnlyExecutor(BaseReadOnlyExecutor):
     """Subclasses can execute *at least* read-only queries"""
@@ -104,6 +109,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     def query_single(
@@ -114,6 +120,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -122,6 +129,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     def query_json(self, query: str, *args, **kwargs) -> str:
@@ -130,6 +138,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -138,6 +147,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     def query_required_single_json(self, query: str, *args, **kwargs) -> str:
@@ -146,6 +156,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     @abc.abstractmethod
@@ -156,6 +167,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
         self._execute(ScriptContext(
             query=QueryWithArgs(query, args, kwargs),
             cache=self._get_query_cache(),
+            session=self._get_session(),
         ))
 
 
@@ -180,6 +192,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -188,6 +201,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     async def query_required_single(
@@ -201,6 +215,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
@@ -209,6 +224,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     async def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -217,6 +233,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     async def query_required_single_json(
@@ -230,6 +247,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
+            session=self._get_session(),
         ))
 
     @abc.abstractmethod
@@ -240,6 +258,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
         await self._execute(ScriptContext(
             query=QueryWithArgs(query, args, kwargs),
             cache=self._get_query_cache(),
+            session=self._get_session(),
         ))
 
 
