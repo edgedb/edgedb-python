@@ -205,7 +205,7 @@ cdef class SansIOProtocol:
         if user_state is None:
             self.state = None
         else:
-            # Apply async session_state_description for AsyncClient
+            # Apply async state_description for AsyncClient
             while self.buffer.take_message():
                 self.fallthrough()
 
@@ -376,20 +376,18 @@ cdef class SansIOProtocol:
 
         buf.write_buffer(params)
 
-        if self.state is None:
-            buf.write_bytes(NULL_CODEC_ID)
-            buf.write_int16(1)
-            buf.write_int32(0)
-        else:
-            buf.write_bytes(self.state_type_id)
-            buf.write_int16(1)
-            buf.write_buffer(self.state)
-
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
+        buf.write_bytes(
+            NULL_CODEC_ID if self.state is None else self.state_type_id
+        )
 
         if not isinstance(in_dc, NullCodec):
             self.encode_args(in_dc, buf, args, kwargs)
+        else:
+            buf.write_bytes(EMPTY_NULL_DATA)
+        if self.state is not None:
+            buf.write_buffer(self.state)
         else:
             buf.write_bytes(EMPTY_NULL_DATA)
 
@@ -1011,7 +1009,7 @@ cdef class SansIOProtocol:
 
             data = buf.read_len_prefixed_bytes()
             self.server_settings[name] = self.parse_system_config(codec, data)
-        elif name == 'session_state_description':
+        elif name == 'state_description':
             self.state_type_id = typedesc_id = val[:16]
             typedesc = val[16 + 4:]
 
@@ -1189,7 +1187,6 @@ cdef class SansIOProtocol:
         self.last_capabilities = enums.Capability(self.buffer.read_int64())
         self.last_status = self.buffer.read_len_prefixed_bytes()
         self.buffer.read_bytes(16)  # state type id
-        assert self.buffer.read_int16() == 1
         self.buffer.read_len_prefixed_bytes()  # state
         self.buffer.finish_message()
 
