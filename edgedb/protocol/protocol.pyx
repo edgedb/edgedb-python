@@ -249,6 +249,12 @@ cdef class SansIOProtocol:
         buf.write_byte(output_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
+        if self.state is not None:
+            buf.write_bytes(self.state_type_id)
+            buf.write_buffer(self.state)
+        else:
+            buf.write_bytes(NULL_CODEC_ID)
+            buf.write_bytes(EMPTY_NULL_DATA)
 
         return buf
 
@@ -378,16 +384,9 @@ cdef class SansIOProtocol:
 
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
-        buf.write_bytes(
-            NULL_CODEC_ID if self.state is None else self.state_type_id
-        )
 
         if not isinstance(in_dc, NullCodec):
             self.encode_args(in_dc, buf, args, kwargs)
-        else:
-            buf.write_bytes(EMPTY_NULL_DATA)
-        if self.state is not None:
-            buf.write_buffer(self.state)
         else:
             buf.write_bytes(EMPTY_NULL_DATA)
 
