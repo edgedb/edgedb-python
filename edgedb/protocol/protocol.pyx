@@ -1217,9 +1217,6 @@ cdef class SansIOProtocol:
         self.ignore_headers()
         self.last_capabilities = enums.Capability(self.buffer.read_int64())
         self.last_status = self.buffer.read_len_prefixed_bytes()
-        state_type_id = self.buffer.read_bytes(16)
-        if self.state_type_id != state_type_id:
-            self.state_codec = None
         self.buffer.read_len_prefixed_bytes()  # state
         self.buffer.finish_message()
 
