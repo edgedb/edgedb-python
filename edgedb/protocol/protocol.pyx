@@ -150,7 +150,7 @@ cdef class SansIOProtocol:
         self.reset_status()
         self.protocol_version = (PROTO_VER_MAJOR, 0)
 
-        self.state_type_id = INVALID_CODEC_ID
+        self.state_type_id = NULL_CODEC_ID
         self.state_codec = None
         self.state_cache = (None, None)
 
