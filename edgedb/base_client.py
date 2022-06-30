@@ -204,29 +204,30 @@ class BaseConnection(metaclass=abc.ABCMeta):
         reconnect = False
         capabilities = None
         i = 0
+        args = dict(
+            query=query_context.query.query,
+            args=query_context.query.args,
+            kwargs=query_context.query.kwargs,
+            reg=query_context.cache.codecs_registry,
+            qc=query_context.cache.query_cache,
+            output_format=query_context.query_options.output_format,
+            expect_one=query_context.query_options.expect_one,
+            required_one=query_context.query_options.required_one,
+        )
+        if self._protocol.is_legacy:
+            execute = self._protocol.legacy_execute_anonymous
+            args["allow_capabilities"] = enums.Capability.LEGACY_EXECUTE
+        else:
+            execute = self._protocol.query
+            args["allow_capabilities"] = enums.Capability.EXECUTE
+            if query_context.session is not None:
+                args["state"] = query_context.session.as_dict()
         while True:
             i += 1
             try:
                 if reconnect:
                     await self.connect(single_attempt=True)
-                if self._protocol.is_legacy:
-                    execute = self._protocol.legacy_execute_anonymous
-                    allow_capabilities = enums.Capability.LEGACY_EXECUTE
-                else:
-                    execute = self._protocol.query
-                    self._protocol.set_state(query_context.session)
-                    allow_capabilities = enums.Capability.EXECUTE
-                return await execute(
-                    query=query_context.query.query,
-                    args=query_context.query.args,
-                    kwargs=query_context.query.kwargs,
-                    reg=query_context.cache.codecs_registry,
-                    qc=query_context.cache.query_cache,
-                    output_format=query_context.query_options.output_format,
-                    expect_one=query_context.query_options.expect_one,
-                    required_one=query_context.query_options.required_one,
-                    allow_capabilities=allow_capabilities,
-                )
+                return await execute(**args)
             except errors.EdgeDBError as e:
                 if query_context.retry_options is None:
                     raise
@@ -267,7 +268,6 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 script.query.query, enums.Capability.LEGACY_EXECUTE
             )
         else:
-            self._protocol.set_state(script.session)
             await self._protocol.execute(
                 query=script.query.query,
                 args=script.query.args,
@@ -276,6 +276,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 qc=script.cache.query_cache,
                 output_format=protocol.OutputFormat.NONE,
                 allow_capabilities=enums.Capability.EXECUTE,
+                state=script.session.as_dict() if script.session else None,
             )
 
     def terminate(self):

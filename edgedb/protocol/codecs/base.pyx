@@ -26,6 +26,8 @@ cdef uint64_t RECORD_ENCODER_INVALID = 1 << 1
 cdef bytes NULL_CODEC_ID = b'\x00' * 16
 cdef bytes EMPTY_TUPLE_CODEC_ID = TYPE_IDS.get('empty-tuple').bytes
 
+cdef bytes INVALID_CODEC_ID = b'\xFF' * 16
+
 EMPTY_NULL_DATA = b'\x00\x00\x00\x00'
 EMPTY_RECORD_DATA = b'\x00\x00\x00\x04\x00\x00\x00\x00'
 

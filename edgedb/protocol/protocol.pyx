@@ -150,10 +150,9 @@ cdef class SansIOProtocol:
         self.reset_status()
         self.protocol_version = (PROTO_VER_MAJOR, 0)
 
-        self.state_type_id = NULL_CODEC_ID
+        self.state_type_id = INVALID_CODEC_ID
         self.state_codec = None
-        self.state = None
-        self.user_state = None
+        self.state_cache = (None, None)
 
     cdef reset_status(self):
         self.last_status = None
@@ -198,21 +197,6 @@ cdef class SansIOProtocol:
                 self.buffer.read_len_prefixed_bytes()  # value
                 num_fields -= 1
 
-    def set_state(self, user_state):
-        cdef WriteBuffer buf = WriteBuffer.new()
-        if self.user_state is user_state:
-            return
-        if user_state is None:
-            self.state = None
-        else:
-            # Apply async state_description for AsyncClient
-            while self.buffer.take_message():
-                self.fallthrough()
-
-            self.state_codec.encode(buf, user_state.as_dict())
-            self.state = buf
-        self.user_state = user_state
-
     cdef ensure_connected(self):
         if self.cancelled:
             raise errors.ClientConnectionClosedError(
@@ -232,6 +216,8 @@ cdef class SansIOProtocol:
         bint inline_typenames,
         bint inline_typeids,
         uint64_t allow_capabilities,
+        bytes state_type_id,
+        bytes state,
     ):
         cdef:
             WriteBuffer buf
@@ -249,12 +235,8 @@ cdef class SansIOProtocol:
         buf.write_byte(output_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
-        if self.state is not None:
-            buf.write_bytes(self.state_type_id)
-            buf.write_buffer(self.state)
-        else:
-            buf.write_bytes(NULL_CODEC_ID)
-            buf.write_bytes(EMPTY_NULL_DATA)
+        buf.write_bytes(state_type_id)
+        buf.write_bytes(state)
 
         return buf
 
@@ -270,9 +252,11 @@ cdef class SansIOProtocol:
         inline_typenames: bool=False,
         inline_typeids: bool=False,
         allow_capabilities: enums.Capability = enums.Capability.ALL,
+        state_type_id: bytes=NULL_CODEC_ID,
+        state: bytes=EMPTY_NULL_DATA,
     ):
         cdef:
-            WriteBuffer buf
+            WriteBuffer buf, params
             char mtype
             BaseCodec in_dc = None
             BaseCodec out_dc = None
@@ -296,6 +280,8 @@ cdef class SansIOProtocol:
             inline_typenames=inline_typenames,
             inline_typeids=inline_typeids,
             allow_capabilities=allow_capabilities,
+            state_type_id=state_type_id,
+            state=state,
         )
 
         buf.write_buffer(params)
@@ -313,6 +299,9 @@ cdef class SansIOProtocol:
                 if mtype == STMT_DATA_DESC_MSG:
                     capabilities, cardinality, in_dc, out_dc = \
                         self.parse_describe_type_message(reg)
+
+                elif mtype == STATE_DATA_DESC_MSG:
+                    self.parse_describe_state_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
@@ -357,6 +346,8 @@ cdef class SansIOProtocol:
         allow_capabilities: enums.Capability = enums.Capability.ALL,
         in_dc: BaseCodec,
         out_dc: BaseCodec,
+        state_type_id: bytes = NULL_CODEC_ID,
+        state: bytes = EMPTY_NULL_DATA,
     ):
         cdef:
             WriteBuffer packet
@@ -375,6 +366,8 @@ cdef class SansIOProtocol:
             inline_typenames=inline_typenames,
             inline_typeids=inline_typeids,
             allow_capabilities=allow_capabilities,
+            state_type_id=state_type_id,
+            state=state,
         )
 
         buf = WriteBuffer.new_message(EXECUTE_MSG)
@@ -421,6 +414,9 @@ cdef class SansIOProtocol:
                         expect_one,
                         new_cardinality == CARDINALITY_NOT_APPLICABLE,
                         in_dc, out_dc, capabilities)
+
+                elif mtype == STATE_DATA_DESC_MSG:
+                    self.parse_describe_state_message()
 
                 elif mtype == DATA_MSG:
                     if exc is None:
@@ -480,13 +476,40 @@ cdef class SansIOProtocol:
         inline_typenames: bool = False,
         inline_typeids: bool = False,
         allow_capabilities: enums.Capability = enums.Capability.ALL,
+        state: typing.Optional[dict] = None,
     ):
         cdef:
             BaseCodec in_dc
             BaseCodec out_dc
+            WriteBuffer buf
 
         self.ensure_connected()
         self.reset_status()
+
+        if state is not None:
+            if self.state_codec is None:
+                try:
+                    await self._parse(
+                        "select 0",
+                        reg=reg,
+                        state_type_id=INVALID_CODEC_ID,
+                        state=EMPTY_NULL_DATA,
+                    )
+                except errors.StateMismatchError:
+                    pass
+            state_type_id = self.state_type_id
+            if self.state_cache[0] is state:
+                state = self.state_cache[1]
+            else:
+                assert self.state_codec is not None
+                buf = WriteBuffer.new()
+                self.state_codec.encode(buf, state)
+                state = bytes(buf)
+                buf = None
+                self.state_cache = (state, state)
+        else:
+            state_type_id = NULL_CODEC_ID
+            state = EMPTY_NULL_DATA
 
         codecs = qc.get(
             query,
@@ -510,6 +533,8 @@ cdef class SansIOProtocol:
                 inline_typenames=inline_typenames,
                 inline_typeids=inline_typeids,
                 allow_capabilities=allow_capabilities,
+                state_type_id=state_type_id,
+                state=state,
             )
 
             has_na_cardinality = parsed[0] == CARDINALITY_NOT_APPLICABLE
@@ -545,6 +570,8 @@ cdef class SansIOProtocol:
             allow_capabilities=allow_capabilities,
             in_dc=in_dc,
             out_dc=out_dc,
+            state_type_id=state_type_id,
+            state=state,
         )
 
     async def query(
@@ -562,6 +589,7 @@ cdef class SansIOProtocol:
         inline_typenames: bool = False,
         inline_typeids: bool = False,
         allow_capabilities: enums.Capability = enums.Capability.ALL,
+        state: typing.Optional[dict] = None,
     ):
         ret = await self.execute(
             query=query,
@@ -576,6 +604,7 @@ cdef class SansIOProtocol:
             inline_typenames=inline_typenames,
             inline_typeids=inline_typeids,
             allow_capabilities=allow_capabilities,
+            state=state,
         )
 
         if expect_one:
@@ -1008,16 +1037,6 @@ cdef class SansIOProtocol:
 
             data = buf.read_len_prefixed_bytes()
             self.server_settings[name] = self.parse_system_config(codec, data)
-        elif name == 'state_description':
-            self.state_type_id = typedesc_id = val[:16]
-            typedesc = val[16 + 4:]
-
-            if self.internal_reg.has_codec(typedesc_id):
-                self.state_codec = self.internal_reg.get_codec(typedesc_id)
-            else:
-                self.state_codec = self.internal_reg.build_codec(
-                    typedesc, self.protocol_version
-                )
         else:
             self.server_settings[name] = val
 
@@ -1097,6 +1116,26 @@ cdef class SansIOProtocol:
             self.buffer.finish_message()
 
         return capabilities, cardinality, in_dc, out_dc
+
+    cdef parse_describe_state_message(self):
+        assert self.buffer.get_message_type() == STATE_DATA_DESC_MSG
+        try:
+            state_type_id = self.buffer.read_bytes(16)
+            state_typedesc = self.buffer.read_len_prefixed_bytes()
+
+            if state_type_id != self.state_type_id:
+                self.state_type_id = state_type_id
+                self.state_cache = (None, None)
+                if self.internal_reg.has_codec(state_type_id):
+                    self.state_codec = self.internal_reg.get_codec(
+                        state_type_id
+                    )
+                else:
+                    self.state_codec = self.internal_reg.build_codec(
+                        state_typedesc, self.protocol_version
+                    )
+        finally:
+            self.buffer.finish_message()
 
     cdef parse_type_data(self, CodecsRegistry reg):
         cdef:
@@ -1185,7 +1224,9 @@ cdef class SansIOProtocol:
         self.ignore_headers()
         self.last_capabilities = enums.Capability(self.buffer.read_int64())
         self.last_status = self.buffer.read_len_prefixed_bytes()
-        self.buffer.read_bytes(16)  # state type id
+        state_type_id = self.buffer.read_bytes(16)
+        if self.state_type_id != state_type_id:
+            self.state_codec = None
         self.buffer.read_len_prefixed_bytes()  # state
         self.buffer.finish_message()
 
