@@ -489,17 +489,17 @@ cdef class SansIOProtocol:
         if state is not None:
             state_type_id = self.state_type_id
             if self.state_cache[0] is state:
-                state = self.state_cache[1]
+                state_data = self.state_cache[1]
             else:
                 assert self.state_codec is not None
                 buf = WriteBuffer.new()
                 self.state_codec.encode(buf, state)
-                state = bytes(buf)
+                state_data = bytes(buf)
                 buf = None
-                self.state_cache = (state, state)
+                self.state_cache = (state, state_data)
         else:
             state_type_id = NULL_CODEC_ID
-            state = EMPTY_NULL_DATA
+            state_data = EMPTY_NULL_DATA
 
         codecs = qc.get(
             query,
@@ -524,7 +524,7 @@ cdef class SansIOProtocol:
                 inline_typeids=inline_typeids,
                 allow_capabilities=allow_capabilities,
                 state_type_id=state_type_id,
-                state=state,
+                state=state_data,
             )
 
             has_na_cardinality = parsed[0] == CARDINALITY_NOT_APPLICABLE
@@ -561,7 +561,7 @@ cdef class SansIOProtocol:
             in_dc=in_dc,
             out_dc=out_dc,
             state_type_id=state_type_id,
-            state=state,
+            state=state_data,
         )
 
     async def query(
