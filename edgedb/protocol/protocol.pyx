@@ -216,8 +216,7 @@ cdef class SansIOProtocol:
         bint inline_typenames,
         bint inline_typeids,
         uint64_t allow_capabilities,
-        bytes state_type_id,
-        bytes state,
+        object state,
     ):
         cdef:
             WriteBuffer buf
@@ -235,8 +234,10 @@ cdef class SansIOProtocol:
         buf.write_byte(output_format)
         buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(query)
+
+        state_type_id, state_data = self.encode_state(state)
         buf.write_bytes(state_type_id)
-        buf.write_bytes(state)
+        buf.write_bytes(state_data)
 
         return buf
 
@@ -252,8 +253,7 @@ cdef class SansIOProtocol:
         inline_typenames: bool=False,
         inline_typeids: bool=False,
         allow_capabilities: enums.Capability = enums.Capability.ALL,
-        state_type_id: bytes=NULL_CODEC_ID,
-        state: bytes=EMPTY_NULL_DATA,
+        state: typing.Optional[dict] = None,
     ):
         cdef:
             WriteBuffer buf, params
@@ -280,7 +280,6 @@ cdef class SansIOProtocol:
             inline_typenames=inline_typenames,
             inline_typeids=inline_typeids,
             allow_capabilities=allow_capabilities,
-            state_type_id=state_type_id,
             state=state,
         )
 
@@ -346,8 +345,7 @@ cdef class SansIOProtocol:
         allow_capabilities: enums.Capability = enums.Capability.ALL,
         in_dc: BaseCodec,
         out_dc: BaseCodec,
-        state_type_id: bytes = NULL_CODEC_ID,
-        state: bytes = EMPTY_NULL_DATA,
+        state: typing.Optional[dict] = None,
     ):
         cdef:
             WriteBuffer packet
@@ -366,7 +364,6 @@ cdef class SansIOProtocol:
             inline_typenames=inline_typenames,
             inline_typeids=inline_typeids,
             allow_capabilities=allow_capabilities,
-            state_type_id=state_type_id,
             state=state,
         )
 
@@ -461,6 +458,22 @@ cdef class SansIOProtocol:
         else:
             return result
 
+    cdef encode_state(self, state):
+        cdef WriteBuffer buf
+
+        if state is not None:
+            if self.state_cache[0] is state:
+                state_data = self.state_cache[1]
+            else:
+                assert self.state_codec is not None
+                buf = WriteBuffer.new()
+                self.state_codec.encode(buf, state)
+                state_data = bytes(buf)
+                self.state_cache = (state, state_data)
+            return self.state_type_id, state_data
+        else:
+            return NULL_CODEC_ID, EMPTY_NULL_DATA
+
     async def execute(
         self,
         *,
@@ -481,25 +494,9 @@ cdef class SansIOProtocol:
         cdef:
             BaseCodec in_dc
             BaseCodec out_dc
-            WriteBuffer buf
 
         self.ensure_connected()
         self.reset_status()
-
-        if state is not None:
-            state_type_id = self.state_type_id
-            if self.state_cache[0] is state:
-                state_data = self.state_cache[1]
-            else:
-                assert self.state_codec is not None
-                buf = WriteBuffer.new()
-                self.state_codec.encode(buf, state)
-                state_data = bytes(buf)
-                buf = None
-                self.state_cache = (state, state_data)
-        else:
-            state_type_id = NULL_CODEC_ID
-            state_data = EMPTY_NULL_DATA
 
         codecs = qc.get(
             query,
@@ -523,8 +520,7 @@ cdef class SansIOProtocol:
                 inline_typenames=inline_typenames,
                 inline_typeids=inline_typeids,
                 allow_capabilities=allow_capabilities,
-                state_type_id=state_type_id,
-                state=state_data,
+                state=state,
             )
 
             has_na_cardinality = parsed[0] == CARDINALITY_NOT_APPLICABLE
@@ -560,8 +556,7 @@ cdef class SansIOProtocol:
             allow_capabilities=allow_capabilities,
             in_dc=in_dc,
             out_dc=out_dc,
-            state_type_id=state_type_id,
-            state=state_data,
+            state=state,
         )
 
     async def query(

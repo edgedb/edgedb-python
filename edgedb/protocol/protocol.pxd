@@ -108,6 +108,7 @@ cdef class SansIOProtocol:
         object state_cache
 
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
+    cdef encode_state(self, state)
 
     cdef parse_data_messages(self, BaseCodec out_dc, result)
     cdef parse_sync_message(self)
@@ -150,8 +151,7 @@ cdef class SansIOProtocol:
         bint inline_typenames,
         bint inline_typeids,
         uint64_t allow_capabilities,
-        bytes state_type_id,
-        bytes state,
+        object state,
     )
 
 
