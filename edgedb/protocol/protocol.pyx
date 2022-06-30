@@ -487,16 +487,6 @@ cdef class SansIOProtocol:
         self.reset_status()
 
         if state is not None:
-            if self.state_codec is None:
-                try:
-                    await self._parse(
-                        "select 0",
-                        reg=reg,
-                        state_type_id=INVALID_CODEC_ID,
-                        state=EMPTY_NULL_DATA,
-                    )
-                except errors.StateMismatchError:
-                    pass
             state_type_id = self.state_type_id
             if self.state_cache[0] is state:
                 state = self.state_cache[1]
@@ -882,6 +872,9 @@ cdef class SansIOProtocol:
 
             elif mtype == SERVER_KEY_DATA_MSG:
                 self.backend_secret = self.buffer.read_bytes(32)
+
+            elif mtype == STATE_DATA_DESC_MSG:
+                self.parse_describe_state_message()
 
             elif mtype == ERROR_RESPONSE_MSG:
                 raise self.parse_error_message()
