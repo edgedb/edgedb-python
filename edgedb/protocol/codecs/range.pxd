@@ -17,27 +17,11 @@
 #
 
 
-include "./base.pxd"
-include "./scalar.pxd"
-include "./tuple.pxd"
-include "./namedtuple.pxd"
-include "./object.pxd"
-include "./array.pxd"
-include "./range.pxd"
-include "./set.pxd"
-include "./enum.pxd"
-
-
-cdef class CodecsRegistry:
+@cython.final
+cdef class RangeCodec(BaseCodec):
 
     cdef:
-        LRUMapping codecs_build_cache
-        LRUMapping codecs
-        dict base_codec_overrides
+        BaseCodec sub_codec
 
-    cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list,
-                                protocol_version)
-    cdef BaseCodec build_codec(self, bytes spec, protocol_version)
-
-    cdef has_codec(self, bytes type_id)
-    cdef BaseCodec get_codec(self, bytes type_id)
+    @staticmethod
+    cdef BaseCodec new(bytes tid, BaseCodec sub_codec)
