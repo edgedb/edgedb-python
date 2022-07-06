@@ -318,7 +318,11 @@ class ResolvedConnectConfig:
 
     @property
     def wait_until_available(self):
-        return self._wait_until_available or 30
+        return (
+            self._wait_until_available
+            if self._wait_until_available is not None
+            else 30
+        )
 
 
 def _validate_host(host):

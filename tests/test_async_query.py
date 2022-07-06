@@ -198,76 +198,18 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             self.client.connection._get_last_status().startswith('DROP')
         )
 
-    async def test_async_query_single_command_02(self):
-        r = await self.client.query('''
-            SET MODULE default;
-        ''')
-        self.assertEqual(r, [])
-
-        r = await self.client.query('''
-            RESET ALIAS *;
-        ''')
-        self.assertEqual(r, [])
-
-        r = await self.client.query('''
-            SET ALIAS bar AS MODULE std;
-        ''')
-        self.assertEqual(r, [])
-
-        r = await self.client.query('''
-            SET MODULE default;
-        ''')
-        self.assertEqual(r, [])
-
-        r = await self.client.query('''
-            SET ALIAS bar AS MODULE std;
-        ''')
-        self.assertEqual(r, [])
-
-        r = await self.client.query_json('''
-            SET MODULE default;
-        ''')
-        self.assertEqual(r, '[]')
-
-        r = await self.client.query_json('''
-            SET ALIAS foo AS MODULE default;
-        ''')
-        self.assertEqual(r, '[]')
-
-    async def test_async_query_single_command_03(self):
+    async def test_async_query_no_return(self):
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
                 r'cannot be executed with query_required_single\(\).*'
                 r'not return'):
-            await self.client.query_required_single('set module default')
+            await self.client.query_required_single('create type Foo456')
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
                 r'cannot be executed with query_required_single_json\(\).*'
                 r'not return'):
-            await self.client.query_required_single_json('set module default')
-
-    async def test_async_query_single_command_04(self):
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
-            await self.client.query('''
-                SELECT 1;
-                SET MODULE blah;
-            ''')
-
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
-            await self.client.query_single('''
-                SELECT 1;
-                SET MODULE blah;
-            ''')
-
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
-            await self.client.query_json('''
-                SELECT 1;
-                SET MODULE blah;
-            ''')
+            await self.client.query_required_single_json('create type Bar456')
 
     async def test_async_basic_datatypes_01(self):
         for _ in range(10):

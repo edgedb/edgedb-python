@@ -381,20 +381,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     SETUP_METHOD = None
     TEARDOWN_METHOD = None
 
-    # Turns on "EdgeDB developer" mode which allows using restricted
-    # syntax like FROM SQL and similar. It allows modifying standard
-    # library (e.g. declaring casts).
-    INTERNAL_TESTMODE = True
-
     BASE_TEST_CLASS = True
     TEARDOWN_RETRY_DROP_DB = 1
 
     def setUp(self):
-        if self.INTERNAL_TESTMODE:
-            self.loop.run_until_complete(
-                self.client.execute(
-                    'CONFIGURE SESSION SET __internal_testmode := true;'))
-
         if self.SETUP_METHOD:
             self.loop.run_until_complete(
                 self.client.execute(self.SETUP_METHOD))
@@ -412,9 +402,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     raise AssertionError(
                         'test connection is still in transaction '
                         '*after* the test')
-
-                self.loop.run_until_complete(
-                    self.client.execute('RESET ALIAS *;'))
 
             finally:
                 super().tearDown()
@@ -503,9 +490,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     def tearDownClass(cls):
         script = ''
 
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
-
-        if cls.TEARDOWN and not class_set_up:
+        if cls.TEARDOWN:
             script = cls.TEARDOWN.strip()
 
         try:
@@ -516,22 +501,21 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             try:
                 cls.loop.run_until_complete(cls.client.aclose())
 
-                if not class_set_up:
-                    dbname = cls.get_database_name()
-                    script = f'DROP DATABASE {dbname};'
+                dbname = cls.get_database_name()
+                script = f'DROP DATABASE {dbname};'
 
-                    retry = cls.TEARDOWN_RETRY_DROP_DB
-                    for i in range(retry):
-                        try:
-                            cls.loop.run_until_complete(
-                                cls.admin_client.execute(script))
-                        except edgedb.errors.ExecutionError:
-                            if i < retry - 1:
-                                time.sleep(0.1)
-                            else:
-                                raise
-                        except edgedb.errors.UnknownDatabaseError:
-                            break
+                retry = cls.TEARDOWN_RETRY_DROP_DB
+                for i in range(retry):
+                    try:
+                        cls.loop.run_until_complete(
+                            cls.admin_client.execute(script))
+                    except edgedb.errors.ExecutionError:
+                        if i < retry - 1:
+                            time.sleep(0.1)
+                        else:
+                            raise
+                    except edgedb.errors.UnknownDatabaseError:
+                        break
 
             except Exception:
                 log.exception('error running teardown')
