@@ -32,6 +32,7 @@ include "./tuple.pyx"
 include "./namedtuple.pyx"
 include "./object.pyx"
 include "./array.pyx"
+include "./range.pyx"
 include "./set.pyx"
 include "./enum.pyx"
 
@@ -45,6 +46,7 @@ DEF CTYPE_NAMEDTUPLE = 5
 DEF CTYPE_ARRAY = 6
 DEF CTYPE_ENUM = 7
 DEF CTYPE_INPUT_SHAPE = 8
+DEF CTYPE_RANGE = 9
 
 DEF _CODECS_BUILD_CACHE_SIZE = 200
 
@@ -141,6 +143,9 @@ cdef class CodecsRegistry:
                         'cannot handle arrays with more than one dimension')
                 # First dimension length.
                 frb_read(spec, 4)
+
+            elif t == CTYPE_RANGE:
+                frb_read(spec, 2)
 
             elif t == CTYPE_ENUM:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
@@ -266,6 +271,11 @@ cdef class CodecsRegistry:
             dim_len = hton.unpack_int32(frb_read(spec, 4))
             sub_codec = <BaseCodec>codecs_list[pos]
             res = ArrayCodec.new(tid, sub_codec, dim_len)
+
+        elif t == CTYPE_RANGE:
+            pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            sub_codec = <BaseCodec>codecs_list[pos]
+            res = RangeCodec.new(tid, sub_codec)
 
         else:
             raise NotImplementedError(

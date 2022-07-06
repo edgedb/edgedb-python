@@ -21,6 +21,7 @@ import datetime
 import decimal
 import json
 import random
+import unittest
 import uuid
 
 import asyncio
@@ -727,6 +728,46 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             await self.client.query_single(
                 'select <decimal>$arg',
                 arg="10.2")
+
+    async def test_async_range_01(self):
+        has_range = await self.client.query(
+            "select schema::ObjectType filter .name = 'schema::Range'")
+        if not has_range:
+            raise unittest.SkipTest("server has no support for std::range")
+
+        samples = [
+            ('range<int64>', [
+                edgedb.Range(1, 2, inc_lower=True, inc_upper=False),
+                dict(
+                    input=edgedb.Range(1, 2, inc_lower=True, inc_upper=True),
+                    output=edgedb.Range(1, 3, inc_lower=True, inc_upper=False),
+                ),
+                edgedb.Range(empty=True),
+                dict(
+                    input=edgedb.Range(1, 1, inc_lower=True, inc_upper=False),
+                    output=edgedb.Range(empty=True),
+                ),
+                edgedb.Range(lower=None, upper=None),
+            ]),
+        ]
+
+        for typename, sample_data in samples:
+            for sample in sample_data:
+                with self.subTest(sample=sample, typname=typename):
+                    stmt = f"SELECT <{typename}>$0"
+                    if isinstance(sample, dict):
+                        inputval = sample['input']
+                        outputval = sample['output']
+                    else:
+                        inputval = outputval = sample
+
+                    result = await self.client.query_single(stmt, inputval)
+                    err_msg = (
+                        "unexpected result for {} when passing {!r}: "
+                        "received {!r}, expected {!r}".format(
+                            typename, inputval, result, outputval))
+
+                    self.assertEqual(result, outputval, err_msg)
 
     async def test_async_wait_cancel_01(self):
         underscored_lock = await self.client.query_single("""
