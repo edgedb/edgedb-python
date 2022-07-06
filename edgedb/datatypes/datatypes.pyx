@@ -21,6 +21,7 @@ cimport cython
 cimport cpython
 
 include "./relative_duration.pyx"
+include "./date_duration.pyx"
 include "./enum.pyx"
 include "./config_memory.pyx"
 
