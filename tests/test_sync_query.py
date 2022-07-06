@@ -174,78 +174,18 @@ class TestSyncQuery(tb.SyncQueryTestCase):
             self.client.connection._get_last_status().startswith('DROP')
         )
 
-    def test_sync_query_single_command_02(self):
-        r = self.client.query('''
-            SET MODULE default;
-        ''')
-        self.assertEqual(r, [])
-
-        r = self.client.query('''
-            SET ALIAS foo AS MODULE default;
-        ''')
-        self.assertEqual(r, [])
-
-        r = self.client.query('''
-            SET MODULE default;
-        ''')
-        self.assertEqual(r, [])
-
-        with self.assertRaisesRegex(
-                edgedb.InterfaceError,
-                r'query_required_single\(\)'):
-            self.client.query_required_single('''
-                SET ALIAS bar AS MODULE std;
-            ''')
-
-        self.client.query('''
-            SET ALIAS bar AS MODULE std;
-        ''')
-        self.assertEqual(r, [])
-
-        r = self.client.query_json('''
-            SET MODULE default;
-        ''')
-        self.assertEqual(r, '[]')
-
-        r = self.client.query_json('''
-            SET ALIAS bar AS MODULE std;
-        ''')
-        self.assertEqual(r, '[]')
-
-    def test_sync_query_single_command_03(self):
+    def test_sync_query_no_return(self):
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
                 r'cannot be executed with query_required_single\(\).*'
                 r'not return'):
-            self.client.query_required_single('set module default')
+            self.client.query_required_single('create type Foo123')
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
                 r'cannot be executed with query_required_single_json\(\).*'
                 r'not return'):
-            self.client.query_required_single_json('set module default')
-
-    def test_sync_query_single_command_04(self):
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
-            self.client.query('''
-                SELECT 1;
-                SET MODULE blah;
-            ''')
-
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
-            self.client.query_single('''
-                SELECT 1;
-                SET MODULE blah;
-            ''')
-
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
-            self.client.query_json('''
-                SELECT 1;
-                SET MODULE blah;
-            ''')
+            self.client.query_required_single_json('create type Bar123')
 
     def test_sync_basic_datatypes_01(self):
         for _ in range(10):
