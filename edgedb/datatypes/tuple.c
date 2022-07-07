@@ -216,7 +216,7 @@ tuple_getsubscript(EdgeTupleObject *o, PyObject *key)
             return NULL;
         }
 
-        return PySequence_GetItem(o, val);
+        return tuple_getitem(o, val);
     }
 
     PyErr_Format(
