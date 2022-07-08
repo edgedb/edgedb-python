@@ -42,6 +42,8 @@ The table below shows the correspondence between EdgeDB and Python types.
 +----------------------------+-----------------------------------------------------+
 | ``cal::relative_duration`` | :py:class:`edgedb.RelativeDuration`                 |
 +----------------------------+-----------------------------------------------------+
+| ``cal::date_duration``     | :py:class:`edgedb.DateDuration`                     |
++----------------------------+-----------------------------------------------------+
 | ``datetime``               | offset-aware :py:class:`datetime.datetime \         |
 |                            | <python:datetime.datetime>`                         |
 +----------------------------+-----------------------------------------------------+
@@ -256,12 +258,32 @@ RelativeDuration
 
         >>> import edgedb
         >>> client = edgedb.create_client()
-        >>> r = client.query_single('''SELECT <cal::relative_duration>"1 year 2 days"''')
+        >>> r = client.query_single('''SELECT <cal::relative_duration>"1 year 2 days 3 seconds"''')
         >>> r
-        <edgedb.RelativeDuration "P1Y2D">
+        <edgedb.RelativeDuration "P1Y2DT3S">
         >>> r.months
         12
         >>> r.days
         2
         >>> r.microseconds
-        0
+        3000000
+
+
+DateDuration
+============
+
+.. py:class:: DateDuration()
+
+    An immutable value represeting an EdgeDB ``cal::date_duration`` value.
+
+    .. code-block:: pycon
+
+        >>> import edgedb
+        >>> client = edgedb.create_client()
+        >>> r = client.query_single('''SELECT <cal::date_duration>"1 year 2 days"''')
+        >>> r
+        <edgedb.DateDuration "P1Y2D">
+        >>> r.months
+        12
+        >>> r.days
+        2

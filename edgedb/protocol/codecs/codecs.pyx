@@ -424,7 +424,7 @@ cdef duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
 
 
 cdef relative_duration_encode(pgproto.CodecContext settings, WriteBuffer buf,
-                          object obj):
+                              object obj):
 
     cdef:
         microseconds = obj.microseconds
@@ -449,6 +449,35 @@ cdef relative_duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
 
     return datatypes.RelativeDuration(
         microseconds=microseconds, days=days, months=months)
+
+
+cdef date_duration_encode(pgproto.CodecContext settings, WriteBuffer buf,
+                          object obj):
+
+    cdef:
+        days = obj.days
+        months = obj.months
+
+    buf.write_int32(16)
+    buf.write_int64(0)
+    buf.write_int32(days)
+    buf.write_int32(months)
+
+
+cdef date_duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        int32_t days
+        int32_t months
+        int64_t microseconds
+
+    microseconds = hton.unpack_int64(frb_read(buf, 8))
+    days = hton.unpack_int32(frb_read(buf, 4))
+    months = hton.unpack_int32(frb_read(buf, 4))
+
+    if microseconds != 0:
+        raise ValueError("date duration has non-zero microseconds")
+
+    return datatypes.DateDuration(days=days, months=months)
 
 
 cdef config_memory_encode(pgproto.CodecContext settings,
@@ -656,6 +685,11 @@ cdef register_base_scalar_codecs():
         'cal::relative_duration',
         relative_duration_encode,
         relative_duration_decode)
+
+    register_base_scalar_codec(
+        'cal::date_duration',
+        date_duration_encode,
+        date_duration_decode)
 
     register_base_scalar_codec(
         'cfg::memory',
