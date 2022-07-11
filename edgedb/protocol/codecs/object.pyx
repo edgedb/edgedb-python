@@ -49,7 +49,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
                     if len(value_repr) > 40:
                         value_repr = value_repr[:40] + '...'
                     raise errors.InvalidArgumentError(
-                        'invalid input for session argument '
+                        'invalid input for state argument '
                         f' {name} := {value_repr} ({e})') from e
 
         buf.write_int32(4 + elem_data.len())  # buffer length

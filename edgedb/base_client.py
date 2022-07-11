@@ -220,8 +220,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
         else:
             execute = self._protocol.query
             args["allow_capabilities"] = enums.Capability.EXECUTE
-            if query_context.session is not None:
-                args["state"] = query_context.session.as_dict()
+            if query_context.state is not None:
+                args["state"] = query_context.state.as_dict()
         while True:
             i += 1
             try:
@@ -276,7 +276,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 qc=script.cache.query_cache,
                 output_format=protocol.OutputFormat.NONE,
                 allow_capabilities=enums.Capability.EXECUTE,
-                state=script.session.as_dict() if script.session else None,
+                state=script.state.as_dict() if script.state else None,
             )
 
     def terminate(self):
@@ -702,8 +702,8 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
     def _get_retry_options(self) -> typing.Optional[_options.RetryOptions]:
         return self._options.retry_options
 
-    def _get_session(self) -> _options.Session:
-        return self._options.session
+    def _get_state(self) -> _options.State:
+        return self._options.state
 
     @property
     def max_concurrency(self) -> int:
