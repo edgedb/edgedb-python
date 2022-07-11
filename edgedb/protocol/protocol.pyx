@@ -372,10 +372,7 @@ cdef class SansIOProtocol:
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
 
-        if not isinstance(in_dc, NullCodec):
-            self.encode_args(in_dc, buf, args, kwargs)
-        else:
-            buf.write_bytes(EMPTY_NULL_DATA)
+        self.encode_args(in_dc, buf, args, kwargs)
 
         buf.end_message()
 
