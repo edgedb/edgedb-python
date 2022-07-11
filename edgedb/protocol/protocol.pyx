@@ -211,7 +211,6 @@ cdef class SansIOProtocol:
         str query,
         object output_format,
         bint expect_one,
-        bint required_one,
         int implicit_limit,
         bint inline_typenames,
         bint inline_typeids,
@@ -275,7 +274,6 @@ cdef class SansIOProtocol:
             query=query,
             output_format=output_format,
             expect_one=expect_one,
-            required_one=required_one,
             implicit_limit=implicit_limit,
             inline_typenames=inline_typenames,
             inline_typeids=inline_typeids,
@@ -359,7 +357,6 @@ cdef class SansIOProtocol:
             query=query,
             output_format=output_format,
             expect_one=expect_one,
-            required_one=required_one,
             implicit_limit=implicit_limit,
             inline_typenames=inline_typenames,
             inline_typeids=inline_typeids,
@@ -381,8 +378,6 @@ cdef class SansIOProtocol:
             buf.write_bytes(EMPTY_NULL_DATA)
 
         buf.end_message()
-
-        in_tid = in_dc.get_tid()
 
         packet = WriteBuffer.new()
         packet.write_buffer(buf)
@@ -1059,9 +1054,6 @@ cdef class SansIOProtocol:
                 f'unexpected message type {chr(mtype)!r}')
 
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs):
-        cdef:
-             WriteBuffer tmp = WriteBuffer.new()
-
         if args and kwargs:
             raise errors.QueryArgumentError(
                 'either positional or named arguments are supported; '
