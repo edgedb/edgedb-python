@@ -435,8 +435,18 @@ cdef class SansIOProtocol:
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
-                    exc = self._amend_parse_error(
-                        exc, output_format, expect_one, required_one)
+                    if exc.get_code() == parameter_type_mismatch_code:
+                        if not isinstance(in_dc, NullCodec):
+                            buf = WriteBuffer.new()
+                            try:
+                                self.encode_args(in_dc, buf, args, kwargs)
+                            except errors.QueryArgumentError as ex:
+                                exc = ex
+                            finally:
+                                buf = None
+                    else:
+                        exc = self._amend_parse_error(
+                            exc, output_format, expect_one, required_one)
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -504,6 +514,14 @@ cdef class SansIOProtocol:
         if codecs is not None:
             in_dc = <BaseCodec>codecs[1]
             out_dc = <BaseCodec>codecs[2]
+        elif not args and not kwargs and not required_one:
+            # We don't have knowledge about the in/out desc of the command, but
+            # the caller didn't provide any arguments, so let's try using NULL
+            # for both in (assumed) and out (the server will correct it) desc
+            # without an additional Parse, unless required_one is set because
+            # it'll be too late to find out the cardinality is wrong when the
+            # command is already executed.
+            in_dc = out_dc = NULL_CODEC
         else:
             parsed = await self._parse(
                 query,
@@ -1288,6 +1306,7 @@ cdef class SansIOProtocol:
 
 cdef result_cardinality_mismatch_code = \
     errors.ResultCardinalityMismatchError._code
+cdef parameter_type_mismatch_code = errors.ParameterTypeMismatchError._code
 
 cdef bytes SYNC_MESSAGE = bytes(
     WriteBuffer.new_message(SYNC_MSG).end_message())
