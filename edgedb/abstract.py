@@ -42,7 +42,7 @@ class QueryContext(typing.NamedTuple):
     state: typing.Optional[options.State]
 
 
-class ScriptContext(typing.NamedTuple):
+class ExecuteContext(typing.NamedTuple):
     query: QueryWithArgs
     cache: QueryCache
     state: typing.Optional[options.State]
@@ -160,12 +160,12 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
         ))
 
     @abc.abstractmethod
-    def _execute(self, script: ScriptContext):
+    def _execute(self, execute_context: ExecuteContext):
         ...
 
-    def execute(self, query: str, *args, **kwargs) -> None:
-        self._execute(ScriptContext(
-            query=QueryWithArgs(query, args, kwargs),
+    def execute(self, commands: str, *args, **kwargs) -> None:
+        self._execute(ExecuteContext(
+            query=QueryWithArgs(commands, args, kwargs),
             cache=self._get_query_cache(),
             state=self._get_state(),
         ))
@@ -251,12 +251,12 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
         ))
 
     @abc.abstractmethod
-    async def _execute(self, script: ScriptContext) -> None:
+    async def _execute(self, execute_context: ExecuteContext) -> None:
         ...
 
-    async def execute(self, query: str, *args, **kwargs) -> None:
-        await self._execute(ScriptContext(
-            query=QueryWithArgs(query, args, kwargs),
+    async def execute(self, commands: str, *args, **kwargs) -> None:
+        await self._execute(ExecuteContext(
+            query=QueryWithArgs(commands, args, kwargs),
             cache=self._get_query_cache(),
             state=self._get_state(),
         ))

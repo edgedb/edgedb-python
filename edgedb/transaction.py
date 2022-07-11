@@ -186,12 +186,12 @@ class BaseTransaction:
         await self._ensure_transaction()
         return await self._connection.raw_query(query_context)
 
-    async def _execute(self, query: abstract.ScriptContext) -> None:
+    async def _execute(self, execute_context: abstract.ExecuteContext) -> None:
         await self._ensure_transaction()
-        await self._connection._execute(query)
+        await self._connection._execute(execute_context)
 
     async def _privileged_execute(self, query: str) -> None:
-        await self._connection.privileged_execute(abstract.ScriptContext(
+        await self._connection.privileged_execute(abstract.ExecuteContext(
             query=abstract.QueryWithArgs(query, (), {}),
             cache=self._get_query_cache(),
             state=self._get_state(),
