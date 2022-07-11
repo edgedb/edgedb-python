@@ -128,7 +128,7 @@ class State:
     def defaults(cls):
         return cls()
 
-    def with_aliases(self, module=..., **aliases):
+    def with_module_aliases(self, module=..., **aliases):
         new_aliases = self._aliases.copy()
         new_aliases.update(aliases)
         return State(
@@ -235,10 +235,10 @@ class _OptionsMixin:
         result._options = self._options.with_state(state)
         return result
 
-    def with_aliases(self, module=None, **aliases):
+    def with_module_aliases(self, module=None, **aliases):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.with_aliases(module=module, **aliases)
+            self._options.state.with_module_aliases(module=module, **aliases)
         )
         return result
 
