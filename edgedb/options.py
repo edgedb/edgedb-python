@@ -109,7 +109,7 @@ class TransactionOptions:
         )
 
 
-class Session:
+class State:
     __slots__ = ['_module', '_aliases', '_config', '_globals']
 
     def __init__(
@@ -128,10 +128,10 @@ class Session:
     def defaults(cls):
         return cls()
 
-    def with_aliases(self, module=..., **aliases):
+    def with_module_aliases(self, module=..., **aliases):
         new_aliases = self._aliases.copy()
         new_aliases.update(aliases)
-        return Session(
+        return State(
             module=self._module if module is ... else module,
             aliases=new_aliases,
             config=self._config,
@@ -141,7 +141,7 @@ class Session:
     def with_config(self, **config):
         new_config = self._config.copy()
         new_config.update(config)
-        return Session(
+        return State(
             module=self._module,
             aliases=self._aliases,
             config=new_config,
@@ -151,7 +151,7 @@ class Session:
     def with_globals(self, **globals_):
         new_globals = self._globals.copy()
         new_globals.update(globals_)
-        return Session(
+        return State(
             module=self._module,
             aliases=self._aliases,
             config=self._config,
@@ -230,29 +230,29 @@ class _OptionsMixin:
         result._options = self._options.with_retry_options(options)
         return result
 
-    def with_session(self, session: Session):
+    def with_state(self, state: State):
         result = self._shallow_clone()
-        result._options = self._options.with_session(session)
+        result._options = self._options.with_state(state)
         return result
 
-    def with_aliases(self, module=None, **aliases):
+    def with_module_aliases(self, module=None, **aliases):
         result = self._shallow_clone()
-        result._options = self._options.with_session(
-            self._options.session.with_aliases(module=module, **aliases)
+        result._options = self._options.with_state(
+            self._options.state.with_module_aliases(module=module, **aliases)
         )
         return result
 
     def with_config(self, **config):
         result = self._shallow_clone()
-        result._options = self._options.with_session(
-            self._options.session.with_config(**config)
+        result._options = self._options.with_state(
+            self._options.state.with_config(**config)
         )
         return result
 
     def with_globals(self, **globals_):
         result = self._shallow_clone()
-        result._options = self._options.with_session(
-            self._options.session.with_globals(**globals_)
+        result._options = self._options.with_state(
+            self._options.state.with_globals(**globals_)
         )
         return result
 
@@ -260,17 +260,17 @@ class _OptionsMixin:
 class _Options:
     """Internal class for storing connection options"""
 
-    __slots__ = ['_retry_options', '_transaction_options', '_session']
+    __slots__ = ['_retry_options', '_transaction_options', '_state']
 
     def __init__(
         self,
         retry_options: RetryOptions,
         transaction_options: TransactionOptions,
-        session: Session,
+        state: State,
     ):
         self._retry_options = retry_options
         self._transaction_options = transaction_options
-        self._session = session
+        self._state = state
 
     @property
     def retry_options(self):
@@ -281,28 +281,28 @@ class _Options:
         return self._transaction_options
 
     @property
-    def session(self):
-        return self._session
+    def state(self):
+        return self._state
 
     def with_retry_options(self, options: RetryOptions):
         return _Options(
             options,
             self._transaction_options,
-            self._session,
+            self._state,
         )
 
     def with_transaction_options(self, options: TransactionOptions):
         return _Options(
             self._retry_options,
             options,
-            self._session,
+            self._state,
         )
 
-    def with_session(self, session: Session):
+    def with_state(self, state: State):
         return _Options(
             self._retry_options,
             self._transaction_options,
-            session,
+            state,
         )
 
     @classmethod
@@ -310,5 +310,5 @@ class _Options:
         return cls(
             RetryOptions.defaults(),
             TransactionOptions.defaults(),
-            Session.defaults(),
+            State.defaults(),
         )

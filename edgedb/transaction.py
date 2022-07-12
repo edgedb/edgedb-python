@@ -179,22 +179,22 @@ class BaseTransaction:
     def _get_query_cache(self) -> abstract.QueryCache:
         return self._client._get_query_cache()
 
-    def _get_session(self) -> options.Session:
-        return self._client._get_session()
+    def _get_state(self) -> options.State:
+        return self._client._get_state()
 
     async def _query(self, query_context: abstract.QueryContext):
         await self._ensure_transaction()
         return await self._connection.raw_query(query_context)
 
-    async def _execute(self, query: abstract.ScriptContext) -> None:
+    async def _execute(self, execute_context: abstract.ExecuteContext) -> None:
         await self._ensure_transaction()
-        await self._connection._execute(query)
+        await self._connection._execute(execute_context)
 
     async def _privileged_execute(self, query: str) -> None:
-        await self._connection.privileged_execute(abstract.ScriptContext(
+        await self._connection.privileged_execute(abstract.ExecuteContext(
             query=abstract.QueryWithArgs(query, (), {}),
             cache=self._get_query_cache(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
 

@@ -39,13 +39,13 @@ class QueryContext(typing.NamedTuple):
     cache: QueryCache
     query_options: QueryOptions
     retry_options: typing.Optional[options.RetryOptions]
-    session: typing.Optional[options.Session]
+    state: typing.Optional[options.State]
 
 
-class ScriptContext(typing.NamedTuple):
+class ExecuteContext(typing.NamedTuple):
     query: QueryWithArgs
     cache: QueryCache
-    session: typing.Optional[options.Session]
+    state: typing.Optional[options.State]
 
 
 _query_opts = QueryOptions(
@@ -90,7 +90,7 @@ class BaseReadOnlyExecutor(abc.ABC):
     def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
         return None
 
-    def _get_session(self) -> options.Session:
+    def _get_state(self) -> options.State:
         ...
 
 
@@ -109,7 +109,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     def query_single(
@@ -120,7 +120,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -129,7 +129,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     def query_json(self, query: str, *args, **kwargs) -> str:
@@ -138,7 +138,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -147,7 +147,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     def query_required_single_json(self, query: str, *args, **kwargs) -> str:
@@ -156,18 +156,18 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     @abc.abstractmethod
-    def _execute(self, script: ScriptContext):
+    def _execute(self, execute_context: ExecuteContext):
         ...
 
-    def execute(self, query: str, *args, **kwargs) -> None:
-        self._execute(ScriptContext(
-            query=QueryWithArgs(query, args, kwargs),
+    def execute(self, commands: str, *args, **kwargs) -> None:
+        self._execute(ExecuteContext(
+            query=QueryWithArgs(commands, args, kwargs),
             cache=self._get_query_cache(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
 
@@ -192,7 +192,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -201,7 +201,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     async def query_required_single(
@@ -215,7 +215,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
@@ -224,7 +224,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     async def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -233,7 +233,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     async def query_required_single_json(
@@ -247,18 +247,18 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
     @abc.abstractmethod
-    async def _execute(self, script: ScriptContext) -> None:
+    async def _execute(self, execute_context: ExecuteContext) -> None:
         ...
 
-    async def execute(self, query: str, *args, **kwargs) -> None:
-        await self._execute(ScriptContext(
-            query=QueryWithArgs(query, args, kwargs),
+    async def execute(self, commands: str, *args, **kwargs) -> None:
+        await self._execute(ExecuteContext(
+            query=QueryWithArgs(commands, args, kwargs),
             cache=self._get_query_cache(),
-            session=self._get_session(),
+            state=self._get_state(),
         ))
 
 

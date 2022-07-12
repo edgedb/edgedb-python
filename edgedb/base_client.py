@@ -171,18 +171,20 @@ class BaseConnection(metaclass=abc.ABCMeta):
             iteration += 1
             await self.sleep(0.01 + random.random() * 0.2)
 
-    async def privileged_execute(self, script: abstract.ScriptContext):
+    async def privileged_execute(
+        self, execute_context: abstract.ExecuteContext
+    ):
         if self._protocol.is_legacy:
             await self._protocol.legacy_simple_query(
-                script.query.query, enums.Capability.ALL
+                execute_context.query.query, enums.Capability.ALL
             )
         else:
             await self._protocol.execute(
-                query=script.query.query,
-                args=script.query.args,
-                kwargs=script.query.kwargs,
-                reg=script.cache.codecs_registry,
-                qc=script.cache.query_cache,
+                query=execute_context.query.query,
+                args=execute_context.query.args,
+                kwargs=execute_context.query.kwargs,
+                reg=execute_context.cache.codecs_registry,
+                qc=execute_context.cache.query_cache,
                 output_format=protocol.OutputFormat.NONE,
                 allow_capabilities=enums.Capability.ALL,
             )
@@ -220,8 +222,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
         else:
             execute = self._protocol.query
             args["allow_capabilities"] = enums.Capability.EXECUTE
-            if query_context.session is not None:
-                args["state"] = query_context.session.as_dict()
+            if query_context.state is not None:
+                args["state"] = query_context.state.as_dict()
         while True:
             i += 1
             try:
@@ -258,25 +260,28 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 await self.sleep(rule.backoff(i))
                 reconnect = self.is_closed()
 
-    async def _execute(self, script: abstract.ScriptContext) -> None:
+    async def _execute(self, execute_context: abstract.ExecuteContext) -> None:
         if self._protocol.is_legacy:
-            if script.query.args or script.query.kwargs:
+            if execute_context.query.args or execute_context.query.kwargs:
                 raise errors.InterfaceError(
                     "Legacy protocol doesn't support arguments in execute()"
                 )
             await self._protocol.legacy_simple_query(
-                script.query.query, enums.Capability.LEGACY_EXECUTE
+                execute_context.query.query, enums.Capability.LEGACY_EXECUTE
             )
         else:
             await self._protocol.execute(
-                query=script.query.query,
-                args=script.query.args,
-                kwargs=script.query.kwargs,
-                reg=script.cache.codecs_registry,
-                qc=script.cache.query_cache,
+                query=execute_context.query.query,
+                args=execute_context.query.args,
+                kwargs=execute_context.query.kwargs,
+                reg=execute_context.cache.codecs_registry,
+                qc=execute_context.cache.query_cache,
                 output_format=protocol.OutputFormat.NONE,
                 allow_capabilities=enums.Capability.EXECUTE,
-                state=script.session.as_dict() if script.session else None,
+                state=(
+                    execute_context.state.as_dict()
+                    if execute_context.state else None
+                ),
             )
 
     def terminate(self):
@@ -702,8 +707,8 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
     def _get_retry_options(self) -> typing.Optional[_options.RetryOptions]:
         return self._options.retry_options
 
-    def _get_session(self) -> _options.Session:
-        return self._options.session
+    def _get_state(self) -> _options.State:
+        return self._options.state
 
     @property
     def max_concurrency(self) -> int:
@@ -724,10 +729,10 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         finally:
             await self._impl.release(con)
 
-    async def _execute(self, script: abstract.ScriptContext) -> None:
+    async def _execute(self, execute_context: abstract.ExecuteContext) -> None:
         con = await self._impl.acquire()
         try:
-            await con._execute(script)
+            await con._execute(execute_context)
         finally:
             await self._impl.release(con)
 
