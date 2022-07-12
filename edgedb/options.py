@@ -206,7 +206,7 @@ class _OptionsMixin:
         Both ``self`` and returned object can be used after, but when using
         them transaction options applied will be different.
 
-        Transaction options are are used by the ``transaction`` method.
+        Transaction options are used by the ``transaction`` method.
         """
         result = self._shallow_clone()
         result._options = self._options.with_transaction_options(options)
@@ -223,7 +223,7 @@ class _OptionsMixin:
         with modified retry options.
 
         Both ``self`` and returned object can be used after, but when using
-        them transaction options applied will be different.
+        them retry options applied will be different.
         """
 
         result = self._shallow_clone()
