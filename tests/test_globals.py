@@ -27,14 +27,6 @@ class TestGlobals(tb.AsyncQueryTestCase):
         if db.is_proto_lt_1_0:
             self.skipTest("Global is added in EdgeDB 2.0")
 
-        if (
-            not await db.query_required_single(
-                "select exists "
-                "(select schema::Type filter .name = 'cfg::memory')"
-            )
-        ):
-            self.skipTest("feature not implemented")
-
         await db.execute('''
             CREATE GLOBAL glob -> str;
             CREATE REQUIRED GLOBAL req_glob -> str {
