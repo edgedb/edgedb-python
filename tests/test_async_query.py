@@ -528,6 +528,14 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
             await self.client.query("""SELECT <int64>$a;""")
 
+    async def test_async_mismatched_args_07(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryArgumentError,
+            "expected no named arguments",
+        ):
+
+            await self.client.query("""SELECT 42""", a=1, b=2)
+
     async def test_async_args_uuid_pack(self):
         obj = await self.client.query_single(
             'select schema::Object {id, name} limit 1')

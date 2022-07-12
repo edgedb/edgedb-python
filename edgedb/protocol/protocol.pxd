@@ -146,7 +146,6 @@ cdef class SansIOProtocol:
         str query,
         object output_format,
         bint expect_one,
-        bint required_one,
         int implicit_limit,
         bint inline_typenames,
         bint inline_typeids,
