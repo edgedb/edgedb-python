@@ -24,6 +24,8 @@ class TestGlobals(tb.AsyncQueryTestCase):
 
     async def test_globals_01(self):
         db = self.client
+        if db.is_proto_lt_1_0:
+            self.skipTest("Global is added in EdgeDB 2.0")
 
         if (
             not await db.query_required_single(
