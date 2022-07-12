@@ -381,6 +381,68 @@ Client
         mis-configuration by triggering the first connection attempt
         explicitly.
 
+    .. py:method:: with_transaction_options(options=None)
+
+        Returns a shallow copy of the client with adjusted transaction options.
+
+        :param TransactionOptions options:
+            Object that encapsulates transaction options.
+
+        See :ref:`edgedb-python-transaction-options` for details.
+
+    .. py:method:: with_retry_options(options=None)
+
+        Returns a shallow copy of the client with adjusted retry options.
+
+        :param RetryOptions options: Object that encapsulates retry options.
+
+        See :ref:`edgedb-python-retry-options` for details.
+
+    .. py:method:: with_state(state)
+
+        Returns a shallow copy of the client with adjusted state.
+
+        :param State state: Object that encapsulates state.
+
+        See :ref:`edgedb-python-state` for details.
+
+    .. py:method:: with_module_aliases(module=..., **aliases)
+
+        Returns a shallow copy of the client with adjusted default module and/or
+        module aliases.
+
+        :type module: str or None
+        :param module:
+            Adjust the *default module*. If ``module`` is not set, the default
+            behavior is not to adjust the *default module* in the copy.
+
+            This is equivalent to using the ``set module`` command.
+
+        :param dict[str, str] aliases:
+            Adjust the module aliases by merging with the given alias -> target
+            module mapping.
+
+            This is equivalent to using the ``set alias`` command.
+
+    .. py:method:: with_config(**config)
+
+        Returns a shallow copy of the client with adjusted session config.
+
+        This is equivalent to using the ``configure session`` command.
+
+        :param dict[str, object] config:
+            Adjust the config settings by merging with the given config name ->
+            config value mapping.
+
+    .. py:method:: with_globals(**globals_)
+
+        Returns a shallow copy of the client with adjusted global values.
+
+        This is equivalent to using the ``set global`` command.
+
+        :param dict[str, object] globals_:
+            Adjust the global values by merging with the given global name ->
+            global value mapping.
 
 .. _edgedb-python-asyncio-api-transaction:
 
