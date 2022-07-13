@@ -114,13 +114,13 @@ class State:
 
     def __init__(
         self,
-        module: typing.Optional[str] = None,
-        aliases: typing.Mapping[str, str] = None,
+        default_module: typing.Optional[str] = None,
+        module_aliases: typing.Mapping[str, str] = None,
         config: typing.Mapping[str, typing.Any] = None,
         globals_: typing.Mapping[str, typing.Any] = None,
     ):
-        self._module = module
-        self._aliases = {} if aliases is None else dict(aliases)
+        self._module = default_module
+        self._aliases = {} if module_aliases is None else dict(module_aliases)
         self._config = {} if config is None else dict(config)
         self._globals = {} if globals_ is None else dict(globals_)
 
@@ -128,32 +128,109 @@ class State:
     def defaults(cls):
         return cls()
 
-    def with_module_aliases(self, module=..., **aliases):
-        new_aliases = self._aliases.copy()
-        new_aliases.update(aliases)
+    def with_default_module(self, module: typing.Optional[str] = None):
         return State(
-            module=self._module if module is ... else module,
-            aliases=new_aliases,
+            default_module=module,
+            module_aliases=self._aliases,
             config=self._config,
             globals_=self._globals,
         )
 
-    def with_config(self, **config):
-        new_config = self._config.copy()
-        new_config.update(config)
+    def with_module_aliases(
+        self,
+        aliases_dict: typing.Optional[typing.Mapping[str, str]] = None,
+        **aliases,
+    ):
+        if aliases_dict is None:
+            aliases_dict = {}
+        aliases_dict.update(aliases)
+        new_aliases = self._aliases.copy()
+        new_aliases.update(aliases_dict)
         return State(
-            module=self._module,
-            aliases=self._aliases,
+            default_module=self._module,
+            module_aliases=new_aliases,
+            config=self._config,
+            globals_=self._globals,
+        )
+
+    def with_config(
+        self,
+        config_dict: typing.Optional[typing.Mapping[str, typing.Any]] = None,
+        **config,
+    ):
+        if config_dict is None:
+            config_dict = {}
+        config_dict.update(config)
+        new_config = self._config.copy()
+        new_config.update(config_dict)
+        return State(
+            default_module=self._module,
+            module_aliases=self._aliases,
             config=new_config,
             globals_=self._globals,
         )
 
-    def with_globals(self, **globals_):
+    def with_globals(
+        self,
+        globals_dict: typing.Optional[typing.Mapping[str, typing.Any]] = None,
+        **globals_,
+    ):
+        if globals_dict is None:
+            globals_dict = {}
+        globals_dict.update(globals_)
         new_globals = self._globals.copy()
-        new_globals.update(globals_)
+        new_globals.update(globals_dict)
         return State(
-            module=self._module,
-            aliases=self._aliases,
+            default_module=self._module,
+            module_aliases=self._aliases,
+            config=self._config,
+            globals_=new_globals,
+        )
+
+    def without_module_aliases(
+        self, aliases: typing.Optional[typing.Iterable[str]] = None
+    ):
+        if aliases is None:
+            new_aliases = None
+        else:
+            new_aliases = self._aliases.copy()
+            for alias in aliases:
+                new_aliases.pop(alias)
+        return State(
+            default_module=self._module,
+            module_aliases=new_aliases,
+            config=self._config,
+            globals_=self._globals,
+        )
+
+    def without_config(
+        self, config_names: typing.Optional[typing.Iterable[str]] = None
+    ):
+        if config_names is None:
+            new_config = None
+        else:
+            new_config = self._config.copy()
+            for name in config_names:
+                new_config.pop(name)
+        return State(
+            default_module=self._module,
+            module_aliases=self._aliases,
+            config=new_config,
+            globals_=self._globals,
+        )
+
+    def without_globals(
+        self, global_names: typing.Optional[typing.Iterable[str]] = None
+    ):
+        if global_names is None:
+            new_globals = None
+        else:
+            new_globals = self._globals.copy()
+            for name in global_names:
+                new_globals.pop(name)
+        return State(
+            default_module=self._module,
+            module_aliases=self._aliases,
             config=self._config,
             globals_=new_globals,
         )
@@ -235,24 +312,70 @@ class _OptionsMixin:
         result._options = self._options.with_state(state)
         return result
 
-    def with_module_aliases(self, module=None, **aliases):
+    def with_default_module(self, module: typing.Optional[str] = None):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.with_module_aliases(module=module, **aliases)
+            self._options.state.with_default_module(module)
         )
         return result
 
-    def with_config(self, **config):
+    def with_module_aliases(
+        self,
+        aliases_dict: typing.Optional[typing.Mapping[str, str]] = None,
+        **aliases,
+    ):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.with_config(**config)
+            self._options.state.with_module_aliases(aliases_dict, **aliases)
         )
         return result
 
-    def with_globals(self, **globals_):
+    def with_config(
+        self,
+        config_dict: typing.Optional[typing.Mapping[str, typing.Any]] = None,
+        **config,
+    ):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.with_globals(**globals_)
+            self._options.state.with_config(config_dict, **config)
+        )
+        return result
+
+    def with_globals(
+        self,
+        globals_dict: typing.Optional[typing.Mapping[str, typing.Any]] = None,
+        **globals_,
+    ):
+        result = self._shallow_clone()
+        result._options = self._options.with_state(
+            self._options.state.with_globals(globals_dict, **globals_)
+        )
+        return result
+
+    def without_module_aliases(
+        self, aliases: typing.Optional[typing.Iterable[str]] = None
+    ):
+        result = self._shallow_clone()
+        result._options = self._options.with_state(
+            self._options.state.without_module_aliases(aliases)
+        )
+        return result
+
+    def without_config(
+        self, config_names: typing.Optional[typing.Iterable[str]] = None
+    ):
+        result = self._shallow_clone()
+        result._options = self._options.with_state(
+            self._options.state.without_config(config_names)
+        )
+        return result
+
+    def without_globals(
+        self, global_names: typing.Optional[typing.Iterable[str]] = None
+    ):
+        result = self._shallow_clone()
+        result._options = self._options.with_state(
+            self._options.state.without_globals(global_names)
         )
         return result
 
