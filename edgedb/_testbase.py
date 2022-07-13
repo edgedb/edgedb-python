@@ -97,6 +97,7 @@ def _start_cluster(*, cleanup_atexit=True):
             f"--emit-server-status={status_file_unix}",
             "--port=auto",
             "--auto-shutdown",
+            "-ld",
             "--bootstrap-command=ALTER ROLE edgedb { SET password := 'test' }",
         ]
 
@@ -120,8 +121,15 @@ def _start_cluster(*, cleanup_atexit=True):
 
         if env.get('EDGEDB_DEBUG_SERVER'):
             server_stdout = None
+            env['EDGEDB_DEBUG_PGSERVER'] = '1'
+            print("running", " ".join(args))
         else:
             server_stdout = subprocess.DEVNULL
+
+        env['EDGEDB_DEBUG_SERVER'] = '1'
+        env['EDGEDB_DEBUG_BOOTSTRAP'] = '1'
+        print("running", " ".join(args))
+        server_stdout = None
 
         p = subprocess.Popen(
             args,
@@ -131,7 +139,7 @@ def _start_cluster(*, cleanup_atexit=True):
             stderr=subprocess.STDOUT,
         )
 
-        for _ in range(250):
+        for _ in range(30):
             try:
                 with open(status_file, 'rb') as f:
                     for line in f:
@@ -141,6 +149,7 @@ def _start_cluster(*, cleanup_atexit=True):
                         raise RuntimeError('not ready')
                 break
             except Exception:
+                print("server not yet ready", file=sys.stderr)
                 time.sleep(1)
         else:
             raise RuntimeError('server status file not found')
