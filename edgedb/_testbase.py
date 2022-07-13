@@ -334,11 +334,19 @@ class TestAsyncIOClient(edgedb.AsyncIOClient):
     def dbname(self):
         return self._impl._working_params.database
 
+    @property
+    def is_proto_lt_1_0(self):
+        return self.connection._protocol.is_legacy
+
 
 class TestClient(edgedb.Client):
     @property
     def connection(self):
         return self._impl._holders[0]._con
+
+    @property
+    def is_proto_lt_1_0(self):
+        return self.connection._protocol.is_legacy
 
 
 class ConnectedTestCaseMixin:

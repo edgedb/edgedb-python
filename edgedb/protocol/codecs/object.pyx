@@ -33,14 +33,13 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
 
         elem_data = WriteBuffer.new()
         for name, arg in obj.items():
+            try:
+                i = descriptor.get_pos(name)
+            except LookupError:
+                raise self._make_missing_args_error_message(obj) from None
+            objlen += 1
+            elem_data.write_int32(i)
             if arg is not None:
-                try:
-                    i = descriptor.get_pos(name)
-                except LookupError:
-                    raise self._make_missing_args_error_message(obj) from None
-                objlen += 1
-                elem_data.write_int32(i)
-
                 sub_codec = <BaseCodec>(self.fields_codecs[i])
                 try:
                     sub_codec.encode(elem_data, arg)
@@ -51,6 +50,8 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
                     raise errors.InvalidArgumentError(
                         'invalid input for state argument '
                         f' {name} := {value_repr} ({e})') from e
+            else:
+                elem_data.write_int32(-1)
 
         buf.write_int32(4 + elem_data.len())  # buffer length
         buf.write_int32(<int32_t><uint32_t>objlen)
