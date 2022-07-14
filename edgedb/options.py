@@ -147,13 +147,13 @@ class State:
             globals_=self._globals,
         )
 
-    def with_module_aliases(
-        self,
-        aliases_dict: typing.Optional[typing.Mapping[str, str]] = None,
-        **aliases,
-    ):
-        if aliases_dict is None:
-            aliases_dict = {}
+    def with_module_aliases(self, *args, **aliases):
+        if len(args) > 1:
+            raise errors.InvalidArgumentError(
+                "with_module_aliases() takes from 0 to 1 positional arguments "
+                "but {} were given".format(len(args))
+            )
+        aliases_dict = args[0] if args else {}
         aliases_dict.update(aliases)
         new_aliases = self._aliases.copy()
         new_aliases.update(aliases_dict)
@@ -164,13 +164,13 @@ class State:
             globals_=self._globals,
         )
 
-    def with_config(
-        self,
-        config_dict: typing.Optional[typing.Mapping[str, typing.Any]] = None,
-        **config,
-    ):
-        if config_dict is None:
-            config_dict = {}
+    def with_config(self, *args, **config):
+        if len(args) > 1:
+            raise errors.InvalidArgumentError(
+                "with_config() takes from 0 to 1 positional arguments "
+                "but {} were given".format(len(args))
+            )
+        config_dict = args[0] if args else {}
         config_dict.update(config)
         new_config = self._config.copy()
         new_config.update(config_dict)
@@ -192,13 +192,14 @@ class State:
         else:
             raise errors.InvalidArgumentError(f"Illegal name: {name}")
 
-    def with_globals(
-        self,
-        globals_dict: typing.Optional[typing.Mapping[str, typing.Any]] = None,
-        **globals_,
-    ):
+    def with_globals(self, *args, **globals_):
+        if len(args) > 1:
+            raise errors.InvalidArgumentError(
+                "with_globals() takes from 0 to 1 positional arguments "
+                "but {} were given".format(len(args))
+            )
         new_globals = self._globals.copy()
-        for k, v in (*(globals_dict or {}).items(), *globals_.items()):
+        for k, v in (*(args[0] if args else {}).items(), *globals_.items()):
             new_globals[self.resolve(k)] = v
         return self._new(
             default_module=self._module,
@@ -325,36 +326,24 @@ class _OptionsMixin:
         )
         return result
 
-    def with_module_aliases(
-        self,
-        aliases_dict: typing.Optional[typing.Mapping[str, str]] = None,
-        **aliases,
-    ):
+    def with_module_aliases(self, *args, **aliases):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.with_module_aliases(aliases_dict, **aliases)
+            self._options.state.with_module_aliases(*args, **aliases)
         )
         return result
 
-    def with_config(
-        self,
-        config_dict: typing.Optional[typing.Mapping[str, typing.Any]] = None,
-        **config,
-    ):
+    def with_config(self, *args, **config):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.with_config(config_dict, **config)
+            self._options.state.with_config(*args, **config)
         )
         return result
 
-    def with_globals(
-        self,
-        globals_dict: typing.Optional[typing.Mapping[str, typing.Any]] = None,
-        **globals_,
-    ):
+    def with_globals(self, *args, **globals_):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.with_globals(globals_dict, **globals_)
+            self._options.state.with_globals(*args, **globals_)
         )
         return result
 
