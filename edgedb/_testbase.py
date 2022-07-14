@@ -352,7 +352,7 @@ class TestClient(edgedb.Client):
 class ConnectedTestCaseMixin:
 
     @classmethod
-    def test_client(
+    def make_test_client(
         cls, *,
         cluster=None,
         database='edgedb',
@@ -426,10 +426,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         # Only open an extra admin connection if necessary.
         if not class_set_up:
             script = f'CREATE DATABASE {dbname};'
-            cls.admin_client = cls.test_client()
+            cls.admin_client = cls.make_test_client()
             cls.loop.run_until_complete(cls.admin_client.execute(script))
 
-        cls.client = cls.test_client(database=dbname)
+        cls.client = cls.make_test_client(database=dbname)
 
         if not class_set_up:
             script = cls.get_setup_script()

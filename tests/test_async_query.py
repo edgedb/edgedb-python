@@ -791,7 +791,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         lock_key = tb.gen_lock_key()
 
         client = self.client.with_retry_options(RetryOptions(attempts=1))
-        client2 = self.test_client(
+        client2 = self.make_test_client(
             database=self.client.dbname
         ).with_retry_options(
             RetryOptions(attempts=1)
@@ -924,7 +924,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         if not has_sleep:
             self.skipTest("No sys::_sleep function")
 
-        client = self.test_client(database=self.client.dbname)
+        client = self.make_test_client(database=self.client.dbname)
 
         try:
             self.assertEqual(await client.query_single('SELECT 1'), 1)

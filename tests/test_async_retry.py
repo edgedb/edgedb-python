@@ -150,7 +150,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
             )
 
     async def execute_conflict(self, name='counter2', options=None):
-        client2 = self.test_client(database=self.get_database_name())
+        client2 = self.make_test_client(database=self.get_database_name())
         self.addCleanup(client2.aclose)
 
         barrier = Barrier(2)
