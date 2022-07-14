@@ -39,6 +39,7 @@ from .asyncio_client import (
 from .blocking_client import create_client, Client
 from .options import RetryCondition, IsolationLevel, default_backoff
 from .options import RetryOptions, TransactionOptions
+from .options import State
 
 from .errors._base import EdgeDBError, EdgeDBMessage
 

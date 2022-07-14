@@ -122,14 +122,25 @@ class State:
         self._module = default_module
         self._aliases = {} if module_aliases is None else dict(module_aliases)
         self._config = {} if config is None else dict(config)
-        self._globals = {} if globals_ is None else dict(globals_)
+        self._globals = (
+            {} if globals_ is None else self.with_globals(globals_)._globals
+        )
+
+    @classmethod
+    def _new(cls, default_module, module_aliases, config, globals_):
+        rv = cls.__new__(cls)
+        rv._module = default_module
+        rv._aliases = module_aliases
+        rv._config = config
+        rv._globals = globals_
+        return rv
 
     @classmethod
     def defaults(cls):
         return cls()
 
     def with_default_module(self, module: typing.Optional[str] = None):
-        return State(
+        return self._new(
             default_module=module,
             module_aliases=self._aliases,
             config=self._config,
@@ -146,7 +157,7 @@ class State:
         aliases_dict.update(aliases)
         new_aliases = self._aliases.copy()
         new_aliases.update(aliases_dict)
-        return State(
+        return self._new(
             default_module=self._module,
             module_aliases=new_aliases,
             config=self._config,
@@ -163,24 +174,33 @@ class State:
         config_dict.update(config)
         new_config = self._config.copy()
         new_config.update(config_dict)
-        return State(
+        return self._new(
             default_module=self._module,
             module_aliases=self._aliases,
             config=new_config,
             globals_=self._globals,
         )
 
+    def resolve(self, name: str) -> str:
+        parts = name.split("::")
+        if len(parts) == 1:
+            return f"{self._module or 'default'}::{name}"
+        elif len(parts) == 2:
+            mod, name = parts
+            mod = self._aliases.get(mod, mod)
+            return f"{mod}::{name}"
+        else:
+            raise errors.InvalidArgumentError(f"Illegal name: {name}")
+
     def with_globals(
         self,
         globals_dict: typing.Optional[typing.Mapping[str, typing.Any]] = None,
         **globals_,
     ):
-        if globals_dict is None:
-            globals_dict = {}
-        globals_dict.update(globals_)
         new_globals = self._globals.copy()
-        new_globals.update(globals_dict)
-        return State(
+        for k, v in (*(globals_dict or {}).items(), *globals_.items()):
+            new_globals[self.resolve(k)] = v
+        return self._new(
             default_module=self._module,
             module_aliases=self._aliases,
             config=self._config,
@@ -191,12 +211,12 @@ class State:
         self, aliases: typing.Optional[typing.Iterable[str]] = None
     ):
         if aliases is None:
-            new_aliases = None
+            new_aliases = {}
         else:
             new_aliases = self._aliases.copy()
             for alias in aliases:
-                new_aliases.pop(alias)
-        return State(
+                new_aliases.pop(alias, None)
+        return self._new(
             default_module=self._module,
             module_aliases=new_aliases,
             config=self._config,
@@ -207,12 +227,12 @@ class State:
         self, config_names: typing.Optional[typing.Iterable[str]] = None
     ):
         if config_names is None:
-            new_config = None
+            new_config = {}
         else:
             new_config = self._config.copy()
             for name in config_names:
-                new_config.pop(name)
-        return State(
+                new_config.pop(name, None)
+        return self._new(
             default_module=self._module,
             module_aliases=self._aliases,
             config=new_config,
@@ -223,12 +243,12 @@ class State:
         self, global_names: typing.Optional[typing.Iterable[str]] = None
     ):
         if global_names is None:
-            new_globals = None
+            new_globals = {}
         else:
             new_globals = self._globals.copy()
             for name in global_names:
-                new_globals.pop(name)
-        return State(
+                new_globals.pop(self.resolve(name), None)
+        return self._new(
             default_module=self._module,
             module_aliases=self._aliases,
             config=self._config,
@@ -238,27 +258,13 @@ class State:
     def as_dict(self):
         rv = {}
         if self._module is not None:
-            module = rv["module"] = self._module
-        else:
-            module = 'default'
+            rv["module"] = self._module
         if self._aliases:
             rv["aliases"] = list(self._aliases.items())
         if self._config:
             rv["config"] = self._config
         if self._globals:
-            rv["globals"] = g = {}
-            for k, v in self._globals.items():
-                parts = k.split("::")
-                if len(parts) == 1:
-                    g[f"{module}::{k}"] = v
-                elif len(parts) == 2:
-                    mod, glob = parts
-                    mod = self._aliases.get(mod, mod)
-                    g[f"{mod}::{glob}"] = v
-                else:
-                    raise errors.InvalidArgumentError(
-                        f"Illegal global name: {k}"
-                    )
+            rv["globals"] = self._globals
         return rv
 
 
