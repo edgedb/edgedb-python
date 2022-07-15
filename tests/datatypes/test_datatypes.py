@@ -300,6 +300,34 @@ class TestTuple(unittest.TestCase):
                 ):
                     edgedb.Tuple([1, 2, 3])[key]
 
+    def test_tuple_10(self):
+        self.assertEqual(
+            edgedb.Tuple([1, 2, 3]) + edgedb.Tuple([4, 5, 6]),
+            (1, 2, 3) + (4, 5, 6),
+        )
+        self.assertEqual(
+            edgedb.Tuple([1, 2, 3]) + edgedb.Tuple([]),
+            (1, 2, 3) + (),
+        )
+        self.assertEqual(
+            edgedb.Tuple([]) + edgedb.Tuple([1, 2, 3]),
+            () + (1, 2, 3),
+        )
+
+    def test_tuple_11(self):
+        with self.assertRaisesRegex(
+            TypeError,
+            r"can only concatenate edgedb\.Tuple "
+            r"\(not \"tuple\"\) to edgedb\.Tuple",
+        ):
+            edgedb.Tuple([1, 2, 3]) + (4, 5, 6)
+
+        with self.assertRaisesRegex(
+            TypeError,
+            r"can only concatenate tuple \(not \"edgedb\.Tuple\"\) to tuple",
+        ):
+            (4, 5, 6) + edgedb.Tuple([1, 2, 3])
+
 
 class TestNamedTuple(unittest.TestCase):
 

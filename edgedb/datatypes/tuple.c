@@ -33,6 +33,7 @@ EDGE_SETUP_FREELIST(
     (((EdgeTupleObject *)(op))->ob_item[i])
 #define EdgeTuple_SET_ITEM(op, i, v) \
     (((EdgeTupleObject *)(op))->ob_item[i] = v)
+#define EdgeTuple_CheckExact(op) Py_IS_TYPE((op), &EdgeTuple_Type)
 
 
 static int init_type_called = 0;
@@ -226,6 +227,63 @@ tuple_getsubscript(EdgeTupleObject *o, PyObject *key)
     return NULL;
 }
 
+static PyObject *
+tuple_concat(EdgeTupleObject *self, PyObject *other) {
+    Py_ssize_t size;
+    Py_ssize_t i;
+    PyObject **src, **dst;
+    EdgeTupleObject *np;
+
+    if (!EdgeTuple_CheckExact(other)) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "can only concatenate edgedb.Tuple (not \"%.200s\") to edgedb.Tuple",
+            Py_TYPE(other)->tp_name
+        );
+        return NULL;
+    }
+
+    if (Py_SIZE(self) == 0) {
+        Py_INCREF(other);
+        return other;
+    }
+
+    EdgeTupleObject *o = (EdgeTupleObject *)other;
+
+    if (Py_SIZE(o) == 0) {
+        Py_INCREF(self);
+        return (PyObject *)self;
+    }
+
+    assert((size_t)Py_SIZE(self) + (size_t)Py_SIZE(o) < PY_SSIZE_T_MAX);
+    size = Py_SIZE(self) + Py_SIZE(o);
+    if (size == 0) {
+        return EdgeTuple_New(0);
+    }
+
+    np = EdgeTuple_New(size);
+    if (np == NULL) {
+        return NULL;
+    }
+
+    src = self->ob_item;
+    dst = np->ob_item;
+    for (i = 0; i < Py_SIZE(self); i++) {
+        PyObject *v = src[i];
+        Py_INCREF(v);
+        dst[i] = v;
+    }
+
+    src = o->ob_item;
+    dst = np->ob_item + Py_SIZE(self);
+    for (i = 0; i < Py_SIZE(o); i++) {
+        PyObject *v = src[i];
+        Py_INCREF(v);
+        dst[i] = v;
+    }
+
+    return (PyObject *)np;
+}
 
 static PyObject *
 tuple_richcompare(EdgeTupleObject *v, PyObject *w, int op)
@@ -280,6 +338,7 @@ error:
 static PySequenceMethods tuple_as_sequence = {
     .sq_length = (lenfunc)tuple_length,
     .sq_item = (ssizeargfunc)tuple_getitem,
+    .sq_concat = (binaryfunc)tuple_concat,
 };
 
 static PyMappingMethods tuple_as_map = {
