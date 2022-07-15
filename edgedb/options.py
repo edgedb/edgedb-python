@@ -199,7 +199,10 @@ class State:
                 "but {} were given".format(len(args))
             )
         new_globals = self._globals.copy()
-        for k, v in (*(args[0] if args else {}).items(), *globals_.items()):
+        if args:
+            for k, v in args[0].items():
+                new_globals[self.resolve(k)] = v
+        for k, v in globals_.items():
             new_globals[self.resolve(k)] = v
         return self._new(
             default_module=self._module,
@@ -208,10 +211,8 @@ class State:
             globals_=new_globals,
         )
 
-    def without_module_aliases(
-        self, aliases: typing.Optional[typing.Iterable[str]] = None
-    ):
-        if aliases is None:
+    def without_module_aliases(self, *aliases):
+        if not aliases:
             new_aliases = {}
         else:
             new_aliases = self._aliases.copy()
@@ -224,10 +225,8 @@ class State:
             globals_=self._globals,
         )
 
-    def without_config(
-        self, config_names: typing.Optional[typing.Iterable[str]] = None
-    ):
-        if config_names is None:
+    def without_config(self, *config_names):
+        if not config_names:
             new_config = {}
         else:
             new_config = self._config.copy()
@@ -240,10 +239,8 @@ class State:
             globals_=self._globals,
         )
 
-    def without_globals(
-        self, global_names: typing.Optional[typing.Iterable[str]] = None
-    ):
-        if global_names is None:
+    def without_globals(self, *global_names):
+        if not global_names:
             new_globals = {}
         else:
             new_globals = self._globals.copy()
@@ -347,30 +344,24 @@ class _OptionsMixin:
         )
         return result
 
-    def without_module_aliases(
-        self, aliases: typing.Optional[typing.Iterable[str]] = None
-    ):
+    def without_module_aliases(self, *aliases):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.without_module_aliases(aliases)
+            self._options.state.without_module_aliases(*aliases)
         )
         return result
 
-    def without_config(
-        self, config_names: typing.Optional[typing.Iterable[str]] = None
-    ):
+    def without_config(self, *config_names):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.without_config(config_names)
+            self._options.state.without_config(*config_names)
         )
         return result
 
-    def without_globals(
-        self, global_names: typing.Optional[typing.Iterable[str]] = None
-    ):
+    def without_globals(self, *global_names):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.without_globals(global_names)
+            self._options.state.without_globals(*global_names)
         )
         return result
 

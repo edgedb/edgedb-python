@@ -41,7 +41,7 @@ class TestState(tb.TestCase):
         s1 = State.defaults().with_default_module("m")
         s2 = s1.with_module_aliases(x="a", m2="i")
         s3 = s2.with_module_aliases({"x": "b", "m3": "j"})
-        s4 = s3.without_module_aliases(["x", "m3"])
+        s4 = s3.without_module_aliases("x", "m3")
         s5 = s3.without_module_aliases()
 
         self.assertEqual(s1.as_dict(), {"module": "m"})
@@ -62,7 +62,7 @@ class TestState(tb.TestCase):
         s1 = State.defaults().with_default_module("m")
         s2 = s1.with_config(x="a", m2="i")
         s3 = s2.with_config({"x": "b", "m3": "j"})
-        s4 = s3.without_config(["x", "m3"])
+        s4 = s3.without_config("x", "m3")
         s5 = s3.without_config()
 
         self.assertDictEqual(s1.as_dict(), {"module": "m"})
@@ -85,7 +85,7 @@ class TestState(tb.TestCase):
         )
         s2 = s1.with_globals({"a::g2": "22"}, i=2)
         s3 = s2.with_globals({"i": 3, "b::g3": "33"})
-        s4 = s3.without_globals(["i", "y::g3"])
+        s4 = s3.without_globals("i", "y::g3")
         s5 = s3.without_globals()
 
         self.assertDictEqual(
@@ -116,7 +116,7 @@ class TestState(tb.TestCase):
         )
         self.assertDictEqual(
             s3.with_default_module("x")
-            .without_globals(["g2"])
+            .without_globals("g2")
             .without_module_aliases()
             .with_module_aliases(n="y")
             .with_default_module("y")
