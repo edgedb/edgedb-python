@@ -139,6 +139,9 @@ class BaseTransaction:
                 await self._privileged_execute(query)
             except BaseException:
                 self._state = TransactionState.FAILED
+                if extype is None:
+                    # COMMIT itself may fail; recover in connection
+                    await self._privileged_execute("ROLLBACK;")
                 raise
             else:
                 self._state = state

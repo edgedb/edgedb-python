@@ -82,3 +82,10 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
             async for tx in client.transaction():
                 async with tx:
                     pass
+
+    async def test_async_transaction_commit_failure(self):
+        with self.assertRaises(edgedb.errors.QueryError):
+            async for tx in self.client.transaction():
+                async with tx:
+                    await tx.execute("start migration to {};")
+        self.assertEqual(await self.client.query_single("select 42"), 42)
