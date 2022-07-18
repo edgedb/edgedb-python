@@ -90,3 +90,10 @@ class TestSyncTx(tb.SyncQueryTestCase):
             for tx in client.transaction():
                 with tx:
                     pass
+
+    def test_sync_transaction_commit_failure(self):
+        with self.assertRaises(edgedb.errors.QueryError):
+            for tx in self.client.transaction():
+                with tx:
+                    tx.execute("start migration to {};")
+        self.assertEqual(self.client.query_single("select 42"), 42)
