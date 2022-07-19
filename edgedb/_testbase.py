@@ -104,7 +104,7 @@ def _start_cluster(*, cleanup_atexit=True):
         if sys.platform == 'win32':
             help_args = ['wsl', '-u', 'edgedb'] + help_args
 
-        if "--generate-self-signed-cert" in subprocess.run(
+        supported_opts = subprocess.run(
             help_args,
             universal_newlines=True,
             stdout=subprocess.PIPE,
@@ -112,7 +112,11 @@ def _start_cluster(*, cleanup_atexit=True):
             encoding="utf-8",
             env=env,
             cwd=tmpdir.name,
-        ).stdout:
+        ).stdout
+
+        if "--tls-cert-mode" in supported_opts:
+            args.append("--tls-cert-mode=generate_self_signed")
+        elif "--generate-self-signed-cert" in supported_opts:
             args.append("--generate-self-signed-cert")
 
         if sys.platform == 'win32':
