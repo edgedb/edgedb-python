@@ -376,6 +376,9 @@ class TestBlockingClient(tb.SyncQueryTestCase):
             executor.query_single("SELECT 123")
         self.loop.call_soon_threadsafe(broken_evt.clear)
         self.assertEqual(executor.query_single("SELECT 123"), 123)
+        self.loop.call_soon_threadsafe(broken_evt.set)
+        self.loop.call_soon_threadsafe(broken_evt.clear)
+        self.assertEqual(executor.query_single("SELECT 123"), 123)
 
         tested = False
         for tx in executor.transaction():

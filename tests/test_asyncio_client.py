@@ -369,6 +369,9 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
             await executor.query_single("SELECT 123")
         broken_evt.clear()
         self.assertEqual(await executor.query_single("SELECT 123"), 123)
+        broken_evt.set()
+        broken_evt.clear()
+        self.assertEqual(await executor.query_single("SELECT 123"), 123)
 
         tested = False
         async for tx in executor.transaction():
