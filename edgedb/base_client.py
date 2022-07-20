@@ -217,10 +217,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
             required_one=query_context.query_options.required_one,
         )
         if self._protocol.is_legacy:
-            execute = self._protocol.legacy_execute_anonymous
             args["allow_capabilities"] = enums.Capability.LEGACY_EXECUTE
         else:
-            execute = self._protocol.query
             args["allow_capabilities"] = enums.Capability.EXECUTE
             if query_context.state is not None:
                 args["state"] = query_context.state.as_dict()
@@ -229,7 +227,12 @@ class BaseConnection(metaclass=abc.ABCMeta):
             try:
                 if reconnect:
                     await self.connect(single_attempt=True)
-                return await execute(**args)
+                if self._protocol.is_legacy:
+                    return await self._protocol.legacy_execute_anonymous(
+                        **args
+                    )
+                else:
+                    return await self._protocol.query(**args)
             except errors.EdgeDBError as e:
                 if query_context.retry_options is None:
                     raise
