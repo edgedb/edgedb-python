@@ -18,6 +18,7 @@
 
 
 from edgedb import _testbase as tb
+from edgedb import errors
 
 
 class TestGlobals(tb.AsyncQueryTestCase):
@@ -59,3 +60,23 @@ class TestGlobals(tb.AsyncQueryTestCase):
         async with db.with_globals(def_glob=None) as gdb:
             x = await gdb.query_single('select global def_glob')
             self.assertEqual(x, None)
+
+    async def test_client_state_mismatch(self):
+        db = self.client
+        if db.is_proto_lt_1_0:
+            self.skipTest("State over protocol is added in EdgeDB 2.0")
+
+        await db.execute('create global mglob -> int32')
+
+        c = self.make_test_client(database=self.get_database_name())
+        c = c.with_globals(mglob=42)
+        self.assertEqual(await c.query_single('select global mglob'), 42)
+
+        await db.execute('create global mglob2 -> str')
+        self.assertEqual(await c.query_single('select global mglob'), 42)
+
+        await db.execute('alter global mglob set type str reset to default')
+        with self.assertRaises(errors.InvalidArgumentError):
+            await c.query_single('select global mglob')
+
+        await c.aclose()

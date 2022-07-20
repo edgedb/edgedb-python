@@ -149,6 +149,7 @@ class ParameterTypeMismatchError(InputDataError):
 
 class StateMismatchError(InputDataError):
     _code = 0x_03_02_02_00
+    tags = frozenset({SHOULD_RETRY})
 
 
 class ResultCardinalityMismatchError(ProtocolError):
