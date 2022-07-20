@@ -777,6 +777,18 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
                     self.assertEqual(result, outputval, err_msg)
 
+    async def test_async_range_02(self):
+        has_range = await self.client.query(
+            "select schema::ObjectType filter .name = 'schema::Range'")
+        if not has_range:
+            raise unittest.SkipTest("server has no support for std::range")
+
+        result = await self.client.query_single(
+            "SELECT <array<range<int32>>>$0",
+            [edgedb.Range(1, 2)]
+        )
+        self.assertEqual([edgedb.Range(1, 2)], result)
+
     async def test_async_wait_cancel_01(self):
         underscored_lock = await self.client.query_single("""
             SELECT EXISTS(
