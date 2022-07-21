@@ -114,46 +114,141 @@ class State:
 
     def __init__(
         self,
-        module: typing.Optional[str] = None,
-        aliases: typing.Mapping[str, str] = None,
+        default_module: typing.Optional[str] = None,
+        module_aliases: typing.Mapping[str, str] = None,
         config: typing.Mapping[str, typing.Any] = None,
         globals_: typing.Mapping[str, typing.Any] = None,
     ):
-        self._module = module
-        self._aliases = {} if aliases is None else dict(aliases)
+        self._module = default_module
+        self._aliases = {} if module_aliases is None else dict(module_aliases)
         self._config = {} if config is None else dict(config)
-        self._globals = {} if globals_ is None else dict(globals_)
+        self._globals = (
+            {} if globals_ is None else self.with_globals(globals_)._globals
+        )
+
+    @classmethod
+    def _new(cls, default_module, module_aliases, config, globals_):
+        rv = cls.__new__(cls)
+        rv._module = default_module
+        rv._aliases = module_aliases
+        rv._config = config
+        rv._globals = globals_
+        return rv
 
     @classmethod
     def defaults(cls):
         return cls()
 
-    def with_module_aliases(self, module=..., **aliases):
-        new_aliases = self._aliases.copy()
-        new_aliases.update(aliases)
-        return State(
-            module=self._module if module is ... else module,
-            aliases=new_aliases,
+    def with_default_module(self, module: typing.Optional[str] = None):
+        return self._new(
+            default_module=module,
+            module_aliases=self._aliases,
             config=self._config,
             globals_=self._globals,
         )
 
-    def with_config(self, **config):
+    def with_module_aliases(self, *args, **aliases):
+        if len(args) > 1:
+            raise errors.InvalidArgumentError(
+                "with_module_aliases() takes from 0 to 1 positional arguments "
+                "but {} were given".format(len(args))
+            )
+        aliases_dict = args[0] if args else {}
+        aliases_dict.update(aliases)
+        new_aliases = self._aliases.copy()
+        new_aliases.update(aliases_dict)
+        return self._new(
+            default_module=self._module,
+            module_aliases=new_aliases,
+            config=self._config,
+            globals_=self._globals,
+        )
+
+    def with_config(self, *args, **config):
+        if len(args) > 1:
+            raise errors.InvalidArgumentError(
+                "with_config() takes from 0 to 1 positional arguments "
+                "but {} were given".format(len(args))
+            )
+        config_dict = args[0] if args else {}
+        config_dict.update(config)
         new_config = self._config.copy()
-        new_config.update(config)
-        return State(
-            module=self._module,
-            aliases=self._aliases,
+        new_config.update(config_dict)
+        return self._new(
+            default_module=self._module,
+            module_aliases=self._aliases,
             config=new_config,
             globals_=self._globals,
         )
 
-    def with_globals(self, **globals_):
+    def resolve(self, name: str) -> str:
+        parts = name.split("::")
+        if len(parts) == 1:
+            return f"{self._module or 'default'}::{name}"
+        elif len(parts) == 2:
+            mod, name = parts
+            mod = self._aliases.get(mod, mod)
+            return f"{mod}::{name}"
+        else:
+            raise errors.InvalidArgumentError(f"Illegal name: {name}")
+
+    def with_globals(self, *args, **globals_):
+        if len(args) > 1:
+            raise errors.InvalidArgumentError(
+                "with_globals() takes from 0 to 1 positional arguments "
+                "but {} were given".format(len(args))
+            )
         new_globals = self._globals.copy()
-        new_globals.update(globals_)
-        return State(
-            module=self._module,
-            aliases=self._aliases,
+        if args:
+            for k, v in args[0].items():
+                new_globals[self.resolve(k)] = v
+        for k, v in globals_.items():
+            new_globals[self.resolve(k)] = v
+        return self._new(
+            default_module=self._module,
+            module_aliases=self._aliases,
+            config=self._config,
+            globals_=new_globals,
+        )
+
+    def without_module_aliases(self, *aliases):
+        if not aliases:
+            new_aliases = {}
+        else:
+            new_aliases = self._aliases.copy()
+            for alias in aliases:
+                new_aliases.pop(alias, None)
+        return self._new(
+            default_module=self._module,
+            module_aliases=new_aliases,
+            config=self._config,
+            globals_=self._globals,
+        )
+
+    def without_config(self, *config_names):
+        if not config_names:
+            new_config = {}
+        else:
+            new_config = self._config.copy()
+            for name in config_names:
+                new_config.pop(name, None)
+        return self._new(
+            default_module=self._module,
+            module_aliases=self._aliases,
+            config=new_config,
+            globals_=self._globals,
+        )
+
+    def without_globals(self, *global_names):
+        if not global_names:
+            new_globals = {}
+        else:
+            new_globals = self._globals.copy()
+            for name in global_names:
+                new_globals.pop(self.resolve(name), None)
+        return self._new(
+            default_module=self._module,
+            module_aliases=self._aliases,
             config=self._config,
             globals_=new_globals,
         )
@@ -161,27 +256,13 @@ class State:
     def as_dict(self):
         rv = {}
         if self._module is not None:
-            module = rv["module"] = self._module
-        else:
-            module = 'default'
+            rv["module"] = self._module
         if self._aliases:
             rv["aliases"] = list(self._aliases.items())
         if self._config:
             rv["config"] = self._config
         if self._globals:
-            rv["globals"] = g = {}
-            for k, v in self._globals.items():
-                parts = k.split("::")
-                if len(parts) == 1:
-                    g[f"{module}::{k}"] = v
-                elif len(parts) == 2:
-                    mod, glob = parts
-                    mod = self._aliases.get(mod, mod)
-                    g[f"{mod}::{glob}"] = v
-                else:
-                    raise errors.InvalidArgumentError(
-                        f"Illegal global name: {k}"
-                    )
+            rv["globals"] = self._globals
         return rv
 
 
@@ -206,7 +287,7 @@ class _OptionsMixin:
         Both ``self`` and returned object can be used after, but when using
         them transaction options applied will be different.
 
-        Transaction options are are used by the ``transaction`` method.
+        Transaction options are used by the ``transaction`` method.
         """
         result = self._shallow_clone()
         result._options = self._options.with_transaction_options(options)
@@ -223,7 +304,7 @@ class _OptionsMixin:
         with modified retry options.
 
         Both ``self`` and returned object can be used after, but when using
-        them transaction options applied will be different.
+        them retry options applied will be different.
         """
 
         result = self._shallow_clone()
@@ -235,24 +316,52 @@ class _OptionsMixin:
         result._options = self._options.with_state(state)
         return result
 
-    def with_module_aliases(self, module=None, **aliases):
+    def with_default_module(self, module: typing.Optional[str] = None):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.with_module_aliases(module=module, **aliases)
+            self._options.state.with_default_module(module)
         )
         return result
 
-    def with_config(self, **config):
+    def with_module_aliases(self, *args, **aliases):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.with_config(**config)
+            self._options.state.with_module_aliases(*args, **aliases)
         )
         return result
 
-    def with_globals(self, **globals_):
+    def with_config(self, *args, **config):
         result = self._shallow_clone()
         result._options = self._options.with_state(
-            self._options.state.with_globals(**globals_)
+            self._options.state.with_config(*args, **config)
+        )
+        return result
+
+    def with_globals(self, *args, **globals_):
+        result = self._shallow_clone()
+        result._options = self._options.with_state(
+            self._options.state.with_globals(*args, **globals_)
+        )
+        return result
+
+    def without_module_aliases(self, *aliases):
+        result = self._shallow_clone()
+        result._options = self._options.with_state(
+            self._options.state.without_module_aliases(*aliases)
+        )
+        return result
+
+    def without_config(self, *config_names):
+        result = self._shallow_clone()
+        result._options = self._options.with_state(
+            self._options.state.without_config(*config_names)
+        )
+        return result
+
+    def without_globals(self, *global_names):
+        result = self._shallow_clone()
+        result._options = self._options.with_state(
+            self._options.state.without_globals(*global_names)
         )
         return result
 

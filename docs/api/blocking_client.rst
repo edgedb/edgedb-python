@@ -379,32 +379,113 @@ Client
 
     .. py:method:: with_transaction_options(options=None)
 
-        Returns object with adjusted options for future transactions.
+        Returns a shallow copy of the client with adjusted transaction options.
 
         :param TransactionOptions options:
             Object that encapsulates transaction options.
 
-        This method returns a "shallow copy" of the current object
-        with modified transaction options.
-
-        Both ``self`` and returned object can be used after, but when using
-        them transaction options applied will be different.
-
-        Transaction options are used by the
-        :py:meth:`~edgedb.Client.transaction` method.
+        See :ref:`edgedb-python-transaction-options` for details.
 
     .. py:method:: with_retry_options(options=None)
 
-        Returns object with adjusted options for future retrying
-        transactions.
+        Returns a shallow copy of the client with adjusted retry options.
 
         :param RetryOptions options: Object that encapsulates retry options.
 
-        This method returns a "shallow copy" of the current object
-        with modified retry options.
+        See :ref:`edgedb-python-retry-options` for details.
 
-        Both ``self`` and returned object can be used after, but when using
-        them transaction options applied will be different.
+    .. py:method:: with_state(state)
+
+        Returns a shallow copy of the client with adjusted state.
+
+        :param State state: Object that encapsulates state.
+
+        See :ref:`edgedb-python-state` for details.
+
+    .. py:method:: with_default_module(module=None)
+
+        Returns a shallow copy of the client with adjusted default module.
+
+        This is equivalent to using the ``set module`` command, or using the
+        ``reset module`` command when giving ``None``.
+
+        :type module: str or None
+        :param module: Adjust the *default module*.
+
+        See :py:meth:`State.with_default_module` for details.
+
+    .. py:method:: with_module_aliases(aliases_dict=None, /, **aliases)
+
+        Returns a shallow copy of the client with adjusted module aliases.
+
+        This is equivalent to using the ``set alias`` command.
+
+        :type aliases_dict: dict[str, str] or None
+        :param aliases_dict: This is an optional positional-only argument.
+
+        :param dict[str, str] aliases:
+            Adjust the module aliases after applying ``aliases_dict`` if set.
+
+        See :py:meth:`State.with_module_aliases` for details.
+
+    .. py:method:: without_module_aliases(*aliases)
+
+        Returns a shallow copy of the client without specified module aliases.
+
+        This is equivalent to using the ``reset alias`` command.
+
+        :param tuple[str] aliases: Module aliases to reset.
+
+        See :py:meth:`State.without_module_aliases` for details.
+
+    .. py:method:: with_config(config_dict=None, /, **config)
+
+        Returns a shallow copy of the client with adjusted session config.
+
+        This is equivalent to using the ``configure session set`` command.
+
+        :type config_dict: dict[str, object] or None
+        :param config_dict: This is an optional positional-only argument.
+
+        :param dict[str, object] config:
+            Adjust the config settings after applying ``config_dict`` if set.
+
+        See :py:meth:`State.with_config` for details.
+
+    .. py:method:: without_config(*config_names)
+
+        Returns a shallow copy of the client without specified session config.
+
+        This is equivalent to using the ``configure session reset`` command.
+
+        :param tuple[str] config_names: Config to reset.
+
+        See :py:meth:`State.without_config` for details.
+
+    .. py:method:: with_globals(globals_dict=None, /, **globals_)
+
+        Returns a shallow copy of the client with adjusted global values.
+
+        This is equivalent to using the ``set global`` command.
+
+        :type globals_dict: dict[str, object] or None
+        :param globals_dict: This is an optional positional-only argument.
+
+        :param dict[str, object] globals_:
+            Adjust the global values after applying ``globals_dict`` if set.
+
+        See :py:meth:`State.with_globals` for details.
+
+    .. py:method:: without_globals(*global_names)
+
+        Returns a shallow copy of the client without specified globals.
+
+        This is equivalent to using the ``reset global`` command.
+
+        :param tuple[str] global_names: Globals to reset.
+
+        See :py:meth:`State.without_globals` for details.
+
 
 .. _edgedb-python-blocking-api-transaction:
 
@@ -501,7 +582,7 @@ See also:
 
     Represents a transaction.
 
-    Instances of this type are yielded by a :py:class`Retry` iterator.
+    Instances of this type are yielded by a :py:class:`Retry` iterator.
 
     .. describe:: with c:
 
@@ -595,55 +676,5 @@ See also:
         Yields :py:class:`Transaction` object every time transaction has to
         be repeated.
 
-.. py:class:: RetryOptions(attempts, backoff=default_backoff)
-
-    An immutable class that contains rules for :py:meth:`Client.transaction()`
-
-    :param int attempts: the default number of attempts
-    :param Callable[[int], Union[float, int]] backoff: the default backoff function
-
-    .. py:method:: with_rule(condition, attempts=None, backoff=None)
-
-        Adds a backoff rule for a particular condition
-
-        :param RetryCondition condition: condition that will trigger this rule
-        :param int attempts: number of times to retry
-        :param Callable[[int], Union[float, int]] backoff:
-          function taking the current attempt number and returning the number
-          of seconds to wait before the next attempt
-
-    .. py:method:: defaults()
-        :classmethod:
-
-        Returns the default :py:class:`RetryOptions`.
-
-.. py:class:: RetryCondition
-
-    Specific condition to retry on for fine-grained control
-
-    .. py:attribute:: TransactionConflict
-
-        Triggered when a TransactionConflictError occurs.
-
-    .. py:attribute:: NetworkError
-
-        Triggered when a ClientError occurs.
-
-.. py:class:: TransactionOptions(isolation=IsolationLevel.Serializable, readonly=False, deferrable=False)
-
-    Options for :py:meth:`Client.transaction()`
-
-    :param IsolationLevel isolation: transaction isolation level
-    :param bool readonly: if true the transaction will be readonly
-    :param bool deferrable: if true the transaction will be deferrable
-
-
-.. py:class:: IsolationLevel
-
-    Isolation level for transaction
-
-    .. py:attribute:: Serializable
-
-        Serializable isolation level
 
 .. _RFC1004: https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst
