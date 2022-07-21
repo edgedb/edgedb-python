@@ -402,43 +402,89 @@ Client
 
         See :ref:`edgedb-python-state` for details.
 
-    .. py:method:: with_module_aliases(module=..., **aliases)
+    .. py:method:: with_default_module(module=None)
 
-        Returns a shallow copy of the client with adjusted default module and/or
-        module aliases.
+        Returns a shallow copy of the client with adjusted default module.
+
+        This is equivalent to using the ``set module`` command, or using the
+        ``reset module`` command when giving ``None``.
 
         :type module: str or None
-        :param module:
-            Adjust the *default module*. If ``module`` is not set, the default
-            behavior is not to adjust the *default module* in the copy.
+        :param module: Adjust the *default module*.
 
-            This is equivalent to using the ``set module`` command.
+        See :py:meth:`State.with_default_module` for details.
+
+    .. py:method:: with_module_aliases(aliases_dict=None, /, **aliases)
+
+        Returns a shallow copy of the client with adjusted module aliases.
+
+        This is equivalent to using the ``set alias`` command.
+
+        :type aliases_dict: dict[str, str] or None
+        :param aliases_dict: This is an optional positional-only argument.
 
         :param dict[str, str] aliases:
-            Adjust the module aliases by merging with the given alias -> target
-            module mapping.
+            Adjust the module aliases after applying ``aliases_dict`` if set.
 
-            This is equivalent to using the ``set alias`` command.
+        See :py:meth:`State.with_module_aliases` for details.
 
-    .. py:method:: with_config(**config)
+    .. py:method:: without_module_aliases(*aliases)
+
+        Returns a shallow copy of the client without specified module aliases.
+
+        This is equivalent to using the ``reset alias`` command.
+
+        :param tuple[str] aliases: Module aliases to reset.
+
+        See :py:meth:`State.without_module_aliases` for details.
+
+    .. py:method:: with_config(config_dict=None, /, **config)
 
         Returns a shallow copy of the client with adjusted session config.
 
-        This is equivalent to using the ``configure session`` command.
+        This is equivalent to using the ``configure session set`` command.
+
+        :type config_dict: dict[str, object] or None
+        :param config: This is an optional positional-only argument.
 
         :param dict[str, object] config:
-            Adjust the config settings by merging with the given config name ->
-            config value mapping.
+            Adjust the config settings after applying ``config_dict`` if set.
 
-    .. py:method:: with_globals(**globals_)
+        See :py:meth:`State.with_config` for details.
+
+    .. py:method:: without_config(*config_names)
+
+        Returns a shallow copy of the client without specified session config.
+
+        This is equivalent to using the ``configure session reset`` command.
+
+        :param tuple[str] config_names: Config to reset.
+
+        See :py:meth:`State.without_config` for details.
+
+    .. py:method:: with_globals(globals_dict=None, /, **globals_)
 
         Returns a shallow copy of the client with adjusted global values.
 
         This is equivalent to using the ``set global`` command.
 
+        :type globals_dict: dict[str, object] or None
+        :param globals_dict: This is an optional positional-only argument.
+
         :param dict[str, object] globals_:
-            Adjust the global values by merging with the given global name ->
-            global value mapping.
+            Adjust the global values after applying ``globals_dict`` if set.
+
+        See :py:meth:`State.with_globals` for details.
+
+    .. py:method:: without_globals(*global_names)
+
+        Returns a shallow copy of the client without specified globals.
+
+        This is equivalent to using the ``reset global`` command.
+
+        :param tuple[str] global_names: Globals to reset.
+
+        See :py:meth:`State.without_globals` for details.
 
 
 .. _edgedb-python-blocking-api-transaction:
