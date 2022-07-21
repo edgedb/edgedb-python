@@ -129,19 +129,22 @@ different ways: default module, module aliases, session config and global values
     :param dict[str, object] globals_:
         Global values mapping of global name -> global value.
 
-        Note, the global name can be either a qualified name like
-        ``my_mod::glob2``, or a simple name under the default module. Simple
-        names will be prefixed with the default module, while module aliases in
-        qualified names - if any - will be resolved into actual module names.
+        .. note::
+            The global name can be either a qualified name like
+            ``my_mod::glob2``, or a simple name under the default module.
+            Simple names will be prefixed with the default module, while module
+            aliases in qualified names - if any - will be resolved into actual
+            module names.
 
     .. py:method:: with_default_module(module=None)
 
-        Returns a new :py:class`State` copy with adjusted default module.
+        Returns a new :py:class:`State` copy with adjusted default module.
 
-        Note, this will not affect the globals that are already stored in this
-        state using simple names, because their names were resolved before this
-        call to ``with_default_module()``, which affects only the future calls
-        to the ``with_globals()`` method.
+        .. note::
+            This will not affect the globals that are already stored in this
+            state using simple names, because their names were resolved before
+            this call to ``with_default_module()``, which affects only the
+            future calls to the :py:meth:`with_globals` method.
 
         This is equivalent to using the ``set module`` command, or using the
         ``reset module`` command when giving ``None``.
@@ -153,12 +156,13 @@ different ways: default module, module aliases, session config and global values
 
     .. py:method:: with_module_aliases(aliases_dict=None, /, **aliases)
 
-        Returns a new :py:class`State` copy with adjusted module aliases.
+        Returns a new :py:class:`State` copy with adjusted module aliases.
 
-        Note, this will not affect the globals that are already stored in this
-        state using module aliases, because their names were resolved before
-        this call to ``with_module_aliases()``, which affects only the future
-        calls to the ``with_globals()`` method.
+        .. note::
+            This will not affect the globals that are already stored in this
+            state using module aliases, because their names were resolved
+            before this call to ``with_module_aliases()``, which affects only
+            the future calls to the :py:meth:`with_globals` method.
 
         This is equivalent to using the ``set alias`` command.
 
@@ -173,12 +177,13 @@ different ways: default module, module aliases, session config and global values
 
     .. py:method:: without_module_aliases(*aliases)
 
-        Returns a new :py:class`State` copy without specified module aliases.
+        Returns a new :py:class:`State` copy without specified module aliases.
 
-        Note, this will not affect the globals that are already stored in this
-        state using module aliases, because their names were resolved before
-        this call to ``without_module_aliases()``, which affects only the
-        future calls to the ``with_globals()`` method.
+        .. note::
+            This will not affect the globals that are already stored in this
+            state using module aliases, because their names were resolved
+            before this call to ``without_module_aliases()``, which affects
+            only the future calls to the :py:meth:`with_globals` method.
 
         This is equivalent to using the ``reset alias`` command.
 
@@ -195,7 +200,7 @@ different ways: default module, module aliases, session config and global values
         This is equivalent to using the ``configure session set`` command.
 
         :type config_dict: dict[str, object] or None
-        :param config:
+        :param config_dict:
             Adjust the config settings by merging with the given config name ->
             config value mapping. This is an optional positional-only argument.
 
@@ -219,9 +224,10 @@ different ways: default module, module aliases, session config and global values
 
         Returns a new :py:class:`State` copy with adjusted global values.
 
-        Note, the globals are stored with their names resolved into the actual
-        fully-qualified names using the current default module and module
-        aliases set on this state.
+        .. note::
+            The globals are stored with their names resolved into the actual
+            fully-qualified names using the current default module and module
+            aliases set on this state.
 
         This is equivalent to using the ``set global`` command.
 

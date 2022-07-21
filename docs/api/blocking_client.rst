@@ -445,7 +445,7 @@ Client
         This is equivalent to using the ``configure session set`` command.
 
         :type config_dict: dict[str, object] or None
-        :param config: This is an optional positional-only argument.
+        :param config_dict: This is an optional positional-only argument.
 
         :param dict[str, object] config:
             Adjust the config settings after applying ``config_dict`` if set.
@@ -582,7 +582,7 @@ See also:
 
     Represents a transaction.
 
-    Instances of this type are yielded by a :py:class`Retry` iterator.
+    Instances of this type are yielded by a :py:class:`Retry` iterator.
 
     .. describe:: with c:
 
