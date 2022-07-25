@@ -47,26 +47,29 @@ TEMPORARY_ERROR_CODES = frozenset({
     errno.ENOENT,
 })
 
-ISO_DURATION_RE = re.compile(
-    r'^PT' +
-    r'(?:(?P<hours>\d*\.?\d*)H)?' +
-    r'(?:(?P<minutes>\d*\.?\d*)M)?' +
-    r'(?:(?P<seconds>\d*\.?\d*)S)?$'
+ISO_SECONDS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)S')
+ISO_MINUTES_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)M')
+ISO_HOURS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)H')
+ISO_UNITLESS_HOURS_RE = re.compile(r'^(-?\d+|-?\d+\.\d*|-?\d*\.\d+)$')
+ISO_DAYS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)D')
+ISO_WEEKS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)W')
+ISO_MONTHS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)M')
+ISO_YEARS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)Y')
+
+HUMAN_HOURS_RE = re.compile(
+    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:h(\s|\d|\.|$)|hours?(\s|$))',
 )
-HUMAN_DURATION_HOUR_RE = re.compile(
-    r'(?P<number>\d+|\d+\.\d+|\.\d+)\s*(?:h|hours?)(?P<tail>\s|$|\d)'
+HUMAN_MINUTES_RE = re.compile(
+    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:m(\s|\d|\.|$)|minutes?(\s|$))',
 )
-HUMAN_DURATION_MINTUE_RE = re.compile(
-    r'(?P<number>\d+|\d+\.\d+|\.\d+)\s*(?:m|minutes?)(?P<tail>\s|$|\d)'
+HUMAN_SECONDS_RE = re.compile(
+    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:s(\s|\d|\.|$)|seconds?(\s|$))',
 )
-HUMAN_DURATION_SECOND_RE = re.compile(
-    r'(?P<number>\d+|\d+\.\d+|\.\d+)\s*(?:s|seconds?)(?P<tail>\s|$|\d)'
+HUMAN_MS_RE = re.compile(
+    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:ms(\s|\d|\.|$)|milliseconds?(\s|$))',
 )
-HUMAN_DURATION_MS_RE = re.compile(
-    r'(?P<number>\d+|\d+\.\d+|\.\d+)\s*(?:ms|milliseconds?)(?P<tail>\s|$|\d)'
-)
-HUMAN_DURATION_US_RE = re.compile(
-    r'(?P<number>\d+|\d+\.\d+|\.\d+)\s*(?:us|microseconds?)(?P<tail>\s|$|\d)'
+HUMAN_US_RE = re.compile(
+    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:us(\s|\d|\.|$)|microseconds?(\s|$))',
 )
 
 
@@ -366,61 +369,93 @@ def _validate_user(user):
     return user
 
 
-def _parse_iso_duration(string: str):
-    match = ISO_DURATION_RE.match(string)
-    if match is None:
-        raise ValueError(f"invalid duration {string!r}")
-
-    return (
-        3600 * float(match.group('hours') or '0') +
-        60 * float(match.group('minutes') or '0') +
-        float(match.group('seconds') or '0')
-    )
-
-
-def _parse_human_duration_unit(re, string):
-    number = None
-    match = re.search(string)
+def _pop_iso_unit(rgex: re.Pattern, string: str) -> typing.Tuple[float, str]:
+    s = string
+    total = 0
+    match = rgex.search(string)
     if match:
-        number = match.group('number')
-        string = string.replace(match.group(0), match.group('tail'), 1)
+        total += float(match.group(1))
+        s = s.replace(match.group(0), "", 1)
 
-    return number, string
+    return (total, s)
 
 
-def _parse_human_duration(string: str):
-    hour, remaining = _parse_human_duration_unit(
-        HUMAN_DURATION_HOUR_RE, string)
-    minute, remaining = _parse_human_duration_unit(
-        HUMAN_DURATION_MINTUE_RE, remaining)
-    second, remaining = _parse_human_duration_unit(
-        HUMAN_DURATION_SECOND_RE, remaining)
-    ms, remaining = _parse_human_duration_unit(HUMAN_DURATION_MS_RE, remaining)
-    us, remaining = _parse_human_duration_unit(HUMAN_DURATION_US_RE, remaining)
-
-    if remaining.strip() != '':
-        raise ValueError(f'invalid duration {remaining!r}')
-
-    no_value = (
-        hour is None and
-        minute is None and
-        second is None and
-        ms is None and
-        us is None
-    )
-    if no_value:
+def _parse_iso_duration(string: str) -> typing.Union[float, int]:
+    if not string.startswith("PT"):
         raise ValueError(f"invalid duration {string!r}")
 
-    return (
-        3600 * float(hour or '0') +
-        60 * float(minute or '0') +
-        float(second or '0') +
-        0.001 * float(ms or '0') +
-        0.000001 * float(us or '0')
-    )
+    time = string[2:]
+    match = ISO_UNITLESS_HOURS_RE.search(time)
+    if match:
+        hours = float(match.group(0))
+        return 3600 * hours
+
+    hours, time = _pop_iso_unit(ISO_HOURS_RE, time)
+    minutes, time = _pop_iso_unit(ISO_MINUTES_RE, time)
+    seconds, time = _pop_iso_unit(ISO_SECONDS_RE, time)
+
+    if time:
+        raise ValueError(f'invalid duration {string!r}')
+
+    return 3600 * hours + 60 * minutes + seconds
 
 
-def _parse_duration_str(string: str):
+def _remove_white_space(s: str) -> str:
+    return ''.join(c for c in s if not c.isspace())
+
+
+def _pop_human_duration_unit(
+    rgex: re.Pattern,
+    string: str,
+) -> typing.Tuple[float, bool, str]:
+    match = rgex.search(string)
+    if not match:
+        return 0, False, string
+
+    number = 0
+    if match.group(1):
+        literal = _remove_white_space(match.group(1))
+        if literal.endswith('.'):
+            return 0, False, string
+
+        if literal.startswith('-.'):
+            return 0, False, string
+
+        number = float(literal)
+        string = string.replace(
+            match.group(0),
+            match.group(2) or match.group(3) or "",
+            1,
+        )
+
+    return number, True, string
+
+
+def _parse_human_duration(string: str) -> float:
+    found = False
+
+    hour, f, s = _pop_human_duration_unit(HUMAN_HOURS_RE, string)
+    found |= f
+
+    minute, f, s = _pop_human_duration_unit(HUMAN_MINUTES_RE, s)
+    found |= f
+
+    second, f, s = _pop_human_duration_unit(HUMAN_SECONDS_RE, s)
+    found |= f
+
+    ms, f, s = _pop_human_duration_unit(HUMAN_MS_RE, s)
+    found |= f
+
+    us, f, s = _pop_human_duration_unit(HUMAN_US_RE, s)
+    found |= f
+
+    if s.strip() or not found:
+        raise ValueError(f'invalid duration {string!r}')
+
+    return 3600 * hour + 60 * minute + second + 0.001 * ms + 0.000001 * us
+
+
+def _parse_duration_str(string: str) -> float:
     if string.startswith('PT'):
         return _parse_iso_duration(string)
     return _parse_human_duration(string)
