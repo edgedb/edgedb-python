@@ -33,7 +33,6 @@ EDGE_SETUP_FREELIST(
     (((EdgeTupleObject *)(op))->ob_item[i])
 #define EdgeTuple_SET_ITEM(op, i, v) \
     (((EdgeTupleObject *)(op))->ob_item[i] = v)
-#define EdgeTuple_CheckExact(op) Py_IS_TYPE((op), &EdgeTuple_Type)
 
 
 static int init_type_called = 0;
@@ -234,7 +233,7 @@ tuple_concat(EdgeTupleObject *self, PyObject *other) {
     PyObject **src, **dst;
     EdgeTupleObject *np;
 
-    if (!EdgeTuple_CheckExact(other)) {
+    if (Py_TYPE(other) != &EdgeTuple_Type) {
         PyErr_Format(
             PyExc_TypeError,
             "can only concatenate edgedb.Tuple (not \"%.200s\") to edgedb.Tuple",
