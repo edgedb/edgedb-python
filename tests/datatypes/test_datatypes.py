@@ -446,13 +446,19 @@ class TestObject(unittest.TestCase):
         )
 
         o1 = f(1, 'aa', 'ba')
-        o2 = f(1, 'ab', 'bb')
-        o3 = f(3, 'ac', 'bc')
+        o2 = f(1, 'aa', 'ba')
+        o3 = f(1, 'ac', 'bc')
+        o4 = f(3, 'aa', 'ba')
 
         self.assertEqual(o1, o2)
+        self.assertEqual(hash(o1), hash(o2))
+
         self.assertNotEqual(o1, o3)
         self.assertLess(o1, o3)
         self.assertGreater(o3, o2)
+
+        self.assertNotEqual(o1, o4)
+        self.assertLess(o1, o4)
 
     def test_object_5(self):
         f = private.create_object_factory(
@@ -660,8 +666,8 @@ class TestSet(unittest.TestCase):
         )
 
         o1 = f(1, 'aa', edgedb.Set([1, 2, 3]))
-        o2 = f(1, 'ab', edgedb.Set([1, 2, 4]))
-        o3 = f(3, 'ac', edgedb.Set([5, 5, 5, 5]))
+        o2 = f(1, 'aa', edgedb.Set([1, 2, 3]))
+        o3 = f(3, 'ab', edgedb.Set([5, 5, 5, 5]))
 
         self.assertEqual(
             edgedb.Set([o1, o2, o3]),

@@ -265,26 +265,10 @@ object_richcompare(EdgeObject *v, EdgeObject *w, int op)
         Py_RETURN_NOTIMPLEMENTED;
     }
 
-    Py_ssize_t v_id_pos = EdgeRecordDesc_IDPos(v->desc);
-    Py_ssize_t w_id_pos = EdgeRecordDesc_IDPos(w->desc);
-
-    if (v_id_pos < 0 || w_id_pos < 0 ||
-        v_id_pos >= Py_SIZE(v) || w_id_pos >= Py_SIZE(w))
-    {
-        PyErr_SetString(
-            PyExc_TypeError, "invalid object ID field offset");
-        return NULL;
-    }
-
-    PyObject *v_id = EdgeObject_GET_ITEM(v, v_id_pos);
-    PyObject *w_id = EdgeObject_GET_ITEM(w, w_id_pos);
-
-    Py_INCREF(v_id);
-    Py_INCREF(w_id);
-    PyObject *ret = PyObject_RichCompare(v_id, w_id, op);
-    Py_DECREF(v_id);
-    Py_DECREF(w_id);
-    return ret;
+    return _EdgeGeneric_RichCompareValues(
+        v->ob_item, Py_SIZE(v),
+        w->ob_item, Py_SIZE(w),
+        op);
 }
 
 
