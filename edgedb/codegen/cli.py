@@ -18,9 +18,40 @@
 
 
 import argparse
+import pathlib
+
+from . import generator
+
+
+parser = argparse.ArgumentParser(
+    description="Generate Python code for .edgeql files."
+)
+parser.add_argument(
+    "file_or_dir",
+    metavar="PATH",
+    nargs="?",
+    type=pathlib.Path,
+    help=(
+        "Path to an .edgeql file, or a directory that contains .edgeql "
+        "files (subdirectories included). Default: current directory"
+    ),
+)
+parser.add_argument(
+    "-f",
+    "--force",
+    action="store_true",
+    help="Force generate all .edgeql files, ignore timestamps",
+)
 
 
 def main():
-    parser = argparse.ArgumentParser()
     args = parser.parse_args()
-    print(args)
+    with generator.Generator(args) as gen:
+        if args.file_or_dir is None:
+            gen.generate_dir(pathlib.Path.cwd())
+        else:
+            file_or_dir = args.file_or_dir.resolve()
+            if file_or_dir.is_dir():
+                gen.generate_dir(file_or_dir)
+            else:
+                gen.generate_file(file_or_dir)
