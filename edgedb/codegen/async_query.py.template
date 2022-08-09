@@ -1,0 +1,11 @@
+import edgedb
+
+
+async def query(client: edgedb.AsyncIOClient, *args, **kwargs):
+    return await client.query(
+        """\
+        {content}\
+        """,
+        *args,
+        **kwargs,
+    )

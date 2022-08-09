@@ -2,4 +2,6 @@ recursive-include docs *.py *.rst
 recursive-include examples *.py
 recursive-include tests *.py *.pem *.json
 recursive-include edgedb *.pyx *.pxd *.pxi *.py *.c *.h py.typed
+include edgedb/codegen/query.py.template
+include edgedb/codegen/async_query.py.template
 include LICENSE README.rst Makefile

@@ -37,6 +37,12 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--async",
+    dest="asyncio",
+    action="store_true",
+    help="Generate async code instead",
+)
+parser.add_argument(
     "-f",
     "--force",
     action="store_true",

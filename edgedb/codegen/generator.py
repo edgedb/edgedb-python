@@ -19,6 +19,7 @@
 import argparse
 import pathlib
 import sys
+import textwrap
 
 import edgedb
 
@@ -27,6 +28,10 @@ class Generator:
     def __init__(self, args: argparse.Namespace):
         self._force = args.force
         self._client = edgedb.create_client()
+        with pathlib.Path(__file__).with_name(
+            "async_query.py.template" if args.asyncio else "query.py.template"
+        ).open() as f:
+            self._template = f.read()
 
     def __enter__(self):
         self._client.ensure_connected()
@@ -55,6 +60,6 @@ class Generator:
             return
         print(f"Generating {target}", file=sys.stderr)
         with source.open() as f:
-            content = f.read()
+            content = textwrap.indent(f.read().strip(), " " * 8).lstrip()
         with target.open("w") as f:
-            f.write(content)
+            f.write(self._template.format(content=content))
