@@ -30,6 +30,7 @@ record_desc_dealloc(EdgeRecordDescObject *o)
     PyObject_GC_UnTrack(o);
     Py_CLEAR(o->index);
     Py_CLEAR(o->names);
+    Py_CLEAR(o->get_dataclass_fields);
     PyMem_RawFree(o->descs);
     PyObject_GC_Del(o);
 }
@@ -177,12 +178,23 @@ record_desc_dir(EdgeRecordDescObject *o, PyObject *args)
 }
 
 
+static PyObject *
+record_set_dataclass_fields_func(EdgeRecordDescObject *o, PyObject *arg)
+{
+    o->get_dataclass_fields = arg;
+    Py_INCREF(arg);
+    Py_RETURN_NONE;
+}
+
+
 static PyMethodDef record_desc_methods[] = {
     {"is_linkprop", (PyCFunction)record_desc_is_linkprop, METH_O, NULL},
     {"is_link", (PyCFunction)record_desc_is_link, METH_O, NULL},
     {"is_implicit", (PyCFunction)record_desc_is_implicit, METH_O, NULL},
     {"get_pos", (PyCFunction)record_desc_get_pos, METH_O, NULL},
     {"__dir__", (PyCFunction)record_desc_dir, METH_NOARGS, NULL},
+    {"set_dataclass_fields_func",
+     (PyCFunction)record_set_dataclass_fields_func, METH_O, NULL},
     {NULL, NULL}
 };
 
@@ -534,6 +546,20 @@ EdgeRecordDesc_List(PyObject *ob, uint8_t include_mask, uint8_t exclude_mask)
     }
 
     return ret;
+}
+
+
+PyObject *
+EdgeRecordDesc_GetDataclassFields(PyObject *ob)
+{
+    if (!EdgeRecordDesc_Check(ob)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+
+    EdgeRecordDescObject *o = (EdgeRecordDescObject *)ob;
+
+    return PyObject_CallNoArgs(o->get_dataclass_fields);
 }
 
 

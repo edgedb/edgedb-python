@@ -189,6 +189,10 @@ object_hash(EdgeObject *o)
 static PyObject *
 object_getattr(EdgeObject *o, PyObject *name)
 {
+    // Used in `dataclasses.as_dict()`
+    if (PyUnicode_CompareWithASCIIString(name, "__dataclass_fields__") == 0) {
+        return EdgeRecordDesc_GetDataclassFields((PyObject *)o->desc);
+    }
     Py_ssize_t pos;
     edge_attr_lookup_t ret = EdgeRecordDesc_Lookup(
         (PyObject *)o->desc, name, &pos);
@@ -364,6 +368,15 @@ EdgeObject_InitType(void)
     if (PyType_Ready(&EdgeObject_Type) < 0) {
         return NULL;
     }
+
+    // Pass the `dataclasses.is_dataclass(obj)` check, the dict is always empty
+    PyObject *default_fields = PyDict_New();
+    if (default_fields == NULL) {
+        return NULL;
+    }
+    PyDict_SetItemString(
+        EdgeObject_Type.tp_dict, "__dataclass_fields__", default_fields
+    );
 
     base_hash = _EdgeGeneric_HashString("edgedb.Object");
     if (base_hash == -1) {
