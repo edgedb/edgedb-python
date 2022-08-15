@@ -51,7 +51,7 @@ class Generator:
                 self.generate_file(file_or_dir)
 
     def generate_file(self, source: pathlib.Path):
-        target = source.with_suffix(".py")
+        target = source.with_suffix("_edgeql.py")
         if (
             not self._force
             and target.exists()
