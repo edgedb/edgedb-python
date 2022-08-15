@@ -48,10 +48,12 @@ class Generator:
             if file_or_dir.is_dir():
                 self.generate_dir(file_or_dir)
             elif file_or_dir.suffix.lower() == ".edgeql":
-                self.generate_file(file_or_dir)
+                if not file_or_dir.match("dbschema/migrations/*.edgeql"):
+                    self.generate_file(file_or_dir)
 
     def generate_file(self, source: pathlib.Path):
-        target = source.with_suffix("_edgeql.py")
+        stem = source.stem
+        target = source.with_stem(source.stem + "_edgeql").with_suffix(".py")
         if (
             not self._force
             and target.exists()
@@ -62,4 +64,4 @@ class Generator:
         with source.open() as f:
             content = textwrap.indent(f.read().strip(), " " * 8).lstrip()
         with target.open("w") as f:
-            f.write(self._template.format(content=content))
+            f.write(self._template.format(content=content, stem=stem))

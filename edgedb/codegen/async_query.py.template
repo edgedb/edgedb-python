@@ -1,7 +1,7 @@
 import edgedb
 
 
-async def query(client: edgedb.AsyncIOClient, *args, **kwargs):
+async def {stem}(client: edgedb.AsyncIOClient, *args, **kwargs):
     return await client.query(
         """\
         {content}\

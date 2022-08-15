@@ -1,7 +1,7 @@
 import edgedb
 
 
-def query(client: edgedb.Client, *args, **kwargs):
+def {stem}(client: edgedb.Client, *args, **kwargs):
     return client.query(
         """\
         {content}\
