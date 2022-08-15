@@ -52,7 +52,7 @@ parser.add_argument(
 
 def main():
     args = parser.parse_args()
-    with generator.Generator(args) as gen:
+    with generator.DirGenerator(args) as gen:
         if args.file_or_dir is None:
             gen.generate_dir(pathlib.Path.cwd())
         else:

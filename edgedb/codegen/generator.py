@@ -20,14 +20,66 @@ import argparse
 import pathlib
 import sys
 import textwrap
+import typing
 
 import edgedb
+from edgedb import blocking_client
+
+from . import sertypes
 
 
-class Generator:
+TYPE_MAPPING = {
+    "string": "str",
+    "number": "float",
+    "integer": "int",
+    "boolean": "bool",
+    "std::uuid": "uuid.UUID",
+    "std::bytes": "bytes",
+    "std::decimal": "decimal.Decimal",
+    "std::datetime": "datetime.datetime",
+    "std::duration": "datetime.timedelta",
+    "cal::local_date": "datetime.date",
+    "cal::local_time": "datetime.time",
+    "cal::local_datetime": "datetime.datetime",
+    "cal::relative_duration": "edgedb.RelativeDuration",
+    "cal::date_duration": "edgedb.DateDuration",
+    "cfg::memory": "edgedb.ConfigMemory",
+}
+
+TYPE_IMPORTS = {
+    "std::uuid": "uuid",
+    "std::decimal": "decimal",
+    "std::datetime": "datetime",
+    "std::duration": "datetime",
+    "cal::local_date": "datetime",
+    "cal::local_time": "datetime",
+    "cal::local_datetime": "datetime",
+}
+
+
+class ParseConnection(blocking_client.BlockingIOConnection):
+    async def parse(self, query: str):
+        return await self._protocol.raw_parse(query)
+
+
+class ParseClient(edgedb.Client):
+    async def _parse(self, query: str):
+        con = await self._impl.acquire()
+        try:
+            return await con.parse(query)
+        finally:
+            await self._impl.release(con)
+
+    def parse(self, query: str):
+        return self._iter_coroutine(self._parse(query))
+
+
+class DirGenerator:
     def __init__(self, args: argparse.Namespace):
         self._force = args.force
-        self._client = edgedb.create_client()
+        self._client = ParseClient(
+            connection_class=ParseConnection, max_concurrency=1
+        )
         with pathlib.Path(__file__).with_name(
             "async_query.py.template" if args.asyncio else "query.py.template"
         ).open() as f:
@@ -60,8 +112,104 @@ class Generator:
             and target.stat().st_mtime > source.stat().st_mtime
         ):
             return
+
         print(f"Generating {target}", file=sys.stderr)
         with source.open() as f:
-            content = textwrap.indent(f.read().strip(), " " * 8).lstrip()
+            query = textwrap.indent(f.read().strip(), " " * 8).lstrip()
+
+        # Parse and build JSON schema
+        cardinality, in_dc, out_dc, capabilities = self._client.parse(query)
+        desc = sertypes.parse(out_dc)
+        schema = sertypes.describe(desc, stem, cardinality)
+
+        # Generate code from schema
+        gen = Generator(schema)
+
         with target.open("w") as f:
-            f.write(self._template.format(content=content, stem=stem))
+            f.write(
+                self._template.format(
+                    query=query,
+                    stem=stem,
+                    gen=gen,
+                    out_type=gen.generate(schema),
+                )
+            )
+
+
+class Generator:
+    def __init__(self, schema: typing.Dict[str, typing.Any]):
+        self.schema = schema
+        self._ids = {}
+        self._imports = {"edgedb"}
+        self.defs = {}
+        self._aliases = {}
+        for k, j in schema["definitions"].items():
+            if j["type"] == "object":
+                self._imports.add("dataclasses")
+                fields = []
+                for name, sub_json in j["properties"].items():
+                    fields.append(f"{name}: {self.generate(sub_json)}")
+                self.defs[k] = (
+                    textwrap.dedent(
+                        f"""
+                    @dataclasses.dataclass
+                    class {self.get_id(k)}:
+                    {{fields}}
+
+                        @classmethod
+                        def __get_validators__(cls):
+                            return []
+                """
+                    )
+                    .strip()
+                    .format(fields=textwrap.indent("\n".join(fields), "    "))
+                )
+            elif "enum" in j:
+                raise NotImplementedError(f"Enum is not supported")
+            else:
+                self._aliases[k] = f"{self.get_id(k)} = {self.generate(j)}"
+
+    def get_id(self, name: str) -> str:
+        if name in self._ids:
+            return self._ids[name]
+        new_name = name.title().replace("_", "")
+        if new_name in self._ids.values():
+            new_name = name.title()
+        self._ids[name] = new_name
+        return new_name
+
+    @property
+    def imports(self):
+        return "\n".join(f"import {m}" for m in sorted(self._imports))
+
+    @property
+    def definitions(self):
+        return "".join(f"{d}\n\n\n" for _, d in sorted(self.defs.items()))
+
+    @property
+    def aliases(self):
+        if self._aliases:
+            return (
+                "\n".join(a for _, a in sorted(self._aliases.items()))
+                + "\n\n\n"
+            )
+        else:
+            return ""
+
+    def generate(self, json_schema) -> str:
+        if "type" in json_schema:
+            type_ = json_schema["type"]
+            if type_ in TYPE_MAPPING:
+                if type_ in TYPE_IMPORTS:
+                    self._imports.add(TYPE_IMPORTS[type_])
+                return TYPE_MAPPING[type_]
+            elif type_ == "array":
+                self._imports.add("typing")
+                return (
+                    f"typing.Sequence[{self.generate(json_schema['items'])}]"
+                )
+            raise NotImplementedError(f"Type {type_} is not supported")
+        else:
+            prefix = "#/definitions/"
+            assert json_schema["$ref"].startswith(prefix)
+            return self.get_id(json_schema["$ref"][len(prefix) :])

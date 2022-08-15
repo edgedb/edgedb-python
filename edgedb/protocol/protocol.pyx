@@ -326,6 +326,73 @@ cdef class SansIOProtocol:
 
         return cardinality, in_dc, out_dc, capabilities
 
+    async def raw_parse(self, query: str):
+        cdef:
+            WriteBuffer buf, params
+            char mtype
+            bytes cardinality
+            int64_t capabilities
+            bytes in_type_data, out_type_data
+
+        if not self.connected:
+            raise RuntimeError('not connected')
+
+        buf = WriteBuffer.new_message(PREPARE_MSG)
+        buf.write_int16(0)  # no headers
+
+        params = self.encode_parse_params(
+            query=query,
+            output_format=OutputFormat.BINARY,
+            expect_one=False,
+            implicit_limit=0,
+            inline_typenames=False,
+            inline_typeids=False,
+            allow_capabilities=enums.Capability.ALL,
+            state=None,
+        )
+
+        buf.write_buffer(params)
+        buf.end_message()
+        buf.write_bytes(SYNC_MESSAGE)
+        self.write(buf)
+
+        exc = None
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            try:
+                if mtype == STMT_DATA_DESC_MSG:
+                    self.ignore_headers()
+                    capabilities = self.buffer.read_int64()
+                    cardinality = self.buffer.read_byte()
+                    self.buffer.read_bytes(16)  # type_id
+                    in_type_data = self.buffer.read_len_prefixed_bytes()
+
+                    self.buffer.read_bytes(16)  # type_id
+                    out_type_data = self.buffer.read_len_prefixed_bytes()
+
+                elif mtype == STATE_DATA_DESC_MSG:
+                    self.parse_describe_state_message()
+
+                elif mtype == ERROR_RESPONSE_MSG:
+                    exc = self.parse_error_message()
+
+                elif mtype == READY_FOR_COMMAND_MSG:
+                    self.parse_sync_message()
+                    break
+
+                else:
+                    self.fallthrough()
+            finally:
+                self.buffer.finish_message()
+
+        if exc is not None:
+            raise exc
+
+        return cardinality, in_type_data, out_type_data, capabilities
+
     async def _execute(
         self,
         *,

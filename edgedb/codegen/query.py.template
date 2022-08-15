@@ -1,10 +1,15 @@
-import edgedb
+from __future__ import annotations
+{gen.imports}
 
 
-def {stem}(client: edgedb.Client, *args, **kwargs):
+{gen.aliases}{gen.definitions}def {stem}(
+    client: edgedb.Client,
+    *args,
+    **kwargs,
+) -> {out_type}:
     return client.query(
         """\
-        {content}\
+        {query}\
         """,
         *args,
         **kwargs,
