@@ -559,7 +559,12 @@ EdgeRecordDesc_GetDataclassFields(PyObject *ob)
 
     EdgeRecordDescObject *o = (EdgeRecordDescObject *)ob;
 
+// bpo-37194 added PyObject_CallNoArgs() to Python 3.9.0a1
+#if PY_VERSION_HEX < 0x030900A1
+    return PyObject_CallFunctionObjArgs(o->get_dataclass_fields, NULL);
+#else
     return PyObject_CallNoArgs(o->get_dataclass_fields);
+#endif
 }
 
 
