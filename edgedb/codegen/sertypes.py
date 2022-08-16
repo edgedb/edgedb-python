@@ -204,25 +204,36 @@ def parse(typedesc: bytes) -> TypeDesc:
 
 
 def describe(
-    desc: TypeDesc, name: str, cardinality: bytes
+    in_desc: typing.Optional[TypeDesc],
+    out_desc: typing.Optional[TypeDesc],
+    name: str,
+    cardinality: bytes,
 ) -> typing.Dict[str, typing.Any]:
     defs = {}
+    result = {}
     rv = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "definitions": defs,
+        "type": "object",
+        "properties": result,
     }
     reg = {}
-    schema = desc.describe(name, defs, reg)
+    if out_desc:
+        out_schema = out_desc.describe(name, defs, reg)
+    else:
+        out_schema = {"type": "null"}
+    if in_desc:
+        result["input"] = in_desc.describe_args(defs, reg)
+    else:
+        result["input"] = {"type": "null"}
     cardinality = Cardinality(cardinality[0])
     if cardinality == Cardinality.MANY:
-        rv.update(
-            {
-                "type": "array",
-                "items": schema,
-            }
-        )
+        result["output"] = {
+            "type": "array",
+            "items": out_schema,
+        }
     else:
-        rv.update(schema)
+        result["output"] = out_schema
     return rv
 
 
@@ -237,6 +248,14 @@ class TypeDesc:
         reg: typing.Dict[uuid.UUID, typing.Dict[str, typing.Any]],
     ) -> typing.Dict[str, typing.Any]:
         raise NotImplementedError
+
+    def describe_arg(
+        self,
+        name: str,
+        defs: typing.Dict[str, typing.Any],
+        reg: typing.Dict[uuid.UUID, typing.Dict[str, typing.Any]],
+    ) -> typing.Dict[str, typing.Any]:
+        return self.describe(name, defs, reg)
 
     @staticmethod
     def find_name(name, defs: typing.Dict[str, typing.Any]):
@@ -296,6 +315,39 @@ class ShapeDesc(TypeDesc):
             else:
                 props[name] = desc.describe(name, defs, reg)
         return rv
+
+    def describe_arg(
+        self,
+        name: str,
+        defs: typing.Dict[str, typing.Any],
+        reg: typing.Dict[uuid.UUID, typing.Dict[str, typing.Any]],
+    ) -> typing.Dict[str, typing.Any]:
+        return {"type": "object"}
+
+    def describe_args(
+        self,
+        defs: typing.Dict[str, typing.Any],
+        reg: typing.Dict[uuid.UUID, typing.Dict[str, typing.Any]],
+    ) -> typing.Dict[str, typing.Any]:
+        props = {}
+        for name, desc in self.fields.items():
+            try:
+                new_name = int(name)
+                sub_name = f"input{name}"
+            except ValueError:
+                new_name = name
+                sub_name = name
+            if self.cardinalities[name] == Cardinality.MANY:
+                props[new_name] = {
+                    "type": "array",
+                    "items": desc.describe_arg(sub_name, defs, reg),
+                }
+            else:
+                props[new_name] = desc.describe_arg(sub_name, defs, reg)
+        return {
+            "type": "object",
+            "properties": props,
+        }
 
 
 @dataclasses.dataclass(frozen=True)
@@ -361,18 +413,14 @@ class TupleDesc(TypeDesc):
         defs: typing.Dict[str, typing.Any],
         reg: typing.Dict[uuid.UUID, typing.Dict[str, typing.Any]],
     ) -> typing.Dict[str, typing.Any]:
-        if self.tid in reg:
-            return reg[self.tid]
         name = self.find_name(name, defs)
         props = {}
-        defs[name] = {
+        for i, desc in enumerate(self.fields):
+            props[i] = desc.describe(f"{name}{i}", defs, reg)
+        return {
             "type": "object",
             "properties": props,
         }
-        reg[self.tid] = rv = {"$ref": f"#/definitions/{name}"}
-        for i, desc in enumerate(self.fields):
-            props[f"v{i}"] = desc.describe(f"{name}{i}", defs, reg)
-        return rv
 
 
 @dataclasses.dataclass(frozen=True)

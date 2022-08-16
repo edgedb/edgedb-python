@@ -4,13 +4,9 @@ from __future__ import annotations
 
 {gen.aliases}{gen.definitions}def {stem}(
     client: edgedb.Client,
-    *args,
-    **kwargs,
-) -> {out_type}:
+{in_type_args}){out_type}:
     return client.query(
         """\
         {query}\
         """,
-        *args,
-        **kwargs,
-    )
+{in_type_call}    )

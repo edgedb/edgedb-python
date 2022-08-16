@@ -29,6 +29,7 @@ from . import sertypes
 
 
 TYPE_MAPPING = {
+    "null": "None",
     "string": "str",
     "number": "float",
     "integer": "int",
@@ -119,11 +120,42 @@ class DirGenerator:
 
         # Parse and build JSON schema
         cardinality, in_dc, out_dc, capabilities = self._client.parse(query)
-        desc = sertypes.parse(out_dc)
-        schema = sertypes.describe(desc, stem, cardinality)
+        in_desc = sertypes.parse(in_dc) if in_dc else None
+        out_desc = sertypes.parse(out_dc) if out_dc else None
+        schema = sertypes.describe(in_desc, out_desc, stem, cardinality)
 
         # Generate code from schema
         gen = Generator(schema)
+        in_schema = schema["properties"]["input"]
+        if in_schema["type"] == "null":
+            in_type_args = in_type_call = ""
+        elif isinstance(list(in_schema["properties"])[0], int):
+            # positional args
+            in_type = {
+                f"p{k}": gen.generate(v)
+                for k, v in sorted(
+                    in_schema["properties"].items(),
+                )
+            }
+            in_type_args = textwrap.indent(
+                "".join(f"{k}: {v},\n" for k, v in in_type.items()), " " * 4
+            )
+            in_type_call = textwrap.indent(
+                "".join(f"{k},\n" for k in in_type), " " * 8
+            )
+        else:
+            # keyword args
+            in_type = {
+                k: gen.generate(v) for k, v in in_schema["properties"].items()
+            }
+            in_type_args = textwrap.indent(
+                "".join(f"{k}: {v},\n" for k, v in in_type.items()), " " * 4
+            )
+            in_type_call = textwrap.indent(
+                "".join(f"{k}={k},\n" for k in in_type), " " * 8
+            )
+        out_schema = schema["properties"]["output"]
+        out_type = " -> " + gen.generate(out_schema)
 
         with target.open("w") as f:
             f.write(
@@ -131,7 +163,9 @@ class DirGenerator:
                     query=query,
                     stem=stem,
                     gen=gen,
-                    out_type=gen.generate(schema),
+                    in_type_args=in_type_args,
+                    in_type_call=in_type_call,
+                    out_type=out_type,
                 )
             )
 
@@ -208,6 +242,19 @@ class Generator:
                 return (
                     f"typing.Sequence[{self.generate(json_schema['items'])}]"
                 )
+            elif type_ == "object" and "properties" in json_schema:
+                # tuple
+                self._imports.add("typing")
+                content = ", ".join(
+                    self.generate(v)
+                    for _, v in sorted(
+                        json_schema["properties"].items(),
+                        key=lambda x: int(x[0]),
+                    )
+                )
+                return f"typing.Tuple[{content}]"
+            elif type_ == "object":
+                return "edgedb.Object"
             raise NotImplementedError(f"Type {type_} is not supported")
         else:
             prefix = "#/definitions/"

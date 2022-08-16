@@ -1,16 +1,12 @@
 from __future__ import annotations
-{gen.imports}import edgedb
+{gen.imports}
 
 
 {gen.aliases}{gen.definitions}async def {stem}(
     client: edgedb.AsyncIOClient,
-    *args,
-    **kwargs,
-) -> {out_type}:
+{in_type_args}){out_type}:
     return await client.query(
         """\
         {query}\
         """,
-        *args,
-        **kwargs,
-    )
+{in_type_call}    )
