@@ -181,7 +181,7 @@ record_desc_dir(EdgeRecordDescObject *o, PyObject *args)
 static PyObject *
 record_set_dataclass_fields_func(EdgeRecordDescObject *o, PyObject *arg)
 {
-    o->get_dataclass_fields = arg;
+    o->get_dataclass_fields_func = arg;
     Py_INCREF(arg);
     Py_RETURN_NONE;
 }
