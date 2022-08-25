@@ -362,6 +362,7 @@ EdgeRecordDesc_New(PyObject *names, PyObject *flags, PyObject *cards)
 
     o->size = size;
     o->idpos = idpos;
+    o->get_dataclass_fields_func = NULL;
 
     PyObject_GC_Track(o);
     return (PyObject *)o;
