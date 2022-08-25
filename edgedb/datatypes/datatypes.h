@@ -59,7 +59,7 @@ typedef struct {
     EdgeRecordFieldDesc *descs;
     Py_ssize_t idpos;
     Py_ssize_t size;
-    PyObject *get_dataclass_fields;
+    PyObject *get_dataclass_fields_func;
 } EdgeRecordDescObject;
 
 typedef enum {

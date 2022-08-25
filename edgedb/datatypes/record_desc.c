@@ -30,7 +30,7 @@ record_desc_dealloc(EdgeRecordDescObject *o)
     PyObject_GC_UnTrack(o);
     Py_CLEAR(o->index);
     Py_CLEAR(o->names);
-    Py_CLEAR(o->get_dataclass_fields);
+    Py_CLEAR(o->get_dataclass_fields_func);
     PyMem_RawFree(o->descs);
     PyObject_GC_Del(o);
 }
@@ -181,6 +181,7 @@ record_desc_dir(EdgeRecordDescObject *o, PyObject *args)
 static PyObject *
 record_set_dataclass_fields_func(EdgeRecordDescObject *o, PyObject *arg)
 {
+    Py_CLEAR(o->get_dataclass_fields_func);
     o->get_dataclass_fields_func = arg;
     Py_INCREF(arg);
     Py_RETURN_NONE;
@@ -561,9 +562,9 @@ EdgeRecordDesc_GetDataclassFields(PyObject *ob)
 
 // bpo-37194 added PyObject_CallNoArgs() to Python 3.9.0a1
 #if PY_VERSION_HEX < 0x030900A1
-    return PyObject_CallFunctionObjArgs(o->get_dataclass_fields, NULL);
+    return PyObject_CallFunctionObjArgs(o->get_dataclass_fields_func, NULL);
 #else
-    return PyObject_CallNoArgs(o->get_dataclass_fields);
+    return PyObject_CallNoArgs(o->get_dataclass_fields_func);
 #endif
 }
 

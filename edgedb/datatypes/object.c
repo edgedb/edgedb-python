@@ -189,10 +189,6 @@ object_hash(EdgeObject *o)
 static PyObject *
 object_getattr(EdgeObject *o, PyObject *name)
 {
-    // Used in `dataclasses.as_dict()`
-    if (PyUnicode_CompareWithASCIIString(name, "__dataclass_fields__") == 0) {
-        return EdgeRecordDesc_GetDataclassFields((PyObject *)o->desc);
-    }
     Py_ssize_t pos;
     edge_attr_lookup_t ret = EdgeRecordDesc_Lookup(
         (PyObject *)o->desc, name, &pos);
@@ -200,8 +196,18 @@ object_getattr(EdgeObject *o, PyObject *name)
         case L_ERROR:
             return NULL;
 
-        case L_LINKPROP:
         case L_NOT_FOUND:
+            // Used in `dataclasses.as_dict()`
+            if (
+                PyUnicode_CompareWithASCIIString(
+                    name, "__dataclass_fields__"
+                ) == 0
+            ) {
+                return EdgeRecordDesc_GetDataclassFields((PyObject *)o->desc);
+            }
+            return PyObject_GenericGetAttr((PyObject *)o, name);
+
+        case L_LINKPROP:
             return PyObject_GenericGetAttr((PyObject *)o, name);
 
         case L_LINK:
