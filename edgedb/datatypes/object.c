@@ -375,7 +375,8 @@ EdgeObject_InitType(void)
         return NULL;
     }
 
-    // Pass the `dataclasses.is_dataclass(obj)` check, the dict is always empty
+    // Pass the `dataclasses.is_dataclass(obj)` check - which then checks
+    // `hasattr(type(obj), "__dataclass_fields__")`, the dict is always empty
     PyObject *default_fields = PyDict_New();
     if (default_fields == NULL) {
         return NULL;
