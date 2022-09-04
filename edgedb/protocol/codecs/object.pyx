@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+import dataclasses
+
 
 @cython.final
 cdef class ObjectCodec(BaseNamedRecordCodec):
@@ -180,6 +182,22 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
 
         return result
 
+    def get_dataclass_fields(self):
+        cdef descriptor = (<BaseNamedRecordCodec>self).descriptor
+
+        rv = self.cached_dataclass_fields
+        if rv is None:
+            rv = {}
+
+            for i in range(len(self.fields_codecs)):
+                name = datatypes.record_desc_pointer_name(descriptor, i)
+                field = rv[name] = dataclasses.field()
+                field.name = name
+                field._field_type = dataclasses._FIELD
+
+            self.cached_dataclass_fields = rv
+        return rv
+
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple names, tuple flags, tuple cards,
                        tuple codecs, bint is_sparse):
@@ -195,6 +213,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             codec.name = 'Object'
         codec.is_sparse = is_sparse
         codec.descriptor = datatypes.record_desc_new(names, flags, cards)
+        codec.descriptor.set_dataclass_fields_func(codec.get_dataclass_fields)
         codec.fields_codecs = codecs
 
         return codec

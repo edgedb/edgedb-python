@@ -196,8 +196,18 @@ object_getattr(EdgeObject *o, PyObject *name)
         case L_ERROR:
             return NULL;
 
-        case L_LINKPROP:
         case L_NOT_FOUND:
+            // Used in `dataclasses.as_dict()`
+            if (
+                PyUnicode_CompareWithASCIIString(
+                    name, "__dataclass_fields__"
+                ) == 0
+            ) {
+                return EdgeRecordDesc_GetDataclassFields((PyObject *)o->desc);
+            }
+            return PyObject_GenericGetAttr((PyObject *)o, name);
+
+        case L_LINKPROP:
             return PyObject_GenericGetAttr((PyObject *)o, name);
 
         case L_LINK:
@@ -364,6 +374,16 @@ EdgeObject_InitType(void)
     if (PyType_Ready(&EdgeObject_Type) < 0) {
         return NULL;
     }
+
+    // Pass the `dataclasses.is_dataclass(obj)` check - which then checks
+    // `hasattr(type(obj), "__dataclass_fields__")`, the dict is always empty
+    PyObject *default_fields = PyDict_New();
+    if (default_fields == NULL) {
+        return NULL;
+    }
+    PyDict_SetItemString(
+        EdgeObject_Type.tp_dict, "__dataclass_fields__", default_fields
+    );
 
     base_hash = _EdgeGeneric_HashString("edgedb.Object");
     if (base_hash == -1) {

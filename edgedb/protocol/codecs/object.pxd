@@ -19,7 +19,9 @@
 
 @cython.final
 cdef class ObjectCodec(BaseNamedRecordCodec):
-    cdef bint is_sparse
+    cdef:
+        bint is_sparse
+        object cached_dataclass_fields
 
     cdef encode_args(self, WriteBuffer buf, dict obj)
 

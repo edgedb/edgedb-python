@@ -59,6 +59,7 @@ typedef struct {
     EdgeRecordFieldDesc *descs;
     Py_ssize_t idpos;
     Py_ssize_t size;
+    PyObject *get_dataclass_fields_func;
 } EdgeRecordDescObject;
 
 typedef enum {
@@ -82,6 +83,7 @@ EdgeFieldCardinality EdgeRecordDesc_PointerCardinality(PyObject *, Py_ssize_t);
 Py_ssize_t EdgeRecordDesc_GetSize(PyObject *);
 edge_attr_lookup_t EdgeRecordDesc_Lookup(PyObject *, PyObject *, Py_ssize_t *);
 PyObject * EdgeRecordDesc_List(PyObject *, uint8_t, uint8_t);
+PyObject * EdgeRecordDesc_GetDataclassFields(PyObject *);
 
 
 
