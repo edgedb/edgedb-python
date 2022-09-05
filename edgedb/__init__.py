@@ -28,7 +28,8 @@ from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
 from edgedb.datatypes.range import Range
 
 from .abstract import (
-    Executor, AsyncIOExecutor, ReadOnlyExecutor, AsyncIOReadOnlyExecutor
+    Executor, AsyncIOExecutor, ReadOnlyExecutor, AsyncIOReadOnlyExecutor,
+    DescribeResult,
 )
 
 from .asyncio_client import (
@@ -37,6 +38,7 @@ from .asyncio_client import (
 )
 
 from .blocking_client import create_client, Client
+from .enums import Cardinality, ElementKind
 from .options import RetryCondition, IsolationLevel, default_backoff
 from .options import RetryOptions, TransactionOptions
 from .options import State

@@ -1,6 +1,9 @@
+from __future__ import annotations
 import abc
 import typing
 
+from . import describe
+from . import enums
 from . import options
 from .protocol import protocol
 
@@ -13,6 +16,8 @@ __all__ = (
     "AsyncIOExecutor",
     "ReadOnlyExecutor",
     "AsyncIOReadOnlyExecutor",
+    "DescribeContext",
+    "DescribeResult",
 )
 
 
@@ -45,6 +50,19 @@ class ExecuteContext(typing.NamedTuple):
     query: QueryWithArgs
     cache: QueryCache
     state: typing.Optional[options.State]
+
+
+class DescribeContext(typing.NamedTuple):
+    query: str
+    state: typing.Optional[options.State]
+    inject_type_names: bool
+
+
+class DescribeResult(typing.NamedTuple):
+    input_type: typing.Optional[describe.AnyType]
+    output_type: typing.Optional[describe.AnyType]
+    output_cardinality: enums.Cardinality
+    capabilities: enums.Capability
 
 
 _query_opts = QueryOptions(

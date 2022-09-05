@@ -20,23 +20,17 @@
 # IMPORTANT: this private API is subject to change.
 
 
-import enum
 import functools
 import typing
 
 from edgedb.datatypes import datatypes as dt
-
-
-class PointerKind(enum.Enum):
-
-    LINK = 1
-    PROPERTY = 2
+from edgedb.enums import ElementKind
 
 
 class PointerDescription(typing.NamedTuple):
 
     name: str
-    kind: PointerKind
+    kind: ElementKind
     implicit: bool
 
 
@@ -51,11 +45,11 @@ def _introspect_object_desc(desc) -> ObjectDescription:
     # Call __dir__ directly as dir() scrambles the order.
     for name in desc.__dir__():
         if desc.is_link(name):
-            kind = PointerKind.LINK
+            kind = ElementKind.LINK
         elif desc.is_linkprop(name):
             continue
         else:
-            kind = PointerKind.PROPERTY
+            kind = ElementKind.PROPERTY
 
         pointers.append(
             PointerDescription(
