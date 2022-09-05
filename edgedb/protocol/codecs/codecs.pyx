@@ -153,7 +153,7 @@ cdef class CodecsRegistry:
                     str_len = hton.unpack_uint32(frb_read(spec, 4))
                     frb_read(spec, str_len)
 
-            elif (t >= 0x7f and t <= 0xff):
+            elif 0x80 & t == 0x80:
                 # Ignore all type annotations.
                 str_len = hton.unpack_uint32(frb_read(spec, 4))
                 frb_read(spec, str_len)
