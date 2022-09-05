@@ -49,6 +49,9 @@ cdef class BaseCodec:
     cdef dump(self, int level = 0):
         return f'{level * " "}{self.name}'
 
+    def make_type(self, describe_context):
+        raise NotImplementedError
+
 
 cdef class CodecPythonOverride(BaseCodec):
 

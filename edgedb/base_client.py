@@ -287,6 +287,25 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 ),
             )
 
+    async def describe(
+        self, describe_context: abstract.DescribeContext
+    ) -> abstract.DescribeResult:
+        cardinality, in_dc, out_dc, capabilities = await self._protocol._parse(
+            describe_context.query,
+            reg=protocol.CodecsRegistry(),
+            inline_typenames=describe_context.inject_type_names,
+            state=(
+                describe_context.state.as_dict()
+                if describe_context.state else None
+            ),
+        )
+        return abstract.DescribeResult(
+            input_type=in_dc.make_type(describe_context),
+            output_type=out_dc.make_type(describe_context),
+            output_cardinality=enums.Cardinality(cardinality[0]),
+            capabilities=capabilities,
+        )
+
     def terminate(self):
         if not self.is_closed():
             try:
@@ -736,6 +755,15 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         con = await self._impl.acquire()
         try:
             await con._execute(execute_context)
+        finally:
+            await self._impl.release(con)
+
+    async def _describe(
+        self, describe_context: abstract.DescribeContext
+    ) -> abstract.DescribeResult:
+        con = await self._impl.acquire()
+        try:
+            return await con.describe(describe_context)
         finally:
             await self._impl.release(con)
 

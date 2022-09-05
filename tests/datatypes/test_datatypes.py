@@ -135,9 +135,9 @@ class TestRecordDesc(unittest.TestCase):
         self.assertEqual(
             intro.pointers,
             (
-                ('id', introspect.PointerKind.PROPERTY, True),
-                ('c', introspect.PointerKind.PROPERTY, False),
-                ('d', introspect.PointerKind.LINK, False),
+                ('id', introspect.ElementKind.PROPERTY, True),
+                ('c', introspect.ElementKind.PROPERTY, False),
+                ('d', introspect.ElementKind.LINK, False),
             )
         )
 

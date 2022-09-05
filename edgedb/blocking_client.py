@@ -327,6 +327,15 @@ class Client(base_client.BaseClient, abstract.Executor):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def describe_query(
+        self, query: str, *, inject_type_names: bool = False
+    ) -> abstract.DescribeResult:
+        return self._iter_coroutine(self._describe(abstract.DescribeContext(
+            query=query,
+            state=self._get_state(),
+            inject_type_names=inject_type_names,
+        )))
+
 
 def create_client(
     dsn=None,
