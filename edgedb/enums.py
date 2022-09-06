@@ -60,6 +60,12 @@ class Cardinality(enum.Enum):
     # Cardinality is >= 1
     AT_LEAST_ONE = 0x4d
 
+    def is_single(self) -> bool:
+        return self in {Cardinality.AT_MOST_ONE, Cardinality.ONE}
+
+    def is_multi(self) -> bool:
+        return self in {Cardinality.AT_LEAST_ONE, Cardinality.MANY}
+
 
 class ElementKind(enum.Enum):
 

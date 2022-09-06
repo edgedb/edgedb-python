@@ -19,6 +19,15 @@
 import dataclasses
 
 
+cdef dict CARDS_MAP = {
+    datatypes.EdgeFieldCardinality.NO_RESULT: enums.Cardinality.NO_RESULT,
+    datatypes.EdgeFieldCardinality.AT_MOST_ONE: enums.Cardinality.AT_MOST_ONE,
+    datatypes.EdgeFieldCardinality.ONE: enums.Cardinality.ONE,
+    datatypes.EdgeFieldCardinality.MANY: enums.Cardinality.MANY,
+    datatypes.EdgeFieldCardinality.AT_LEAST_ONE: enums.Cardinality.AT_LEAST_ONE,
+}
+
+
 @cython.final
 cdef class ObjectCodec(BaseNamedRecordCodec):
 
@@ -217,3 +226,39 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
         codec.fields_codecs = codecs
 
         return codec
+
+    def make_type(self, describe_context):
+        cdef descriptor = (<BaseNamedRecordCodec>self).descriptor
+
+        elements = {}
+        for i, codec in enumerate(self.fields_codecs):
+            name = datatypes.record_desc_pointer_name(descriptor, i)
+            is_implicit = datatypes.record_desc_pointer_is_implicit(
+                descriptor, i
+            )
+            if is_implicit and name == "__tname__":
+                continue
+            elements[name] = describe.Element(
+                type=codec.make_type(describe_context),
+                cardinality=CARDS_MAP[
+                    datatypes.record_desc_pointer_card(descriptor, i)
+                ],
+                is_implicit=is_implicit,
+                kind=(
+                    enums.ElementKind.LINK
+                    if datatypes.record_desc_pointer_is_link(descriptor, i)
+                    else (
+                        enums.ElementKind.LINK_PROPERTY
+                        if datatypes.record_desc_pointer_is_link_prop(
+                            descriptor, i
+                        )
+                        else enums.ElementKind.PROPERTY
+                    )
+                )
+            )
+
+        return describe.ObjectType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=None,
+            elements=elements,
+        )
