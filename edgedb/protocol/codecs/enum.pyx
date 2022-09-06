@@ -55,3 +55,10 @@ cdef class EnumCodec(BaseCodec):
             codec.cls(label)._index_ = index
 
         return codec
+
+    def make_type(self, describe_context):
+        return describe.EnumType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=self.type_name,
+            members=tuple(x.value for x in self.cls.__members__.values())
+        )

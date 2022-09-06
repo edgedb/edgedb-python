@@ -74,3 +74,15 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
         codec.namedtuple_type = datatypes.namedtuple_type_new(codec.descriptor)
 
         return codec
+
+    def make_type(self, describe_context):
+        return describe.NamedTupleType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=None,
+            element_types={
+                field: codec.make_type(describe_context)
+                for field, codec in zip(
+                    self.namedtuple_type._fields, self.fields_codecs
+                )
+            }
+        )

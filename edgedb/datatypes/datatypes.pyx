@@ -105,6 +105,18 @@ cdef record_desc_pointer_card(object desc, Py_ssize_t pos):
     return EdgeRecordDesc_PointerCardinality(desc, pos)
 
 
+cdef record_desc_pointer_is_link_prop(object desc, Py_ssize_t pos):
+    return EdgeRecordDesc_PointerIsLinkProp(desc, pos)
+
+
+cdef record_desc_pointer_is_link(object desc, Py_ssize_t pos):
+    return EdgeRecordDesc_PointerIsLink(desc, pos)
+
+
+cdef record_desc_pointer_is_implicit(object desc, Py_ssize_t pos):
+    return EdgeRecordDesc_PointerIsImplicit(desc, pos)
+
+
 cdef namedtuple_new(object namedtuple_type):
     return EdgeNamedTuple_New(namedtuple_type)
 

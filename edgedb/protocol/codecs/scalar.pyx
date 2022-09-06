@@ -31,7 +31,10 @@ cdef class ScalarCodec(BaseCodec):
         return self.c_decoder(DEFAULT_CODEC_CONTEXT, buf)
 
     cdef derive(self, bytes tid):
-        return ScalarCodec.new(tid, self.name, self.c_encoder, self.c_decoder)
+        cdef ScalarCodec rv
+        rv = ScalarCodec.new(tid, self.name, self.c_encoder, self.c_decoder)
+        rv.base_codec = self
+        return rv
 
     @staticmethod
     cdef BaseCodec new(bytes tid, str name,
@@ -48,3 +51,16 @@ cdef class ScalarCodec(BaseCodec):
         codec.c_decoder = decoder
 
         return codec
+
+    def make_type(self, describe_context):
+        if self.base_codec is None:
+            return describe.BaseScalarType(
+                desc_id=uuid.UUID(bytes=self.tid),
+                name=self.name,
+            )
+        else:
+            return describe.ScalarType(
+                desc_id=uuid.UUID(bytes=self.tid),
+                name=self.type_name,
+                base_type=self.base_codec.make_type(describe_context),
+            )
