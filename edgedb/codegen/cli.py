@@ -19,8 +19,29 @@
 
 import argparse
 
+from . import generator
+
+
+parser = argparse.ArgumentParser(
+    description="Generate Python code for .edgeql files."
+)
+parser.add_argument("--dsn")
+parser.add_argument("--credentials_file", metavar="PATH")
+parser.add_argument("-I", "--instance", metavar="NAME")
+parser.add_argument("-H", "--host")
+parser.add_argument("-P", "--port")
+parser.add_argument("-d", "--database", metavar="NAME")
+parser.add_argument("-u", "--user")
+parser.add_argument("--password")
+parser.add_argument("--password-from-stdin", action="store_true")
+parser.add_argument("--tls-ca-file", metavar="PATH")
+parser.add_argument(
+    "--tls-security",
+    choices=["default", "strict", "no_host_verification", "insecure"],
+)
+parser.add_argument("--file", action="store_true")
+
 
 def main():
-    parser = argparse.ArgumentParser()
     args = parser.parse_args()
-    print(args)
+    generator.Generator(args).run()
