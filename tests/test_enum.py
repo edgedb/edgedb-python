@@ -17,6 +17,8 @@
 #
 
 
+import dataclasses
+import enum
 import uuid
 
 import edgedb
@@ -38,7 +40,7 @@ class TestEnum(tb.AsyncQueryTestCase):
         self.assertTrue(isinstance(ct_red, edgedb.EnumValue))
         self.assertTrue(isinstance(ct_red.__tid__, uuid.UUID))
 
-        self.assertEqual(repr(ct_red), "<EnumValue 'red'>")
+        self.assertEqual(repr(ct_red), "<edgedb.EnumValue 'red'>")
 
         self.assertEqual(str(ct_red), 'red')
         self.assertNotEqual(ct_red, 'red')
@@ -74,3 +76,22 @@ class TestEnum(tb.AsyncQueryTestCase):
 
         self.assertNotEqual(hash(ct_red), hash(c_red))
         self.assertNotEqual(hash(ct_red), hash('red'))
+
+    async def test_enum_02(self):
+        c_red = await self.client.query_single('SELECT <Color>"red"')
+        self.assertIsInstance(c_red, enum.Enum)
+        self.assertEqual(c_red.name, 'RED')
+        self.assertEqual(c_red.value, 'red')
+
+        class Color(enum.Enum):
+            RED = 'red'
+            WHITE = 'white'
+
+        @dataclasses.dataclass
+        class Container:
+            color: Color
+
+        c = Container(c_red)
+        d = dataclasses.asdict(c)
+        self.assertIsNot(d['color'], c_red)
+        self.assertEqual(d['color'], c_red)

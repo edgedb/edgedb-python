@@ -30,5 +30,6 @@ cdef class EnumValue:
     cdef:
         EnumDescriptor desc
         str label
+        readonly str name
 
     cdef get_index(self)
