@@ -40,6 +40,12 @@ parser.add_argument(
     choices=["default", "strict", "no_host_verification", "insecure"],
 )
 parser.add_argument("--file", action="store_true")
+parser.add_argument(
+    "--target",
+    choices=["blocking", "async", "pydantic"],
+    nargs="*",
+    default=["async", "pydantic"],
+)
 
 
 def main():
