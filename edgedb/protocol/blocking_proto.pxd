@@ -27,5 +27,6 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocolBackwardsCompatible):
     cdef:
         readonly object sock
         float deadline
+        readonly object last_active_timestamp
 
     cdef _disconnect(self)
