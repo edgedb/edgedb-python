@@ -135,6 +135,7 @@ class TestTuple(unittest.TestCase):
 
     def test_tuple_empty_1(self):
         t = edgedb.Tuple()
+        self.assertIsInstance(t, tuple)
         self.assertEqual(len(t), 0)
         self.assertEqual(hash(t), hash(()))
         self.assertEqual(repr(t), '()')

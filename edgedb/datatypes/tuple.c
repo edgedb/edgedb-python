@@ -24,15 +24,9 @@
 
 EDGE_SETUP_FREELIST(
     EDGE_TUPLE,
-    EdgeTupleObject,
+    PyTupleObject,
     EDGE_TUPLE_FREELIST_MAXSAVE,
     EDGE_TUPLE_FREELIST_SIZE)
-
-
-#define EdgeTuple_GET_ITEM(op, i) \
-    (((EdgeTupleObject *)(op))->ob_item[i])
-#define EdgeTuple_SET_ITEM(op, i, v) \
-    (((EdgeTupleObject *)(op))->ob_item[i] = v)
 
 
 static int init_type_called = 0;
@@ -51,15 +45,13 @@ EdgeTuple_New(Py_ssize_t size)
         return NULL;
     }
 
-    EdgeTupleObject *obj = NULL;
+    PyTupleObject *obj = NULL;
 
-    EDGE_NEW_WITH_FREELIST(EDGE_TUPLE, EdgeTupleObject,
+    EDGE_NEW_WITH_FREELIST(EDGE_TUPLE, PyTupleObject,
                            &EdgeTuple_Type, obj, size)
     assert(obj != NULL);
     assert(EdgeTuple_Check(obj));
     assert(Py_SIZE(obj) == size);
-
-    obj->weakreflist = NULL;
 
     PyObject_GC_Track(obj);
     return (PyObject *)obj;
@@ -70,37 +62,34 @@ int
 EdgeTuple_SetItem(PyObject *ob, Py_ssize_t i, PyObject *el)
 {
     assert(EdgeTuple_Check(ob));
-    EdgeTupleObject *o = (EdgeTupleObject *)ob;
+    PyTupleObject *o = (PyTupleObject *)ob;
     assert(i >= 0);
     assert(i < Py_SIZE(o));
     Py_INCREF(el);
-    EdgeTuple_SET_ITEM(o, i, el);
+    PyTuple_SET_ITEM(o, i, el);
     return 0;
 }
 
 
 static void
-tuple_dealloc(EdgeTupleObject *o)
+tuple_dealloc(PyTupleObject *o)
 {
     PyObject_GC_UnTrack(o);
-    if (o->weakreflist != NULL) {
-        PyObject_ClearWeakRefs((PyObject*)o);
-    }
     Py_TRASHCAN_SAFE_BEGIN(o)
-    EDGE_DEALLOC_WITH_FREELIST(EDGE_TUPLE, EdgeTupleObject, o);
+    EDGE_DEALLOC_WITH_FREELIST(EDGE_TUPLE, PyTupleObject, o);
     Py_TRASHCAN_SAFE_END(o)
 }
 
 
 static Py_hash_t
-tuple_hash(EdgeTupleObject *o)
+tuple_hash(PyTupleObject *o)
 {
     return _EdgeGeneric_Hash(o->ob_item, Py_SIZE(o));
 }
 
 
 static int
-tuple_traverse(EdgeTupleObject *o, visitproc visit, void *arg)
+tuple_traverse(PyTupleObject *o, visitproc visit, void *arg)
 {
     Py_ssize_t i;
     for (i = Py_SIZE(o); --i >= 0;) {
@@ -115,7 +104,7 @@ tuple_traverse(EdgeTupleObject *o, visitproc visit, void *arg)
 static PyObject *
 tuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     PyObject *iterable = NULL;
-    EdgeTupleObject *o;
+    PyTupleObject *o;
 
     if (type != &EdgeTuple_Type) {
         PyErr_BadInternalCall();
@@ -137,7 +126,7 @@ tuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         return NULL;
     }
 
-    o = (EdgeTupleObject *)EdgeTuple_New(Py_SIZE(tup));
+    o = (PyTupleObject *)EdgeTuple_New(Py_SIZE(tup));
     if (o == NULL) {
         Py_DECREF(tup);
         return NULL;
@@ -146,7 +135,7 @@ tuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     for (Py_ssize_t i = 0; i < Py_SIZE(tup); i++) {
         PyObject *el = PyTuple_GET_ITEM(tup, i);
         Py_INCREF(el);
-        EdgeTuple_SET_ITEM(o, i, el);
+        PyTuple_SET_ITEM(o, i, el);
     }
     Py_DECREF(tup);
     return (PyObject *)o;
@@ -154,32 +143,32 @@ tuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
 
 
 static Py_ssize_t
-tuple_length(EdgeTupleObject *o)
+tuple_length(PyTupleObject *o)
 {
     return Py_SIZE(o);
 }
 
 
 static PyObject *
-tuple_getitem(EdgeTupleObject *o, Py_ssize_t i)
+tuple_getitem(PyTupleObject *o, Py_ssize_t i)
 {
     if (i < 0 || i >= Py_SIZE(o)) {
         PyErr_SetString(PyExc_IndexError, "tuple index out of range");
         return NULL;
     }
-    PyObject *el = EdgeTuple_GET_ITEM(o, i);
+    PyObject *el = PyTuple_GET_ITEM(o, i);
     Py_INCREF(el);
     return el;
 }
 
 
 static PyObject *
-tuple_richcompare(EdgeTupleObject *v, PyObject *w, int op)
+tuple_richcompare(PyTupleObject *v, PyObject *w, int op)
 {
     if (EdgeTuple_Check(w)) {
         return _EdgeGeneric_RichCompareValues(
             v->ob_item, Py_SIZE(v),
-            ((EdgeTupleObject *)w)->ob_item, Py_SIZE(w),
+            ((PyTupleObject *)w)->ob_item, Py_SIZE(w),
             op);
     }
 
@@ -195,7 +184,7 @@ tuple_richcompare(EdgeTupleObject *v, PyObject *w, int op)
 
 
 static PyObject *
-tuple_repr(EdgeTupleObject *o)
+tuple_repr(PyTupleObject *o)
 {
     _PyUnicodeWriter writer;
     _PyUnicodeWriter_Init(&writer);
@@ -232,8 +221,9 @@ static PySequenceMethods tuple_as_sequence = {
 PyTypeObject EdgeTuple_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "edgedb.Tuple",
-    .tp_basicsize = sizeof(EdgeTupleObject) - sizeof(PyObject *),
+    .tp_basicsize = sizeof(PyTupleObject) - sizeof(PyObject *),
     .tp_itemsize = sizeof(PyObject *),
+    .tp_base = &PyTuple_Type,
     .tp_dealloc = (destructor)tuple_dealloc,
     .tp_as_sequence = &tuple_as_sequence,
     .tp_hash = (hashfunc)tuple_hash,
@@ -244,7 +234,6 @@ PyTypeObject EdgeTuple_Type = {
     .tp_richcompare = (richcmpfunc)tuple_richcompare,
     .tp_free = PyObject_GC_Del,
     .tp_repr = (reprfunc)tuple_repr,
-    .tp_weaklistoffset = offsetof(EdgeTupleObject, weakreflist),
 };
 
 

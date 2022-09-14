@@ -96,12 +96,6 @@ extern PyTypeObject EdgeTuple_Type;
 
 #define EdgeTuple_Check(d) (Py_TYPE(d) == &EdgeTuple_Type)
 
-typedef struct {
-    PyObject_VAR_HEAD
-    PyObject *weakreflist;
-    PyObject *ob_item[1];
-} EdgeTupleObject;
-
 PyObject * EdgeTuple_InitType(void);
 PyObject * EdgeTuple_New(Py_ssize_t size);
 int EdgeTuple_SetItem(PyObject *, Py_ssize_t, PyObject *);
