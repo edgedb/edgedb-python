@@ -33,7 +33,6 @@ from . import transaction
 from .protocol import blocking_proto
 
 
-DEFAULT_SESSION_IDLE_TIMEOUT = datetime.timedelta(seconds=60)
 DEFAULT_PING_BEFORE_IDLE_TIMEOUT = datetime.timedelta(seconds=5)
 MINIMUM_PING_WAIT_TIME = datetime.timedelta(seconds=1)
 
@@ -108,7 +107,6 @@ class BlockingIOConnection(base_client.BaseConnection):
                     getattr(
                         self.get_settings().get("system_config"),
                         "session_idle_timeout",
-                        DEFAULT_SESSION_IDLE_TIMEOUT,
                     )
                     - DEFAULT_PING_BEFORE_IDLE_TIMEOUT
                 ),
