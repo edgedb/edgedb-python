@@ -86,22 +86,6 @@ PyObject * EdgeRecordDesc_List(PyObject *, uint8_t, uint8_t);
 PyObject * EdgeRecordDesc_GetDataclassFields(PyObject *);
 
 
-
-/* === edgedb.Tuple ========================================= */
-
-#define EDGE_TUPLE_FREELIST_SIZE 500
-#define EDGE_TUPLE_FREELIST_MAXSAVE 20
-
-extern PyTypeObject EdgeTuple_Type;
-
-#define EdgeTuple_Check(d) (Py_TYPE(d) == &EdgeTuple_Type)
-
-PyObject * EdgeTuple_InitType(void);
-PyObject * EdgeTuple_New(Py_ssize_t size);
-int EdgeTuple_SetItem(PyObject *, Py_ssize_t, PyObject *);
-
-
-
 /* === edgedb.NamedTuple ==================================== */
 
 #define EDGE_NAMEDTUPLE_FREELIST_SIZE 500

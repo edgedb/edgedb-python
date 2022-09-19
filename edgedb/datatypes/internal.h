@@ -29,7 +29,7 @@
 
 
 #define _Edge_IsContainer(o)                                \
-    (EdgeTuple_Check(o) ||                                  \
+    (PyTuple_CheckExact(o) ||                               \
      EdgeNamedTuple_Check(o) ||                             \
      EdgeObject_Check(o) ||                                 \
      EdgeSet_Check(o) ||                                    \

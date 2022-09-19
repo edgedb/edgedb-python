@@ -27,7 +27,7 @@ include "./config_memory.pyx"
 
 
 _RecordDescriptor = EdgeRecordDesc_InitType()
-Tuple = EdgeTuple_InitType()
+Tuple = tuple
 NamedTuple = EdgeNamedTuple_InitType()
 Object = EdgeObject_InitType()
 Set = EdgeSet_InitType()
@@ -95,14 +95,6 @@ cdef record_desc_pointer_name(object desc, Py_ssize_t pos):
 
 cdef record_desc_pointer_card(object desc, Py_ssize_t pos):
     return EdgeRecordDesc_PointerCardinality(desc, pos)
-
-
-cdef tuple_new(Py_ssize_t size):
-    return EdgeTuple_New(size)
-
-
-cdef tuple_set(object tuple, Py_ssize_t pos, object elem):
-    EdgeTuple_SetItem(tuple, pos, elem)
 
 
 cdef namedtuple_new(object desc):

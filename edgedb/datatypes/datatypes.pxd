@@ -47,10 +47,6 @@ cdef extern from "datatypes.h":
     EdgeFieldCardinality EdgeRecordDesc_PointerCardinality(
         object, Py_ssize_t pos)
 
-    object EdgeTuple_InitType()
-    object EdgeTuple_New(Py_ssize_t)
-    int EdgeTuple_SetItem(object, Py_ssize_t, object) except -1
-
     object EdgeNamedTuple_InitType()
     object EdgeNamedTuple_New(object)
     int EdgeNamedTuple_SetItem(object, Py_ssize_t, object) except -1
@@ -78,8 +74,6 @@ cdef extern from "datatypes.h":
 cdef record_desc_new(object names, object flags, object cards)
 cdef record_desc_pointer_name(object desc, Py_ssize_t pos)
 cdef record_desc_pointer_card(object desc, Py_ssize_t pos)
-cdef tuple_new(Py_ssize_t size)
-cdef tuple_set(object tuple, Py_ssize_t pos, object elem)
 cdef namedtuple_new(object desc)
 cdef namedtuple_set(object tuple, Py_ssize_t pos, object elem)
 cdef object_new(object desc)

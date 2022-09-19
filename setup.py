@@ -302,7 +302,6 @@ setuptools.setup(
             "edgedb.datatypes.datatypes",
             ["edgedb/datatypes/args.c",
              "edgedb/datatypes/record_desc.c",
-             "edgedb/datatypes/tuple.c",
              "edgedb/datatypes/namedtuple.c",
              "edgedb/datatypes/object.c",
              "edgedb/datatypes/set.c",

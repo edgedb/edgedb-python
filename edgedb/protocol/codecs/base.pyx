@@ -110,7 +110,7 @@ cdef class EmptyTupleCodec(BaseCodec):
                 f'got {elem_count}')
 
         if self.empty_tup is None:
-            self.empty_tup = datatypes.tuple_new(0)
+            self.empty_tup = cpython.PyTuple_New(0)
         return self.empty_tup
 
 
