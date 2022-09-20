@@ -49,7 +49,7 @@ cdef extern from "datatypes.h":
 
     object EdgeNamedTuple_InitType()
     object EdgeNamedTuple_New(object)
-    int EdgeNamedTuple_SetItem(object, Py_ssize_t, object) except -1
+    object EdgeNamedTuple_Type_New(object)
 
     object EdgeObject_InitType()
     object EdgeObject_New(object);
@@ -75,7 +75,7 @@ cdef record_desc_new(object names, object flags, object cards)
 cdef record_desc_pointer_name(object desc, Py_ssize_t pos)
 cdef record_desc_pointer_card(object desc, Py_ssize_t pos)
 cdef namedtuple_new(object desc)
-cdef namedtuple_set(object tuple, Py_ssize_t pos, object elem)
+cdef namedtuple_type_new(object desc)
 cdef object_new(object desc)
 cdef object_set(object tuple, Py_ssize_t pos, object elem)
 cdef bint set_check(object set)

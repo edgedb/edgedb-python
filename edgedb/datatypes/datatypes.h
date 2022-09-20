@@ -93,18 +93,9 @@ PyObject * EdgeRecordDesc_GetDataclassFields(PyObject *);
 
 extern PyTypeObject EdgeNamedTuple_Type;
 
-#define EdgeNamedTuple_Check(d) (Py_TYPE(d) == &EdgeNamedTuple_Type)
-
-typedef struct {
-    PyObject_VAR_HEAD
-    PyObject *desc;
-    PyObject *weakreflist;
-    PyObject *ob_item[1];
-} EdgeNamedTupleObject;
-
 PyObject * EdgeNamedTuple_InitType(void);
+PyObject * EdgeNamedTuple_Type_New(PyObject *);
 PyObject * EdgeNamedTuple_New(PyObject *);
-int EdgeNamedTuple_SetItem(PyObject *, Py_ssize_t, PyObject *);
 
 
 /* === edgedb.Object ======================================== */

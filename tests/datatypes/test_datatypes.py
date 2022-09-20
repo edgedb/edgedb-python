@@ -17,6 +17,7 @@
 #
 
 
+import dataclasses
 import unittest
 
 
@@ -374,6 +375,59 @@ class TestNamedTuple(unittest.TestCase):
             edgedb.NamedTuple(a=1, b=2, c=3),
             1)
 
+    def test_namedtuple_8(self):
+        self.assertEqual(
+            edgedb.NamedTuple(壹=1, 贰=2, 叄=3),
+            (1, 2, 3))
+
+
+class TestDerivedNamedTuple(unittest.TestCase):
+    DerivedNamedTuple = type(edgedb.NamedTuple(a=1, b=2, c=3))
+
+    def test_derived_namedtuple_1(self):
+        self.assertEqual(
+            (1, 2, 3),
+            self.DerivedNamedTuple(a=1, b=2, c=3),
+        )
+        self.assertEqual(
+            (1, 2, 3),
+            self.DerivedNamedTuple(c=3, b=2, a=1),
+        )
+        self.assertEqual(
+            (1, 2, 3),
+            self.DerivedNamedTuple(1, c=3, b=2),
+        )
+        self.assertEqual(
+            (1, 2, 3),
+            self.DerivedNamedTuple(1, 2, 3),
+        )
+
+    def test_derived_namedtuple_2(self):
+        with self.assertRaisesRegex(ValueError, "requires 3 arguments"):
+            self.DerivedNamedTuple()
+
+        with self.assertRaisesRegex(ValueError, "requires 3 arguments"):
+            self.DerivedNamedTuple(1)
+
+        with self.assertRaisesRegex(ValueError, "only needs 3 arguments"):
+            self.DerivedNamedTuple(1, 2, 3, 4)
+
+    def test_derived_namedtuple_3(self):
+        with self.assertRaisesRegex(ValueError, "missing required argument"):
+            self.DerivedNamedTuple(a=1)
+
+        with self.assertRaisesRegex(ValueError, "missing required argument"):
+            self.DerivedNamedTuple(b=2)
+
+        with self.assertRaisesRegex(ValueError, "missing required argument"):
+            self.DerivedNamedTuple(1, 2, d=4)
+
+        with self.assertRaisesRegex(ValueError, "extra keyword arguments"):
+            self.DerivedNamedTuple(1, 2, 3, d=4)
+
+        with self.assertRaisesRegex(ValueError, "extra keyword arguments"):
+            self.DerivedNamedTuple(1, 2, c=3, d=4)
+
 
 class TestObject(unittest.TestCase):
 
@@ -576,6 +630,31 @@ class TestObject(unittest.TestCase):
         with self.assertRaisesRegex(KeyError,
                                     "link 'error_key' does not exist"):
             u['error_key']
+
+    def test_object_dataclass_1(self):
+        User = private.create_object_factory(
+            id='property',
+            name='property',
+            tuple='property',
+            namedtuple='property',
+        )
+
+        u = User(
+            1,
+            'Bob',
+            edgedb.Tuple((1, 2.0, '3')),
+            edgedb.NamedTuple(a=1, b="Y"),
+        )
+        self.assertTrue(dataclasses.is_dataclass(u))
+        self.assertEqual(
+            dataclasses.asdict(u),
+            {
+                'id': 1,
+                'name': 'Bob',
+                'tuple': (1, 2.0, '3'),
+                'namedtuple': (1, "Y"),
+            },
+        )
 
 
 class TestSet(unittest.TestCase):

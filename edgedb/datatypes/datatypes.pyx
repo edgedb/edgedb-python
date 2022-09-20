@@ -46,8 +46,11 @@ def get_object_descriptor(obj):
 
 
 def create_object_factory(**pointers):
+    import dataclasses
+
     flags = ()
     names = ()
+    fields = {}
     for pname, ptype in pointers.items():
         names += (pname,)
 
@@ -68,9 +71,14 @@ def create_object_factory(**pointers):
                 raise ValueError(f'unknown pointer type {pt}')
 
         flags += (flag,)
+        field = dataclasses.field()
+        field.name = pname
+        field._field_type = dataclasses._FIELD
+        fields[pname] = field
 
     desc = EdgeRecordDesc_New(names, flags, <object>NULL)
     size = len(pointers)
+    desc.set_dataclass_fields_func(lambda: fields)
 
     def factory(*items):
         if len(items) != size:
@@ -101,8 +109,8 @@ cdef namedtuple_new(object desc):
     return EdgeNamedTuple_New(desc)
 
 
-cdef namedtuple_set(object tuple, Py_ssize_t pos, object elem):
-    EdgeNamedTuple_SetItem(tuple, pos, elem)
+cdef namedtuple_type_new(object desc):
+    return EdgeNamedTuple_Type_New(desc)
 
 
 cdef object_new(object desc):

@@ -19,6 +19,7 @@
 
 @cython.final
 cdef class NamedTupleCodec(BaseNamedRecordCodec):
+    cdef object namedtuple_type
 
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple fields_names, tuple fields_codecs)
