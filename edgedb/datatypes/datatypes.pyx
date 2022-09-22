@@ -105,8 +105,8 @@ cdef record_desc_pointer_card(object desc, Py_ssize_t pos):
     return EdgeRecordDesc_PointerCardinality(desc, pos)
 
 
-cdef namedtuple_new(object desc):
-    return EdgeNamedTuple_New(desc)
+cdef namedtuple_new(object namedtuple_type):
+    return EdgeNamedTuple_New(namedtuple_type)
 
 
 cdef namedtuple_type_new(object desc):

@@ -18,8 +18,9 @@
 
 
 import dataclasses
+import gc
 import unittest
-
+import weakref
 
 import edgedb
 from edgedb.datatypes import datatypes as private
@@ -427,6 +428,18 @@ class TestDerivedNamedTuple(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "extra keyword arguments"):
             self.DerivedNamedTuple(1, 2, c=3, d=4)
+
+    def test_derived_namedtuple_4(self):
+        tp = type(edgedb.NamedTuple(x=42))
+        tp(8)
+        edgedb.NamedTuple(y=88)
+        tp(16)
+        tp_ref = weakref.ref(tp)
+        gc.collect()
+        self.assertIsNotNone(tp_ref())
+        del tp
+        gc.collect()
+        self.assertIsNone(tp_ref())
 
 
 class TestObject(unittest.TestCase):
