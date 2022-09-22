@@ -88,8 +88,8 @@ namedtuple_dealloc(PyTupleObject *o)
 static int
 namedtuple_traverse(PyTupleObject *o, visitproc visit, void *arg)
 {
-    Py_ssize_t i;
-    for (i = Py_SIZE(o); --i >= 0;) {
+    Py_VISIT(Py_TYPE(o));
+    for (Py_ssize_t i = Py_SIZE(o); --i >= 0;) {
         if (o->ob_item[i] != NULL) {
             Py_VISIT(o->ob_item[i]);
         }
