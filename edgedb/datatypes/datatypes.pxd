@@ -74,7 +74,7 @@ cdef extern from "datatypes.h":
 cdef record_desc_new(object names, object flags, object cards)
 cdef record_desc_pointer_name(object desc, Py_ssize_t pos)
 cdef record_desc_pointer_card(object desc, Py_ssize_t pos)
-cdef namedtuple_new(object desc)
+cdef namedtuple_new(object namedtuple_type)
 cdef namedtuple_type_new(object desc)
 cdef object_new(object desc)
 cdef object_set(object tuple, Py_ssize_t pos, object elem)

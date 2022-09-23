@@ -63,23 +63,40 @@ EdgeNamedTuple_New(PyObject *type)
 
     PyTupleObject *nt = NULL;
     printf("type refcount before newvar: %d\n", type->ob_refcnt);
-    nt = PyObject_GC_NewVar(PyTupleObject, type, size);
-    printf("type refcount after newvar: %d\n", type->ob_refcnt);
-    if (nt == NULL) {
-        return NULL;
-    }
+    if (
+        _EDGE_NAMED_TUPLE_FL_MAX_SAVE_SIZE &&
+        size < _EDGE_NAMED_TUPLE_FL_MAX_SAVE_SIZE &&
+        (nt = _EDGE_NAMED_TUPLE_FL[size]) != NULL
+    ) {
+        if (size == 0) {
+            Py_INCREF(nt);
+        } else {
+            _EDGE_NAMED_TUPLE_FL[size] = (PyTupleObject *) nt->ob_item[0];
+            _EDGE_NAMED_TUPLE_FL_NUM_FREE[size]--;
+            _Py_NewReference((PyObject *)nt);
+            Py_INCREF(type);
+            Py_TYPE(nt) = type;
+        }
+    } else {
+        if (
+            (size_t)size > (
+                (size_t)PY_SSIZE_T_MAX - sizeof(PyTupleObject *) - sizeof(PyObject *)
+            ) / sizeof(PyObject *)
+        ) {
+            PyErr_NoMemory();
+            return NULL;
+        }
+        nt = PyObject_GC_NewVar(PyTupleObject, type, size);
+        if (nt == NULL) {
+            return NULL;
+        }
 #if PY_VERSION_HEX < 0x03080000
-    // Workaround for Python issue 35810; no longer necessary in Python 3.8
-    Py_INCREF(type);
+        // Workaround for Python issue 35810; no longer necessary in Python 3.8
+        Py_INCREF(type);
 #endif
-
-//    EDGE_NEW_WITH_FREELIST(EDGE_NAMED_TUPLE, PyTupleObject, type, nt, size);
-//    assert(nt != NULL);
-//    if (Py_TYPE(nt) != type) {
-//        Py_DECREF(Py_TYPE(nt));
-//        Py_INCREF(type);
-//        Py_TYPE(nt) = type;
-//    }
+    }
+    printf("type refcount after newvar: %d\n", type->ob_refcnt);
+    assert(nt != NULL);
     assert(Py_SIZE(nt) == size);
 
     for (Py_ssize_t i = 0; i < size; i++) {
@@ -93,29 +110,18 @@ EdgeNamedTuple_New(PyObject *type)
 static void
 namedtuple_dealloc(PyTupleObject *o)
 {
-    Py_ssize_t i, size;
     PyTypeObject *tp;
     PyObject_GC_UnTrack(o);
-    Py_TRASHCAN_SAFE_BEGIN(o)
-
+    CPy_TRASHCAN_BEGIN(o, namedtuple_dealloc)
     tp = Py_TYPE(o);
-    size = Py_SIZE(o);
-    for (i = 0; i < size; ++i) {
-        Py_XDECREF(o->ob_item[i]);
-    }
-//    Py_TRASHCAN_SAFE_BEGIN(o)
-//    EDGE_DEALLOC_WITH_FREELIST(EDGE_NAMED_TUPLE, PyTupleObject, o);
-//    Py_TRASHCAN_SAFE_END(o)
+
     printf("tp_free? %d %d\n", tp->tp_free, PyObject_GC_Del);
     printf("type refcount before tp_free: %d\n", ((PyObject *)tp)->ob_refcnt);
-    tp->tp_free((PyObject *)o);
-#if PY_VERSION_HEX >= 0x03080000
-    // This was not needed before Python 3.8 (Python issue 35810)
+    EDGE_DEALLOC_WITH_FREELIST(EDGE_NAMED_TUPLE, PyTupleObject, o);
     printf("type refcount before decref type: %d\n", ((PyObject *)tp)->ob_refcnt);
     Py_DECREF(tp);
     printf("type refcount after decref type: %d\n", ((PyObject *)tp)->ob_refcnt);
-#endif
-    Py_TRASHCAN_SAFE_END(o)
+    CPy_TRASHCAN_END(o)
 }
 
 
