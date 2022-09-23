@@ -20,6 +20,7 @@
 #include "datatypes.h"
 #include "freelist.h"
 #include "internal.h"
+#include "structmember.h"
 
 
 EDGE_SETUP_FREELIST(
@@ -400,11 +401,21 @@ static PyMethodDef namedtuple_methods[] = {
 };
 
 
+// This is not a property on namedtuple objects, we are only using this member
+// to allocate additional space on the **type object** to store a fast-access
+// pointer to the `desc`. It's not visible to users with a Py_SIZE hack below.
+static PyMemberDef namedtuple_members[] = {
+    {"__desc__", T_OBJECT_EX, 0, READONLY},
+    {NULL}  /* Sentinel */
+};
+
+
 static PyType_Slot namedtuple_slots[] = {
     {Py_tp_traverse, (traverseproc)namedtuple_traverse},
     {Py_tp_dealloc, (destructor)namedtuple_dealloc},
+    {Py_tp_members, namedtuple_members},
 //    {Py_tp_new, namedtuple_derived_new},
-    {0, 0},
+    {0, 0}
 };
 
 
@@ -442,38 +453,23 @@ EdgeNamedTuple_Type_New(PyObject *desc)
         return NULL;
     }
 
-    PyObject *type;
-    PyTypeObject *rv;
-
-    type = PyType_FromSpecWithBases(
+    PyTypeObject *rv = (PyTypeObject *)PyType_FromSpecWithBases(
         &namedtuple_spec, PyTuple_Pack(1, &EdgeNamedTuple_Type)
     );
-    printf("type refcount new type: %d\n", type->ob_refcnt);
-    if (type == NULL) {
+    if (rv == NULL) {
         return NULL;
     }
 
-    // Over-allocate the new type object to store a quick pointer to desc.
-    PyObject_GC_UnTrack(type);  // needed by PyObject_GC_Resize
-    // PyObject_GC_Resize() increases the size by type->ob_type->tp_itemsize,
-    // which is sizeof(PyMemberDef) in PyType_Type, but we only need PyObject*,
-    // so make sure we have enough space to store the pointer.
-    Py_ssize_t size = Py_SIZE(type);
-    assert(Py_TYPE(type)->tp_itemsize > sizeof(PyObject *));
-    rv = PyObject_GC_Resize(PyTypeObject, type, size  + 1);
-    if (rv == NULL) {
-        PyObject_GC_Del(type);
-        return NULL;
-    }
-    Py_SIZE(rv) = size;
-    EdgeNamedTuple_Type_DESC(rv) = desc;
+    assert(Py_TYPE(rv)->tp_itemsize > sizeof(PyObject *));
+    Py_SIZE(rv) = 0;  // hack the size so the member is not visible to user
+    EdgeNamedTuple_Type_DESC(rv) = desc;  // store the fast-access pointer
     // desc is also stored in tp_dict for refcount.
     if (PyDict_SetItemString(rv->tp_dict, "__desc__", desc) < 0) {
         goto fail;
     }
 
-    // store `_fields` for collections.namedtuple duc-typing
-    size = EdgeRecordDesc_GetSize(desc);
+    // store `_fields` for collections.namedtuple duck-typing
+    Py_ssize_t size = EdgeRecordDesc_GetSize(desc);
     PyTupleObject *fields = PyTuple_New(size);
     if (fields == NULL) {
         goto fail;
@@ -489,14 +485,11 @@ EdgeNamedTuple_Type_New(PyObject *desc)
     if (PyDict_SetItemString(rv->tp_dict, "_fields", fields) < 0) {
         goto fail;
     }
-//    PyType_Type.tp_free = ttt;
-    printf("new type tp_free: %d\n", rv->tp_free);
 
-    PyObject_GC_Track(rv);
     return rv;
 
 fail:
-    PyObject_GC_Del(rv);
+    Py_DECREF(rv);
     return NULL;
 }
 
