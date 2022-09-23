@@ -30,9 +30,7 @@ EDGE_SETUP_FREELIST(
 
 
 #define EdgeNamedTuple_Type_DESC(type) \
-    PyDict_GetItemString(((PyTypeObject *)(type))->tp_dict, "__desc__")
-
-//    *(PyObject **)(((char *)type) + Py_TYPE(type)->tp_basicsize)
+    *(PyObject **)(((char *)type) + Py_TYPE(type)->tp_basicsize)
 
 
 static int init_type_called = 0;
@@ -455,7 +453,6 @@ EdgeNamedTuple_Type_New(PyObject *desc)
         return NULL;
     }
 
-    if (0) {
     // Over-allocate the new type object to store a quick pointer to desc.
     PyObject_GC_UnTrack(type);  // needed by PyObject_GC_Resize
     // PyObject_GC_Resize() increases the size by type->ob_type->tp_itemsize,
@@ -465,19 +462,16 @@ EdgeNamedTuple_Type_New(PyObject *desc)
     assert(Py_TYPE(type)->tp_itemsize > sizeof(PyObject *));
     rv = PyObject_GC_Resize(PyTypeObject, type, size  + 1);
     if (rv == NULL) {
-        Py_DECREF(type);
+        PyObject_GC_Del(type);
         return NULL;
     }
     Py_SIZE(rv) = size;
-//    EdgeNamedTuple_Type_DESC(rv) = desc;
-    }
-    rv = (PyTypeObject *)type;
+    EdgeNamedTuple_Type_DESC(rv) = desc;
     // desc is also stored in tp_dict for refcount.
     if (PyDict_SetItemString(rv->tp_dict, "__desc__", desc) < 0) {
         goto fail;
     }
 
-    Py_ssize_t size;
     // store `_fields` for collections.namedtuple duc-typing
     size = EdgeRecordDesc_GetSize(desc);
     PyTupleObject *fields = PyTuple_New(size);
@@ -495,14 +489,14 @@ EdgeNamedTuple_Type_New(PyObject *desc)
     if (PyDict_SetItemString(rv->tp_dict, "_fields", fields) < 0) {
         goto fail;
     }
-    PyType_Type.tp_free = ttt;
+//    PyType_Type.tp_free = ttt;
     printf("new type tp_free: %d\n", rv->tp_free);
 
-//    PyObject_GC_Track(rv);
+    PyObject_GC_Track(rv);
     return rv;
 
 fail:
-    Py_DECREF(rv);
+    PyObject_GC_Del(rv);
     return NULL;
 }
 
