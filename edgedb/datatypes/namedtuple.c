@@ -30,7 +30,9 @@ EDGE_SETUP_FREELIST(
 
 
 #define EdgeNamedTuple_Type_DESC(type) \
-    *(PyObject **)(((char *)type) + Py_TYPE(type)->tp_basicsize)
+    PyDict_GetItemString(((PyTypeObject *)(type))->tp_dict, "__desc__")
+
+//    *(PyObject **)(((char *)type) + Py_TYPE(type)->tp_basicsize)
 
 
 static int init_type_called = 0;
@@ -61,15 +63,29 @@ EdgeNamedTuple_New(PyObject *type)
     }
 
     PyTupleObject *nt = NULL;
-    EDGE_NEW_WITH_FREELIST(EDGE_NAMED_TUPLE, PyTupleObject, type, nt, size);
-    assert(nt != NULL);
-    if (Py_TYPE(nt) != type) {
-        Py_DECREF(Py_TYPE(nt));
-        Py_INCREF(type);
-        Py_TYPE(nt) = type;
+    printf("type refcount before newvar: %d\n", type->ob_refcnt);
+    nt = PyObject_GC_NewVar(PyTupleObject, type, size);
+    printf("type refcount after newvar: %d\n", type->ob_refcnt);
+    if (nt == NULL) {
+        return NULL;
     }
+#if PY_VERSION_HEX < 0x03080000
+    // Workaround for Python issue 35810; no longer necessary in Python 3.8
+    Py_INCREF(type);
+#endif
+
+//    EDGE_NEW_WITH_FREELIST(EDGE_NAMED_TUPLE, PyTupleObject, type, nt, size);
+//    assert(nt != NULL);
+//    if (Py_TYPE(nt) != type) {
+//        Py_DECREF(Py_TYPE(nt));
+//        Py_INCREF(type);
+//        Py_TYPE(nt) = type;
+//    }
     assert(Py_SIZE(nt) == size);
 
+    for (Py_ssize_t i = 0; i < size; i++) {
+        nt->ob_item[i] = NULL;
+    }
     PyObject_GC_Track(nt);
     return (PyObject *)nt;
 }
@@ -78,17 +94,45 @@ EdgeNamedTuple_New(PyObject *type)
 static void
 namedtuple_dealloc(PyTupleObject *o)
 {
+    Py_ssize_t i, size;
+    PyTypeObject *tp;
     PyObject_GC_UnTrack(o);
     Py_TRASHCAN_SAFE_BEGIN(o)
-    EDGE_DEALLOC_WITH_FREELIST(EDGE_NAMED_TUPLE, PyTupleObject, o);
+
+    tp = Py_TYPE(o);
+    size = Py_SIZE(o);
+    for (i = 0; i < size; ++i) {
+        Py_XDECREF(o->ob_item[i]);
+    }
+//    Py_TRASHCAN_SAFE_BEGIN(o)
+//    EDGE_DEALLOC_WITH_FREELIST(EDGE_NAMED_TUPLE, PyTupleObject, o);
+//    Py_TRASHCAN_SAFE_END(o)
+    printf("tp_free? %d %d\n", tp->tp_free, PyObject_GC_Del);
+    printf("type refcount before tp_free: %d\n", ((PyObject *)tp)->ob_refcnt);
+    tp->tp_free((PyObject *)o);
+#if PY_VERSION_HEX >= 0x03080000
+    // This was not needed before Python 3.8 (Python issue 35810)
+    printf("type refcount before decref type: %d\n", ((PyObject *)tp)->ob_refcnt);
+    Py_DECREF(tp);
+    printf("type refcount after decref type: %d\n", ((PyObject *)tp)->ob_refcnt);
+#endif
     Py_TRASHCAN_SAFE_END(o)
+}
+
+
+static void ttt(PyTypeObject *o) {
+    printf("Deleting type!!!!! %s\n", o->tp_name);
+    PyObject_GC_Del(o);
 }
 
 
 static int
 namedtuple_traverse(PyTupleObject *o, visitproc visit, void *arg)
 {
+#if PY_VERSION_HEX >= 0x03090000
+    // This was not needed before Python 3.9 (Python issue 35810 and 40217)
     Py_VISIT(Py_TYPE(o));
+#endif
     for (Py_ssize_t i = Py_SIZE(o); --i >= 0;) {
         if (o->ob_item[i] != NULL) {
             Py_VISIT(o->ob_item[i]);
@@ -99,6 +143,10 @@ namedtuple_traverse(PyTupleObject *o, visitproc visit, void *arg)
 
 
 static PyObject *
+namedtuple_derived_new(PyTypeObject *type, PyObject *args, PyObject *kwargs);
+
+
+static PyObject *
 namedtuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     PyTupleObject *o = NULL;
     PyObject *keys_tup = NULL;
@@ -106,8 +154,7 @@ namedtuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     PyObject *desc = NULL;
 
     if (type != &EdgeNamedTuple_Type) {
-        PyErr_BadInternalCall();
-        goto fail;
+        return namedtuple_derived_new(type, args, kwargs);
     }
 
     if (args != NULL && PyTuple_GET_SIZE(args) > 0) {
@@ -159,9 +206,11 @@ namedtuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         goto fail;
     }
 
-    type = EdgeNamedTuple_Type_New(desc);
-    o = (PyTupleObject *)EdgeNamedTuple_New(type);
-    Py_CLEAR(type);
+    PyObject *nt = EdgeNamedTuple_Type_New(desc);
+    o = (PyTupleObject *)EdgeNamedTuple_New(nt);
+    printf("type refcount before CLEAR: %d\n", nt->ob_refcnt);
+    Py_DECREF(nt);
+    printf("type refcount after CLEAR: %d\n", nt->ob_refcnt);
 
     if (o == NULL) {
         goto fail;
@@ -199,6 +248,8 @@ fail:
 static PyObject *
 namedtuple_derived_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     PyTupleObject *o = (PyTupleObject *)EdgeNamedTuple_New(type);
+
+    printf("type refcount in derived_new: %d\n", ((PyObject *)type)->ob_refcnt);
     if (o == NULL) {
         goto fail;
     }
@@ -352,12 +403,9 @@ static PyMethodDef namedtuple_methods[] = {
 
 
 static PyType_Slot namedtuple_slots[] = {
-    {Py_tp_repr, (reprfunc)namedtuple_repr},
-    {Py_tp_methods, namedtuple_methods},
-    {Py_tp_getattro, (getattrofunc)namedtuple_getattr},
     {Py_tp_traverse, (traverseproc)namedtuple_traverse},
     {Py_tp_dealloc, (destructor)namedtuple_dealloc},
-    {Py_tp_new, namedtuple_derived_new},
+//    {Py_tp_new, namedtuple_derived_new},
     {0, 0},
 };
 
@@ -378,6 +426,11 @@ PyTypeObject EdgeNamedTuple_Type = {
     .tp_itemsize = sizeof(PyObject *),
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_new = namedtuple_new,
+    .tp_repr = (reprfunc)namedtuple_repr,
+    .tp_methods = namedtuple_methods,
+    .tp_getattro = (getattrofunc)namedtuple_getattr,
+//    .tp_traverse = (traverseproc)namedtuple_traverse,
+//    .tp_dealloc = (destructor)namedtuple_dealloc,
 };
 
 
@@ -392,15 +445,17 @@ EdgeNamedTuple_Type_New(PyObject *desc)
     }
 
     PyObject *type;
-    PyObject *rv;
+    PyTypeObject *rv;
 
     type = PyType_FromSpecWithBases(
         &namedtuple_spec, PyTuple_Pack(1, &EdgeNamedTuple_Type)
     );
+    printf("type refcount new type: %d\n", type->ob_refcnt);
     if (type == NULL) {
         return NULL;
     }
 
+    if (0) {
     // Over-allocate the new type object to store a quick pointer to desc.
     PyObject_GC_UnTrack(type);  // needed by PyObject_GC_Resize
     // PyObject_GC_Resize() increases the size by type->ob_type->tp_itemsize,
@@ -408,16 +463,21 @@ EdgeNamedTuple_Type_New(PyObject *desc)
     // so make sure we have enough space to store the pointer.
     Py_ssize_t size = Py_SIZE(type);
     assert(Py_TYPE(type)->tp_itemsize > sizeof(PyObject *));
-    rv = PyObject_GC_Resize(PyObject, type, size  + 1);
+    rv = PyObject_GC_Resize(PyTypeObject, type, size  + 1);
     if (rv == NULL) {
-        PyObject_GC_Del(type);
+        Py_DECREF(type);
         return NULL;
     }
     Py_SIZE(rv) = size;
-    EdgeNamedTuple_Type_DESC(rv) = desc;
+//    EdgeNamedTuple_Type_DESC(rv) = desc;
+    }
+    rv = (PyTypeObject *)type;
     // desc is also stored in tp_dict for refcount.
-    PyDict_SetItemString(((PyTypeObject *)rv)->tp_dict, "__desc__", desc);
+    if (PyDict_SetItemString(rv->tp_dict, "__desc__", desc) < 0) {
+        goto fail;
+    }
 
+    Py_ssize_t size;
     // store `_fields` for collections.namedtuple duc-typing
     size = EdgeRecordDesc_GetSize(desc);
     PyTupleObject *fields = PyTuple_New(size);
@@ -432,13 +492,17 @@ EdgeNamedTuple_Type_New(PyObject *desc)
         }
         PyTuple_SET_ITEM(fields, i, name);
     }
-    PyDict_SetItemString(((PyTypeObject *)rv)->tp_dict, "_fields", fields);
+    if (PyDict_SetItemString(rv->tp_dict, "_fields", fields) < 0) {
+        goto fail;
+    }
+    PyType_Type.tp_free = ttt;
+    printf("new type tp_free: %d\n", rv->tp_free);
 
-    PyObject_GC_Track(rv);
+//    PyObject_GC_Track(rv);
     return rv;
 
 fail:
-    PyObject_GC_Del(rv);
+    Py_DECREF(rv);
     return NULL;
 }
 
