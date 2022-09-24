@@ -125,50 +125,6 @@ PyObject * EdgeObject_GetItem(PyObject *, Py_ssize_t);
 PyObject * EdgeObject_GetID(PyObject *ob);
 
 
-/* === edgedb.Set =========================================== */
-
-extern PyTypeObject EdgeSet_Type;
-
-#define EdgeSet_Check(d) (Py_TYPE(d) == &EdgeSet_Type)
-
-typedef struct {
-    PyObject_HEAD
-    Py_hash_t cached_hash;
-    PyObject *weakreflist;
-    PyObject *els;
-} EdgeSetObject;
-
-PyObject * EdgeSet_InitType(void);
-PyObject * EdgeSet_New(Py_ssize_t);
-
-int EdgeSet_SetItem(PyObject *, Py_ssize_t, PyObject *);
-PyObject * EdgeSet_GetItem(PyObject *, Py_ssize_t);
-
-int EdgeSet_AppendItem(PyObject *, PyObject *);
-Py_ssize_t EdgeSet_Len(PyObject *);
-
-
-/* === edgedb.Array ========================================= */
-
-#define EDGE_ARRAY_FREELIST_SIZE 500
-#define EDGE_ARRAY_FREELIST_MAXSAVE 10
-
-extern PyTypeObject EdgeArray_Type;
-
-#define EdgeArray_Check(d) (Py_TYPE(d) == &EdgeArray_Type)
-
-typedef struct {
-    PyObject_VAR_HEAD
-    PyObject *weakreflist;
-    Py_hash_t cached_hash;
-    PyObject *ob_item[1];
-} EdgeArrayObject;
-
-PyObject * EdgeArray_InitType(void);
-PyObject * EdgeArray_New(Py_ssize_t size);
-int EdgeArray_SetItem(PyObject *, Py_ssize_t, PyObject *);
-
-
 /* === edgedb.Link ========================================== */
 
 extern PyTypeObject EdgeLink_Type;

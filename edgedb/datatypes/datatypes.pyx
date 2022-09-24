@@ -30,8 +30,8 @@ _RecordDescriptor = EdgeRecordDesc_InitType()
 Tuple = tuple
 NamedTuple = EdgeNamedTuple_InitType()
 Object = EdgeObject_InitType()
-Set = EdgeSet_InitType()
-Array = EdgeArray_InitType()
+Set = list
+Array = list
 Link = EdgeLink_InitType()
 LinkSet = EdgeLinkSet_InitType()
 
@@ -119,27 +119,3 @@ cdef object_new(object desc):
 
 cdef object_set(object obj, Py_ssize_t pos, object elem):
     EdgeObject_SetItem(obj, pos, elem)
-
-
-cdef bint set_check(object set):
-    return EdgeSet_Check(set)
-
-
-cdef set_new(Py_ssize_t size):
-    return EdgeSet_New(size)
-
-
-cdef set_set(object set, Py_ssize_t pos, object elem):
-    EdgeSet_SetItem(set, pos, elem)
-
-
-cdef set_append(object set, object elem):
-    EdgeSet_AppendItem(set, elem)
-
-
-cdef array_new(Py_ssize_t size):
-    return EdgeArray_New(size)
-
-
-cdef array_set(object array, Py_ssize_t pos, object elem):
-    EdgeArray_SetItem(array, pos, elem)

@@ -30,13 +30,6 @@ cdef class BaseArrayCodec(BaseCodec):
         self.sub_codec = None
         self.cardinality = -1
 
-    cdef _new_collection(self, Py_ssize_t size):
-        raise NotImplementedError
-
-    cdef _set_collection_item(self, object collection, Py_ssize_t i,
-                              object element):
-        raise NotImplementedError
-
     cdef encode(self, WriteBuffer buf, object obj):
         cdef:
             WriteBuffer elem_data
@@ -102,7 +95,7 @@ cdef class BaseArrayCodec(BaseCodec):
             raise RuntimeError('only 1-dimensional arrays are supported')
 
         if ndims == 0:
-            return self._new_collection(0)
+            return []
 
         assert ndims == 1
 
@@ -115,7 +108,7 @@ cdef class BaseArrayCodec(BaseCodec):
 
         frb_read(buf, 4)  # Ignore the lower bound information
 
-        result = self._new_collection(elem_count)
+        result = cpython.PyList_New(elem_count)
         for i in range(elem_count):
             elem_len = hton.unpack_int32(frb_read(buf, 4))
             if elem_len == -1:
@@ -128,7 +121,8 @@ cdef class BaseArrayCodec(BaseCodec):
                         f'unexpected trailing data in buffer after '
                         f'array element decoding: {frb_get_len(&elem_buf)}')
 
-            self._set_collection_item(result, i, elem)
+            cpython.Py_INCREF(elem)
+            cpython.PyList_SET_ITEM(result, i, elem)
 
         return result
 
@@ -138,13 +132,6 @@ cdef class BaseArrayCodec(BaseCodec):
 
 @cython.final
 cdef class ArrayCodec(BaseArrayCodec):
-
-    cdef _new_collection(self, Py_ssize_t size):
-        return datatypes.array_new(size)
-
-    cdef _set_collection_item(self, object collection, Py_ssize_t i,
-                              object element):
-        datatypes.array_set(collection, i, element)
 
     @staticmethod
     cdef BaseCodec new(bytes tid, BaseCodec sub_codec, int32_t cardinality):

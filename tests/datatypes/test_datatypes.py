@@ -559,7 +559,6 @@ class TestObject(unittest.TestCase):
         linkset = o1['o2s']
         self.assertEqual(len(linkset), 2)
         self.assertEqual(linkset, o1['o2s'])
-        self.assertEqual(hash(linkset), hash(o1['o2s']))
         self.assertEqual(
             repr(linkset),
             "LinkSet(name='o2s', source_id=2, target_ids={1, 4})")
@@ -674,7 +673,7 @@ class TestSet(unittest.TestCase):
 
     def test_set_1(self):
         s = edgedb.Set(())
-        self.assertEqual(repr(s), 'Set{}')
+        self.assertEqual(repr(s), '[]')
 
         s = edgedb.Set((1, 2, [], 'a'))
 
@@ -684,36 +683,23 @@ class TestSet(unittest.TestCase):
         with self.assertRaises(IndexError):
             s[10]
 
-        with self.assertRaises(TypeError):
-            s[0] = 1
-
     def test_set_2(self):
         s = edgedb.Set((1, 2, 3000, 'a'))
 
-        self.assertEqual(repr(s), "Set{1, 2, 3000, 'a'}")
-
-        self.assertEqual(
-            hash(s),
-            hash(edgedb.Set((1, 2, sum([1000, 2000]), 'a'))))
-
-        self.assertNotEqual(
-            hash(s),
-            hash((1, 2, 3000, 'a')))
+        self.assertEqual(repr(s), "[1, 2, 3000, 'a']")
 
     def test_set_3(self):
         s = edgedb.Set(())
 
         self.assertEqual(len(s), 0)
-        self.assertEqual(hash(s), hash(edgedb.Set(())))
-        self.assertNotEqual(hash(s), hash(()))
 
     def test_set_4(self):
         s = edgedb.Set(([],))
         s[0].append(s)
-        self.assertEqual(repr(s), "Set{[Set{...}]}")
+        self.assertEqual(repr(s), "[[[...]]]")
 
     def test_set_5(self):
-        self.assertEqual(
+        self.assertNotEqual(
             edgedb.Set([1, 2, 3]),
             edgedb.Set([3, 2, 1]))
 
@@ -752,7 +738,7 @@ class TestSet(unittest.TestCase):
         o2 = f(1, 'ab', edgedb.Set([1, 2, 4]))
         o3 = f(3, 'ac', edgedb.Set([5, 5, 5, 5]))
 
-        self.assertEqual(
+        self.assertNotEqual(
             edgedb.Set([o1, o2, o3]),
             edgedb.Set([o2, o3, o1]))
 
@@ -788,7 +774,6 @@ class TestArray(unittest.TestCase):
     def test_array_empty_1(self):
         t = edgedb.Array()
         self.assertEqual(len(t), 0)
-        self.assertNotEqual(hash(t), hash(()))
         with self.assertRaisesRegex(IndexError, 'out of range'):
             t[0]
         self.assertEqual(repr(t), "[]")
@@ -800,8 +785,6 @@ class TestArray(unittest.TestCase):
         self.assertEqual(str(t), "[1, 'a']")
 
         self.assertEqual(len(t), 2)
-        self.assertEqual(hash(t), hash(edgedb.Array([1, 'a'])))
-        self.assertNotEqual(hash(t), hash(edgedb.Array([10, 'ab'])))
 
         self.assertEqual(t[0], 1)
         self.assertEqual(t[1], 'a')

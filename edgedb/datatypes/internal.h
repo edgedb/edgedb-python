@@ -28,13 +28,6 @@
 #include "datatypes.h"
 
 
-#define _Edge_IsContainer(o)                                \
-    (PyTuple_Check(o) ||                               \
-     EdgeObject_Check(o) ||                                 \
-     EdgeSet_Check(o) ||                                    \
-     EdgeArray_Check(o))
-
-
 int _Edge_NoKeywords(const char *, PyObject *);
 
 Py_hash_t _EdgeGeneric_Hash(PyObject **, Py_ssize_t);

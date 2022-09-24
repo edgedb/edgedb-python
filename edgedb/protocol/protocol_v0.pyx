@@ -175,7 +175,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         packet.write_bytes(SYNC_MESSAGE)
         self.write(packet)
 
-        result = datatypes.set_new(0)
+        result = []
 
         exc = None
         while True:
@@ -269,7 +269,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         packet.write_bytes(SYNC_MESSAGE)
         self.write(packet)
 
-        result = datatypes.set_new(0)
+        result = []
         re_exec = False
         exc = None
         while True:

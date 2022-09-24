@@ -2,7 +2,6 @@ import abc
 import typing
 
 from . import options
-from .datatypes import datatypes
 from .protocol import protocol
 
 __all__ = (
@@ -103,7 +102,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
     def _query(self, query_context: QueryContext):
         ...
 
-    def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+    def query(self, query: str, *args, **kwargs) -> list:
         return self._query(QueryContext(
             query=QueryWithArgs(query, args, kwargs),
             cache=self._get_query_cache(),
@@ -186,7 +185,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
     async def _query(self, query_context: QueryContext):
         ...
 
-    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+    async def query(self, query: str, *args, **kwargs) -> list:
         return await self._query(QueryContext(
             query=QueryWithArgs(query, args, kwargs),
             cache=self._get_query_cache(),

@@ -250,7 +250,7 @@ object_getitem(EdgeObject *o, PyObject *name)
         case L_LINK: {
             PyObject *val = EdgeObject_GET_ITEM(o, pos);
 
-            if (EdgeSet_Check(val)) {
+            if (PyList_Check(val)) {
                 return EdgeLinkSet_New(name, (PyObject *)o, val);
             }
             else if (val == Py_None) {

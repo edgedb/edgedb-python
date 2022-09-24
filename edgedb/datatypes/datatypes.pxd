@@ -56,16 +56,6 @@ cdef extern from "datatypes.h":
     int EdgeObject_SetItem(object, Py_ssize_t, object) except -1
     object EdgeObject_GetRecordDesc(object)
 
-    bint EdgeSet_Check(object)
-    object EdgeSet_InitType()
-    object EdgeSet_New(Py_ssize_t);
-    int EdgeSet_SetItem(object, Py_ssize_t, object) except -1
-    int EdgeSet_AppendItem(object, object) except -1
-
-    object EdgeArray_InitType()
-    object EdgeArray_New(Py_ssize_t);
-    int EdgeArray_SetItem(object, Py_ssize_t, object) except -1
-
     object EdgeLink_InitType()
 
     object EdgeLinkSet_InitType()
@@ -78,9 +68,3 @@ cdef namedtuple_new(object namedtuple_type)
 cdef namedtuple_type_new(object desc)
 cdef object_new(object desc)
 cdef object_set(object tuple, Py_ssize_t pos, object elem)
-cdef bint set_check(object set)
-cdef set_new(Py_ssize_t size)
-cdef set_set(object set, Py_ssize_t pos, object elem)
-cdef set_append(object set, object elem)
-cdef array_new(Py_ssize_t size)
-cdef array_set(object array, Py_ssize_t pos, object elem)
