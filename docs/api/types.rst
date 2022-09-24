@@ -22,7 +22,7 @@ The table below shows the correspondence between EdgeDB and Python types.
 | ``anytuple``               | :py:class:`edgedb.Tuple` or                         |
 |                            | :py:class:`edgedb.NamedTuple`                       |
 +----------------------------+-----------------------------------------------------+
-| ``anyenum``                | :py:class:`str <python:str>`                        |
+| ``anyenum``                | :py:class:`edgedb.EnumValue`                        |
 +----------------------------+-----------------------------------------------------+
 | ``Object``                 | :py:class:`edgedb.Object`                           |
 +----------------------------+-----------------------------------------------------+
@@ -81,20 +81,7 @@ Sets
 
 .. py:class:: Set()
 
-    A representation of an immutable set of values returned by a query.
-
-    The :py:meth:`AsyncIOClient.query() <edgedb.AsyncIOClient.query>` and
-    :py:meth:`Client.query() <edgedb.Client.query>`
-    methods return an instance of this type.  Nested sets in the result are
-    also returned as ``Set`` objects.
-
-    .. describe:: len(s)
-
-       Return the number of fields in set *s*.
-
-    .. describe:: iter(s)
-
-       Return an iterator over the *values* of the set *s*.
+    This is :py:class:`list <python:list>` since version 0.25.0.
 
 
 .. _edgedb-python-types-object:
@@ -105,6 +92,10 @@ Objects
 .. py:class:: Object()
 
     An immutable representation of an object instance returned from a query.
+
+    ``edgedb.Object`` instances are dataclass-compatible since version 0.25.0.
+    for example, ``dataclasses.is_dataclass()`` will return ``True``, and
+    ``dataclasses.asdict()`` will work on ``edgedb.Object`` instances.
 
     The value of an object property or a link can be accessed through
     a corresponding attribute:
@@ -181,24 +172,7 @@ Tuples
 
 .. py:class:: Tuple()
 
-    An immutable value representing an EdgeDB tuple value.
-
-    Instances of ``edgedb.Tuple`` generally behave exactly like
-    standard Python tuples:
-
-    .. code-block:: pycon
-
-        >>> import edgedb
-        >>> client = edgedb.create_client()
-        >>> r = client.query_single('''SELECT (1, 'a', [3])''')
-        >>> r
-        (1, 'a', [3])
-        >>> len(r)
-        3
-        >>> r[1]
-        'a'
-        >>> r == (1, 'a', [3])
-        True
+    This is :py:class:`tuple <python:tuple>` since version 0.25.0.
 
 
 Named Tuples
@@ -207,6 +181,11 @@ Named Tuples
 .. py:class:: NamedTuple()
 
     An immutable value representing an EdgeDB named tuple value.
+
+    ``edgedb.NamedTuple`` is a subclass of :py:class:`tuple <python:tuple>`
+    since version 0.25.0. Actual named tuple values are instances of ad-hoc
+    classes created by the codec to represent the specific names, but the
+    ad-hoc classes are direct subclasses of ``edgedb.NamedTuple``.
 
     Instances of ``edgedb.NamedTuple`` generally behave similarly to
     :py:func:`namedtuple <python:collections.namedtuple>`:
@@ -224,6 +203,8 @@ Named Tuples
         1
         >>> r == (1, 'a', [3])
         True
+        >>> r._fields
+        ('a', 'b', 'c')
 
 
 Arrays
@@ -231,28 +212,15 @@ Arrays
 
 .. py:class:: Array()
 
-    An immutable value representing an EdgeDB array value.
+    This is :py:class:`list <python:list>` since version 0.25.0.
 
-    .. code-block:: pycon
-
-        >>> import edgedb
-        >>> client = edgedb.create_client()
-        >>> r = client.query_single('''SELECT [1, 2, 3]''')
-        >>> r
-        [1, 2, 3]
-        >>> len(r)
-        3
-        >>> r[1]
-        2
-        >>> r == [1, 2, 3]
-        True
 
 RelativeDuration
 ================
 
 .. py:class:: RelativeDuration()
 
-    An immutable value represeting an EdgeDB ``cal::relative_duration`` value.
+    An immutable value representing an EdgeDB ``cal::relative_duration`` value.
 
     .. code-block:: pycon
 
@@ -274,7 +242,7 @@ DateDuration
 
 .. py:class:: DateDuration()
 
-    An immutable value represeting an EdgeDB ``cal::date_duration`` value.
+    An immutable value representing an EdgeDB ``cal::date_duration`` value.
 
     .. code-block:: pycon
 
@@ -287,3 +255,28 @@ DateDuration
         12
         >>> r.days
         2
+
+
+EnumValue
+=========
+
+.. py:class:: EnumValue()
+
+    An immutable value representing an EdgeDB enum value.
+
+    ``edgedb.EnumValue`` is a subclass of :py:class:`enum.Enum <python:enum.Enum>`
+    since version 0.25.0.
+
+    .. code-block:: pycon
+
+        >>> import edgedb
+        >>> client = edgedb.create_client()
+        >>> r = client.query_single("""SELECT <Color>'red'""")
+        >>> r
+        <edgedb.EnumValue 'red'>
+        >>> str(r)
+        'red'
+        >>> r.value  # added in 0.25.0
+        'red'
+        >>> r.name  # added in 0.25.0, simply str.upper() of r.value
+        'RED'
