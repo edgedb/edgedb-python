@@ -17,9 +17,6 @@
 #
 
 
-from edgedb import errors
-
-
 @cython.final
 cdef class NamedTupleCodec(BaseNamedRecordCodec):
 

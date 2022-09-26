@@ -19,122 +19,41 @@
 import enum
 
 
-cdef class EnumDescriptor:
-
-    def __init__(self, object tid, tuple labels):
-        self.tid = tid
-        index = {}
-        for i, l in enumerate(labels):
-            index[l] = i
-        self.index = index
-        self.labels = labels
-
-    cdef get_index(self, EnumValue v):
-        return self.index[v.label]
-
-
-cdef class EnumValue:
-
-    def __init__(self, EnumDescriptor desc, str label):
-        self.desc = desc
-        self.label = label
-        self.name = label.upper()
-
-    cdef get_index(self):
-        return self.desc.get_index(self)
+class EnumValue(enum.Enum):
 
     def __str__(self):
-        return self.label
+        return self._value_
 
     def __repr__(self):
-        return f'<edgedb.EnumValue {self.label!r}>'
-
-    property __tid__:
-        def __get__(self):
-            return self.desc.tid
-
-    property value:
-        def __get__(self):
-            return self.label
-
-    def __eq__(self, other):
-        if not isinstance(other, EnumValue):
-            return NotImplemented
-        if self.desc.tid != (<EnumValue>other).desc.tid:
-            return NotImplemented
-        return self.label == (<EnumValue>other).label
-
-    def __ne__(self, other):
-        if not isinstance(other, EnumValue):
-            return NotImplemented
-        if self.desc.tid != (<EnumValue>other).desc.tid:
-            return NotImplemented
-        return self.label != (<EnumValue>other).label
+        return f'<edgedb.EnumValue {self._value_!r}>'
 
     def __lt__(self, other):
         if not isinstance(other, EnumValue):
             return NotImplemented
-        if self.desc.tid != (<EnumValue>other).desc.tid:
+        if self.__tid__ != other.__tid__:
             return NotImplemented
-        return self.get_index() < (<EnumValue>other).get_index()
+        return self._index_ < other._index_
 
     def __gt__(self, other):
         if not isinstance(other, EnumValue):
             return NotImplemented
-        if self.desc.tid != (<EnumValue>other).desc.tid:
+        if self.__tid__ != other.__tid__:
             return NotImplemented
-        return self.get_index() > (<EnumValue>other).get_index()
+        return self._index_ > other._index_
 
     def __le__(self, other):
         if not isinstance(other, EnumValue):
             return NotImplemented
-        if self.desc.tid != (<EnumValue>other).desc.tid:
+        if self.__tid__ != other.__tid__:
             return NotImplemented
-        return self.get_index() <= (<EnumValue>other).get_index()
+        return self._index_ <= other._index_
 
     def __ge__(self, other):
         if not isinstance(other, EnumValue):
             return NotImplemented
-        if self.desc.tid != (<EnumValue>other).desc.tid:
+        if self.__tid__ != other.__tid__:
             return NotImplemented
-        return self.get_index() >= (<EnumValue>other).get_index()
+        return self._index_ >= other._index_
 
     def __hash__(self):
-        return hash((self.desc.tid, self.label))
-
-    def __reduce__(self):
-        return (
-            _restore_enum_value,
-            (self.desc.tid, self.desc.labels, self.label),
-        )
-
-    def __reduce_ex__(self, protocol):
-        return self.__reduce__()
-
-    def __dir__(self):
-        return [
-            '__class__',
-            '__dir__',
-            '__doc__',
-            '__eq__',
-            '__ge__',
-            '__gt__',
-            '__hash__',
-            '__le__',
-            '__lt__',
-            '__ne__',
-            '__reduce__',
-            '__reduce_ex__',
-            '__repr__',
-            '__str__',
-            '__tid__'
-            'name',
-            'value',
-        ]
-
-
-def _restore_enum_value(tid, labels, label):
-    return EnumValue(EnumDescriptor(tid, labels), label)
-
-
-EdgeType_SetMro(EnumValue, (EnumValue, enum.Enum, object))
+        return hash((self.__tid__, self._value_))

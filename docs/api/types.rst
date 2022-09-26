@@ -265,7 +265,9 @@ EnumValue
     An immutable value representing an EdgeDB enum value.
 
     ``edgedb.EnumValue`` is a subclass of :py:class:`enum.Enum <python:enum.Enum>`
-    since version 0.25.0.
+    since version 0.25.0. Actual enum values are instances of ad-hoc classes
+    created by the codec to represent the specific enums, but the ad-hoc
+    classes are direct subclasses of ``edgedb.EnumValue``.
 
     .. code-block:: pycon
 

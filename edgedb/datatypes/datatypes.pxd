@@ -23,7 +23,6 @@ cimport cpython
 
 include "./relative_duration.pxd"
 include "./date_duration.pxd"
-include "./enum.pxd"
 include "./config_memory.pxd"
 
 

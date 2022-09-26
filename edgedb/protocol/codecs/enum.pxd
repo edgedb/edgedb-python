@@ -21,7 +21,7 @@
 cdef class EnumCodec(BaseCodec):
 
     cdef:
-        object descriptor
+        object cls
 
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple enum_labels)

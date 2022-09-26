@@ -93,5 +93,4 @@ class TestEnum(tb.AsyncQueryTestCase):
 
         c = Container(c_red)
         d = dataclasses.asdict(c)
-        self.assertIsNot(d['color'], c_red)
-        self.assertEqual(d['color'], c_red)
+        self.assertIs(d['color'], c_red)
