@@ -41,8 +41,7 @@
 Py_hash_t
 _EdgeGeneric_Hash(PyObject **els, Py_ssize_t len)
 {
-    /* Python's tuple hash algorithm.  Hashes of edgedb.NamedTuple must be
-       equal to hashes of Python't tuples with the same elements */
+    /* Python's tuple hash algorithm, used by edgedb.Object  */
 
     Py_ssize_t i;
     Py_uhash_t acc = _PyHASH_XXPRIME_5;
@@ -70,8 +69,7 @@ _EdgeGeneric_Hash(PyObject **els, Py_ssize_t len)
 Py_hash_t
 _EdgeGeneric_Hash(PyObject **els, Py_ssize_t len)
 {
-    /* Python's tuple hash algorithm.  Hashes of edgedb.NamedTuple must be
-       equal to hashes of Python't tuples with the same elements */
+    /* Python's tuple hash algorithm, used by edgedb.Object  */
 
     Py_uhash_t x;  /* Unsigned for defined overflow behavior. */
     PyObject **p = els;

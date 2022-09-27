@@ -94,3 +94,8 @@ class TestEnum(tb.AsyncQueryTestCase):
         c = Container(c_red)
         d = dataclasses.asdict(c)
         self.assertIs(d['color'], c_red)
+
+    async def test_enum_03(self):
+        c_red = await self.client.query_single('SELECT <Color>"red"')
+        c_red2 = await self.client.query_single('SELECT <Color>$0', c_red)
+        self.assertIs(c_red, c_red2)

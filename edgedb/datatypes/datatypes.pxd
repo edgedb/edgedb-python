@@ -60,17 +60,6 @@ cdef extern from "datatypes.h":
     object EdgeLinkSet_InitType()
 
 
-cdef extern from *:
-    """
-void EdgeType_SetMro(PyObject *tp, PyObject *mro) {
-    Py_DECREF(((PyTypeObject *)tp)->tp_mro);
-    Py_INCREF(mro);
-    ((PyTypeObject *)tp)->tp_mro = mro;
-}
-    """
-    void EdgeType_SetMro(object tp, object mro)
-
-
 cdef record_desc_new(object names, object flags, object cards)
 cdef record_desc_pointer_name(object desc, Py_ssize_t pos)
 cdef record_desc_pointer_card(object desc, Py_ssize_t pos)
