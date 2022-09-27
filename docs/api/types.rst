@@ -183,9 +183,8 @@ Named Tuples
     An immutable value representing an EdgeDB named tuple value.
 
     ``edgedb.NamedTuple`` is a subclass of :py:class:`tuple <python:tuple>`
-    since version 0.25.0. Actual named tuple values are instances of ad-hoc
-    classes created by the codec to represent the specific names, but the
-    ad-hoc classes are direct subclasses of ``edgedb.NamedTuple``.
+    and is duck-type compatible with `collections.namedtuple` since 
+    version 0.25.0.
 
     Instances of ``edgedb.NamedTuple`` generally behave similarly to
     :py:func:`namedtuple <python:collections.namedtuple>`:
