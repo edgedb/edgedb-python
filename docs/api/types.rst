@@ -81,7 +81,7 @@ Sets
 
 .. py:class:: Set()
 
-    This is :py:class:`list <python:list>` since version 0.25.0.
+    This is :py:class:`list <python:list>` since version 1.0.
 
 
 .. _edgedb-python-types-object:
@@ -93,9 +93,18 @@ Objects
 
     An immutable representation of an object instance returned from a query.
 
-    ``edgedb.Object`` instances are dataclass-compatible since version 0.25.0.
-    for example, ``dataclasses.is_dataclass()`` will return ``True``, and
-    ``dataclasses.asdict()`` will work on ``edgedb.Object`` instances.
+    .. versionchanged:: 1.0
+
+        ``edgedb.Object`` instances are dataclass-compatible since version 1.0,
+        for example, ``dataclasses.is_dataclass()`` will return ``True``, and
+        ``dataclasses.asdict()`` will work on ``edgedb.Object`` instances.
+
+    .. versionchanged:: 1.0
+
+        ``edgedb.Object.__hash__`` is just ``object.__hash__` in version 1.0.
+        Similarly, ``==`` is equivalent to the ``is`` operator comparing
+        ``edgedb.Object`` instances, and ``<``, ``<=``, ``>``, ``>=`` are not
+        allowed on ``edgedb.Object`` instances.
 
     The value of an object property or a link can be accessed through
     a corresponding attribute:
@@ -172,7 +181,7 @@ Tuples
 
 .. py:class:: Tuple()
 
-    This is :py:class:`tuple <python:tuple>` since version 0.25.0.
+    This is :py:class:`tuple <python:tuple>` since version 1.0.
 
 
 Named Tuples
@@ -182,9 +191,11 @@ Named Tuples
 
     An immutable value representing an EdgeDB named tuple value.
 
-    ``edgedb.NamedTuple`` is a subclass of :py:class:`tuple <python:tuple>`
-    and is duck-type compatible with `collections.namedtuple` since 
-    version 0.25.0.
+    .. versionchanged:: 1.0
+
+        ``edgedb.NamedTuple`` is a subclass of :py:class:`tuple <python:tuple>`
+        and is duck-type compatible with ``collections.namedtuple`` since
+        version 1.0.
 
     Instances of ``edgedb.NamedTuple`` generally behave similarly to
     :py:func:`namedtuple <python:collections.namedtuple>`:
@@ -211,7 +222,7 @@ Arrays
 
 .. py:class:: Array()
 
-    This is :py:class:`list <python:list>` since version 0.25.0.
+    This is :py:class:`list <python:list>` since version 1.0.
 
 
 RelativeDuration
@@ -263,9 +274,12 @@ EnumValue
 
     An immutable value representing an EdgeDB enum value.
 
-    ``edgedb.EnumValue`` is a subclass of :py:class:`enum.Enum <python:enum.Enum>`
-    since version 0.25.0. Actual enum values are instances of an ad-hoc enum
-    created by the client to represent the actual EdgeDB enum.
+    .. versionchanged:: 1.0
+
+        Since version 1.0, ``edgedb.EnumValue`` is a subclass of
+        :py:class:`enum.Enum <python:enum.Enum>`. Actual enum values are
+        instances of ad-hoc enum classes created by the codecs to represent
+        the actual members defined in your EdgeDB schema.
 
     .. code-block:: pycon
 
@@ -276,7 +290,7 @@ EnumValue
         <edgedb.EnumValue 'red'>
         >>> str(r)
         'red'
-        >>> r.value  # added in 0.25.0
+        >>> r.value  # added in 1.0
         'red'
-        >>> r.name  # added in 0.25.0, simply str.upper() of r.value
+        >>> r.name  # added in 1.0, simply str.upper() of r.value
         'RED'
