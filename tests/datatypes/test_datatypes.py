@@ -19,6 +19,9 @@
 
 import dataclasses
 import gc
+import os
+import random
+import string
 import unittest
 import weakref
 
@@ -380,6 +383,36 @@ class TestNamedTuple(unittest.TestCase):
         self.assertEqual(
             edgedb.NamedTuple(壹=1, 贰=2, 叄=3),
             (1, 2, 3))
+
+    def test_namedtuple_memory(self):
+        num = int(os.getenv("EDGEDB_PYTHON_TEST_NAMEDTUPLE_MEMORY", 100))
+
+        def test():
+            nt = []
+            fix_tp = type(edgedb.NamedTuple(a=1, b=2))
+            for _i in range(num):
+                values = {}
+                for _ in range(random.randint(9, 16)):
+                    key = "".join(random.choices(string.ascii_letters, k=3))
+                    value = random.randint(16384, 65536)
+                    values[key] = value
+                nt.append(edgedb.NamedTuple(**values))
+                if random.random() > 0.5:
+                    nt.append(
+                        fix_tp(random.randint(10, 20), random.randint(20, 30))
+                    )
+                if len(nt) % random.randint(10, 20) == 0:
+                    nt[:] = nt[random.randint(5, len(nt)):]
+
+        gc.collect()
+        gc.collect()
+        gc.collect()
+        gc_count = gc.get_count()
+        test()
+        gc.collect()
+        gc.collect()
+        gc.collect()
+        self.assertEqual(gc.get_count(), gc_count)
 
 
 class TestDerivedNamedTuple(unittest.TestCase):
