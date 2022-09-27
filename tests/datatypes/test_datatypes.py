@@ -486,7 +486,7 @@ class TestObject(unittest.TestCase):
 
         self.assertEqual(repr(o), 'Object{@lb := 2, c := 3}')
 
-        self.assertEqual(hash(o), hash(f(1, 2, 3)))
+        self.assertNotEqual(hash(o), hash(f(1, 2, 3)))
         self.assertNotEqual(hash(o), hash(f(1, 2, 'aaaa')))
         self.assertNotEqual(hash(o), hash((1, 2, 3)))
 
@@ -499,9 +499,6 @@ class TestObject(unittest.TestCase):
         o.c.append(o)
         self.assertEqual(repr(o), 'Object{id := 1, c := [Object{...}]}')
 
-        with self.assertRaisesRegex(TypeError, 'unhashable'):
-            hash(o)
-
     def test_object_4(self):
         f = private.create_object_factory(
             id={'property', 'implicit'},
@@ -513,10 +510,8 @@ class TestObject(unittest.TestCase):
         o2 = f(1, 'ab', 'bb')
         o3 = f(3, 'ac', 'bc')
 
-        self.assertEqual(o1, o2)
+        self.assertNotEqual(o1, o2)
         self.assertNotEqual(o1, o3)
-        self.assertLess(o1, o3)
-        self.assertGreater(o3, o2)
 
     def test_object_5(self):
         f = private.create_object_factory(
@@ -742,7 +737,7 @@ class TestSet(unittest.TestCase):
             edgedb.Set([o1, o2, o3]),
             edgedb.Set([o2, o3, o1]))
 
-        self.assertEqual(
+        self.assertNotEqual(
             edgedb.Set([o1, o3]),
             edgedb.Set([o2, o3]))
 

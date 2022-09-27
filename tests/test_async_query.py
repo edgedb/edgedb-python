@@ -545,19 +545,22 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         ot = await self.client.query_single(
             'select schema::Object {name} filter .id=<uuid>$id',
             id=obj.id)
-        self.assertEqual(obj, ot)
+        self.assertEqual(obj.id, ot.id)
+        self.assertEqual(obj.name, ot.name)
 
         # Test that a string UUID is acceptable.
         ot = await self.client.query_single(
             'select schema::Object {name} filter .id=<uuid>$id',
             id=str(obj.id))
-        self.assertEqual(obj, ot)
+        self.assertEqual(obj.id, ot.id)
+        self.assertEqual(obj.name, ot.name)
 
         # Test that a standard uuid.UUID is acceptable.
         ot = await self.client.query_single(
             'select schema::Object {name} filter .id=<uuid>$id',
             id=uuid.UUID(bytes=obj.id.bytes))
-        self.assertEqual(obj, ot)
+        self.assertEqual(obj.id, ot.id)
+        self.assertEqual(obj.name, ot.name)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'invalid UUID.*length must be'):

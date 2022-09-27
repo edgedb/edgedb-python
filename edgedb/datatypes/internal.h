@@ -30,8 +30,6 @@
 
 int _Edge_NoKeywords(const char *, PyObject *);
 
-Py_hash_t _EdgeGeneric_Hash(PyObject **, Py_ssize_t);
-Py_hash_t _EdgeGeneric_HashWithBase(Py_hash_t, PyObject **, Py_ssize_t);
 Py_hash_t _EdgeGeneric_HashString(const char *);
 
 PyObject * _EdgeGeneric_RenderObject(PyObject *obj);
