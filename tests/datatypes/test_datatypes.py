@@ -17,8 +17,13 @@
 #
 
 
+import dataclasses
+import gc
+import os
+import random
+import string
 import unittest
-
+import weakref
 
 import edgedb
 from edgedb.datatypes import datatypes as private
@@ -135,6 +140,7 @@ class TestTuple(unittest.TestCase):
 
     def test_tuple_empty_1(self):
         t = edgedb.Tuple()
+        self.assertIsInstance(t, tuple)
         self.assertEqual(len(t), 0)
         self.assertEqual(hash(t), hash(()))
         self.assertEqual(repr(t), '()')
@@ -160,10 +166,6 @@ class TestTuple(unittest.TestCase):
 
         self.assertEqual(repr(t), '(1, [(...)])')
         self.assertEqual(str(t), '(1, [(...)])')
-
-    def test_tuple_4(self):
-        with self.assertRaisesRegex(ValueError, f'more than {0x4000 - 1}'):
-            edgedb.Tuple([1] * 20000)
 
     def test_tuple_freelist_1(self):
         lst = []
@@ -377,6 +379,101 @@ class TestNamedTuple(unittest.TestCase):
             edgedb.NamedTuple(a=1, b=2, c=3),
             1)
 
+    def test_namedtuple_8(self):
+        self.assertEqual(
+            edgedb.NamedTuple(壹=1, 贰=2, 叄=3),
+            (1, 2, 3))
+
+    def test_namedtuple_memory(self):
+        num = int(os.getenv("EDGEDB_PYTHON_TEST_NAMEDTUPLE_MEMORY", 100))
+
+        def test():
+            nt = []
+            fix_tp = type(edgedb.NamedTuple(a=1, b=2))
+            for _i in range(num):
+                values = {}
+                for _ in range(random.randint(9, 16)):
+                    key = "".join(random.choices(string.ascii_letters, k=3))
+                    value = random.randint(16384, 65536)
+                    values[key] = value
+                nt.append(edgedb.NamedTuple(**values))
+                if random.random() > 0.5:
+                    nt.append(
+                        fix_tp(random.randint(10, 20), random.randint(20, 30))
+                    )
+                if len(nt) % random.randint(10, 20) == 0:
+                    nt[:] = nt[random.randint(5, len(nt)):]
+
+        gc.collect()
+        gc.collect()
+        gc.collect()
+        gc_count = gc.get_count()
+        test()
+        gc.collect()
+        gc.collect()
+        gc.collect()
+        self.assertEqual(gc.get_count(), gc_count)
+
+
+class TestDerivedNamedTuple(unittest.TestCase):
+    DerivedNamedTuple = type(edgedb.NamedTuple(a=1, b=2, c=3))
+
+    def test_derived_namedtuple_1(self):
+        self.assertEqual(
+            (1, 2, 3),
+            self.DerivedNamedTuple(a=1, b=2, c=3),
+        )
+        self.assertEqual(
+            (1, 2, 3),
+            self.DerivedNamedTuple(c=3, b=2, a=1),
+        )
+        self.assertEqual(
+            (1, 2, 3),
+            self.DerivedNamedTuple(1, c=3, b=2),
+        )
+        self.assertEqual(
+            (1, 2, 3),
+            self.DerivedNamedTuple(1, 2, 3),
+        )
+
+    def test_derived_namedtuple_2(self):
+        with self.assertRaisesRegex(ValueError, "requires 3 arguments"):
+            self.DerivedNamedTuple()
+
+        with self.assertRaisesRegex(ValueError, "requires 3 arguments"):
+            self.DerivedNamedTuple(1)
+
+        with self.assertRaisesRegex(ValueError, "only needs 3 arguments"):
+            self.DerivedNamedTuple(1, 2, 3, 4)
+
+    def test_derived_namedtuple_3(self):
+        with self.assertRaisesRegex(ValueError, "missing required argument"):
+            self.DerivedNamedTuple(a=1)
+
+        with self.assertRaisesRegex(ValueError, "missing required argument"):
+            self.DerivedNamedTuple(b=2)
+
+        with self.assertRaisesRegex(ValueError, "missing required argument"):
+            self.DerivedNamedTuple(1, 2, d=4)
+
+        with self.assertRaisesRegex(ValueError, "extra keyword arguments"):
+            self.DerivedNamedTuple(1, 2, 3, d=4)
+
+        with self.assertRaisesRegex(ValueError, "extra keyword arguments"):
+            self.DerivedNamedTuple(1, 2, c=3, d=4)
+
+    def test_derived_namedtuple_4(self):
+        tp = type(edgedb.NamedTuple(x=42))
+        tp(8)
+        edgedb.NamedTuple(y=88)
+        tp(16)
+        tp_ref = weakref.ref(tp)
+        gc.collect()
+        self.assertIsNotNone(tp_ref())
+        del tp
+        gc.collect()
+        self.assertIsNone(tp_ref())
+
 
 class TestObject(unittest.TestCase):
 
@@ -422,7 +519,7 @@ class TestObject(unittest.TestCase):
 
         self.assertEqual(repr(o), 'Object{@lb := 2, c := 3}')
 
-        self.assertEqual(hash(o), hash(f(1, 2, 3)))
+        self.assertNotEqual(hash(o), hash(f(1, 2, 3)))
         self.assertNotEqual(hash(o), hash(f(1, 2, 'aaaa')))
         self.assertNotEqual(hash(o), hash((1, 2, 3)))
 
@@ -435,9 +532,6 @@ class TestObject(unittest.TestCase):
         o.c.append(o)
         self.assertEqual(repr(o), 'Object{id := 1, c := [Object{...}]}')
 
-        with self.assertRaisesRegex(TypeError, 'unhashable'):
-            hash(o)
-
     def test_object_4(self):
         f = private.create_object_factory(
             id={'property', 'implicit'},
@@ -449,10 +543,8 @@ class TestObject(unittest.TestCase):
         o2 = f(1, 'ab', 'bb')
         o3 = f(3, 'ac', 'bc')
 
-        self.assertEqual(o1, o2)
+        self.assertNotEqual(o1, o2)
         self.assertNotEqual(o1, o3)
-        self.assertLess(o1, o3)
-        self.assertGreater(o3, o2)
 
     def test_object_5(self):
         f = private.create_object_factory(
@@ -495,7 +587,6 @@ class TestObject(unittest.TestCase):
         linkset = o1['o2s']
         self.assertEqual(len(linkset), 2)
         self.assertEqual(linkset, o1['o2s'])
-        self.assertEqual(hash(linkset), hash(o1['o2s']))
         self.assertEqual(
             repr(linkset),
             "LinkSet(name='o2s', source_id=2, target_ids={1, 4})")
@@ -580,12 +671,37 @@ class TestObject(unittest.TestCase):
                                     "link 'error_key' does not exist"):
             u['error_key']
 
+    def test_object_dataclass_1(self):
+        User = private.create_object_factory(
+            id='property',
+            name='property',
+            tuple='property',
+            namedtuple='property',
+        )
+
+        u = User(
+            1,
+            'Bob',
+            edgedb.Tuple((1, 2.0, '3')),
+            edgedb.NamedTuple(a=1, b="Y"),
+        )
+        self.assertTrue(dataclasses.is_dataclass(u))
+        self.assertEqual(
+            dataclasses.asdict(u),
+            {
+                'id': 1,
+                'name': 'Bob',
+                'tuple': (1, 2.0, '3'),
+                'namedtuple': (1, "Y"),
+            },
+        )
+
 
 class TestSet(unittest.TestCase):
 
     def test_set_1(self):
         s = edgedb.Set(())
-        self.assertEqual(repr(s), 'Set{}')
+        self.assertEqual(repr(s), '[]')
 
         s = edgedb.Set((1, 2, [], 'a'))
 
@@ -595,36 +711,23 @@ class TestSet(unittest.TestCase):
         with self.assertRaises(IndexError):
             s[10]
 
-        with self.assertRaises(TypeError):
-            s[0] = 1
-
     def test_set_2(self):
         s = edgedb.Set((1, 2, 3000, 'a'))
 
-        self.assertEqual(repr(s), "Set{1, 2, 3000, 'a'}")
-
-        self.assertEqual(
-            hash(s),
-            hash(edgedb.Set((1, 2, sum([1000, 2000]), 'a'))))
-
-        self.assertNotEqual(
-            hash(s),
-            hash((1, 2, 3000, 'a')))
+        self.assertEqual(repr(s), "[1, 2, 3000, 'a']")
 
     def test_set_3(self):
         s = edgedb.Set(())
 
         self.assertEqual(len(s), 0)
-        self.assertEqual(hash(s), hash(edgedb.Set(())))
-        self.assertNotEqual(hash(s), hash(()))
 
     def test_set_4(self):
         s = edgedb.Set(([],))
         s[0].append(s)
-        self.assertEqual(repr(s), "Set{[Set{...}]}")
+        self.assertEqual(repr(s), "[[[...]]]")
 
     def test_set_5(self):
-        self.assertEqual(
+        self.assertNotEqual(
             edgedb.Set([1, 2, 3]),
             edgedb.Set([3, 2, 1]))
 
@@ -663,11 +766,11 @@ class TestSet(unittest.TestCase):
         o2 = f(1, 'ab', edgedb.Set([1, 2, 4]))
         o3 = f(3, 'ac', edgedb.Set([5, 5, 5, 5]))
 
-        self.assertEqual(
+        self.assertNotEqual(
             edgedb.Set([o1, o2, o3]),
             edgedb.Set([o2, o3, o1]))
 
-        self.assertEqual(
+        self.assertNotEqual(
             edgedb.Set([o1, o3]),
             edgedb.Set([o2, o3]))
 
@@ -699,7 +802,6 @@ class TestArray(unittest.TestCase):
     def test_array_empty_1(self):
         t = edgedb.Array()
         self.assertEqual(len(t), 0)
-        self.assertNotEqual(hash(t), hash(()))
         with self.assertRaisesRegex(IndexError, 'out of range'):
             t[0]
         self.assertEqual(repr(t), "[]")
@@ -711,8 +813,6 @@ class TestArray(unittest.TestCase):
         self.assertEqual(str(t), "[1, 'a']")
 
         self.assertEqual(len(t), 2)
-        self.assertEqual(hash(t), hash(edgedb.Array([1, 'a'])))
-        self.assertNotEqual(hash(t), hash(edgedb.Array([10, 'ab'])))
 
         self.assertEqual(t[0], 1)
         self.assertEqual(t[1], 'a')

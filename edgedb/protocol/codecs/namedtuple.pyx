@@ -17,9 +17,6 @@
 #
 
 
-from edgedb import errors
-
-
 @cython.final
 cdef class NamedTupleCodec(BaseNamedRecordCodec):
 
@@ -40,7 +37,7 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
                 f'cannot decode NamedTuple: expected {len(fields_codecs)} '
                 f'elements, got {elem_count}')
 
-        result = datatypes.namedtuple_new(self.descriptor)
+        result = datatypes.namedtuple_new(self.namedtuple_type)
 
         for i in range(elem_count):
             frb_read(buf, 4)  # reserved
@@ -57,7 +54,8 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
                         f'unexpected trailing data in buffer after named '
                         f'tuple element decoding: {frb_get_len(&elem_buf)}')
 
-            datatypes.namedtuple_set(result, i, elem)
+            cpython.Py_INCREF(elem)
+            cpython.PyTuple_SET_ITEM(result, i, elem)
 
         return result
 
@@ -73,5 +71,6 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
         codec.descriptor = datatypes.record_desc_new(
             fields_names, <object>NULL, <object>NULL)
         codec.fields_codecs = fields_codecs
+        codec.namedtuple_type = datatypes.namedtuple_type_new(codec.descriptor)
 
         return codec

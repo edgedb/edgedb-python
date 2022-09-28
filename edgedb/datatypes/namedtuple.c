@@ -20,35 +20,38 @@
 #include "datatypes.h"
 #include "freelist.h"
 #include "internal.h"
+#include "structmember.h"
 
 
 EDGE_SETUP_FREELIST(
     EDGE_NAMED_TUPLE,
-    EdgeNamedTupleObject,
+    PyTupleObject,
     EDGE_NAMEDTUPLE_FREELIST_MAXSAVE,
     EDGE_NAMEDTUPLE_FREELIST_SIZE)
 
 
-#define EdgeNamedTuple_GET_ITEM(op, i) \
-    (((EdgeNamedTupleObject *)(op))->ob_item[i])
-#define EdgeNamedTuple_SET_ITEM(op, i, v) \
-    (((EdgeNamedTupleObject *)(op))->ob_item[i] = v)
+#define EdgeNamedTuple_Type_DESC(type) \
+    *(PyObject **)(((char *)type) + Py_TYPE(type)->tp_basicsize)
 
 
 static int init_type_called = 0;
 
 
 PyObject *
-EdgeNamedTuple_New(PyObject *desc)
+EdgeNamedTuple_New(PyObject *type)
 {
     assert(init_type_called);
 
+    PyObject *desc = EdgeNamedTuple_Type_DESC(type);
     if (desc == NULL || !EdgeRecordDesc_Check(desc)) {
         PyErr_BadInternalCall();
         return NULL;
     }
 
     Py_ssize_t size = EdgeRecordDesc_GetSize(desc);
+    if (size < 0) {
+        return NULL;
+    }
 
     if (size > EDGE_MAX_TUPLE_SIZE) {
         PyErr_Format(
@@ -58,64 +61,72 @@ EdgeNamedTuple_New(PyObject *desc)
         return NULL;
     }
 
-    EdgeNamedTupleObject *nt = NULL;
-    EDGE_NEW_WITH_FREELIST(EDGE_NAMED_TUPLE, EdgeNamedTupleObject,
-                           &EdgeNamedTuple_Type, nt, size);
+    PyTupleObject *nt = NULL;
+    // Expand the new_with_freelist because we need to incref the type
+    if (
+        _EDGE_NAMED_TUPLE_FL_MAX_SAVE_SIZE &&
+        size < _EDGE_NAMED_TUPLE_FL_MAX_SAVE_SIZE &&
+        (nt = _EDGE_NAMED_TUPLE_FL[size]) != NULL
+    ) {
+        if (size == 0) {
+            Py_INCREF(nt);
+        } else {
+            _EDGE_NAMED_TUPLE_FL[size] = (PyTupleObject *) nt->ob_item[0];
+            _EDGE_NAMED_TUPLE_FL_NUM_FREE[size]--;
+            _Py_NewReference((PyObject *)nt);
+            Py_INCREF(type);
+            Py_TYPE(nt) = type;
+        }
+    } else {
+        if (
+            (size_t)size > (
+                (size_t)PY_SSIZE_T_MAX - sizeof(PyTupleObject *) - sizeof(PyObject *)
+            ) / sizeof(PyObject *)
+        ) {
+            PyErr_NoMemory();
+            return NULL;
+        }
+        nt = PyObject_GC_NewVar(PyTupleObject, type, size);
+        if (nt == NULL) {
+            return NULL;
+        }
+#if PY_VERSION_HEX < 0x03080000
+        // Workaround for Python issue 35810; no longer necessary in Python 3.8
+        Py_INCREF(type);
+#endif
+    }
     assert(nt != NULL);
-    assert(EdgeNamedTuple_Check(nt));
     assert(Py_SIZE(nt) == size);
 
-    nt->weakreflist = NULL;
-
-    Py_INCREF(desc);
-    nt->desc = desc;
-
+    for (Py_ssize_t i = 0; i < size; i++) {
+        nt->ob_item[i] = NULL;
+    }
     PyObject_GC_Track(nt);
     return (PyObject *)nt;
 }
 
 
-int
-EdgeNamedTuple_SetItem(PyObject *ob, Py_ssize_t i, PyObject *el)
-{
-    assert(EdgeNamedTuple_Check(ob));
-    EdgeNamedTupleObject *o = (EdgeNamedTupleObject *)ob;
-    assert(i >= 0);
-    assert(i < Py_SIZE(o));
-    Py_INCREF(el);
-    EdgeNamedTuple_SET_ITEM(o, i, el);
-    return 0;
-}
-
-
 static void
-namedtuple_dealloc(EdgeNamedTupleObject *o)
+namedtuple_dealloc(PyTupleObject *o)
 {
+    PyTypeObject *tp;
     PyObject_GC_UnTrack(o);
-    if (o->weakreflist != NULL) {
-        PyObject_ClearWeakRefs((PyObject*)o);
-    }
-    Py_CLEAR(o->desc);
-    Py_TRASHCAN_SAFE_BEGIN(o)
-    EDGE_DEALLOC_WITH_FREELIST(EDGE_NAMED_TUPLE, EdgeNamedTupleObject, o);
-    Py_TRASHCAN_SAFE_END(o)
-}
-
-
-static Py_hash_t
-namedtuple_hash(EdgeNamedTupleObject *v)
-{
-    return _EdgeGeneric_Hash(v->ob_item, Py_SIZE(v));
+    CPy_TRASHCAN_BEGIN(o, namedtuple_dealloc)
+    tp = Py_TYPE(o);
+    EDGE_DEALLOC_WITH_FREELIST(EDGE_NAMED_TUPLE, PyTupleObject, o);
+    Py_DECREF(tp);
+    CPy_TRASHCAN_END(o)
 }
 
 
 static int
-namedtuple_traverse(EdgeNamedTupleObject *o, visitproc visit, void *arg)
+namedtuple_traverse(PyTupleObject *o, visitproc visit, void *arg)
 {
-    Py_VISIT(o->desc);
-
-    Py_ssize_t i;
-    for (i = Py_SIZE(o); --i >= 0;) {
+#if PY_VERSION_HEX >= 0x03090000
+    // This was not needed before Python 3.9 (Python issue 35810 and 40217)
+    Py_VISIT(Py_TYPE(o));
+#endif
+    for (Py_ssize_t i = Py_SIZE(o); --i >= 0;) {
         if (o->ob_item[i] != NULL) {
             Py_VISIT(o->ob_item[i]);
         }
@@ -125,15 +136,18 @@ namedtuple_traverse(EdgeNamedTupleObject *o, visitproc visit, void *arg)
 
 
 static PyObject *
+namedtuple_derived_new(PyTypeObject *type, PyObject *args, PyObject *kwargs);
+
+
+static PyObject *
 namedtuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-    EdgeNamedTupleObject *o = NULL;
+    PyTupleObject *o = NULL;
     PyObject *keys_tup = NULL;
     PyObject *kwargs_iter = NULL;
     PyObject *desc = NULL;
 
     if (type != &EdgeNamedTuple_Type) {
-        PyErr_BadInternalCall();
-        goto fail;
+        return namedtuple_derived_new(type, args, kwargs);
     }
 
     if (args != NULL && PyTuple_GET_SIZE(args) > 0) {
@@ -185,7 +199,10 @@ namedtuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         goto fail;
     }
 
-    o = (EdgeNamedTupleObject *)EdgeNamedTuple_New(desc);
+    type = EdgeNamedTuple_Type_New(desc);
+    o = (PyTupleObject *)EdgeNamedTuple_New(type);
+    Py_CLEAR(type);  // the type is now referenced by the object
+
     if (o == NULL) {
         goto fail;
     }
@@ -204,7 +221,7 @@ namedtuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
             }
         }
         Py_INCREF(val);
-        EdgeNamedTuple_SET_ITEM(o, i, val);
+        PyTuple_SET_ITEM(o, i, val);
     }
     Py_CLEAR(keys_tup);
 
@@ -220,11 +237,88 @@ fail:
 
 
 static PyObject *
-namedtuple_getattr(EdgeNamedTupleObject *o, PyObject *name)
+namedtuple_derived_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    PyTupleObject *o = (PyTupleObject *)EdgeNamedTuple_New(type);
+    if (o == NULL) {
+        goto fail;
+    }
+
+    PyObject *desc = EdgeNamedTuple_Type_DESC(type);
+    Py_ssize_t size = EdgeRecordDesc_GetSize(desc);
+    if (size < 0) {
+        goto fail;
+    }
+    Py_ssize_t args_size = 0;
+    PyObject *val;
+
+    if (args != NULL) {
+        args_size = PyTuple_GET_SIZE(args);
+        if (args_size > size) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "edgedb.NamedTuple only needs %zd arguments, %zd given",
+                size, args_size);
+            goto fail;
+        }
+        for (Py_ssize_t i = 0; i < args_size; i++) {
+            val = PyTuple_GET_ITEM(args, i);
+            Py_INCREF(val);
+            PyTuple_SET_ITEM(o, i, val);
+        }
+    }
+    if (kwargs == NULL || !PyDict_CheckExact(kwargs)) {
+        if (size == args_size) {
+            return (PyObject *)o;
+        } else {
+            PyErr_Format(
+                PyExc_ValueError,
+                "edgedb.NamedTuple requires %zd arguments, %zd given",
+                size, args_size);
+            goto fail;
+        }
+    }
+    if (PyDict_Size(kwargs) > size - args_size) {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "edgedb.NamedTuple got extra keyword arguments");
+        goto fail;
+    }
+    for (Py_ssize_t i = args_size; i < size; i++) {
+        PyObject *key = EdgeRecordDesc_PointerName(desc, i);
+        if (key == NULL) {
+            goto fail;
+        }
+        PyObject *val = PyDict_GetItem(kwargs, key);
+        if (val == NULL) {
+            if (PyErr_Occurred()) {
+                Py_CLEAR(key);
+                goto fail;
+            } else {
+                PyErr_Format(
+                    PyExc_ValueError,
+                    "edgedb.NamedTuple missing required argument: %U",
+                    key);
+                Py_CLEAR(key);
+                goto fail;
+            }
+        }
+        Py_CLEAR(key);
+        Py_INCREF(val);
+        PyTuple_SET_ITEM(o, i, val);
+    }
+    return (PyObject *)o;
+fail:
+    Py_CLEAR(o);
+    return NULL;
+}
+
+
+static PyObject *
+namedtuple_getattr(PyTupleObject *o, PyObject *name)
 {
     Py_ssize_t pos;
     edge_attr_lookup_t ret = EdgeRecordDesc_Lookup(
-        (PyObject *)o->desc, name, &pos);
+        EdgeNamedTuple_Type_DESC(Py_TYPE(o)), name, &pos);
     switch (ret) {
         case L_ERROR:
             return NULL;
@@ -239,7 +333,7 @@ namedtuple_getattr(EdgeNamedTupleObject *o, PyObject *name)
             return NULL;
 
         case L_PROPERTY: {
-            PyObject *val = EdgeNamedTuple_GET_ITEM(o, pos);
+            PyObject *val = PyTuple_GET_ITEM(o, pos);
             Py_INCREF(val);
             return val;
         }
@@ -250,50 +344,8 @@ namedtuple_getattr(EdgeNamedTupleObject *o, PyObject *name)
 }
 
 
-static Py_ssize_t
-namedtuple_length(EdgeNamedTupleObject *o)
-{
-    return Py_SIZE(o);
-}
-
-
 static PyObject *
-namedtuple_getitem(EdgeNamedTupleObject *o, Py_ssize_t i)
-{
-    if (i < 0 || i >= Py_SIZE(o)) {
-        PyErr_SetString(PyExc_IndexError, "namedtuple index out of range");
-        return NULL;
-    }
-    PyObject *el = EdgeNamedTuple_GET_ITEM(o, i);
-    Py_INCREF(el);
-    return el;
-}
-
-
-static PyObject *
-namedtuple_richcompare(EdgeNamedTupleObject *v,
-                       PyObject *w, int op)
-{
-    if (EdgeNamedTuple_Check(w)) {
-        return _EdgeGeneric_RichCompareValues(
-            v->ob_item, Py_SIZE(v),
-            ((EdgeNamedTupleObject *)w)->ob_item, Py_SIZE(w),
-            op);
-    }
-
-    if (PyTuple_CheckExact(w)) {
-        return _EdgeGeneric_RichCompareValues(
-            v->ob_item, Py_SIZE(v),
-            ((PyTupleObject *)w)->ob_item, Py_SIZE(w),
-            op);
-    }
-
-    Py_RETURN_NOTIMPLEMENTED;
-}
-
-
-static PyObject *
-namedtuple_repr(EdgeNamedTupleObject *o)
+namedtuple_repr(PyTupleObject *o)
 {
     _PyUnicodeWriter writer;
     _PyUnicodeWriter_Init(&writer);
@@ -304,7 +356,8 @@ namedtuple_repr(EdgeNamedTupleObject *o)
     }
 
     if (_EdgeGeneric_RenderItems(&writer,
-                                 (PyObject *)o, o->desc,
+                                 (PyObject *)o,
+                                 EdgeNamedTuple_Type_DESC(Py_TYPE(o)),
                                  o->ob_item, Py_SIZE(o), 0, 0) < 0)
     {
         goto error;
@@ -323,10 +376,10 @@ error:
 
 
 static PyObject *
-namedtuple_dir(EdgeNamedTupleObject *o, PyObject *args)
+namedtuple_dir(PyTupleObject *o, PyObject *args)
 {
     return EdgeRecordDesc_List(
-        o->desc,
+        EdgeNamedTuple_Type_DESC(Py_TYPE(o)),
         0xFF,
         0xFF);
 }
@@ -338,35 +391,104 @@ static PyMethodDef namedtuple_methods[] = {
 };
 
 
-static PySequenceMethods namedtuple_as_sequence = {
-    .sq_length = (lenfunc)namedtuple_length,
-    .sq_item = (ssizeargfunc)namedtuple_getitem,
+// This is not a property on namedtuple objects, we are only using this member
+// to allocate additional space on the **type object** to store a fast-access
+// pointer to the `desc`. It's not visible to users with a Py_SIZE hack below.
+static PyMemberDef namedtuple_members[] = {
+    {"__desc__", T_OBJECT_EX, 0, READONLY},
+    {NULL}  /* Sentinel */
+};
+
+
+static PyType_Slot namedtuple_slots[] = {
+    {Py_tp_traverse, (traverseproc)namedtuple_traverse},
+    {Py_tp_dealloc, (destructor)namedtuple_dealloc},
+    {Py_tp_members, namedtuple_members},
+    {0, 0}
+};
+
+
+static PyType_Spec namedtuple_spec = {
+    "edgedb.DerivedNamedTuple",
+    sizeof(PyTupleObject) - sizeof(PyObject *),
+    sizeof(PyObject *),
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    namedtuple_slots,
 };
 
 
 PyTypeObject EdgeNamedTuple_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     "edgedb.NamedTuple",
-    .tp_basicsize = sizeof(EdgeNamedTupleObject) - sizeof(PyObject *),
+    .tp_basicsize = sizeof(PyTupleObject) - sizeof(PyObject *),
     .tp_itemsize = sizeof(PyObject *),
-    .tp_methods = namedtuple_methods,
-    .tp_dealloc = (destructor)namedtuple_dealloc,
-    .tp_as_sequence = &namedtuple_as_sequence,
-    .tp_hash = (hashfunc)namedtuple_hash,
-    .tp_getattro = (getattrofunc)namedtuple_getattr,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_richcompare = (richcmpfunc)namedtuple_richcompare,
-    .tp_traverse = (traverseproc)namedtuple_traverse,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_new = namedtuple_new,
-    .tp_free = PyObject_GC_Del,
     .tp_repr = (reprfunc)namedtuple_repr,
-    .tp_weaklistoffset = offsetof(EdgeNamedTupleObject, weakreflist),
+    .tp_methods = namedtuple_methods,
+    .tp_getattro = (getattrofunc)namedtuple_getattr,
 };
+
+
+PyObject *
+EdgeNamedTuple_Type_New(PyObject *desc)
+{
+    assert(init_type_called);
+
+    if (desc == NULL || !EdgeRecordDesc_Check(desc)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+
+    PyTypeObject *rv = (PyTypeObject *)PyType_FromSpecWithBases(
+        &namedtuple_spec, PyTuple_Pack(1, &EdgeNamedTuple_Type)
+    );
+    if (rv == NULL) {
+        return NULL;
+    }
+
+    // The tp_members give the type object extra space to store `desc` pointer
+    assert(Py_TYPE(rv)->tp_itemsize > sizeof(PyObject *));
+    EdgeNamedTuple_Type_DESC(rv) = desc;  // store the fast-access pointer
+
+    Py_SIZE(rv) = 0;  // hack the size so the member is not visible to user
+
+    // desc is also stored in tp_dict for refcount.
+    if (PyDict_SetItemString(rv->tp_dict, "__desc__", desc) < 0) {
+        goto fail;
+    }
+
+    // store `_fields` for collections.namedtuple duck-typing
+    Py_ssize_t size = EdgeRecordDesc_GetSize(desc);
+    PyTupleObject *fields = PyTuple_New(size);
+    if (fields == NULL) {
+        goto fail;
+    }
+    for (Py_ssize_t i = 0; i < size; i++) {
+        PyObject *name = EdgeRecordDesc_PointerName(desc, i);
+        if (name == NULL) {
+            Py_CLEAR(fields);
+            goto fail;
+        }
+        PyTuple_SET_ITEM(fields, i, name);
+    }
+    if (PyDict_SetItemString(rv->tp_dict, "_fields", fields) < 0) {
+        goto fail;
+    }
+
+    return rv;
+
+fail:
+    Py_DECREF(rv);
+    return NULL;
+}
 
 
 PyObject *
 EdgeNamedTuple_InitType(void)
 {
+    EdgeNamedTuple_Type.tp_base = &PyTuple_Type;
+
     if (PyType_Ready(&EdgeNamedTuple_Type) < 0) {
         return NULL;
     }

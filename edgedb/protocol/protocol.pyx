@@ -381,7 +381,7 @@ cdef class SansIOProtocol:
         packet.write_bytes(SYNC_MESSAGE)
         self.write(packet)
 
-        result = datatypes.set_new(0)
+        result = []
         exc = None
         while True:
             if not self.buffer.take_message():
@@ -1176,9 +1176,9 @@ cdef class SansIOProtocol:
             if buf.get_message_type() != DATA_MSG:
                 raise RuntimeError('first message is not "DataMsg"')
 
-            if not datatypes.set_check(result):
+            if not isinstance(result, list):
                 raise RuntimeError(
-                    f'result is not an edgedb.Set, but {result!r}')
+                    f'result is not a list, but {result!r}')
 
         while take_message_type(buf, DATA_MSG):
             cbuf = try_consume_message(buf, &cbuf_len)
@@ -1207,7 +1207,7 @@ cdef class SansIOProtocol:
                 frb_init(rbuf, cbuf + 6, cbuf_len - 6)
 
             row = decoder(out_dc, rbuf)
-            datatypes.set_append(result, row)
+            result.append(row)
 
             if frb_get_len(rbuf):
                 raise RuntimeError(

@@ -39,11 +39,11 @@ EdgeLinkSet_New(PyObject *name, PyObject *source, PyObject *targets)
         return NULL;
     }
 
-    if (!EdgeSet_Check(targets)) {
+    if (!PyList_Check(targets)) {
         PyErr_SetString(
             PyExc_TypeError,
             "cannot construct a Link object; targets is expected "
-            "to be an edgedb.Set");
+            "to be a list");
         return NULL;
     }
 
@@ -172,13 +172,12 @@ linkset_repr(EdgeLinkSetObject *o)
         goto error;
     }
 
-    for (Py_ssize_t i = 0; i < EdgeSet_Len(o->targets); i++) {
-        PyObject *el = EdgeSet_GetItem(o->targets, i);
+    for (Py_ssize_t i = 0; i < PyList_GET_SIZE(o->targets); i++) {
+        PyObject *el = PyList_GET_ITEM(o->targets, i);
         PyObject *item_repr = NULL;
         if (EdgeObject_Check(el)) {
             /* should always be the case */
             PyObject *id = EdgeObject_GetID(el);
-            Py_DECREF(el);
             if (id == NULL) {
                 goto error;
             }
@@ -187,7 +186,6 @@ linkset_repr(EdgeLinkSetObject *o)
         }
         else {
             item_repr = _EdgeGeneric_RenderObject(el);
-            Py_DECREF(el);
         }
 
         if (item_repr == NULL) {
@@ -200,7 +198,7 @@ linkset_repr(EdgeLinkSetObject *o)
         }
         Py_DECREF(item_repr);
 
-        if (i < EdgeSet_Len(o->targets) - 1) {
+        if (i < PyList_GET_SIZE(o->targets) - 1) {
             if (_PyUnicodeWriter_WriteASCIIString(&writer, ", ", 2) < 0) {
                 goto error;
             }
@@ -279,21 +277,20 @@ error:
 static Py_ssize_t
 linkset_length(EdgeLinkSetObject *o)
 {
-    assert(EdgeSet_Check(o->targets));
-    return EdgeSet_Len(o->targets);
+    assert(PyList_Check(o->targets));
+    return PyList_GET_SIZE(o->targets);
 }
 
 
 static PyObject *
 linkset_getitem(EdgeLinkSetObject *o, Py_ssize_t i)
 {
-    PyObject *target = EdgeSet_GetItem(o->targets, i);
+    PyObject *target = PyList_GetItem(o->targets, i);
     if (target == NULL) {
         return NULL;
     }
 
     PyObject *link = EdgeLink_New(o->name, o->source, target);
-    Py_DECREF(target);
     return link;
 }
 

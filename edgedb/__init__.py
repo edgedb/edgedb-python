@@ -21,11 +21,11 @@
 
 from ._version import __version__
 
-from edgedb.datatypes import Range
 from edgedb.datatypes.datatypes import (
     Tuple, NamedTuple, EnumValue, RelativeDuration, DateDuration, ConfigMemory
 )
 from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
+from edgedb.datatypes.range import Range
 
 from .abstract import (
     Executor, AsyncIOExecutor, ReadOnlyExecutor, AsyncIOReadOnlyExecutor

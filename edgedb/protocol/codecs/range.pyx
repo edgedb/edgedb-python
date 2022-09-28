@@ -17,7 +17,7 @@
 #
 
 
-from edgedb import datatypes
+from edgedb.datatypes import range as range_mod
 
 
 cdef uint8_t RANGE_EMPTY = 0x01
@@ -129,7 +129,7 @@ cdef class RangeCodec(BaseCodec):
                         f'unexpected trailing data in buffer after '
                         f'range bound decoding: {frb_get_len(&sub_buf)}')
 
-        return datatypes.Range(
+        return range_mod.Range(
             lower,
             upper,
             inc_lower=inc_lower,

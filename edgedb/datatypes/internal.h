@@ -28,18 +28,8 @@
 #include "datatypes.h"
 
 
-#define _Edge_IsContainer(o)                                \
-    (EdgeTuple_Check(o) ||                                  \
-     EdgeNamedTuple_Check(o) ||                             \
-     EdgeObject_Check(o) ||                                 \
-     EdgeSet_Check(o) ||                                    \
-     EdgeArray_Check(o))
-
-
 int _Edge_NoKeywords(const char *, PyObject *);
 
-Py_hash_t _EdgeGeneric_Hash(PyObject **, Py_ssize_t);
-Py_hash_t _EdgeGeneric_HashWithBase(Py_hash_t, PyObject **, Py_ssize_t);
 Py_hash_t _EdgeGeneric_HashString(const char *);
 
 PyObject * _EdgeGeneric_RenderObject(PyObject *obj);
@@ -62,6 +52,14 @@ PyObject * _EdgeGeneric_RichCompareValues(PyObject **, Py_ssize_t,
 
 #ifndef _PyList_ITEMS
 #  define _PyList_ITEMS(op) (_PyList_CAST(op)->ob_item)
+#endif
+
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 8
+#  define CPy_TRASHCAN_BEGIN(op, dealloc) Py_TRASHCAN_BEGIN(op, dealloc)
+#  define CPy_TRASHCAN_END(op) Py_TRASHCAN_END
+#else
+#  define CPy_TRASHCAN_BEGIN(op, dealloc) Py_TRASHCAN_SAFE_BEGIN(op)
+#  define CPy_TRASHCAN_END(op) Py_TRASHCAN_SAFE_END(op)
 #endif
 
 #endif

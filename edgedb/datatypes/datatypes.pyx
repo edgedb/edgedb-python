@@ -27,11 +27,11 @@ include "./config_memory.pyx"
 
 
 _RecordDescriptor = EdgeRecordDesc_InitType()
-Tuple = EdgeTuple_InitType()
+Tuple = tuple
 NamedTuple = EdgeNamedTuple_InitType()
 Object = EdgeObject_InitType()
-Set = EdgeSet_InitType()
-Array = EdgeArray_InitType()
+Set = list
+Array = list
 Link = EdgeLink_InitType()
 LinkSet = EdgeLinkSet_InitType()
 
@@ -46,8 +46,11 @@ def get_object_descriptor(obj):
 
 
 def create_object_factory(**pointers):
+    import dataclasses
+
     flags = ()
     names = ()
+    fields = {}
     for pname, ptype in pointers.items():
         names += (pname,)
 
@@ -68,9 +71,14 @@ def create_object_factory(**pointers):
                 raise ValueError(f'unknown pointer type {pt}')
 
         flags += (flag,)
+        field = dataclasses.field()
+        field.name = pname
+        field._field_type = dataclasses._FIELD
+        fields[pname] = field
 
     desc = EdgeRecordDesc_New(names, flags, <object>NULL)
     size = len(pointers)
+    desc.set_dataclass_fields_func(lambda: fields)
 
     def factory(*items):
         if len(items) != size:
@@ -97,20 +105,12 @@ cdef record_desc_pointer_card(object desc, Py_ssize_t pos):
     return EdgeRecordDesc_PointerCardinality(desc, pos)
 
 
-cdef tuple_new(Py_ssize_t size):
-    return EdgeTuple_New(size)
+cdef namedtuple_new(object namedtuple_type):
+    return EdgeNamedTuple_New(namedtuple_type)
 
 
-cdef tuple_set(object tuple, Py_ssize_t pos, object elem):
-    EdgeTuple_SetItem(tuple, pos, elem)
-
-
-cdef namedtuple_new(object desc):
-    return EdgeNamedTuple_New(desc)
-
-
-cdef namedtuple_set(object tuple, Py_ssize_t pos, object elem):
-    EdgeNamedTuple_SetItem(tuple, pos, elem)
+cdef namedtuple_type_new(object desc):
+    return EdgeNamedTuple_Type_New(desc)
 
 
 cdef object_new(object desc):
@@ -119,27 +119,3 @@ cdef object_new(object desc):
 
 cdef object_set(object obj, Py_ssize_t pos, object elem):
     EdgeObject_SetItem(obj, pos, elem)
-
-
-cdef bint set_check(object set):
-    return EdgeSet_Check(set)
-
-
-cdef set_new(Py_ssize_t size):
-    return EdgeSet_New(size)
-
-
-cdef set_set(object set, Py_ssize_t pos, object elem):
-    EdgeSet_SetItem(set, pos, elem)
-
-
-cdef set_append(object set, object elem):
-    EdgeSet_AppendItem(set, elem)
-
-
-cdef array_new(Py_ssize_t size):
-    return EdgeArray_New(size)
-
-
-cdef array_set(object array, Py_ssize_t pos, object elem):
-    EdgeArray_SetItem(array, pos, elem)
