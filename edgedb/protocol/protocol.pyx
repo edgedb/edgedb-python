@@ -1255,7 +1255,7 @@ cdef class SansIOProtocol:
             methname = _QUERY_SINGLE_METHOD[required_one][output_format]
             new_exc = errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
-                f'returns a multiset')
+                f'may return more than one element')
             new_exc.__cause__ = exc
             exc = new_exc
 
