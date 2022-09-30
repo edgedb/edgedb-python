@@ -241,12 +241,14 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'query_single\(\) as it returns a multiset'):
+                    r'query_single\(\) as it may return more than one element'
+            ):
                 await self.client.query_single('SELECT {1, 2}')
 
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'query_required_single\(\) as it returns a multiset'):
+                    r'query_required_single\(\) as it may return '
+                    r'more than one element'):
                 await self.client.query_required_single('SELECT {1, 2}')
 
             with self.assertRaisesRegex(
