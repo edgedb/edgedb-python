@@ -30,6 +30,12 @@ from edgedb import describe
 from edgedb.con_utils import find_edgedb_project_dir
 
 
+SYS_VERSION_INFO = os.getenv("EDGEDB_PYTHON_CODEGEN_PY_VER")
+if SYS_VERSION_INFO:
+    SYS_VERSION_INFO = tuple(map(int, SYS_VERSION_INFO.split(".")))[:2]
+else:
+    SYS_VERSION_INFO = sys.version_info[:2]
+
 INDENT = "    "
 SUFFIXES = [
     ("async", "_async_edgeql.py", True),
@@ -244,11 +250,17 @@ class Generator:
             name_hint = f"{name}Result"
         out_type = self._generate_code(dr.output_type, name_hint)
         if dr.output_cardinality.is_multi():
-            self._imports.add("typing")
-            out_type = f"typing.List[{out_type}]"
+            if SYS_VERSION_INFO >= (3, 9):
+                out_type = f"list[{out_type}]"
+            else:
+                self._imports.add("typing")
+                out_type = f"typing.List[{out_type}]"
         elif dr.output_cardinality == edgedb.Cardinality.AT_MOST_ONE:
-            self._imports.add("typing")
-            out_type = f"typing.Optional[{out_type}]"
+            if SYS_VERSION_INFO >= (3, 10):
+                out_type = f"{out_type} | None"
+            else:
+                self._imports.add("typing")
+                out_type = f"typing.Optional[{out_type}]"
 
         args = {}
         kw_only = False
@@ -327,16 +339,22 @@ class Generator:
             el_type = self._generate_code(
                 type_.element_type, f"{name_hint}Item"
             )
-            self._imports.add("typing")
-            rv = f"typing.List[{el_type}]"
+            if SYS_VERSION_INFO >= (3, 9):
+                rv = f"list[{el_type}]"
+            else:
+                self._imports.add("typing")
+                rv = f"typing.List[{el_type}]"
 
         elif isinstance(type_, describe.TupleType):
             elements = ", ".join(
                 self._generate_code(el_type, f"{name_hint}Item")
                 for el_type in type_.element_types
             )
-            self._imports.add("typing")
-            rv = f"typing.Tuple[{elements}]"
+            if SYS_VERSION_INFO >= (3, 9):
+                rv = f"tuple[{elements}]"
+            else:
+                self._imports.add("typing")
+                rv = f"typing.Tuple[{elements}]"
 
         elif isinstance(type_, describe.ScalarType):
             rv = self._find_name(type_.name)
@@ -362,8 +380,11 @@ class Generator:
                     element.type, f"{rv}{el_name.title()}"
                 )
                 if element.cardinality == edgedb.Cardinality.AT_MOST_ONE:
-                    self._imports.add("typing")
-                    el_code = f"typing.Optional[{el_code}]"
+                    if SYS_VERSION_INFO >= (3, 10):
+                        el_code = f"{el_code} | None"
+                    else:
+                        self._imports.add("typing")
+                        el_code = f"typing.Optional[{el_code}]"
                 print(f"{INDENT}{el_name}: {el_code}", file=buf)
             self._defs[rv] = buf.getvalue().strip()
 
