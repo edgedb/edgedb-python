@@ -16,17 +16,20 @@
 # limitations under the License.
 #
 
-from typing import Any
+from typing import Generic, Optional, TypeVar
 
 
-class Range:
+T = TypeVar("T")
+
+
+class Range(Generic[T]):
 
     __slots__ = ("_lower", "_upper", "_inc_lower", "_inc_upper", "_empty")
 
     def __init__(
         self,
-        lower: Any = None,
-        upper: Any = None,
+        lower: Optional[T] = None,
+        upper: Optional[T] = None,
         *,
         inc_lower: bool = True,
         inc_upper: bool = False,
@@ -54,22 +57,22 @@ class Range:
             self._inc_upper = upper is not None and inc_upper
 
     @property
-    def lower(self):
+    def lower(self) -> Optional[T]:
         return self._lower
 
     @property
-    def inc_lower(self):
+    def inc_lower(self) -> bool:
         return self._inc_lower
 
     @property
-    def upper(self):
+    def upper(self) -> Optional[T]:
         return self._upper
 
     @property
-    def inc_upper(self):
+    def inc_upper(self) -> bool:
         return self._inc_upper
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return self._empty
 
     def __bool__(self):
