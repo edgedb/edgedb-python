@@ -388,6 +388,10 @@ class Generator:
                 print(f'{INDENT}{member.upper()} = "{member}"', file=buf)
             self._defs[rv] = buf.getvalue().strip()
 
+        elif isinstance(type_, describe.RangeType):
+            value = self._generate_code(type_.value_type, name_hint)
+            rv = f"edgedb.Range[{value}]"
+
         else:
             rv = "??"
 
