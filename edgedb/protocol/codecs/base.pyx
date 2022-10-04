@@ -132,7 +132,8 @@ cdef class BaseRecordCodec(BaseCodec):
             for codec in self.fields_codecs:
                 if not isinstance(
                     codec,
-                    (ScalarCodec, ArrayCodec, EnumCodec, RangeCodec),
+                    (ScalarCodec, ArrayCodec, TupleCodec, NamedTupleCodec,
+                     EnumCodec, RangeCodec),
                 ):
                     self.encoder_flags |= RECORD_ENCODER_INVALID
                     break
@@ -140,7 +141,7 @@ cdef class BaseRecordCodec(BaseCodec):
 
         if self.encoder_flags & RECORD_ENCODER_INVALID:
             raise TypeError(
-                'argument tuples only support scalars and arrays of scalars')
+                'argument tuples do not support objects')
 
     cdef encode(self, WriteBuffer buf, object obj):
         cdef:
