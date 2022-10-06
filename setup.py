@@ -49,6 +49,8 @@ TEST_DEPENDENCIES = [
     'pycodestyle~=2.6.0',
     'pyflakes~=2.2.0',
     'flake8-bugbear~=21.4.3',
+    # importlib-metadata pinned because flake 3.8.1 will grab a too new one
+    'importlib-metadata<4.3,>=1.1.0; python_version < "3.8"',
     'flake8~=3.8.1',
     'uvloop>=0.15.1; platform_system != "Windows" and python_version >= "3.7"',
 ]
