@@ -584,3 +584,8 @@ def gen_lock_key():
 if os.environ.get('USE_UVLOOP'):
     import uvloop
     uvloop.install()
+elif sys.platform == 'win32' and sys.version_info[:2] == (3, 7):
+    # The default policy on win32 of Python 3.7 is SelectorEventLoop, which
+    # does not implement some subprocess functions required by the tests,
+    # so we have to manually set it to the proactor one (default in 3.8).
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
