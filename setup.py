@@ -19,9 +19,8 @@
 
 import sys
 
-if sys.version_info < (3, 6):
-    # edgedb.NamedTuple() relies on ordered **kwargs.
-    raise RuntimeError('edgedb requires Python 3.6 or greater')
+if sys.version_info < (3, 7):
+    raise RuntimeError('edgedb requires Python 3.7 or greater')
 
 import os
 import os.path
