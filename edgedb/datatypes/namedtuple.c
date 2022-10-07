@@ -1,3 +1,5 @@
+#include "pythoncapi_compat.h"
+
 /*
 * This source file is part of the EdgeDB open source project.
 *
@@ -75,7 +77,7 @@ EdgeNamedTuple_New(PyObject *type)
             _EDGE_NAMED_TUPLE_FL_NUM_FREE[size]--;
             _Py_NewReference((PyObject *)nt);
             Py_INCREF(type);
-            Py_TYPE(nt) = type;
+            Py_SET_TYPE(nt, type);
         }
     } else {
         if (
@@ -451,7 +453,7 @@ EdgeNamedTuple_Type_New(PyObject *desc)
     assert(Py_TYPE(rv)->tp_itemsize > sizeof(PyObject *));
     EdgeNamedTuple_Type_DESC(rv) = desc;  // store the fast-access pointer
 
-    Py_SIZE(rv) = 0;  // hack the size so the member is not visible to user
+    Py_SET_SIZE(rv, 0);  // hack the size so the member is not visible to user
 
     // desc is also stored in tp_dict for refcount.
     if (PyDict_SetItemString(rv->tp_dict, "__desc__", desc) < 0) {

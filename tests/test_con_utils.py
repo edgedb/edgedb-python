@@ -147,7 +147,7 @@ class TestConUtils(unittest.TestCase):
 
             stat_result = os.stat(os.getcwd())
             es.enter_context(
-                mock.patch('os.stat', lambda _: stat_result)
+                mock.patch('os.stat', lambda _, **__: stat_result)
             )
 
             if fs:
@@ -189,7 +189,7 @@ class TestConUtils(unittest.TestCase):
 
                     es.enter_context(mock.patch(
                         'os.stat',
-                        lambda d: mock.Mock(st_dev=0),
+                        lambda d, **_: mock.Mock(st_dev=0),
                     ))
 
                     es.enter_context(

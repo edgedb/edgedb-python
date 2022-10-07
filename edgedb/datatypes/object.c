@@ -1,3 +1,5 @@
+#include "pythoncapi_compat.h"
+
 /*
 * This source file is part of the EdgeDB open source project.
 *
@@ -241,7 +243,7 @@ object_getitem(EdgeObject *o, PyObject *name)
             if (PyList_Check(val)) {
                 return EdgeLinkSet_New(name, (PyObject *)o, val);
             }
-            else if (val == Py_None) {
+            else if (Py_IsNone(val)) {
                 Py_RETURN_NONE;
             }
             else {
