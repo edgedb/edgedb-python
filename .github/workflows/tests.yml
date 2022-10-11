@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - ci
+      - test-win
   pull_request:
     branches:
       - master
@@ -24,9 +25,9 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11.0-rc.2"]
-        edgedb-version: [stable , nightly]
-        os: [ubuntu-latest, macos-latest, windows-2019]
+        python-version: ["3.10", "3.11.0-rc.2"]
+        edgedb-version: [nightly]
+        os: [macos-latest]
         loop: [asyncio, uvloop]
         exclude:
           # uvloop does not support windows

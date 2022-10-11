@@ -20,7 +20,6 @@
 import asyncio
 import pathlib
 import shutil
-import subprocess
 import os
 import tempfile
 
@@ -55,8 +54,6 @@ class TestCodegen(tb.AsyncQueryTestCase):
                 *args,
                 cwd=cwd,
                 env=env_,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
             )
             try:
                 await asyncio.wait_for(p.wait(), 10)
