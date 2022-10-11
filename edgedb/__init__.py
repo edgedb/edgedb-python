@@ -29,7 +29,6 @@ from edgedb.datatypes.range import Range
 
 from .abstract import (
     Executor, AsyncIOExecutor, ReadOnlyExecutor, AsyncIOReadOnlyExecutor,
-    DescribeResult,
 )
 
 from .asyncio_client import (

@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 import abc
+import dataclasses
 import typing
 
 from . import describe
@@ -71,13 +72,15 @@ class ExecuteContext(typing.NamedTuple):
     state: typing.Optional[options.State]
 
 
-class DescribeContext(typing.NamedTuple):
+@dataclasses.dataclass
+class DescribeContext:
     query: str
     state: typing.Optional[options.State]
     inject_type_names: bool
 
 
-class DescribeResult(typing.NamedTuple):
+@dataclasses.dataclass
+class DescribeResult:
     input_type: typing.Optional[describe.AnyType]
     output_type: typing.Optional[describe.AnyType]
     output_cardinality: enums.Cardinality

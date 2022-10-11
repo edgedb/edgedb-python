@@ -26,6 +26,7 @@ import textwrap
 import typing
 
 import edgedb
+from edgedb import abstract
 from edgedb import describe
 from edgedb.con_utils import find_edgedb_project_dir
 
@@ -193,7 +194,7 @@ class Generator:
                 print(f"Conflict method names: {name}", file=sys.stderr)
                 sys.exit(17)
             self._method_names.add(name)
-        dr = self._client.describe_query(query, inject_type_names=True)
+        dr = self._client._describe_query(query, inject_type_names=True)
         self._describe_results.append((name, source, query, dr))
 
     def _generate_files(self, suffix: str):
@@ -277,7 +278,7 @@ class Generator:
             print(file=f)
 
     def _generate(
-        self, name: str, query: str, dr: edgedb.DescribeResult
+        self, name: str, query: str, dr: abstract.DescribeResult
     ) -> str:
         buf = io.StringIO()
 

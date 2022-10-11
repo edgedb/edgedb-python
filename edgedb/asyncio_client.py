@@ -347,7 +347,7 @@ class AsyncIOClient(base_client.BaseClient, abstract.AsyncIOExecutor):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.aclose()
 
-    async def describe_query(
+    async def _describe_query(
         self, query: str, *, inject_type_names: bool = False
     ) -> abstract.DescribeResult:
         return await self._describe(abstract.DescribeContext(
