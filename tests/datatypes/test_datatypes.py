@@ -23,11 +23,20 @@ import os
 import random
 import string
 import unittest
+import warnings
 import weakref
 
 import edgedb
 from edgedb.datatypes import datatypes as private
 from edgedb import introspect
+
+
+def test_deprecated(f):
+    def wrapper(*args, **kwargs):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            return f(*args, **kwargs)
+    return wrapper
 
 
 class TestRecordDesc(unittest.TestCase):
@@ -568,6 +577,7 @@ class TestObject(unittest.TestCase):
                                     "accessed via dot notation"):
             u['name']
 
+    @test_deprecated
     def test_object_links_1(self):
         O2 = private.create_object_factory(
             id='property',
@@ -616,6 +626,7 @@ class TestObject(unittest.TestCase):
         with self.assertRaises(AttributeError):
             link2.aaaa
 
+    @test_deprecated
     def test_object_links_2(self):
         User = private.create_object_factory(
             id='property',
@@ -634,6 +645,7 @@ class TestObject(unittest.TestCase):
 
         self.assertEqual(set(dir(u1)), {'id', 'friends', 'enemies'})
 
+    @test_deprecated
     def test_object_links_3(self):
         User = private.create_object_factory(
             id='property',
@@ -659,6 +671,7 @@ class TestObject(unittest.TestCase):
             repr(u2['friend']),
             "Link(name='friend', source_id=2, target_id=1)")
 
+    @test_deprecated
     def test_object_links_4(self):
         User = private.create_object_factory(
             id='property',
@@ -667,9 +680,57 @@ class TestObject(unittest.TestCase):
 
         u = User(1, None)
 
-        with self.assertRaisesRegex(KeyError,
-                                    "link 'error_key' does not exist"):
+        with self.assertRaisesRegex(
+            KeyError, "link property 'error_key' does not exist"
+        ):
             u['error_key']
+
+    def test_object_link_property_1(self):
+        O2 = private.create_object_factory(
+            id='property',
+            lb='link-property',
+            c='property'
+        )
+
+        O1 = private.create_object_factory(
+            id='property',
+            o2s='link'
+        )
+
+        o2_1 = O2(1, 'linkprop o2 1', 3)
+        o2_2 = O2(4, 'linkprop o2 2', 6)
+        o1 = O1(2, edgedb.Set((o2_1, o2_2)))
+
+        o2s = o1.o2s
+        self.assertEqual(len(o2s), 2)
+        self.assertEqual(o2s, o1.o2s)
+        self.assertEqual(
+            repr(o2s),
+            "[Object{id := 1, @lb := 'linkprop o2 1', c := 3},"
+            " Object{id := 4, @lb := 'linkprop o2 2', c := 6}]"
+        )
+
+        self.assertEqual(o2s[0]['@lb'], 'linkprop o2 1')
+        self.assertEqual(o2s[1]['@lb'], 'linkprop o2 2')
+
+        with self.assertRaises(AttributeError):
+            o2s[0].lb
+
+        with self.assertRaisesRegex(
+            TypeError,
+            "link property 'lb' should be accessed with '@' prefix",
+        ):
+            o2s[0]['lb']
+
+        with self.assertRaisesRegex(
+            TypeError, "property 'c' should be accessed via dot notation"
+        ):
+            o2s[0]['c']
+
+        with self.assertRaisesRegex(
+            KeyError, "link property 'c' does not exist"
+        ):
+            o2s[0]['@c']
 
     def test_object_dataclass_1(self):
         User = private.create_object_factory(
