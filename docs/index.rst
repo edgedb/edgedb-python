@@ -46,4 +46,5 @@ and :ref:`asyncio <edgedb-python-asyncio-api-reference>` implementations.
    api/asyncio_client
    api/blocking_client
    api/types
+   api/codegen
    api/advanced
