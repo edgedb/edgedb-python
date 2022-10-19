@@ -412,6 +412,7 @@ class Generator:
                 self._use_pydantic = True
             else:
                 print(f"class {rv}:", file=buf)
+            link_props = []
             for el_name, element in type_.elements.items():
                 if element.is_implicit and el_name != "id":
                     continue
@@ -424,7 +425,35 @@ class Generator:
                     else:
                         self._imports.add("typing")
                         el_code = f"typing.Optional[{el_code}]"
-                print(f"{INDENT}{el_name}: {el_code}", file=buf)
+                if element.kind == edgedb.ElementKind.LINK_PROPERTY:
+                    link_props.append((el_name, el_code))
+                else:
+                    print(f"{INDENT}{el_name}: {el_code}", file=buf)
+            if link_props:
+                print(file=buf)
+                self._imports.add("typing")
+                if SYS_VERSION_INFO >= (3, 8):
+                    for el_name, el_code in link_props:
+                        print(f"{INDENT}@typing.overload", file=buf)
+                        print(
+                            f'{INDENT}def __getitem__'
+                            f'(self, key: typing.Literal["@{el_name}"]) '
+                            f'-> {el_code}:',
+                            file=buf,
+                        )
+                        print(f"{INDENT}{INDENT}...", file=buf)
+                        print(file=buf)
+                print(
+                    f"{INDENT}def __getitem__(self, key: str) -> typing.Any:",
+                    file=buf,
+                )
+                if SYS_VERSION_INFO >= (3, 8):
+                    print(
+                        f"{INDENT}{INDENT}raise NotImplementedError", file=buf
+                    )
+                else:
+                    print(f"{INDENT}{INDENT}...", file=buf)
+
             self._defs[rv] = buf.getvalue().strip()
 
         elif isinstance(type_, describe.NamedTupleType):
