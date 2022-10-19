@@ -35,6 +35,8 @@ Array = list
 Link = EdgeLink_InitType()
 LinkSet = EdgeLinkSet_InitType()
 
+cdef str at_sign = "@"
+at_sign_ptr = <cpython.PyObject*>at_sign
 
 _EDGE_POINTER_IS_IMPLICIT = EDGE_POINTER_IS_IMPLICIT
 _EDGE_POINTER_IS_LINKPROP = EDGE_POINTER_IS_LINKPROP

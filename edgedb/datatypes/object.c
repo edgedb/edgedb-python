@@ -25,6 +25,7 @@
 
 
 static int init_type_called = 0;
+PyObject* at_sign_ptr;
 
 
 EDGE_SETUP_FREELIST(
@@ -186,7 +187,7 @@ object_getattr(EdgeObject *o, PyObject *name)
         case L_ERROR:
             return NULL;
 
-        case L_NOT_FOUND:
+        case L_NOT_FOUND: {
             // Used in `dataclasses.as_dict()`
             if (
                 PyUnicode_CompareWithASCIIString(
@@ -195,7 +196,46 @@ object_getattr(EdgeObject *o, PyObject *name)
             ) {
                 return EdgeRecordDesc_GetDataclassFields((PyObject *)o->desc);
             }
+
+            // getattr(obj, "@...") for link property
+            int prefixed = PyUnicode_Tailmatch(
+                name, at_sign_ptr, 0, PY_SSIZE_T_MAX, -1
+            );
+            if (prefixed == -1) {
+                return NULL;
+            }
+            if (prefixed) {
+                PyObject *stripped = PyUnicode_Substring(
+                    name, 1, PyUnicode_GET_LENGTH(name)
+                );
+                if (stripped == NULL) {
+                    return NULL;
+                }
+                ret = EdgeRecordDesc_Lookup(
+                    (PyObject *)o->desc, stripped, &pos);
+                Py_DECREF(stripped);
+                switch (ret) {
+                    case L_ERROR:
+                        return NULL;
+
+                    case L_NOT_FOUND:
+                    case L_LINK:
+                    case L_PROPERTY:
+                        return PyObject_GenericGetAttr((PyObject *)o, name);
+
+                    case L_LINKPROP: {
+                        PyObject *val = EdgeObject_GET_ITEM(o, pos);
+                        Py_INCREF(val);
+                        return val;
+                    }
+
+                    default:
+                        abort();
+                }
+            }
+
             return PyObject_GenericGetAttr((PyObject *)o, name);
+        }
 
         case L_LINKPROP:
             return PyObject_GenericGetAttr((PyObject *)o, name);
@@ -217,26 +257,30 @@ object_getitem(EdgeObject *o, PyObject *name)
 {
     Py_ssize_t pos;
     int prefixed = 0;
+    PyObject *stripped = name;
     if (PyUnicode_Check(name)) {
-        PyObject *at_sign = PyUnicode_FromString("@");
-        if (at_sign == NULL) {
-            return NULL;
-        }
-        prefixed = PyUnicode_Tailmatch(name, at_sign, 0, PY_SSIZE_T_MAX, -1);
-        Py_DECREF(at_sign);
+        prefixed = PyUnicode_Tailmatch(
+            name, at_sign_ptr, 0, PY_SSIZE_T_MAX, -1
+        );
         if (prefixed == -1) {
             return NULL;
         }
         if (prefixed) {
-            name = PyUnicode_Substring(name, 1, PyUnicode_GET_LENGTH(name));
-            if (name == NULL) {
+            stripped = PyUnicode_Substring(
+                name, 1, PyUnicode_GET_LENGTH(name)
+            );
+            if (stripped == NULL) {
                 return NULL;
             }
         }
     }
 
     edge_attr_lookup_t ret = EdgeRecordDesc_Lookup(
-        (PyObject *)o->desc, name, &pos);
+        (PyObject *)o->desc, stripped, &pos
+    );
+    if (prefixed) {
+        Py_DECREF(stripped);
+    }
     switch (ret) {
         case L_ERROR:
             return NULL;

@@ -67,3 +67,5 @@ cdef namedtuple_new(object namedtuple_type)
 cdef namedtuple_type_new(object desc)
 cdef object_new(object desc)
 cdef object_set(object tuple, Py_ssize_t pos, object elem)
+
+cdef extern cpython.PyObject* at_sign_ptr

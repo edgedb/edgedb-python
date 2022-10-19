@@ -712,9 +712,14 @@ class TestObject(unittest.TestCase):
 
         self.assertEqual(o2s[0]['@lb'], 'linkprop o2 1')
         self.assertEqual(o2s[1]['@lb'], 'linkprop o2 2')
+        self.assertEqual(getattr(o2s[0], '@lb'), 'linkprop o2 1')
+        self.assertEqual(getattr(o2s[1], '@lb'), 'linkprop o2 2')
 
         with self.assertRaises(AttributeError):
             o2s[0].lb
+
+        with self.assertRaises(AttributeError):
+            getattr(o2s[0], "@lb2")
 
         with self.assertRaisesRegex(
             TypeError,
@@ -728,7 +733,7 @@ class TestObject(unittest.TestCase):
             o2s[0]['c']
 
         with self.assertRaisesRegex(
-            KeyError, "link property 'c' does not exist"
+            KeyError, "link property '@c' does not exist"
         ):
             o2s[0]['@c']
 
