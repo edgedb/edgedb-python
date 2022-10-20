@@ -338,7 +338,7 @@ setuptools.setup(
     cmdclass={'build_ext': build_ext},
     test_suite='tests.suite',
     install_requires=[
-        'typing-extensions>=3.10.0',
+        'typing-extensions>=3.10.0; python_version < "3.8.0"',
         'certifi>=2021.5.30; platform_system == "Windows"',
     ],
     extras_require=EXTRA_DEPENDENCIES,
