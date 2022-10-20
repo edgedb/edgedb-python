@@ -122,6 +122,7 @@ class Generator:
     def __init__(self, args: argparse.Namespace):
         self._default_module = "default"
         self._targets = args.target
+        self._skip_pydantic_validation = args.skip_pydantic_validation
         self._async = False
         try:
             self._project_dir = pathlib.Path(
@@ -407,7 +408,7 @@ class Generator:
             buf = io.StringIO()
             self._imports.add("dataclasses")
             print("@dataclasses.dataclass", file=buf)
-            if "pydantic" in self._targets:
+            if self._skip_pydantic_validation:
                 print(f"class {rv}(NoPydanticValidation):", file=buf)
                 self._use_pydantic = True
             else:
