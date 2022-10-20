@@ -72,6 +72,7 @@ class TestCodegen(tb.AsyncQueryTestCase):
             "edgedb-py",
             "--target",
             "blocking",
+            "--no-skip-pydantic-validation",
             extra_env={"EDGEDB_PYTHON_CODEGEN_PY_VER": "3.9.2"},
         )
         await run(
@@ -79,6 +80,7 @@ class TestCodegen(tb.AsyncQueryTestCase):
             "--target",
             "async",
             "--file",
+            "--no-skip-pydantic-validation",
             extra_env={"EDGEDB_PYTHON_CODEGEN_PY_VER": "3.10.3"},
         )
 

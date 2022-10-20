@@ -18,6 +18,7 @@
 
 
 import argparse
+import sys
 
 from . import generator
 
@@ -39,15 +40,44 @@ parser.add_argument(
     "--tls-security",
     choices=["default", "strict", "no_host_verification", "insecure"],
 )
-parser.add_argument("--file", action="store_true")
+parser.add_argument(
+    "--file",
+    action="store_true",
+    help="Generate a single file instead of one per .edgeql file.",
+)
 parser.add_argument(
     "--target",
-    choices=["blocking", "async", "pydantic"],
+    choices=["blocking", "async"],
     nargs="*",
-    default=["async", "pydantic"],
+    default=["async"],
+    help="Choose one or more targets to generate code (default is async)."
 )
+if sys.version_info[:2] >= (3, 9):
+    parser.add_argument(
+        "--skip-pydantic-validation",
+        action=argparse.BooleanOptionalAction,
+        default=argparse.SUPPRESS,  # override the builtin help for default
+        help="Add a mixin to generated dataclasses "
+        "to skip Pydantic validation (default is to add the mixin).",
+    )
+else:
+    parser.add_argument(
+        "--skip-pydantic-validation",
+        action="store_true",
+        default=True,
+    )
+    parser.add_argument(
+        "--no-skip-pydantic-validation",
+        dest="skip_pydantic_validation",
+        action="store_false",
+        default=False,
+        help="Add a mixin to generated dataclasses "
+             "to skip Pydantic validation (default is to add the mixin).",
+    )
 
 
 def main():
     args = parser.parse_args()
+    if not hasattr(args, "skip_pydantic_validation"):
+        args.skip_pydantic_validation = True
     generator.Generator(args).run()
