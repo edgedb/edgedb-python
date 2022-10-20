@@ -20,6 +20,8 @@
 import decimal
 import uuid
 import datetime
+from edgedb import describe
+from edgedb import enums
 from edgedb.datatypes import datatypes
 
 
@@ -47,6 +49,7 @@ DEF CTYPE_ARRAY = 6
 DEF CTYPE_ENUM = 7
 DEF CTYPE_INPUT_SHAPE = 8
 DEF CTYPE_RANGE = 9
+DEF CTYPE_ANNO_TYPENAME = 255
 
 DEF _CODECS_BUILD_CACHE_SIZE = 200
 
@@ -153,8 +156,14 @@ cdef class CodecsRegistry:
                     str_len = hton.unpack_uint32(frb_read(spec, 4))
                     frb_read(spec, str_len)
 
-            elif (t >= 0x7f and t <= 0xff):
-                # Ignore all type annotations.
+            elif t == CTYPE_ANNO_TYPENAME:
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                res.type_name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                return None
+
+            elif 0x80 & t == 0x80:
+                # Ignore all other type annotations.
                 str_len = hton.unpack_uint32(frb_read(spec, 4))
                 frb_read(spec, str_len)
                 return None

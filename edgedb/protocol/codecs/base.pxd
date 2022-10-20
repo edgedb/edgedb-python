@@ -22,6 +22,7 @@ cdef class BaseCodec:
     cdef:
         bytes   tid
         str     name
+        str     type_name
 
     cdef inline bytes get_tid(self):
         return self.tid

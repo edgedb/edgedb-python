@@ -343,4 +343,9 @@ setuptools.setup(
     ],
     extras_require=EXTRA_DEPENDENCIES,
     setup_requires=setup_requires,
+    entry_points={
+        "console_scripts": [
+            "edgedb-py=edgedb.codegen.cli:main",
+        ]
+    }
 )

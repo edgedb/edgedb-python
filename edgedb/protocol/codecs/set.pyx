@@ -94,3 +94,10 @@ cdef class SetCodec(BaseArrayCodec):
             cpython.PyList_SET_ITEM(result, i, elem)
 
         return result
+
+    def make_type(self, describe_context):
+        return describe.ArrayType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=None,
+            element_type=self.sub_codec.make_type(describe_context),
+        )

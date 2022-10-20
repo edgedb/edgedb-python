@@ -150,6 +150,13 @@ cdef class ArrayCodec(BaseArrayCodec):
 
         return codec
 
+    def make_type(self, describe_context):
+        return describe.ArrayType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=None,
+            element_type=self.sub_codec.make_type(describe_context),
+        )
+
 
 cdef inline bint _is_trivial_container(object obj):
     return cpython.PyUnicode_Check(obj) or cpython.PyBytes_Check(obj) or \

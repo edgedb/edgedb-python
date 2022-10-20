@@ -139,3 +139,10 @@ cdef class RangeCodec(BaseCodec):
 
     cdef dump(self, int level = 0):
         return f'{level * " "}{self.name}\n{self.sub_codec.dump(level + 1)}'
+
+    def make_type(self, describe_context):
+        return describe.RangeType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=None,
+            value_type=self.sub_codec.make_type(describe_context),
+        )
