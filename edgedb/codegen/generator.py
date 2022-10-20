@@ -434,26 +434,27 @@ class Generator:
                 print(file=buf)
                 self._imports.add("typing")
                 if SYS_VERSION_INFO >= (3, 8):
-                    for el_name, el_code in link_props:
-                        print(f"{INDENT}@typing.overload", file=buf)
-                        print(
-                            f'{INDENT}def __getitem__'
-                            f'(self, key: typing.Literal["@{el_name}"]) '
-                            f'-> {el_code}:',
-                            file=buf,
-                        )
-                        print(f"{INDENT}{INDENT}...", file=buf)
-                        print(file=buf)
+                    typing_literal = "typing.Literal"
+                else:
+                    self._imports.add("typing_extensions")
+                    typing_literal = "typing_extensions.Literal"
+                for el_name, el_code in link_props:
+                    print(f"{INDENT}@typing.overload", file=buf)
+                    print(
+                        f'{INDENT}def __getitem__'
+                        f'(self, key: {typing_literal}["@{el_name}"]) '
+                        f'-> {el_code}:',
+                        file=buf,
+                    )
+                    print(f"{INDENT}{INDENT}...", file=buf)
+                    print(file=buf)
                 print(
                     f"{INDENT}def __getitem__(self, key: str) -> typing.Any:",
                     file=buf,
                 )
-                if SYS_VERSION_INFO >= (3, 8):
-                    print(
-                        f"{INDENT}{INDENT}raise NotImplementedError", file=buf
-                    )
-                else:
-                    print(f"{INDENT}{INDENT}...", file=buf)
+                print(
+                    f"{INDENT}{INDENT}raise NotImplementedError", file=buf
+                )
 
             self._defs[rv] = buf.getvalue().strip()
 
