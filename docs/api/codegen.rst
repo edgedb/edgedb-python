@@ -6,14 +6,21 @@ Code Generation
 
 .. py:currentmodule:: edgedb
 
-The ``edgedb-python`` package exposesa a command-line tool to generate
-typesafe functions using dataclasses from ``*.edgeql`` files.
+The ``edgedb-python`` package exposes a command-line tool to generate
+typesafe functions from ``*.edgeql`` files, using :py:mod:`dataclasses` for
+objects primarily.
 
 .. code-block:: bash
 
   $ edgedb-py
 
-Consider a simple query that lives in a function called ``get_number.py``:
+Or alternatively:
+
+.. code-block:: bash
+
+  $ python -m edgedb.codegen
+
+Consider a simple query that lives in a file called ``get_number.edgeql``:
 
 .. code-block:: edgeql
 
@@ -50,7 +57,6 @@ additional targets via the ``--target`` flag.
 
   $ edgedb-py --target async        # generate async function (default)
   $ edgedb-py --target blocking     # generate blocking code
-  $ edgedb-py --target pydantic     # use pydantic typing
 
 The names of the generated files will differ accordingly:
 ``{query_filename}_{target}_edgeql.py``.
