@@ -442,7 +442,7 @@ class Generator:
                     print(f"{INDENT}@typing.overload", file=buf)
                     print(
                         f'{INDENT}def __getitem__'
-                        f'(self, key: {typing_literal}["@{el_name}"]) '
+                        f'(self, key: {typing_literal}["{el_name}"]) '
                         f'-> {el_code}:',
                         file=buf,
                     )
