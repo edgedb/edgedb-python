@@ -45,13 +45,13 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocolBackwardsCompatible):
 
     cdef _disconnect(self):
         self.connected = False
-        if self.sock is not None:
+        sock, self.sock = self.sock, None
+        if sock is not None:
             try:
-                self.sock.shutdown(socket.SHUT_RDWR)
+                sock.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
-            self.sock.close()
-            self.sock = None
+            sock.close()
 
     cdef write(self, WriteBuffer buf):
         try:
