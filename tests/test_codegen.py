@@ -65,18 +65,19 @@ class TestCodegen(tb.AsyncQueryTestCase):
                 await p.wait()
                 raise
 
+        cmd = env.get("EDGEDB_PYTHON_TEST_CODEGEN_CMD", "edgedb-py")
         await run(
-            "edgedb-py", extra_env={"EDGEDB_PYTHON_CODEGEN_PY_VER": "3.7.5"}
+            cmd, extra_env={"EDGEDB_PYTHON_CODEGEN_PY_VER": "3.7.5"}
         )
         await run(
-            "edgedb-py",
+            cmd,
             "--target",
             "blocking",
             "--no-skip-pydantic-validation",
             extra_env={"EDGEDB_PYTHON_CODEGEN_PY_VER": "3.9.2"},
         )
         await run(
-            "edgedb-py",
+            cmd,
             "--target",
             "async",
             "--file",
