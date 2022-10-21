@@ -54,12 +54,11 @@ def create_object_factory(**pointers):
     names = ()
     fields = {}
     for pname, ptype in pointers.items():
-        names += (pname,)
-
         if not isinstance(ptype, set):
             ptype = {ptype}
 
         flag = 0
+        is_linkprop = False
         for pt in ptype:
             if pt == 'link':
                 flag |= EDGE_POINTER_IS_LINK
@@ -67,16 +66,21 @@ def create_object_factory(**pointers):
                 pass
             elif pt == 'link-property':
                 flag |= EDGE_POINTER_IS_LINKPROP
+                is_linkprop = True
             elif pt == 'implicit':
                 flag |= EDGE_POINTER_IS_IMPLICIT
             else:
                 raise ValueError(f'unknown pointer type {pt}')
+        if is_linkprop:
+            names += ("@" + pname,)
+        else:
+            names += (pname,)
+            field = dataclasses.field()
+            field.name = pname
+            field._field_type = dataclasses._FIELD
+            fields[pname] = field
 
         flags += (flag,)
-        field = dataclasses.field()
-        field.name = pname
-        field._field_type = dataclasses._FIELD
-        fields[pname] = field
 
     desc = EdgeRecordDesc_New(names, flags, <object>NULL)
     size = len(pointers)

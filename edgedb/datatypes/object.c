@@ -196,50 +196,10 @@ object_getattr(EdgeObject *o, PyObject *name)
             ) {
                 return EdgeRecordDesc_GetDataclassFields((PyObject *)o->desc);
             }
-
-            // getattr(obj, "@...") for link property
-            int prefixed = PyUnicode_Tailmatch(
-                name, at_sign_ptr, 0, PY_SSIZE_T_MAX, -1
-            );
-            if (prefixed == -1) {
-                return NULL;
-            }
-            if (prefixed) {
-                PyObject *stripped = PyUnicode_Substring(
-                    name, 1, PyUnicode_GET_LENGTH(name)
-                );
-                if (stripped == NULL) {
-                    return NULL;
-                }
-                ret = EdgeRecordDesc_Lookup(
-                    (PyObject *)o->desc, stripped, &pos);
-                Py_DECREF(stripped);
-                switch (ret) {
-                    case L_ERROR:
-                        return NULL;
-
-                    case L_NOT_FOUND:
-                    case L_LINK:
-                    case L_PROPERTY:
-                        return PyObject_GenericGetAttr((PyObject *)o, name);
-
-                    case L_LINKPROP: {
-                        PyObject *val = EdgeObject_GET_ITEM(o, pos);
-                        Py_INCREF(val);
-                        return val;
-                    }
-
-                    default:
-                        abort();
-                }
-            }
-
             return PyObject_GenericGetAttr((PyObject *)o, name);
         }
 
         case L_LINKPROP:
-            return PyObject_GenericGetAttr((PyObject *)o, name);
-
         case L_LINK:
         case L_PROPERTY: {
             PyObject *val = EdgeObject_GET_ITEM(o, pos);
@@ -256,77 +216,51 @@ static PyObject *
 object_getitem(EdgeObject *o, PyObject *name)
 {
     Py_ssize_t pos;
-    int prefixed = 0;
-    PyObject *stripped = name;
-    if (PyUnicode_Check(name)) {
-        prefixed = PyUnicode_Tailmatch(
-            name, at_sign_ptr, 0, PY_SSIZE_T_MAX, -1
-        );
-        if (prefixed == -1) {
-            return NULL;
-        }
-        if (prefixed) {
-            stripped = PyUnicode_Substring(
-                name, 1, PyUnicode_GET_LENGTH(name)
-            );
-            if (stripped == NULL) {
-                return NULL;
-            }
-        }
-    }
-
     edge_attr_lookup_t ret = EdgeRecordDesc_Lookup(
-        (PyObject *)o->desc, stripped, &pos
+        (PyObject *)o->desc, name, &pos
     );
-    if (prefixed) {
-        Py_DECREF(stripped);
-    }
     switch (ret) {
         case L_ERROR:
             return NULL;
 
         case L_PROPERTY:
+            PyErr_Format(
+                PyExc_TypeError,
+                "property %R should be accessed via dot notation",
+                name);
+            return NULL;
+
+        case L_LINKPROP: {
+            PyObject *val = EdgeObject_GET_ITEM(o, pos);
+            Py_INCREF(val);
+            return val;
+        }
+
+        case L_NOT_FOUND: {
+            int prefixed = 0;
+            if (PyUnicode_Check(name)) {
+                prefixed = PyUnicode_Tailmatch(
+                    name, at_sign_ptr, 0, PY_SSIZE_T_MAX, -1
+                );
+                if (prefixed == -1) {
+                    return NULL;
+                }
+            }
             if (prefixed) {
                 PyErr_Format(
                     PyExc_KeyError,
                     "link property %R does not exist",
                     name);
-            } else {
-                PyErr_Format(
-                    PyExc_TypeError,
-                    "property %R should be accessed via dot notation",
-                    name);
-            }
-            return NULL;
-
-        case L_LINKPROP:
-            if (prefixed) {
-                PyObject *val = EdgeObject_GET_ITEM(o, pos);
-                Py_INCREF(val);
-                return val;
             } else {
                 PyErr_Format(
                     PyExc_TypeError,
                     "link property %R should be accessed with '@' prefix",
                     name);
-                return NULL;
             }
-
-        case L_NOT_FOUND:
-            PyErr_Format(
-                PyExc_KeyError,
-                "link property %R does not exist",
-                name);
             return NULL;
+        }
 
         case L_LINK: {
-            if (prefixed) {
-                PyErr_Format(
-                    PyExc_KeyError,
-                    "link property %R does not exist",
-                    name);
-                return NULL;
-            }
             int res = PyErr_WarnEx(
                 PyExc_DeprecationWarning,
                 "getting link on object is deprecated since 1.0, "

@@ -99,24 +99,24 @@ class TestRecordDesc(unittest.TestCase):
         o = f(1, 2, 3, 4)
 
         desc = private.get_object_descriptor(o)
-        self.assertEqual(set(dir(desc)), set(('id', 'lb', 'c', 'd')))
+        self.assertEqual(set(dir(desc)), set(('id', '@lb', 'c', 'd')))
 
-        self.assertTrue(desc.is_linkprop('lb'))
+        self.assertTrue(desc.is_linkprop('@lb'))
         self.assertFalse(desc.is_linkprop('id'))
         self.assertFalse(desc.is_linkprop('c'))
         self.assertFalse(desc.is_linkprop('d'))
 
-        self.assertFalse(desc.is_link('lb'))
+        self.assertFalse(desc.is_link('@lb'))
         self.assertFalse(desc.is_link('id'))
         self.assertFalse(desc.is_link('c'))
         self.assertTrue(desc.is_link('d'))
 
-        self.assertFalse(desc.is_implicit('lb'))
+        self.assertFalse(desc.is_implicit('@lb'))
         self.assertTrue(desc.is_implicit('id'))
         self.assertFalse(desc.is_implicit('c'))
         self.assertFalse(desc.is_implicit('d'))
 
-        self.assertEqual(desc.get_pos('lb'), 1)
+        self.assertEqual(desc.get_pos('@lb'), 1)
         self.assertEqual(desc.get_pos('id'), 0)
         self.assertEqual(desc.get_pos('c'), 2)
         self.assertEqual(desc.get_pos('d'), 3)
@@ -509,7 +509,7 @@ class TestObject(unittest.TestCase):
         with self.assertRaises(TypeError):
             len(o)
 
-        with self.assertRaises(KeyError):
+        with self.assertRaises(TypeError):
             o[0]
 
         with self.assertRaises(TypeError):
@@ -681,9 +681,9 @@ class TestObject(unittest.TestCase):
         u = User(1, None)
 
         with self.assertRaisesRegex(
-            KeyError, "link property 'error_key' does not exist"
+            KeyError, "link property '@error_key' does not exist"
         ):
-            u['error_key']
+            u['@error_key']
 
     def test_object_link_property_1(self):
         O2 = private.create_object_factory(
@@ -743,6 +743,7 @@ class TestObject(unittest.TestCase):
             name='property',
             tuple='property',
             namedtuple='property',
+            linkprop="link-property",
         )
 
         u = User(
@@ -750,6 +751,7 @@ class TestObject(unittest.TestCase):
             'Bob',
             edgedb.Tuple((1, 2.0, '3')),
             edgedb.NamedTuple(a=1, b="Y"),
+            123,
         )
         self.assertTrue(dataclasses.is_dataclass(u))
         self.assertEqual(
