@@ -45,13 +45,13 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocolBackwardsCompatible):
 
     cdef _disconnect(self):
         self.connected = False
-        if self.sock is not None:
+        sock, self.sock = self.sock, None
+        if sock is not None:
             try:
-                self.sock.shutdown(socket.SHUT_RDWR)
+                sock.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
-            self.sock.close()
-            self.sock = None
+            sock.close()
 
     cdef write(self, WriteBuffer buf):
         try:
@@ -93,6 +93,7 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocolBackwardsCompatible):
                     self._disconnect()
                     raise errors.ClientConnectionClosedError()
                 self.buffer.feed_data(data)
+        self.last_active_timestamp = time.monotonic()
 
     async def try_recv_eagerly(self):
         if self.buffer.take_message():
@@ -112,6 +113,8 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocolBackwardsCompatible):
         except OSError as e:
             self._disconnect()
             raise con_utils.wrap_error(e) from e
+        else:
+            self.last_active_timestamp = time.monotonic()
         finally:
             self.sock.settimeout(None)
 

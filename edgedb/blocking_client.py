@@ -17,6 +17,7 @@
 #
 
 
+import datetime
 import queue
 import socket
 import ssl
@@ -32,8 +33,12 @@ from . import transaction
 from .protocol import blocking_proto
 
 
+DEFAULT_PING_BEFORE_IDLE_TIMEOUT = datetime.timedelta(seconds=5)
+MINIMUM_PING_WAIT_TIME = datetime.timedelta(seconds=1)
+
+
 class BlockingIOConnection(base_client.BaseConnection):
-    __slots__ = ()
+    __slots__ = ("_ping_wait_time",)
 
     async def connect_addr(self, addr, timeout):
         deadline = time.monotonic() + timeout
@@ -97,6 +102,16 @@ class BlockingIOConnection(base_client.BaseConnection):
 
             self._protocol = proto
             self._addr = addr
+            self._ping_wait_time = max(
+                (
+                    getattr(
+                        self.get_settings().get("system_config"),
+                        "session_idle_timeout",
+                    )
+                    - DEFAULT_PING_BEFORE_IDLE_TIMEOUT
+                ),
+                MINIMUM_PING_WAIT_TIME,
+            ).total_seconds()
 
         except Exception:
             sock.close()
@@ -130,6 +145,18 @@ class BlockingIOConnection(base_client.BaseConnection):
     def _dispatch_log_message(self, msg):
         for cb in self._log_listeners:
             cb(self, msg)
+
+    async def raw_query(self, query_context: abstract.QueryContext):
+        try:
+            if (
+                time.monotonic() - self._protocol.last_active_timestamp
+                > self._ping_wait_time
+            ):
+                await self._protocol._sync()
+        except errors.ClientConnectionError:
+            await self.connect()
+
+        return await super().raw_query(query_context)
 
 
 class _PoolConnectionHolder(base_client.PoolConnectionHolder):
