@@ -194,6 +194,8 @@ cdef class CodecsRegistry:
                     frb_read(spec, str_len), str_len)
                 pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
 
+                if flag & datatypes._EDGE_POINTER_IS_LINKPROP:
+                    name = "@" + name
                 cpython.Py_INCREF(name)
                 cpython.PyTuple_SetItem(names, i, name)
 

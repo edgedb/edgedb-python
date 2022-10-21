@@ -34,6 +34,7 @@ class LinkPropResult:
 class LinkPropResultFriendsItem:
     id: uuid.UUID
     name: str
+    created_at: datetime.datetime | None
 
     @typing.overload
     def __getitem__(self, key: typing.Literal["@created_at"]) -> datetime.datetime | None:

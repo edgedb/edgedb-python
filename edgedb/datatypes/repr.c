@@ -118,12 +118,7 @@ _EdgeGeneric_RenderItems(_PyUnicodeWriter *writer,
         }
 
         if (is_linkprop) {
-            if (include_link_props) {
-                if (_PyUnicodeWriter_WriteChar(writer, '@') < 0) {
-                    goto error;
-                }
-            }
-            else {
+            if (!include_link_props) {
                 continue;
             }
         }

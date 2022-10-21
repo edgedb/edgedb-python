@@ -992,3 +992,35 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 edgedb.CapabilityError,
                 r'cannot execute transaction control commands'):
             await self.client.execute('start transaction')
+
+    async def test_dup_link_prop_name(self):
+        obj = await self.client.query_single('''
+            CREATE TYPE test::dup_link_prop_name {
+                CREATE PROPERTY val -> str;
+            };
+            CREATE TYPE test::dup_link_prop_name_p {
+                CREATE LINK l -> test::dup_link_prop_name {
+                    CREATE PROPERTY val -> int32;
+                }
+            };
+            INSERT test::dup_link_prop_name_p {
+                l := (INSERT test::dup_link_prop_name {
+                    val := "hello",
+                    @val := 42,
+                })
+            };
+            SELECT test::dup_link_prop_name_p {
+                l: {
+                    val,
+                    @val
+                }
+            } LIMIT 1;
+        ''')
+
+        self.assertEqual(obj.l.val, "hello")
+        self.assertEqual(obj.l["@val"], 42)
+
+        await self.client.execute('''
+            DROP TYPE test::dup_link_prop_name_p;
+            DROP TYPE test::dup_link_prop_name;
+        ''')
