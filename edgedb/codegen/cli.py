@@ -52,6 +52,11 @@ parser.add_argument(
     default=["async"],
     help="Choose one or more targets to generate code (default is async)."
 )
+parser.add_argument(
+    "--atomic",
+    action="store_true",
+    help="Use Iteration Transaction for atomic transactions rather than Client. (default is client)"
+)
 if sys.version_info[:2] >= (3, 9):
     parser.add_argument(
         "--skip-pydantic-validation",

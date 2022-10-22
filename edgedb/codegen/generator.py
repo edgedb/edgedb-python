@@ -124,6 +124,7 @@ class Generator:
         self._targets = args.target
         self._skip_pydantic_validation = args.skip_pydantic_validation
         self._async = False
+        self._atomic = args.atomic
         try:
             self._project_dir = pathlib.Path(
                 find_edgedb_project_dir()
@@ -321,9 +322,15 @@ class Generator:
             print(f"def {name}(", file=buf)
         self._imports.add("edgedb")
         if self._async:
-            print(f"{INDENT}client: edgedb.AsyncIOClient,", file=buf)
+            if self._atomic:
+                print(f"{INDENT}transaction: edgedb.asyncio_client.AsyncIOIteration,", file=buf)
+            else:
+                print(f"{INDENT}client: edgedb.AsyncIOClient,", file=buf)
         else:
-            print(f"{INDENT}client: edgedb.Client,", file=buf)
+            if self._atomic:
+                print(f"{INDENT}client: edgedb.blocking_client.Iteration,", file=buf)
+            else:
+                print(f"{INDENT}client: edgedb.Client,", file=buf)
         if kw_only:
             print(f"{INDENT}*,", file=buf)
         for name, arg in args.items():
@@ -340,9 +347,15 @@ class Generator:
             rt = "return "
 
         if self._async:
-            print(f"{INDENT}{rt}await client.{method}(", file=buf)
+            if self._atomic:
+                print(f"{INDENT}{rt}await transaction.{method}(", file=buf)
+            else:
+                print(f"{INDENT}{rt}await client.{method}(", file=buf)
         else:
-            print(f"{INDENT}{rt}client.{method}(", file=buf)
+            if self._atomic:
+                print(f"{INDENT}{rt}transaction.{method}(", file=buf)
+            else:
+                print(f"{INDENT}{rt}client.{method}(", file=buf)
         print(f'{INDENT}{INDENT}"""\\', file=buf)
         print(
             textwrap.indent(
