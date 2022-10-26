@@ -126,9 +126,7 @@ class Generator:
         self._skip_pydantic_validation = args.skip_pydantic_validation
         self._async = False
         try:
-            self._project_dir = pathlib.Path(
-                find_edgedb_project_dir()
-            ).resolve()
+            self._project_dir = pathlib.Path(find_edgedb_project_dir())
         except edgedb.ClientConnectionError:
             print(
                 "Cannot find edgedb.toml: "
@@ -175,7 +173,6 @@ class Generator:
 
     def _process_dir(self, dir_: pathlib.Path):
         for file_or_dir in dir_.iterdir():
-            file_or_dir = file_or_dir.resolve()
             if not file_or_dir.exists():
                 continue
             if file_or_dir.is_dir():
