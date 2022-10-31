@@ -25,6 +25,7 @@ import typing
 from . import describe
 from . import enums
 from . import options
+from .pgproto import pgproto
 from .protocol import protocol
 
 __all__ = (
@@ -64,12 +65,14 @@ class QueryContext(typing.NamedTuple):
     query_options: QueryOptions
     retry_options: typing.Optional[options.RetryOptions]
     state: typing.Optional[options.State]
+    codec_ctx: pgproto.CodecContext
 
 
 class ExecuteContext(typing.NamedTuple):
     query: QueryWithArgs
     cache: QueryCache
     state: typing.Optional[options.State]
+    codec_ctx: pgproto.CodecContext
 
 
 @dataclasses.dataclass
@@ -129,7 +132,12 @@ class BaseReadOnlyExecutor(abc.ABC):
     def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
         return None
 
+    @abc.abstractmethod
     def _get_state(self) -> options.State:
+        ...
+
+    @abc.abstractmethod
+    def _get_codec_ctx(self) -> pgproto.CodecContext:
         ...
 
 
@@ -149,6 +157,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     def query_single(
@@ -160,6 +169,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -169,6 +179,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     def query_json(self, query: str, *args, **kwargs) -> str:
@@ -178,6 +189,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -187,6 +199,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     def query_required_single_json(self, query: str, *args, **kwargs) -> str:
@@ -196,6 +209,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     @abc.abstractmethod
@@ -207,6 +221,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             query=QueryWithArgs(commands, args, kwargs),
             cache=self._get_query_cache(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
 
@@ -232,6 +247,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -241,6 +257,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     async def query_required_single(
@@ -255,6 +272,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
@@ -264,6 +282,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     async def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -273,6 +292,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     async def query_required_single_json(
@@ -287,6 +307,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
     @abc.abstractmethod
@@ -298,6 +319,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             query=QueryWithArgs(commands, args, kwargs),
             cache=self._get_query_cache(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
 

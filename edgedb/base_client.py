@@ -27,6 +27,7 @@ from . import con_utils
 from . import enums
 from . import errors
 from . import options as _options
+from .pgproto import pgproto
 from .protocol import protocol
 
 
@@ -186,6 +187,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 qc=execute_context.cache.query_cache,
                 output_format=protocol.OutputFormat.NONE,
                 allow_capabilities=enums.Capability.ALL,
+                codec_ctx=execute_context.codec_ctx,
             )
 
     def is_in_transaction(self) -> bool:
@@ -214,6 +216,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
             output_format=query_context.query_options.output_format,
             expect_one=query_context.query_options.expect_one,
             required_one=query_context.query_options.required_one,
+            codec_ctx=query_context.codec_ctx,
         )
         if self._protocol.is_legacy:
             args["allow_capabilities"] = enums.Capability.LEGACY_EXECUTE
@@ -284,6 +287,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
                     execute_context.state.as_dict()
                     if execute_context.state else None
                 ),
+                codec_ctx=execute_context.codec_ctx,
             )
 
     async def describe(
@@ -718,6 +722,9 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
 
     def _get_state(self) -> _options.State:
         return self._options.state
+
+    def _get_codec_ctx(self) -> pgproto.CodecContext:
+        return self._options.codec_context
 
     @property
     def max_concurrency(self) -> int:

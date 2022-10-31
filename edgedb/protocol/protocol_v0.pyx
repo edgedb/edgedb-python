@@ -154,7 +154,12 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         return cardinality, in_dc, out_dc, attrs
 
     async def _legacy_execute(
-        self, BaseCodec in_dc, BaseCodec out_dc, args, kwargs
+        self,
+        BaseCodec in_dc,
+        BaseCodec out_dc,
+        args,
+        kwargs,
+        pgproto.CodecContext codec_ctx,
     ):
         cdef:
             WriteBuffer packet
@@ -169,7 +174,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         buf = WriteBuffer.new_message(LEGACY_EXECUTE_MSG)
         buf.write_int16(0)  # no headers
         buf.write_len_prefixed_bytes(b'')  # stmt_name
-        self.encode_args(in_dc, buf, args, kwargs)
+        self.encode_args(in_dc, buf, args, kwargs, codec_ctx)
         packet.write_buffer(buf.end_message())
 
         packet.write_bytes(SYNC_MESSAGE)
@@ -187,7 +192,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 if mtype == DATA_MSG:
                     if exc is None:
                         try:
-                            self.parse_data_messages(out_dc, result)
+                            self.parse_data_messages(out_dc, result, codec_ctx)
                         except Exception as ex:
                             # An error during data decoding.  We need to
                             # handle this as gracefully as possible:
@@ -242,6 +247,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         allow_capabilities: typing.Optional[int] = None,
         in_dc: BaseCodec,
         out_dc: BaseCodec,
+        pgproto.CodecContext codec_ctx,
     ):
         cdef:
             WriteBuffer packet
@@ -261,7 +267,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         buf.write_len_prefixed_utf8(query)
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
-        self.encode_args(in_dc, buf, args, kwargs)
+        self.encode_args(in_dc, buf, args, kwargs, codec_ctx)
         buf.end_message()
 
         packet = WriteBuffer.new()
@@ -302,7 +308,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                     assert not re_exec
                     if exc is None:
                         try:
-                            self.parse_data_messages(out_dc, result)
+                            self.parse_data_messages(out_dc, result, codec_ctx)
                         except Exception as ex:
                             # An error during data decoding.  We need to
                             # handle this as gracefully as possible:
@@ -347,7 +353,9 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
-            return await self._legacy_execute(in_dc, out_dc, args, kwargs)
+            return await self._legacy_execute(
+                in_dc, out_dc, args, kwargs, codec_ctx
+            )
         else:
             return result
 
@@ -366,6 +374,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         inline_typenames: bool = False,
         inline_typeids: bool = False,
         allow_capabilities: enums.Capability = enums.Capability.ALL,
+        pgproto.CodecContext codec_ctx,
     ):
         cdef:
             BaseCodec in_dc
@@ -418,7 +427,9 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 capabilities,
                 )
 
-            ret = await self._legacy_execute(in_dc, out_dc, args, kwargs)
+            ret = await self._legacy_execute(
+                in_dc, out_dc, args, kwargs, codec_ctx
+            )
 
         else:
             has_na_cardinality = codecs[0]

@@ -26,6 +26,8 @@ from edgedb.datatypes.datatypes import (
 )
 from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
 from edgedb.datatypes.range import Range
+from edgedb.pgproto.pgproto import CodecContext
+from edgedb.protocol.protocol import get_default_codec_context
 
 from .abstract import (
     Executor, AsyncIOExecutor, ReadOnlyExecutor, AsyncIOReadOnlyExecutor,
@@ -51,6 +53,7 @@ __all__ = [
     "AsyncIOReadOnlyExecutor",
     "Cardinality",
     "Client",
+    "CodecContext",
     "ConfigMemory",
     "DateDuration",
     "EdgeDBError",
@@ -58,6 +61,7 @@ __all__ = [
     "ElementKind",
     "EnumValue",
     "Executor",
+    "get_default_codec_context",
     "IsolationLevel",
     "Link",
     "LinkSet",

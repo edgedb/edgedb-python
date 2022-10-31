@@ -347,6 +347,7 @@ cdef class SansIOProtocol:
         in_dc: BaseCodec,
         out_dc: BaseCodec,
         state: typing.Optional[dict] = None,
+        codec_ctx: pgproto.CodecContext,
     ):
         cdef:
             WriteBuffer packet
@@ -375,7 +376,7 @@ cdef class SansIOProtocol:
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
 
-        self.encode_args(in_dc, buf, args, kwargs)
+        self.encode_args(in_dc, buf, args, kwargs, codec_ctx)
 
         buf.end_message()
 
@@ -413,7 +414,7 @@ cdef class SansIOProtocol:
                 elif mtype == DATA_MSG:
                     if exc is None:
                         try:
-                            self.parse_data_messages(out_dc, result)
+                            self.parse_data_messages(out_dc, result, codec_ctx)
                         except Exception as ex:
                             # An error during data decoding.  We need to
                             # handle this as gracefully as possible:
@@ -439,7 +440,9 @@ cdef class SansIOProtocol:
                         if not isinstance(in_dc, NullCodec):
                             buf = WriteBuffer.new()
                             try:
-                                self.encode_args(in_dc, buf, args, kwargs)
+                                self.encode_args(
+                                    in_dc, buf, args, kwargs, codec_ctx
+                                )
                             except errors.QueryArgumentError as ex:
                                 exc = ex
                             finally:
@@ -472,7 +475,7 @@ cdef class SansIOProtocol:
             else:
                 assert self.state_codec is not None
                 buf = WriteBuffer.new()
-                self.state_codec.encode(buf, state)
+                self.state_codec.encode(buf, state, DEFAULT_CODEC_CONTEXT)
                 state_data = bytes(buf)
                 self.state_cache = (state, state_data)
             return self.state_type_id, state_data
@@ -495,6 +498,7 @@ cdef class SansIOProtocol:
         inline_typeids: bool = False,
         allow_capabilities: enums.Capability = enums.Capability.ALL,
         state: typing.Optional[dict] = None,
+        codec_ctx: pgproto.CodecContext,
     ):
         cdef:
             BaseCodec in_dc
@@ -570,6 +574,7 @@ cdef class SansIOProtocol:
             in_dc=in_dc,
             out_dc=out_dc,
             state=state,
+            codec_ctx=codec_ctx,
         )
 
     async def query(
@@ -588,6 +593,7 @@ cdef class SansIOProtocol:
         inline_typeids: bool = False,
         allow_capabilities: enums.Capability = enums.Capability.ALL,
         state: typing.Optional[dict] = None,
+        codec_ctx: pgproto.CodecContext,
     ):
         ret = await self.execute(
             query=query,
@@ -603,6 +609,7 @@ cdef class SansIOProtocol:
             inline_typeids=inline_typeids,
             allow_capabilities=allow_capabilities,
             state=state,
+            codec_ctx=codec_ctx,
         )
 
         if expect_one:
@@ -1018,7 +1025,7 @@ cdef class SansIOProtocol:
 
         frb_init(rbuf, buf, buf_len)
 
-        return decoder(codec, rbuf)
+        return decoder(codec, rbuf, DEFAULT_CODEC_CONTEXT)
 
     cdef parse_server_settings(self, str name, bytes val):
         if name == 'suggested_pool_concurrency':
@@ -1071,7 +1078,14 @@ cdef class SansIOProtocol:
             raise errors.ProtocolError(
                 f'unexpected message type {chr(mtype)!r}')
 
-    cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs):
+    cdef encode_args(
+        self,
+        BaseCodec in_dc,
+        WriteBuffer buf,
+        args,
+        kwargs,
+        pgproto.CodecContext codec_ctx
+    ):
         if args and kwargs:
             raise errors.QueryArgumentError(
                 'either positional or named arguments are supported; '
@@ -1097,7 +1111,7 @@ cdef class SansIOProtocol:
         if args:
             kwargs = {str(i): v for i, v in enumerate(args)}
 
-        (<ObjectCodec>in_dc).encode_args(buf, kwargs)
+        (<ObjectCodec>in_dc).encode_args(buf, kwargs, codec_ctx)
 
     cdef parse_describe_type_message(self, CodecsRegistry reg):
         assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG
@@ -1158,7 +1172,9 @@ cdef class SansIOProtocol:
 
         return in_dc, out_dc
 
-    cdef parse_data_messages(self, BaseCodec out_dc, result):
+    cdef parse_data_messages(
+        self, BaseCodec out_dc, result, pgproto.CodecContext codec_ctx
+    ):
         cdef:
             ReadBuffer buf = self.buffer
 
@@ -1209,7 +1225,7 @@ cdef class SansIOProtocol:
                 # so we want to skip first 6 bytes:
                 frb_init(rbuf, cbuf + 6, cbuf_len - 6)
 
-            row = decoder(out_dc, rbuf)
+            row = decoder(out_dc, rbuf, codec_ctx)
             result.append(row)
 
             if frb_get_len(rbuf):

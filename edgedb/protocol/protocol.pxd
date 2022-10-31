@@ -37,7 +37,9 @@ include "./lru.pxd"
 include "./codecs/codecs.pxd"
 
 
-ctypedef object (*decode_row_method)(BaseCodec, FRBuffer *buf)
+ctypedef object (*decode_row_method)(
+    BaseCodec, FRBuffer *buf, pgproto.CodecContext ctx
+)
 
 
 cpdef enum OutputFormat:
@@ -107,10 +109,19 @@ cdef class SansIOProtocol:
         BaseCodec state_codec
         object state_cache
 
-    cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
+    cdef encode_args(
+        self,
+        BaseCodec in_dc,
+        WriteBuffer buf,
+        args,
+        kwargs,
+        pgproto.CodecContext codec_ctx
+    )
     cdef encode_state(self, state)
 
-    cdef parse_data_messages(self, BaseCodec out_dc, result)
+    cdef parse_data_messages(
+        self, BaseCodec out_dc, result, pgproto.CodecContext codec_ctx
+    )
     cdef parse_sync_message(self)
     cdef parse_command_complete_message(self)
     cdef parse_describe_type_message(self, CodecsRegistry reg)

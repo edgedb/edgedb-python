@@ -31,7 +31,7 @@ cdef dict CARDS_MAP = {
 @cython.final
 cdef class ObjectCodec(BaseNamedRecordCodec):
 
-    cdef encode(self, WriteBuffer buf, object obj):
+    cdef encode(self, WriteBuffer buf, object obj, pgproto.CodecContext ctx):
         cdef:
             WriteBuffer elem_data
             Py_ssize_t objlen = 0
@@ -53,7 +53,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             if arg is not None:
                 sub_codec = <BaseCodec>(self.fields_codecs[i])
                 try:
-                    sub_codec.encode(elem_data, arg)
+                    sub_codec.encode(elem_data, arg, ctx)
                 except (TypeError, ValueError) as e:
                     value_repr = repr(arg)
                     if len(value_repr) > 40:
@@ -68,7 +68,9 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
         buf.write_int32(<int32_t><uint32_t>objlen)
         buf.write_buffer(elem_data)
 
-    cdef encode_args(self, WriteBuffer buf, dict obj):
+    cdef encode_args(
+        self, WriteBuffer buf, dict obj, pgproto.CodecContext ctx
+    ):
         cdef:
             WriteBuffer elem_data
             Py_ssize_t objlen
@@ -106,7 +108,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             else:
                 sub_codec = <BaseCodec>(self.fields_codecs[i])
                 try:
-                    sub_codec.encode(elem_data, arg)
+                    sub_codec.encode(elem_data, arg, ctx)
                 except (TypeError, ValueError) as e:
                     value_repr = repr(arg)
                     if len(value_repr) > 40:
@@ -149,7 +151,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
 
         return errors.QueryArgumentError(error_message)
 
-    cdef decode(self, FRBuffer *buf):
+    cdef decode(self, FRBuffer *buf, pgproto.CodecContext ctx):
         cdef:
             object result
             Py_ssize_t elem_count
@@ -181,7 +183,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             else:
                 elem_codec = <BaseCodec>fields_codecs[i]
                 elem = elem_codec.decode(
-                    frb_slice_from(&elem_buf, buf, elem_len))
+                    frb_slice_from(&elem_buf, buf, elem_len), ctx)
                 if frb_get_len(&elem_buf):
                     raise RuntimeError(
                         f'unexpected trailing data in buffer after '

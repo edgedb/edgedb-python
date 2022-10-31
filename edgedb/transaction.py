@@ -22,6 +22,7 @@ import enum
 from . import abstract
 from . import errors
 from . import options
+from .pgproto import pgproto
 
 
 class TransactionState(enum.Enum):
@@ -185,6 +186,9 @@ class BaseTransaction:
     def _get_state(self) -> options.State:
         return self._client._get_state()
 
+    def _get_codec_ctx(self) -> pgproto.CodecContext:
+        return self._client._get_codec_ctx()
+
     async def _query(self, query_context: abstract.QueryContext):
         await self._ensure_transaction()
         return await self._connection.raw_query(query_context)
@@ -198,6 +202,7 @@ class BaseTransaction:
             query=abstract.QueryWithArgs(query, (), {}),
             cache=self._get_query_cache(),
             state=self._get_state(),
+            codec_ctx=self._get_codec_ctx(),
         ))
 
 

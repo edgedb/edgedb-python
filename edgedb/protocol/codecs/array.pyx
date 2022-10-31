@@ -30,7 +30,7 @@ cdef class BaseArrayCodec(BaseCodec):
         self.sub_codec = None
         self.cardinality = -1
 
-    cdef encode(self, WriteBuffer buf, object obj):
+    cdef encode(self, WriteBuffer buf, object obj, pgproto.CodecContext ctx):
         cdef:
             WriteBuffer elem_data
             int32_t ndims = 1
@@ -63,7 +63,7 @@ cdef class BaseArrayCodec(BaseCodec):
                 elem_data.write_int32(-1)
             else:
                 try:
-                    self.sub_codec.encode(elem_data, item)
+                    self.sub_codec.encode(elem_data, item, ctx)
                 except TypeError as e:
                     raise ValueError(
                         'invalid array element: {}'.format(
@@ -79,10 +79,10 @@ cdef class BaseArrayCodec(BaseCodec):
 
         buf.write_buffer(elem_data)
 
-    cdef decode(self, FRBuffer *buf):
-        return self._decode_array(buf)
+    cdef decode(self, FRBuffer *buf, pgproto.CodecContext ctx):
+        return self._decode_array(buf, ctx)
 
-    cdef inline _decode_array(self, FRBuffer *buf):
+    cdef inline _decode_array(self, FRBuffer *buf, pgproto.CodecContext ctx):
         cdef:
             Py_ssize_t elem_count
             int32_t ndims = hton.unpack_int32(frb_read(buf, 4))
@@ -118,7 +118,7 @@ cdef class BaseArrayCodec(BaseCodec):
                 elem = None
             else:
                 frb_slice_from(&elem_buf, buf, elem_len)
-                elem = self.sub_codec.decode(&elem_buf)
+                elem = self.sub_codec.decode(&elem_buf, ctx)
                 if frb_get_len(&elem_buf):
                     raise RuntimeError(
                         f'unexpected trailing data in buffer after '

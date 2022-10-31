@@ -27,8 +27,8 @@ cdef class BaseCodec:
     cdef inline bytes get_tid(self):
         return self.tid
 
-    cdef encode(self, WriteBuffer buf, object obj)
-    cdef decode(self, FRBuffer *buf)
+    cdef encode(self, WriteBuffer buf, object obj, pgproto.CodecContext ctx)
+    cdef decode(self, FRBuffer *buf, pgproto.CodecContext ctx)
 
     cdef dump(self, int level=?)
 
@@ -77,3 +77,12 @@ cdef class EdegDBCodecContext(pgproto.CodecContext):
 
     cdef:
         object _codec
+
+
+@cython.final
+cdef class EdegDBJSONCodecContext(pgproto.CodecContext):
+
+    cdef:
+        object _codec
+        object _json_decoder
+        object _json_encoder

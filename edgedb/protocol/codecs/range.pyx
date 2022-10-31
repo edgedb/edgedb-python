@@ -46,7 +46,7 @@ cdef class RangeCodec(BaseCodec):
 
         return codec
 
-    cdef encode(self, WriteBuffer buf, object obj):
+    cdef encode(self, WriteBuffer buf, object obj, pgproto.CodecContext ctx):
         cdef:
             uint8_t flags = 0
             WriteBuffer sub_data
@@ -78,14 +78,14 @@ cdef class RangeCodec(BaseCodec):
         sub_data = WriteBuffer.new()
         if lower is not None:
             try:
-                self.sub_codec.encode(sub_data, lower)
+                self.sub_codec.encode(sub_data, lower, ctx)
             except TypeError as e:
                 raise ValueError(
                     'invalid range lower bound: {}'.format(
                         e.args[0])) from None
         if upper is not None:
             try:
-                self.sub_codec.encode(sub_data, upper)
+                self.sub_codec.encode(sub_data, upper, ctx)
             except TypeError as e:
                 raise ValueError(
                     'invalid range upper bound: {}'.format(
@@ -95,7 +95,7 @@ cdef class RangeCodec(BaseCodec):
         buf.write_byte(<int8_t>flags)
         buf.write_buffer(sub_data)
 
-    cdef decode(self, FRBuffer *buf):
+    cdef decode(self, FRBuffer *buf, pgproto.CodecContext ctx):
         cdef:
             uint8_t flags = <uint8_t>frb_read(buf, 1)[0]
             bint empty = (flags & RANGE_EMPTY) != 0
@@ -113,7 +113,7 @@ cdef class RangeCodec(BaseCodec):
             sub_len = hton.unpack_int32(frb_read(buf, 4))
             if sub_len != -1:
                 frb_slice_from(&sub_buf, buf, sub_len)
-                lower = sub_codec.decode(&sub_buf)
+                lower = sub_codec.decode(&sub_buf, ctx)
                 if frb_get_len(&sub_buf):
                     raise RuntimeError(
                         f'unexpected trailing data in buffer after '
@@ -123,7 +123,7 @@ cdef class RangeCodec(BaseCodec):
             sub_len = hton.unpack_int32(frb_read(buf, 4))
             if sub_len != -1:
                 frb_slice_from(&sub_buf, buf, sub_len)
-                upper = sub_codec.decode(&sub_buf)
+                upper = sub_codec.decode(&sub_buf, ctx)
                 if frb_get_len(&sub_buf):
                     raise RuntimeError(
                         f'unexpected trailing data in buffer after '

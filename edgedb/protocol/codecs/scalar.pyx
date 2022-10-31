@@ -24,11 +24,11 @@ cdef class ScalarCodec(BaseCodec):
         self.c_encoder = NULL
         self.c_decoder = NULL
 
-    cdef encode(self, WriteBuffer buf, object obj):
-        self.c_encoder(DEFAULT_CODEC_CONTEXT, buf, obj)
+    cdef encode(self, WriteBuffer buf, object obj, pgproto.CodecContext ctx):
+        self.c_encoder(ctx, buf, obj)
 
-    cdef decode(self, FRBuffer *buf):
-        return self.c_decoder(DEFAULT_CODEC_CONTEXT, buf)
+    cdef decode(self, FRBuffer *buf, pgproto.CodecContext ctx):
+        return self.c_decoder(ctx, buf)
 
     cdef derive(self, bytes tid):
         cdef ScalarCodec rv

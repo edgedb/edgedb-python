@@ -23,7 +23,7 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
         bint is_sparse
         object cached_dataclass_fields
 
-    cdef encode_args(self, WriteBuffer buf, dict obj)
+    cdef encode_args(self, WriteBuffer buf, dict obj, pgproto.CodecContext ctx)
 
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple names, tuple flags,

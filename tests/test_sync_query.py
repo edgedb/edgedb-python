@@ -794,6 +794,7 @@ class TestSyncQuery(tb.SyncQueryTestCase):
                     ),
                     retry_options=None,
                     state=None,
+                    codec_ctx=edgedb.get_default_codec_context(),
                 )
             )
         )

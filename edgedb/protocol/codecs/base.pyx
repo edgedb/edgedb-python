@@ -18,6 +18,7 @@
 
 
 import codecs
+import json
 
 
 cdef uint64_t RECORD_ENCODER_CHECKED = 1 << 0
@@ -40,10 +41,10 @@ cdef class BaseCodec:
         self.tid = None
         self.name = None
 
-    cdef encode(self, WriteBuffer buf, object obj):
+    cdef encode(self, WriteBuffer buf, object obj, pgproto.CodecContext ctx):
         raise NotImplementedError
 
-    cdef decode(self, FRBuffer *buf):
+    cdef decode(self, FRBuffer *buf, pgproto.CodecContext ctx):
         raise NotImplementedError
 
     cdef dump(self, int level = 0):
@@ -60,11 +61,11 @@ cdef class CodecPythonOverride(BaseCodec):
         self.encoder = None
         self.decoder = None
 
-    cdef encode(self, WriteBuffer buf, object obj):
-        self.codec.encode(buf, self.encoder(obj))
+    cdef encode(self, WriteBuffer buf, object obj, pgproto.CodecContext ctx):
+        self.codec.encode(buf, self.encoder(obj), ctx)
 
-    cdef decode(self, FRBuffer *buf):
-        return self.decoder(self.codec.decode(buf))
+    cdef decode(self, FRBuffer *buf, pgproto.CodecContext ctx):
+        return self.decoder(self.codec.decode(buf, ctx))
 
     cdef dump(self, int level = 0):
         return f'{level * " "}<Python override>{self.name}'
@@ -97,7 +98,7 @@ cdef class EmptyTupleCodec(BaseCodec):
         self.name = 'no-input'
         self.empty_tup = None
 
-    cdef encode(self, WriteBuffer buf, object obj):
+    cdef encode(self, WriteBuffer buf, object obj, pgproto.CodecContext ctx):
         if type(obj) is not tuple:
             raise RuntimeError(
                 f'cannot encode empty Tuple: expected a tuple, '
@@ -108,7 +109,7 @@ cdef class EmptyTupleCodec(BaseCodec):
                 f'got {len(obj)}')
         buf.write_bytes(EMPTY_RECORD_DATA)
 
-    cdef decode(self, FRBuffer *buf):
+    cdef decode(self, FRBuffer *buf, pgproto.CodecContext ctx):
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
         if elem_count != 0:
             raise RuntimeError(
@@ -159,7 +160,7 @@ cdef class BaseRecordCodec(BaseCodec):
             raise TypeError(
                 'argument tuples do not support objects')
 
-    cdef encode(self, WriteBuffer buf, object obj):
+    cdef encode(self, WriteBuffer buf, object obj, pgproto.CodecContext ctx):
         cdef:
             WriteBuffer elem_data
             Py_ssize_t objlen
@@ -195,7 +196,7 @@ cdef class BaseRecordCodec(BaseCodec):
             else:
                 sub_codec = <BaseCodec>(self.fields_codecs[i])
                 try:
-                    sub_codec.encode(elem_data, item)
+                    sub_codec.encode(elem_data, item, ctx)
                 except (TypeError, ValueError) as e:
                     value_repr = repr(item)
                     if len(value_repr) > 40:
@@ -238,5 +239,47 @@ cdef class EdegDBCodecContext(pgproto.CodecContext):
     cdef is_encoding_utf8(self):
         return True
 
+    cdef is_decoding_json(self):
+        return False
+
+    cdef is_encoding_json(self):
+        return False
+
+
+@cython.final
+cdef class EdegDBJSONCodecContext(pgproto.CodecContext):
+
+    def __cinit__(self):
+        self._codec = codecs.lookup('utf-8')
+        self._json_decoder = json.JSONDecoder()
+        self._json_encoder = json.JSONEncoder()
+
+    cpdef get_text_codec(self):
+        return self._codec
+
+    cdef is_encoding_utf8(self):
+        return True
+
+    cpdef get_json_decoder(self):
+        return self._json_decoder
+
+    cdef is_decoding_json(self):
+        return True
+
+    cpdef get_json_encoder(self):
+        return self._json_encoder
+
+    cdef is_encoding_json(self):
+        return True
+
 
 cdef EdegDBCodecContext DEFAULT_CODEC_CONTEXT = EdegDBCodecContext()
+cdef EdegDBJSONCodecContext DEFAULT_JSON_CODEC_CONTEXT = \
+    EdegDBJSONCodecContext()
+
+
+def get_default_codec_context(handle_json=False):
+    if handle_json:
+        return DEFAULT_JSON_CODEC_CONTEXT
+    else:
+        return DEFAULT_CODEC_CONTEXT

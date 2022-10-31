@@ -22,15 +22,15 @@ import enum
 @cython.final
 cdef class EnumCodec(BaseCodec):
 
-    cdef encode(self, WriteBuffer buf, object obj):
+    cdef encode(self, WriteBuffer buf, object obj, pgproto.CodecContext ctx):
         if not isinstance(obj, (self.cls, str)):
             raise TypeError(
                 f'a str or edgedb.EnumValue(__tid__={self.cls.__tid__}) is '
                 f'expected as a valid enum argument, got {type(obj).__name__}')
-        pgproto.text_encode(DEFAULT_CODEC_CONTEXT, buf, str(obj))
+        pgproto.text_encode(ctx, buf, str(obj))
 
-    cdef decode(self, FRBuffer *buf):
-        label = pgproto.text_decode(DEFAULT_CODEC_CONTEXT, buf)
+    cdef decode(self, FRBuffer *buf, pgproto.CodecContext ctx):
+        label = pgproto.text_decode(ctx, buf)
         return self.cls(label)
 
     @staticmethod

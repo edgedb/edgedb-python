@@ -5,6 +5,8 @@ import typing
 from collections import namedtuple
 
 from . import errors
+from .pgproto import pgproto
+from .protocol import protocol
 
 
 _RetryRule = namedtuple("_RetryRule", ["attempts", "backoff"])
@@ -365,21 +367,39 @@ class _OptionsMixin:
         )
         return result
 
+    def with_codec_context(
+        self, codec_context: pgproto.CodecContext, only_replace_default=False
+    ):
+        if only_replace_default:
+            default = protocol.get_default_codec_context()
+            if self._options.codec_context is not default:
+                return self
+        result = self._shallow_clone()
+        result._options = self._options.with_codec_context(codec_context)
+        return result
+
 
 class _Options:
     """Internal class for storing connection options"""
 
-    __slots__ = ['_retry_options', '_transaction_options', '_state']
+    __slots__ = [
+        '_retry_options',
+        '_transaction_options',
+        '_state',
+        '_codec_context',
+    ]
 
     def __init__(
         self,
         retry_options: RetryOptions,
         transaction_options: TransactionOptions,
         state: State,
+        codec_context: pgproto.CodecContext,
     ):
         self._retry_options = retry_options
         self._transaction_options = transaction_options
         self._state = state
+        self._codec_context = codec_context
 
     @property
     def retry_options(self):
@@ -393,11 +413,16 @@ class _Options:
     def state(self):
         return self._state
 
+    @property
+    def codec_context(self):
+        return self._codec_context
+
     def with_retry_options(self, options: RetryOptions):
         return _Options(
             options,
             self._transaction_options,
             self._state,
+            self._codec_context,
         )
 
     def with_transaction_options(self, options: TransactionOptions):
@@ -405,6 +430,7 @@ class _Options:
             self._retry_options,
             options,
             self._state,
+            self._codec_context,
         )
 
     def with_state(self, state: State):
@@ -412,6 +438,15 @@ class _Options:
             self._retry_options,
             self._transaction_options,
             state,
+            self._codec_context,
+        )
+
+    def with_codec_context(self, codec_context: pgproto.CodecContext):
+        return _Options(
+            self._retry_options,
+            self._transaction_options,
+            self._state,
+            codec_context,
         )
 
     @classmethod
@@ -420,4 +455,5 @@ class _Options:
             RetryOptions.defaults(),
             TransactionOptions.defaults(),
             State.defaults(),
+            protocol.get_default_codec_context(),
         )
