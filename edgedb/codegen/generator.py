@@ -123,6 +123,7 @@ class Generator:
         self._default_module = "default"
         self._targets = args.target
         self._skip_pydantic_validation = args.skip_pydantic_validation
+        self._handle_json = args.handle_json
         self._async = False
         try:
             self._project_dir = pathlib.Path(
@@ -339,6 +340,16 @@ class Generator:
             method = "query_single"
             rt = "return "
 
+        if self._handle_json:
+            print(f"{INDENT}client = client.with_codec_context(", file=buf)
+            print(
+                f"{INDENT}{INDENT}"
+                f"edgedb.get_default_codec_context(handle_json=True),",
+                file=buf,
+            )
+            print(f"{INDENT}{INDENT}only_replace_default=True,", file=buf)
+            print(f"{INDENT})", file=buf)
+
         if self._async:
             print(f"{INDENT}{rt}await client.{method}(", file=buf)
         else:
@@ -369,7 +380,17 @@ class Generator:
         if type_.desc_id in self._cache:
             return self._cache[type_.desc_id]
 
-        if isinstance(type_, describe.BaseScalarType):
+        if (
+            isinstance(type_, describe.BaseScalarType)
+            and type_.name == "std::json"
+        ):
+            if self._handle_json:
+                self._imports.add("typing")
+                rv = "typing.Any"
+            else:
+                rv = "str"
+
+        elif isinstance(type_, describe.BaseScalarType):
             if type_.name in TYPE_IMPORTS:
                 self._imports.add(TYPE_IMPORTS[type_.name])
             rv = TYPE_MAPPING[type_.name]

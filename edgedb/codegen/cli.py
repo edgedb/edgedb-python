@@ -60,6 +60,12 @@ if sys.version_info[:2] >= (3, 9):
         help="Add a mixin to generated dataclasses "
         "to skip Pydantic validation (default is to add the mixin).",
     )
+    parser.add_argument(
+        "--handle-json",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Choose to handle JSON in query arguments and results."
+    )
 else:
     parser.add_argument(
         "--skip-pydantic-validation",
@@ -73,6 +79,19 @@ else:
         default=False,
         help="Add a mixin to generated dataclasses "
              "to skip Pydantic validation (default is to add the mixin).",
+    )
+    parser.add_argument(
+        "--handle-json",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--no-handle-json",
+        dest="handle_json",
+        action="store_false",
+        default=True,
+        help="Choose to handle JSON in query arguments and results. "
+             "(default: False)"
     )
 
 

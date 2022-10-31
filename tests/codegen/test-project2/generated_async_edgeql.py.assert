@@ -8,7 +8,7 @@
 #     'scalar/select_scalar.edgeql'
 #     'scalar/select_scalars.edgeql'
 # WITH:
-#     $ edgedb-py --target async --file --no-skip-pydantic-validation
+#     $ edgedb-py --target async --file --no-skip-pydantic-validation --handle-json
 
 
 from __future__ import annotations
@@ -137,6 +137,10 @@ class SelectObjectResultParamsItem:
 async def link_prop(
     client: edgedb.AsyncIOClient,
 ) -> list[LinkPropResult]:
+    client = client.with_codec_context(
+        edgedb.get_default_codec_context(handle_json=True),
+        only_replace_default=True,
+    )
     return await client.query(
         """\
         create type Person {
@@ -215,6 +219,10 @@ async def my_query(
     aw: edgedb.Range[datetime.date],
     ax: edgedb.Range[datetime.date],
 ) -> MyQueryResult:
+    client = client.with_codec_context(
+        edgedb.get_default_codec_context(handle_json=True),
+        only_replace_default=True,
+    )
     return await client.query_single(
         """\
         create scalar type MyScalar extending int64;
@@ -335,6 +343,10 @@ async def query_one(
     *,
     arg_name_with_underscores: int,
 ) -> int:
+    client = client.with_codec_context(
+        edgedb.get_default_codec_context(handle_json=True),
+        only_replace_default=True,
+    )
     return await client.query_single(
         """\
         select <int64>$arg_name_with_underscores\
@@ -349,6 +361,10 @@ async def select_args(
     arg_str: str,
     arg_datetime: datetime.datetime,
 ) -> SelectArgsResult:
+    client = client.with_codec_context(
+        edgedb.get_default_codec_context(handle_json=True),
+        only_replace_default=True,
+    )
     return await client.query_single(
         """\
         select {
@@ -364,6 +380,10 @@ async def select_args(
 async def select_object(
     client: edgedb.AsyncIOClient,
 ) -> SelectObjectResult | None:
+    client = client.with_codec_context(
+        edgedb.get_default_codec_context(handle_json=True),
+        only_replace_default=True,
+    )
     return await client.query_single(
         """\
         select schema::Function {
@@ -382,6 +402,10 @@ async def select_object(
 async def select_objects(
     client: edgedb.AsyncIOClient,
 ) -> list[SelectObjectResult]:
+    client = client.with_codec_context(
+        edgedb.get_default_codec_context(handle_json=True),
+        only_replace_default=True,
+    )
     return await client.query(
         """\
         select schema::Function {
@@ -399,6 +423,10 @@ async def select_objects(
 async def select_scalar(
     client: edgedb.AsyncIOClient,
 ) -> int:
+    client = client.with_codec_context(
+        edgedb.get_default_codec_context(handle_json=True),
+        only_replace_default=True,
+    )
     return await client.query_single(
         """\
         select 1;\
@@ -409,6 +437,10 @@ async def select_scalar(
 async def select_scalars(
     client: edgedb.AsyncIOClient,
 ) -> list[edgedb.ConfigMemory]:
+    client = client.with_codec_context(
+        edgedb.get_default_codec_context(handle_json=True),
+        only_replace_default=True,
+    )
     return await client.query(
         """\
         select <cfg::memory>{1, 2, 3};\

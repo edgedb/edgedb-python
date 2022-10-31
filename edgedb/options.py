@@ -370,6 +370,8 @@ class _OptionsMixin:
     def with_codec_context(
         self, codec_context: pgproto.CodecContext, only_replace_default=False
     ):
+        if self._options.codec_context is codec_context:
+            return self
         if only_replace_default:
             default = protocol.get_default_codec_context()
             if self._options.codec_context is not default:

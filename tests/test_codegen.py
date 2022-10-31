@@ -82,6 +82,7 @@ class TestCodegen(tb.AsyncQueryTestCase):
             "async",
             "--file",
             "--no-skip-pydantic-validation",
+            "--handle-json",
             extra_env={"EDGEDB_PYTHON_CODEGEN_PY_VER": "3.10.3"},
         )
 
