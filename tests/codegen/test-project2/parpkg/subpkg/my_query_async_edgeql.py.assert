@@ -88,7 +88,7 @@ class MyQueryResult(NoPydanticValidation):
 
 
 async def my_query(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
     *,
     a: uuid.UUID,
     b: typing.Optional[uuid.UUID],
@@ -141,7 +141,7 @@ async def my_query(
     aw: edgedb.Range[datetime.date],
     ax: typing.Optional[edgedb.Range[datetime.date]],
 ) -> MyQueryResult:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         create scalar type MyScalar extending int64;
         create scalar type MyEnum extending enum<This, That>;

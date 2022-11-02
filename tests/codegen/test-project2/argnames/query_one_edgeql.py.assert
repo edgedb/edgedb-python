@@ -7,11 +7,11 @@ import edgedb
 
 
 def query_one(
-    client: edgedb.Client,
+    executor: edgedb.Executor,
     *,
     arg_name_with_underscores: int,
 ) -> int:
-    return client.query_single(
+    return executor.query_single(
         """\
         select <int64>$arg_name_with_underscores\
         """,

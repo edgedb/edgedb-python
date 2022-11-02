@@ -17,12 +17,12 @@ class SelectArgsResult:
 
 
 def select_args(
-    client: edgedb.Client,
+    executor: edgedb.Executor,
     *,
     arg_str: str,
     arg_datetime: datetime.datetime,
 ) -> SelectArgsResult:
-    return client.query_single(
+    return executor.query_single(
         """\
         select {
         	Str := <str>$arg_str,

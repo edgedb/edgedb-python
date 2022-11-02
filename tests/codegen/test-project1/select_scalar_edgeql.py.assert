@@ -7,9 +7,9 @@ import edgedb
 
 
 def select_scalar(
-    client: edgedb.Client,
+    executor: edgedb.Executor,
 ) -> int:
-    return client.query_single(
+    return executor.query_single(
         """\
         select 1;\
         """,

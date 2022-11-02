@@ -79,7 +79,7 @@ class MyQueryResult:
 
 
 def my_query(
-    client: edgedb.Client,
+    executor: edgedb.Executor,
     *,
     a: uuid.UUID,
     b: typing.Optional[uuid.UUID],
@@ -132,7 +132,7 @@ def my_query(
     aw: edgedb.Range[datetime.date],
     ax: typing.Optional[edgedb.Range[datetime.date]],
 ) -> MyQueryResult:
-    return client.query_single(
+    return executor.query_single(
         """\
         create scalar type MyScalar extending int64;
         create scalar type MyEnum extending enum<This, That>;

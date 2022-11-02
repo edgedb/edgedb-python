@@ -8,9 +8,9 @@ import typing
 
 
 async def select_scalars(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> typing.List[edgedb.ConfigMemory]:
-    return await client.query(
+    return await executor.query(
         """\
         select <cfg::memory>{1, 2, 3};\
         """,

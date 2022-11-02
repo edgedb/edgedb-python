@@ -25,9 +25,9 @@ class SelectObjectResultParamsItem:
 
 
 def select_object(
-    client: edgedb.Client,
+    executor: edgedb.Executor,
 ) -> typing.Optional[SelectObjectResult]:
-    return client.query_single(
+    return executor.query_single(
         """\
         select schema::Function {
           Name := .name,

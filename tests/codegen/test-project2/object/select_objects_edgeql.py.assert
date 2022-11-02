@@ -25,9 +25,9 @@ class SelectObjectsResultParamsItem:
 
 
 def select_objects(
-    client: edgedb.Client,
+    executor: edgedb.Executor,
 ) -> list[SelectObjectsResult]:
-    return client.query(
+    return executor.query(
         """\
         select schema::Function {
           Name := .name,

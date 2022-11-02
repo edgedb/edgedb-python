@@ -34,9 +34,9 @@ class SelectObjectsResultParamsItem(NoPydanticValidation):
 
 
 async def select_objects(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> typing.List[SelectObjectsResult]:
-    return await client.query(
+    return await executor.query(
         """\
         select schema::Function {
           Name := .name,

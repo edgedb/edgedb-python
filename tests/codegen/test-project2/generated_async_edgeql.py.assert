@@ -135,9 +135,9 @@ class SelectObjectResultParamsItem:
 
 
 async def link_prop(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> list[LinkPropResult]:
-    return await client.query(
+    return await executor.query(
         """\
         create type Person {
             create required property name -> str;
@@ -162,7 +162,7 @@ async def link_prop(
 
 
 async def my_query(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
     *,
     a: uuid.UUID,
     b: uuid.UUID | None,
@@ -215,7 +215,7 @@ async def my_query(
     aw: edgedb.Range[datetime.date],
     ax: edgedb.Range[datetime.date] | None,
 ) -> MyQueryResult:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         create scalar type MyScalar extending int64;
         create scalar type MyEnum extending enum<This, That>;
@@ -331,11 +331,11 @@ async def my_query(
 
 
 async def query_one(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
     *,
     arg_name_with_underscores: int,
 ) -> int:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         select <int64>$arg_name_with_underscores\
         """,
@@ -344,12 +344,12 @@ async def query_one(
 
 
 async def select_args(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
     *,
     arg_str: str,
     arg_datetime: datetime.datetime,
 ) -> SelectArgsResult:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         select {
         	Str := <str>$arg_str,
@@ -362,9 +362,9 @@ async def select_args(
 
 
 async def select_object(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> SelectObjectResult | None:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         select schema::Function {
           Name := .name,
@@ -380,9 +380,9 @@ async def select_object(
 
 
 async def select_objects(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> list[SelectObjectResult]:
-    return await client.query(
+    return await executor.query(
         """\
         select schema::Function {
           Name := .name,
@@ -397,9 +397,9 @@ async def select_objects(
 
 
 async def select_scalar(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> int:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         select 1;\
         """,
@@ -407,9 +407,9 @@ async def select_scalar(
 
 
 async def select_scalars(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> list[edgedb.ConfigMemory]:
-    return await client.query(
+    return await executor.query(
         """\
         select <cfg::memory>{1, 2, 3};\
         """,

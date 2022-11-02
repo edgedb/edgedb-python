@@ -7,11 +7,11 @@ import edgedb
 
 
 async def query_one(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
     *,
     arg_name_with_underscores: int,
 ) -> int:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         select <int64>$arg_name_with_underscores\
         """,

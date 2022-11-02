@@ -318,9 +318,9 @@ class Generator:
             print(f"def {name}(", file=buf)
         self._imports.add("edgedb")
         if self._async:
-            print(f"{INDENT}client: edgedb.AsyncIOClient,", file=buf)
+            print(f"{INDENT}executor: edgedb.AsyncIOExecutor,", file=buf)
         else:
-            print(f"{INDENT}client: edgedb.Client,", file=buf)
+            print(f"{INDENT}executor: edgedb.Executor,", file=buf)
         if kw_only:
             print(f"{INDENT}*,", file=buf)
         for name, arg in args.items():
@@ -337,9 +337,9 @@ class Generator:
             rt = "return "
 
         if self._async:
-            print(f"{INDENT}{rt}await client.{method}(", file=buf)
+            print(f"{INDENT}{rt}await executor.{method}(", file=buf)
         else:
-            print(f"{INDENT}{rt}client.{method}(", file=buf)
+            print(f"{INDENT}{rt}executor.{method}(", file=buf)
         print(f'{INDENT}{INDENT}"""\\', file=buf)
         print(
             textwrap.indent(
