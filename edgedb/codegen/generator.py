@@ -58,6 +58,7 @@ TYPE_MAPPING = {
     "std::decimal": "decimal.Decimal",
     "std::datetime": "datetime.datetime",
     "std::duration": "datetime.timedelta",
+    "std::json": "str",
     "cal::local_date": "datetime.date",
     "cal::local_time": "datetime.time",
     "cal::local_datetime": "datetime.datetime",
@@ -125,9 +126,7 @@ class Generator:
         self._skip_pydantic_validation = args.skip_pydantic_validation
         self._async = False
         try:
-            self._project_dir = pathlib.Path(
-                find_edgedb_project_dir()
-            ).resolve()
+            self._project_dir = pathlib.Path(find_edgedb_project_dir())
         except edgedb.ClientConnectionError:
             print(
                 "Cannot find edgedb.toml: "
@@ -174,7 +173,6 @@ class Generator:
 
     def _process_dir(self, dir_: pathlib.Path):
         for file_or_dir in dir_.iterdir():
-            file_or_dir = file_or_dir.resolve()
             if not file_or_dir.exists():
                 continue
             if file_or_dir.is_dir():
@@ -283,10 +281,7 @@ class Generator:
     ) -> str:
         buf = io.StringIO()
 
-        if "_" in name or name.islower():
-            name_hint = f"{name}_result"
-        else:
-            name_hint = f"{name}Result"
+        name_hint = f"{self._snake_to_camel(name)}Result"
         out_type = self._generate_code(dr.output_type, name_hint)
         if dr.output_cardinality.is_multi():
             if SYS_VERSION_INFO >= (3, 9):
@@ -306,14 +301,16 @@ class Generator:
         if isinstance(dr.input_type, describe.ObjectType):
             if "".join(dr.input_type.elements.keys()).isdecimal():
                 for el_name, el in dr.input_type.elements.items():
-                    args[int(el_name)] = self._generate_code(
-                        el.type, f"arg{el_name}"
+                    args[int(el_name)] = self._generate_code_with_cardinality(
+                        el.type, f"arg{el_name}", el.cardinality
                     )
                 args = {f"arg{i}": v for i, v in sorted(args.items())}
             else:
                 kw_only = True
                 for el_name, el in dr.input_type.elements.items():
-                    args[el_name] = self._generate_code(el.type, el_name)
+                    args[el_name] = self._generate_code_with_cardinality(
+                        el.type, el_name, el.cardinality
+                    )
 
         if self._async:
             print(f"async def {name}(", file=buf)
@@ -417,15 +414,10 @@ class Generator:
             for el_name, element in type_.elements.items():
                 if element.is_implicit and el_name != "id":
                     continue
-                el_code = self._generate_code(
-                    element.type, f"{rv}{el_name.title()}"
+                name_hint = f"{rv}{self._snake_to_camel(el_name)}"
+                el_code = self._generate_code_with_cardinality(
+                    element.type, name_hint, element.cardinality
                 )
-                if element.cardinality == edgedb.Cardinality.AT_MOST_ONE:
-                    if SYS_VERSION_INFO >= (3, 10):
-                        el_code = f"{el_code} | None"
-                    else:
-                        self._imports.add("typing")
-                        el_code = f"typing.Optional[{el_code}]"
                 if element.kind == edgedb.ElementKind.LINK_PROPERTY:
                     link_props.append((el_name, el_code))
                 else:
@@ -465,7 +457,7 @@ class Generator:
             print(f"class {rv}(typing.NamedTuple):", file=buf)
             for el_name, el_type in type_.element_types.items():
                 el_code = self._generate_code(
-                    el_type, f"{rv}{el_name.title()}"
+                    el_type, f"{rv}{self._snake_to_camel(el_name)}"
                 )
                 print(f"{INDENT}{el_name}: {el_code}", file=buf)
             self._defs[rv] = buf.getvalue().strip()
@@ -489,14 +481,27 @@ class Generator:
         self._cache[type_.desc_id] = rv
         return rv
 
+    def _generate_code_with_cardinality(
+        self,
+        type_: typing.Optional[describe.AnyType],
+        name_hint: str,
+        cardinality: edgedb.Cardinality,
+    ):
+        rv = self._generate_code(type_, name_hint)
+        if cardinality == edgedb.Cardinality.AT_MOST_ONE:
+            if SYS_VERSION_INFO >= (3, 10):
+                rv = f"{rv} | None"
+            else:
+                self._imports.add("typing")
+                rv = f"typing.Optional[{rv}]"
+        return rv
+
     def _find_name(self, name: str) -> str:
         default_prefix = f"{self._default_module}::"
         if name.startswith(default_prefix):
             name = name[len(default_prefix) :]
         mod, _, name = name.rpartition("::")
-        parts = name.split("_")
-        if len(parts) > 1 or name.islower():
-            name = "".join(map(str.title, parts))
+        name = self._snake_to_camel(name)
         name = mod.title() + name
         if name in self._names:
             for i in range(2, 100):
@@ -512,3 +517,10 @@ class Generator:
                 sys.exit(17)
         self._names.add(name)
         return name
+
+    def _snake_to_camel(self, name: str) -> str:
+        parts = name.split("_")
+        if len(parts) > 1 or name.islower():
+            return "".join(map(str.title, parts))
+        else:
+            return name

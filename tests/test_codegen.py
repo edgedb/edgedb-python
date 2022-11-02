@@ -39,7 +39,10 @@ class TestCodegen(tb.AsyncQueryTestCase):
         container = pathlib.Path(__file__).absolute().parent / "codegen"
         with tempfile.TemporaryDirectory() as td:
             td_path = pathlib.Path(td)
+            shutil.copytree(container / "linked", td_path / "linked")
             for project in container.iterdir():
+                if project.name == "linked":
+                    continue
                 cwd = td_path / project.name
                 shutil.copytree(project, cwd)
                 await self._test_codegen(env, cwd)
