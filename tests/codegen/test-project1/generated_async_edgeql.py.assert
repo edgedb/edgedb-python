@@ -24,10 +24,10 @@ class SelectOptionalJsonResultItemSnakeCase:
 
 
 async def select_optional_json(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
     arg0: str | None,
 ) -> list[tuple[str, SelectOptionalJsonResultItem]]:
-    return await client.query(
+    return await executor.query(
         """\
         create type TestCase {
             create link snake_case -> TestCase;
@@ -40,9 +40,9 @@ async def select_optional_json(
 
 
 async def select_scalar(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> int:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         select 1;\
         """,
@@ -50,9 +50,9 @@ async def select_scalar(
 
 
 async def test_linked(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> int:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         select 42\
         """,

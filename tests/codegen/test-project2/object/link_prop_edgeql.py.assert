@@ -36,9 +36,9 @@ class LinkPropResultFriendsItem:
 
 
 def link_prop(
-    client: edgedb.Client,
+    executor: edgedb.Executor,
 ) -> list[LinkPropResult]:
-    return client.query(
+    return executor.query(
         """\
         create type Person {
             create required property name -> str;

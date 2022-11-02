@@ -7,9 +7,9 @@ import edgedb
 
 
 async def select_scalar(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> int:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         select 1;\
         """,

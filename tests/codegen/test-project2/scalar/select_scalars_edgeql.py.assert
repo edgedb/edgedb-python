@@ -7,9 +7,9 @@ import edgedb
 
 
 def select_scalars(
-    client: edgedb.Client,
+    executor: edgedb.Executor,
 ) -> list[edgedb.ConfigMemory]:
-    return client.query(
+    return executor.query(
         """\
         select <cfg::memory>{1, 2, 3};\
         """,

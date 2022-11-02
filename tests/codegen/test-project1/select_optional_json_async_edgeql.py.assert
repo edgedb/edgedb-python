@@ -30,10 +30,10 @@ class SelectOptionalJsonResultItemSnakeCase(NoPydanticValidation):
 
 
 async def select_optional_json(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
     arg0: typing.Optional[str],
 ) -> typing.List[typing.Tuple[str, SelectOptionalJsonResultItem]]:
-    return await client.query(
+    return await executor.query(
         """\
         create type TestCase {
             create link snake_case -> TestCase;

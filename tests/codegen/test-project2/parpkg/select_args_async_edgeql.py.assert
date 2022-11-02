@@ -26,12 +26,12 @@ class SelectArgsResult(NoPydanticValidation):
 
 
 async def select_args(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
     *,
     arg_str: str,
     arg_datetime: datetime.datetime,
 ) -> SelectArgsResult:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         select {
         	Str := <str>$arg_str,

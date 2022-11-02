@@ -21,10 +21,10 @@ class SelectOptionalJsonResultItemSnakeCase:
 
 
 def select_optional_json(
-    client: edgedb.Client,
+    executor: edgedb.Executor,
     arg0: typing.Optional[str],
 ) -> list[tuple[str, SelectOptionalJsonResultItem]]:
-    return client.query(
+    return executor.query(
         """\
         create type TestCase {
             create link snake_case -> TestCase;

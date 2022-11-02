@@ -7,9 +7,9 @@ import edgedb
 
 
 async def test_linked(
-    client: edgedb.AsyncIOClient,
+    executor: edgedb.AsyncIOExecutor,
 ) -> int:
-    return await client.query_single(
+    return await executor.query_single(
         """\
         select 42\
         """,
