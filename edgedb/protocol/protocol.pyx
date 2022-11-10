@@ -711,6 +711,27 @@ cdef class SansIOProtocol:
             else:
                 self.fallthrough()
 
+    async def ping(self):
+        cdef char mtype
+        self.write(WriteBuffer.new_message(SYNC_MSG).end_message())
+        exc = None
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            if mtype == READY_FOR_COMMAND_MSG:
+                self.parse_sync_message()
+                break
+            elif mtype == ERROR_RESPONSE_MSG:
+                exc = self.parse_error_message()
+                self.buffer.finish_message()
+                break
+            else:
+                self.fallthrough()
+        if exc is not None:
+            raise exc
+
     async def restore(self, bytes header, data_gen):
         cdef:
             WriteBuffer buf

@@ -152,7 +152,7 @@ class BlockingIOConnection(base_client.BaseConnection):
                 time.monotonic() - self._protocol.last_active_timestamp
                 > self._ping_wait_time
             ):
-                await self._protocol._sync()
+                await self._protocol.ping()
         except errors.ClientConnectionError:
             await self.connect()
 
