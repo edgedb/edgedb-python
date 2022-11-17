@@ -23,6 +23,7 @@ cdef class ScalarCodec(BaseCodec):
     cdef:
         pgproto.encode_func     c_encoder
         pgproto.decode_func     c_decoder
+        ScalarCodec base_codec
 
     cdef derive(self, bytes tid)
 

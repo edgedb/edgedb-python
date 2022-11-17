@@ -20,6 +20,8 @@
 import decimal
 import uuid
 import datetime
+from edgedb import describe
+from edgedb import enums
 from edgedb.datatypes import datatypes
 
 
@@ -32,6 +34,7 @@ include "./tuple.pyx"
 include "./namedtuple.pyx"
 include "./object.pyx"
 include "./array.pyx"
+include "./range.pyx"
 include "./set.pyx"
 include "./enum.pyx"
 
@@ -44,6 +47,9 @@ DEF CTYPE_TUPLE = 4
 DEF CTYPE_NAMEDTUPLE = 5
 DEF CTYPE_ARRAY = 6
 DEF CTYPE_ENUM = 7
+DEF CTYPE_INPUT_SHAPE = 8
+DEF CTYPE_RANGE = 9
+DEF CTYPE_ANNO_TYPENAME = 255
 
 DEF _CODECS_BUILD_CACHE_SIZE = 200
 
@@ -105,7 +111,7 @@ cdef class CodecsRegistry:
             if t == CTYPE_SET:
                 frb_read(spec, 2)
 
-            elif t == CTYPE_SHAPE:
+            elif t == CTYPE_SHAPE or t == CTYPE_INPUT_SHAPE:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
                 for i in range(els):
                     frb_read(spec, 4)  # flags
@@ -141,14 +147,23 @@ cdef class CodecsRegistry:
                 # First dimension length.
                 frb_read(spec, 4)
 
+            elif t == CTYPE_RANGE:
+                frb_read(spec, 2)
+
             elif t == CTYPE_ENUM:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
                 for i in range(els):
                     str_len = hton.unpack_uint32(frb_read(spec, 4))
                     frb_read(spec, str_len)
 
-            elif (t >= 0x7f and t <= 0xff):
-                # Ignore all type annotations.
+            elif t == CTYPE_ANNO_TYPENAME:
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                res.type_name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                return None
+
+            elif 0x80 & t == 0x80:
+                # Ignore all other type annotations.
                 str_len = hton.unpack_uint32(frb_read(spec, 4))
                 frb_read(spec, str_len)
                 return None
@@ -164,7 +179,7 @@ cdef class CodecsRegistry:
             sub_codec = <BaseCodec>codecs_list[pos]
             res = SetCodec.new(tid, sub_codec)
 
-        elif t == CTYPE_SHAPE:
+        elif t == CTYPE_SHAPE or t == CTYPE_INPUT_SHAPE:
             els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             codecs = cpython.PyTuple_New(els)
             names = cpython.PyTuple_New(els)
@@ -179,6 +194,8 @@ cdef class CodecsRegistry:
                     frb_read(spec, str_len), str_len)
                 pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
 
+                if flag & datatypes._EDGE_POINTER_IS_LINKPROP:
+                    name = "@" + name
                 cpython.Py_INCREF(name)
                 cpython.PyTuple_SetItem(names, i, name)
 
@@ -192,7 +209,9 @@ cdef class CodecsRegistry:
                 cpython.Py_INCREF(cardinality)
                 cpython.PyTuple_SetItem(cards, i, cardinality)
 
-            res = ObjectCodec.new(tid, names, flags, cards, codecs)
+            res = ObjectCodec.new(
+                tid, names, flags, cards, codecs, t == CTYPE_INPUT_SHAPE
+            )
 
         elif t == CTYPE_BASE_SCALAR:
             if tid in self.base_codec_overrides:
@@ -263,6 +282,11 @@ cdef class CodecsRegistry:
             dim_len = hton.unpack_int32(frb_read(spec, 4))
             sub_codec = <BaseCodec>codecs_list[pos]
             res = ArrayCodec.new(tid, sub_codec, dim_len)
+
+        elif t == CTYPE_RANGE:
+            pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            sub_codec = <BaseCodec>codecs_list[pos]
+            res = RangeCodec.new(tid, sub_codec)
 
         else:
             raise NotImplementedError(
@@ -411,7 +435,7 @@ cdef duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
 
 
 cdef relative_duration_encode(pgproto.CodecContext settings, WriteBuffer buf,
-                          object obj):
+                              object obj):
 
     cdef:
         microseconds = obj.microseconds
@@ -436,6 +460,35 @@ cdef relative_duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
 
     return datatypes.RelativeDuration(
         microseconds=microseconds, days=days, months=months)
+
+
+cdef date_duration_encode(pgproto.CodecContext settings, WriteBuffer buf,
+                          object obj):
+
+    cdef:
+        days = obj.days
+        months = obj.months
+
+    buf.write_int32(16)
+    buf.write_int64(0)
+    buf.write_int32(days)
+    buf.write_int32(months)
+
+
+cdef date_duration_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        int32_t days
+        int32_t months
+        int64_t microseconds
+
+    microseconds = hton.unpack_int64(frb_read(buf, 8))
+    days = hton.unpack_int32(frb_read(buf, 4))
+    months = hton.unpack_int32(frb_read(buf, 4))
+
+    if microseconds != 0:
+        raise ValueError("date duration has non-zero microseconds")
+
+    return datatypes.DateDuration(days=days, months=months)
 
 
 cdef config_memory_encode(pgproto.CodecContext settings,
@@ -643,6 +696,11 @@ cdef register_base_scalar_codecs():
         'cal::relative_duration',
         relative_duration_encode,
         relative_duration_decode)
+
+    register_base_scalar_codec(
+        'cal::date_duration',
+        date_duration_encode,
+        date_duration_decode)
 
     register_base_scalar_codec(
         'cfg::memory',

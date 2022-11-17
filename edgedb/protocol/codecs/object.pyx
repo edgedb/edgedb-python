@@ -16,12 +16,57 @@
 # limitations under the License.
 #
 
+import dataclasses
+
+
+cdef dict CARDS_MAP = {
+    datatypes.EdgeFieldCardinality.NO_RESULT: enums.Cardinality.NO_RESULT,
+    datatypes.EdgeFieldCardinality.AT_MOST_ONE: enums.Cardinality.AT_MOST_ONE,
+    datatypes.EdgeFieldCardinality.ONE: enums.Cardinality.ONE,
+    datatypes.EdgeFieldCardinality.MANY: enums.Cardinality.MANY,
+    datatypes.EdgeFieldCardinality.AT_LEAST_ONE: enums.Cardinality.AT_LEAST_ONE,
+}
+
 
 @cython.final
 cdef class ObjectCodec(BaseNamedRecordCodec):
 
     cdef encode(self, WriteBuffer buf, object obj):
-        raise NotImplementedError
+        cdef:
+            WriteBuffer elem_data
+            Py_ssize_t objlen = 0
+            Py_ssize_t i
+            BaseCodec sub_codec
+            descriptor = (<BaseNamedRecordCodec>self).descriptor
+
+        if not self.is_sparse:
+            raise NotImplementedError
+
+        elem_data = WriteBuffer.new()
+        for name, arg in obj.items():
+            try:
+                i = descriptor.get_pos(name)
+            except LookupError:
+                raise self._make_missing_args_error_message(obj) from None
+            objlen += 1
+            elem_data.write_int32(i)
+            if arg is not None:
+                sub_codec = <BaseCodec>(self.fields_codecs[i])
+                try:
+                    sub_codec.encode(elem_data, arg)
+                except (TypeError, ValueError) as e:
+                    value_repr = repr(arg)
+                    if len(value_repr) > 40:
+                        value_repr = value_repr[:40] + '...'
+                    raise errors.InvalidArgumentError(
+                        'invalid input for state argument '
+                        f' {name} := {value_repr} ({e})') from e
+            else:
+                elem_data.write_int32(-1)
+
+        buf.write_int32(4 + elem_data.len())  # buffer length
+        buf.write_int32(<int32_t><uint32_t>objlen)
+        buf.write_buffer(elem_data)
 
     cdef encode_args(self, WriteBuffer buf, dict obj):
         cdef:
@@ -30,6 +75,9 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             Py_ssize_t i
             BaseCodec sub_codec
             descriptor = (<BaseNamedRecordCodec>self).descriptor
+
+        if self.is_sparse:
+            raise NotImplementedError
 
         self._check_encoder()
 
@@ -83,13 +131,17 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
         passed_args = set(args.keys())
         missed_args = required_args - passed_args
         extra_args = passed_args - required_args
+        required = 'acceptable' if self.is_sparse else 'expected'
 
-        error_message = f'expected {required_args} arguments'
-        error_message += f', got {passed_args}'
+        error_message = f'{required} {required_args} arguments'
 
-        missed_args = set(required_args) - set(passed_args)
-        if missed_args:
-            error_message += f', missed {missed_args}'
+        passed_args_repr = repr(passed_args) if passed_args else 'nothing'
+        error_message += f', got {passed_args_repr}'
+
+        if not self.is_sparse:
+            missed_args = set(required_args) - set(passed_args)
+            if missed_args:
+                error_message += f', missed {missed_args}'
 
         extra_args = set(passed_args) - set(required_args)
         if extra_args:
@@ -107,6 +159,9 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
             FRBuffer elem_buf
             tuple fields_codecs = (<BaseRecordCodec>self).fields_codecs
             descriptor = (<BaseNamedRecordCodec>self).descriptor
+
+        if self.is_sparse:
+            raise NotImplementedError
 
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
 
@@ -136,17 +191,74 @@ cdef class ObjectCodec(BaseNamedRecordCodec):
 
         return result
 
+    def get_dataclass_fields(self):
+        cdef descriptor = (<BaseNamedRecordCodec>self).descriptor
+
+        rv = self.cached_dataclass_fields
+        if rv is None:
+            rv = {}
+
+            for i in range(len(self.fields_codecs)):
+                name = datatypes.record_desc_pointer_name(descriptor, i)
+                field = rv[name] = dataclasses.field()
+                field.name = name
+                field._field_type = dataclasses._FIELD
+
+            self.cached_dataclass_fields = rv
+        return rv
+
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple names, tuple flags, tuple cards,
-                       tuple codecs):
+                       tuple codecs, bint is_sparse):
         cdef:
             ObjectCodec codec
 
         codec = ObjectCodec.__new__(ObjectCodec)
 
         codec.tid = tid
-        codec.name = 'Object'
+        if is_sparse:
+            codec.name = 'SparseObject'
+        else:
+            codec.name = 'Object'
+        codec.is_sparse = is_sparse
         codec.descriptor = datatypes.record_desc_new(names, flags, cards)
+        codec.descriptor.set_dataclass_fields_func(codec.get_dataclass_fields)
         codec.fields_codecs = codecs
 
         return codec
+
+    def make_type(self, describe_context):
+        cdef descriptor = (<BaseNamedRecordCodec>self).descriptor
+
+        elements = {}
+        for i, codec in enumerate(self.fields_codecs):
+            name = datatypes.record_desc_pointer_name(descriptor, i)
+            is_implicit = datatypes.record_desc_pointer_is_implicit(
+                descriptor, i
+            )
+            if is_implicit and name == "__tname__":
+                continue
+            elements[name] = describe.Element(
+                type=codec.make_type(describe_context),
+                cardinality=CARDS_MAP[
+                    datatypes.record_desc_pointer_card(descriptor, i)
+                ],
+                is_implicit=is_implicit,
+                kind=(
+                    enums.ElementKind.LINK
+                    if datatypes.record_desc_pointer_is_link(descriptor, i)
+                    else (
+                        enums.ElementKind.LINK_PROPERTY
+                        if datatypes.record_desc_pointer_is_link_prop(
+                            descriptor, i
+                        )
+                        else enums.ElementKind.PROPERTY
+                    )
+                )
+            )
+
+        return describe.ObjectType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=None,
+            elements=elements,
+        )

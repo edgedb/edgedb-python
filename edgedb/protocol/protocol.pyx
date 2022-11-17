@@ -72,14 +72,14 @@ cpython.datetime.import_datetime()
 
 _QUERY_SINGLE_METHOD = {
     True: {
-        IoFormat.JSON: 'query_required_single_json',
-        IoFormat.JSON_ELEMENTS: 'raw_query',
-        IoFormat.BINARY: 'query_required_single',
+        OutputFormat.JSON: 'query_required_single_json',
+        OutputFormat.JSON_ELEMENTS: 'raw_query',
+        OutputFormat.BINARY: 'query_required_single',
     },
     False: {
-        IoFormat.JSON: 'query_single_json',
-        IoFormat.JSON_ELEMENTS: 'raw_query',
-        IoFormat.BINARY: 'query_single',
+        OutputFormat.JSON: 'query_single_json',
+        OutputFormat.JSON_ELEMENTS: 'raw_query',
+        OutputFormat.BINARY: 'query_single',
     },
 }
 
@@ -97,25 +97,33 @@ cdef class QueryCodecsCache:
         self.queries = LRUMapping(maxsize=cache_size)
 
     def get(
-        self, str query, IoFormat io_format,
+        self, str query, OutputFormat output_format,
         int implicit_limit, bint inline_typenames, bint inline_typeids,
         bint expect_one
     ):
         key = (
-            query, io_format, implicit_limit, inline_typenames, inline_typeids,
-            expect_one
+            query,
+            output_format,
+            implicit_limit,
+            inline_typenames,
+            inline_typeids,
+            expect_one,
         )
         return self.queries.get(key, None)
 
     cdef set(
-        self, str query, IoFormat io_format,
+        self, str query, OutputFormat output_format,
         int implicit_limit, bint inline_typenames, bint inline_typeids,
         bint expect_one, bint has_na_cardinality,
         BaseCodec in_type, BaseCodec out_type, int capabilities,
     ):
         key = (
-            query, io_format, implicit_limit, inline_typenames, inline_typeids,
-            expect_one
+            query,
+            output_format,
+            implicit_limit,
+            inline_typenames,
+            inline_typeids,
+            expect_one,
         )
         assert in_type is not None
         assert out_type is not None
@@ -141,6 +149,10 @@ cdef class SansIOProtocol:
         self.server_settings = {}
         self.reset_status()
         self.protocol_version = (PROTO_VER_MAJOR, 0)
+
+        self.state_type_id = NULL_CODEC_ID
+        self.state_codec = None
+        self.state_cache = (None, None)
 
     cdef reset_status(self):
         self.last_status = None
@@ -172,69 +184,81 @@ cdef class SansIOProtocol:
     async def wait_for_connect(self):
         raise NotImplementedError
 
+    async def wait_for_disconnect(self):
+        raise NotImplementedError
+
     cdef inline ignore_headers(self):
         cdef uint16_t num_fields = <uint16_t>self.buffer.read_int16()
-        while num_fields:
-            self.buffer.read_int16()
-            self.buffer.read_len_prefixed_bytes()
-            num_fields -= 1
+        if self.is_legacy:
+            while num_fields:
+                self.buffer.read_int16()  # key
+                self.buffer.read_len_prefixed_bytes()  # value
+                num_fields -= 1
+        else:
+            while num_fields:
+                self.buffer.read_len_prefixed_bytes()  # key
+                self.buffer.read_len_prefixed_bytes()  # value
+                num_fields -= 1
 
-    cdef write_headers(self, buf: WriteBuffer, headers: dict):
-        buf.write_int16(len(headers))
-        for k, v in headers.items():
-            buf.write_int16(<int16_t><uint16_t>k)
-            if isinstance(v, bytes):
-                buf.write_len_prefixed_bytes(v)
-            else:
-                buf.write_len_prefixed_utf8(str(v))
+    cdef ensure_connected(self):
+        if self.cancelled:
+            raise errors.ClientConnectionClosedError(
+                'the connection has been closed '
+                'because an operation was cancelled on it')
+        if not self.connected:
+            raise errors.ClientConnectionClosedError(
+                'the connection has been closed')
 
-    cdef write_execute_headers(
+    cdef WriteBuffer encode_parse_params(
         self,
-        WriteBuffer buf,
+        str query,
+        object output_format,
+        bint expect_one,
         int implicit_limit,
         bint inline_typenames,
         bint inline_typeids,
         uint64_t allow_capabilities,
+        object state,
     ):
-        cdef bytes val
-        if (
-            implicit_limit or
-            inline_typenames or inline_typeids or
-            allow_capabilities != ALL_CAPABILITIES
-        ):
-            headers = {}
-            if implicit_limit:
-                headers[QUERY_OPT_IMPLICIT_LIMIT] = implicit_limit
-            if inline_typenames:
-                headers[QUERY_OPT_INLINE_TYPENAMES] = True
-            if inline_typeids:
-                headers[QUERY_OPT_INLINE_TYPEIDS] = True
-            if allow_capabilities != ALL_CAPABILITIES:
-                val = cpython.PyBytes_FromStringAndSize(NULL, sizeof(uint64_t))
-                hton.pack_int64(
-                    cpython.PyBytes_AsString(val),
-                    <int64_t><uint64_t>allow_capabilities
-                )
-                headers[QUERY_OPT_ALLOW_CAPABILITIES] = val
-            self.write_headers(buf, headers)
-        else:
-            buf.write_int16(0)  # no headers
+        cdef:
+            WriteBuffer buf
+
+        compilation_flags = enums.CompilationFlag.INJECT_OUTPUT_OBJECT_IDS
+        if inline_typenames:
+            compilation_flags |= enums.CompilationFlag.INJECT_OUTPUT_TYPE_NAMES
+        if inline_typeids:
+            compilation_flags |= enums.CompilationFlag.INJECT_OUTPUT_TYPE_IDS
+
+        buf = WriteBuffer.new()
+        buf.write_int64(<int64_t>allow_capabilities)
+        buf.write_int64(<int64_t><uint64_t>compilation_flags)
+        buf.write_int64(<int64_t>implicit_limit)
+        buf.write_byte(output_format)
+        buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
+        buf.write_len_prefixed_utf8(query)
+
+        state_type_id, state_data = self.encode_state(state)
+        buf.write_bytes(state_type_id)
+        buf.write_bytes(state_data)
+
+        return buf
 
     async def _parse(
         self,
         query: str,
         *,
         reg: CodecsRegistry,
-        io_format: IoFormat=IoFormat.BINARY,
+        output_format: OutputFormat=OutputFormat.BINARY,
         expect_one: bint=False,
         required_one: bool=False,
         implicit_limit: int=0,
         inline_typenames: bool=False,
         inline_typeids: bool=False,
-        allow_capabilities: typing.Optional[int] = None,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
+        state: typing.Optional[dict] = None,
     ):
         cdef:
-            WriteBuffer buf
+            WriteBuffer buf, params
             char mtype
             BaseCodec in_dc = None
             BaseCodec out_dc = None
@@ -247,18 +271,24 @@ cdef class SansIOProtocol:
             raise RuntimeError('not connected')
 
         buf = WriteBuffer.new_message(PREPARE_MSG)
-        self.write_execute_headers(
-            buf, implicit_limit, inline_typenames, inline_typeids,
-            ALL_CAPABILITIES if allow_capabilities is None
-            else allow_capabilities)
-        buf.write_byte(io_format)
-        buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
-        buf.write_len_prefixed_utf8(query)
+        buf.write_int16(0)  # no headers
+
+        params = self.encode_parse_params(
+            query=query,
+            output_format=output_format,
+            expect_one=expect_one,
+            implicit_limit=implicit_limit,
+            inline_typenames=inline_typenames,
+            inline_typeids=inline_typeids,
+            allow_capabilities=allow_capabilities,
+            state=state,
+        )
+
+        buf.write_buffer(params)
         buf.end_message()
         buf.write_bytes(SYNC_MESSAGE)
         self.write(buf)
 
-        attrs = None
         exc = None
         while True:
             if not self.buffer.take_message():
@@ -266,15 +296,17 @@ cdef class SansIOProtocol:
             mtype = self.buffer.get_message_type()
 
             try:
-                if mtype == PREPARE_COMPLETE_MSG:
-                    attrs = self.parse_headers()
-                    cardinality = self.buffer.read_byte()
-                    in_dc, out_dc = self.parse_type_data(reg)
+                if mtype == STMT_DATA_DESC_MSG:
+                    capabilities, cardinality, in_dc, out_dc = \
+                        self.parse_describe_type_message(reg)
+
+                elif mtype == STATE_DATA_DESC_MSG:
+                    self.parse_describe_state_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
                     exc = self._amend_parse_error(
-                        exc, io_format, expect_one, required_one)
+                        exc, output_format, expect_one, required_one)
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -289,23 +321,15 @@ cdef class SansIOProtocol:
             raise exc
 
         if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
-            methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+            assert output_format != OutputFormat.NONE
+            methname = _QUERY_SINGLE_METHOD[required_one][output_format]
             raise errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
                 f'does not return any data')
 
-        return cardinality, in_dc, out_dc, attrs
+        return cardinality, in_dc, out_dc, capabilities
 
-    cdef ensure_connected(self):
-        if self.cancelled:
-            raise errors.ClientConnectionClosedError(
-                'the connection has been closed '
-                'because an operation was cancelled on it')
-        if not self.connected:
-            raise errors.ClientConnectionClosedError(
-                'the connection has been closed')
-
-    async def _optimistic_execute(
+    async def _execute(
         self,
         *,
         query: str,
@@ -313,36 +337,46 @@ cdef class SansIOProtocol:
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
-        io_format: object,
+        output_format: object,
         expect_one: bint,
         required_one: bint,
         implicit_limit: int,
         inline_typenames: bint,
         inline_typeids: bint,
-        allow_capabilities: typing.Optional[int] = None,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
         in_dc: BaseCodec,
         out_dc: BaseCodec,
-        allow_re_exec: bint = True,
+        state: typing.Optional[dict] = None,
     ):
         cdef:
             WriteBuffer packet
             WriteBuffer buf
+            WriteBuffer params
             char mtype
-            bint re_exec
             object result
             bytes new_cardinality = None
 
-        buf = WriteBuffer.new_message(OPTIMISTIC_EXECUTE_MSG)
-        self.write_execute_headers(
-            buf, implicit_limit, inline_typenames, inline_typeids,
-            ALL_CAPABILITIES if allow_capabilities is None
-            else allow_capabilities)
-        buf.write_byte(io_format)
-        buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
-        buf.write_len_prefixed_utf8(query)
+        params = self.encode_parse_params(
+            query=query,
+            output_format=output_format,
+            expect_one=expect_one,
+            implicit_limit=implicit_limit,
+            inline_typenames=inline_typenames,
+            inline_typeids=inline_typeids,
+            allow_capabilities=allow_capabilities,
+            state=state,
+        )
+
+        buf = WriteBuffer.new_message(EXECUTE_MSG)
+        buf.write_int16(0)  # no headers
+
+        buf.write_buffer(params)
+
         buf.write_bytes(in_dc.get_tid())
         buf.write_bytes(out_dc.get_tid())
+
         self.encode_args(in_dc, buf, args, kwargs)
+
         buf.end_message()
 
         packet = WriteBuffer.new()
@@ -350,9 +384,7 @@ cdef class SansIOProtocol:
         packet.write_bytes(SYNC_MESSAGE)
         self.write(packet)
 
-        result = datatypes.set_new(0)
-        attrs = None
-        re_exec = False
+        result = []
         exc = None
         while True:
             if not self.buffer.take_message():
@@ -362,30 +394,23 @@ cdef class SansIOProtocol:
             try:
                 if mtype == STMT_DATA_DESC_MSG:
                     # our in/out type spec is out-dated
-                    new_cardinality, in_dc, out_dc, headers = \
+                    capabilities, new_cardinality, in_dc, out_dc = \
                         self.parse_describe_type_message(reg)
-
-                    capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
-                    if capabilities is not None:
-                        capabilities = int.from_bytes(capabilities, 'big')
 
                     qc.set(
                         query,
-                        io_format,
+                        output_format,
                         implicit_limit,
                         inline_typenames,
                         inline_typeids,
                         expect_one,
                         new_cardinality == CARDINALITY_NOT_APPLICABLE,
                         in_dc, out_dc, capabilities)
-                    re_exec = True
+
+                elif mtype == STATE_DATA_DESC_MSG:
+                    self.parse_describe_state_message()
 
                 elif mtype == DATA_MSG:
-                    if re_exec:
-                        raise errors.ProtocolError(
-                            'unexpected DataMessage (D) after '
-                            'CommandDataDescription (T)'
-                        )
                     if exc is None:
                         try:
                             self.parse_data_messages(out_dc, result)
@@ -406,94 +431,22 @@ cdef class SansIOProtocol:
                         self.buffer.discard_message()
 
                 elif mtype == COMMAND_COMPLETE_MSG:
-                    attrs = self.parse_command_complete_message()
-
-                elif mtype == ERROR_RESPONSE_MSG:
-                    exc = self.parse_error_message()
-                    exc = self._amend_parse_error(
-                        exc, io_format, expect_one, required_one)
-
-                elif mtype == READY_FOR_COMMAND_MSG:
-                    self.parse_sync_message()
-                    break
-
-                else:
-                    self.fallthrough()
-
-            finally:
-                self.buffer.finish_message()
-
-        if exc is not None:
-            raise exc
-
-        if re_exec:
-            if not allow_re_exec:
-                raise errors.TransactionConflictError(
-                    'in/out type is modified concurrently'
-                )
-            assert new_cardinality is not None
-            if required_one and new_cardinality == CARDINALITY_NOT_APPLICABLE:
-                methname = _QUERY_SINGLE_METHOD[required_one][io_format]
-                raise errors.InterfaceError(
-                    f'query cannot be executed with {methname}() as it '
-                    f'does not return any data')
-
-            return await self._optimistic_execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                reg=reg,
-                qc=qc,
-                io_format=io_format,
-                expect_one=expect_one,
-                required_one=required_one,
-                implicit_limit=implicit_limit,
-                inline_typenames=inline_typenames,
-                inline_typeids=inline_typeids,
-                allow_capabilities=allow_capabilities,
-                in_dc=in_dc,
-                out_dc=out_dc,
-                allow_re_exec=False,
-            )
-        else:
-            return result, attrs
-
-    async def simple_query(self, str query, capabilities: enums.Capability):
-        cdef:
-            WriteBuffer buf
-            char mtype
-
-        self.ensure_connected()
-        self.reset_status()
-
-
-        buf = WriteBuffer.new_message(EXECUTE_SCRIPT_MSG)
-        cap_bytes = cpython.PyBytes_FromStringAndSize(NULL, sizeof(uint64_t))
-        hton.pack_int64(
-            cpython.PyBytes_AsString(cap_bytes),
-            <int64_t><uint64_t>capabilities,
-        )
-        self.write_headers(
-            buf,
-            {QUERY_OPT_ALLOW_CAPABILITIES: cap_bytes},
-        )
-        buf.write_len_prefixed_utf8(query)
-        self.write(buf.end_message())
-
-        exc = None
-
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-
-            try:
-                if mtype == COMMAND_COMPLETE_MSG:
                     self.parse_command_complete_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
-                    # ErrorResponse
                     exc = self.parse_error_message()
+                    if exc.get_code() == parameter_type_mismatch_code:
+                        if not isinstance(in_dc, NullCodec):
+                            buf = WriteBuffer.new()
+                            try:
+                                self.encode_args(in_dc, buf, args, kwargs)
+                            except errors.QueryArgumentError as ex:
+                                exc = ex
+                            finally:
+                                buf = None
+                    else:
+                        exc = self._amend_parse_error(
+                            exc, output_format, expect_one, required_one)
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -507,8 +460,26 @@ cdef class SansIOProtocol:
 
         if exc is not None:
             raise exc
+        else:
+            return result
 
-    async def execute_anonymous(
+    cdef encode_state(self, state):
+        cdef WriteBuffer buf
+
+        if state is not None:
+            if self.state_cache[0] is state:
+                state_data = self.state_cache[1]
+            else:
+                assert self.state_codec is not None
+                buf = WriteBuffer.new()
+                self.state_codec.encode(buf, state)
+                state_data = bytes(buf)
+                self.state_cache = (state, state_data)
+            return self.state_type_id, state_data
+        else:
+            return NULL_CODEC_ID, EMPTY_NULL_DATA
+
+    async def execute(
         self,
         *,
         query: str,
@@ -516,13 +487,14 @@ cdef class SansIOProtocol:
         kwargs,
         reg: CodecsRegistry,
         qc: QueryCodecsCache,
-        io_format: object,
+        output_format: object,
         expect_one: bint = False,
         required_one: bool = False,
         implicit_limit: int = 0,
         inline_typenames: bool = False,
         inline_typeids: bool = False,
-        allow_capabilities: typing.Optional[int] = None,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
+        state: typing.Optional[dict] = None,
     ):
         cdef:
             BaseCodec in_dc
@@ -532,115 +504,131 @@ cdef class SansIOProtocol:
         self.reset_status()
 
         codecs = qc.get(
-            query, io_format, implicit_limit, inline_typenames, inline_typeids,
+            query,
+            output_format,
+            implicit_limit,
+            inline_typenames,
+            inline_typeids,
             expect_one)
-        if codecs is None:
-            codecs = await self._parse(
+
+        if codecs is not None:
+            in_dc = <BaseCodec>codecs[1]
+            out_dc = <BaseCodec>codecs[2]
+        elif not args and not kwargs and not required_one:
+            # We don't have knowledge about the in/out desc of the command, but
+            # the caller didn't provide any arguments, so let's try using NULL
+            # for both in (assumed) and out (the server will correct it) desc
+            # without an additional Parse, unless required_one is set because
+            # it'll be too late to find out the cardinality is wrong when the
+            # command is already executed.
+            in_dc = out_dc = NULL_CODEC
+        else:
+            parsed = await self._parse(
                 query,
                 reg=reg,
-                io_format=io_format,
+                output_format=output_format,
                 expect_one=expect_one,
                 required_one=required_one,
                 implicit_limit=implicit_limit,
                 inline_typenames=inline_typenames,
                 inline_typeids=inline_typeids,
                 allow_capabilities=allow_capabilities,
+                state=state,
             )
 
-            cardinality = codecs[0]
-            in_dc = <BaseCodec>codecs[1]
-            out_dc = <BaseCodec>codecs[2]
-            headers = <BaseCodec>codecs[3]
-
-            capabilities = None
-            if headers:
-                capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
-                if capabilities is not None:
-                    capabilities = int.from_bytes(capabilities, 'big')
+            has_na_cardinality = parsed[0] == CARDINALITY_NOT_APPLICABLE
+            in_dc = <BaseCodec>parsed[1]
+            out_dc = <BaseCodec>parsed[2]
+            capabilities = parsed[3]
 
             qc.set(
                 query,
-                io_format,
+                output_format,
                 implicit_limit,
                 inline_typenames,
                 inline_typeids,
                 expect_one,
-                cardinality == CARDINALITY_NOT_APPLICABLE,
+                has_na_cardinality,
                 in_dc,
                 out_dc,
                 capabilities,
             )
 
-            ret, attrs = await self._optimistic_execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                reg=reg,
-                qc=qc,
-                io_format=io_format,
-                expect_one=expect_one,
-                required_one=required_one,
-                implicit_limit=implicit_limit,
-                inline_typenames=inline_typenames,
-                inline_typeids=inline_typeids,
-                allow_capabilities=allow_capabilities,
-                in_dc=in_dc,
-                out_dc=out_dc,
-                allow_re_exec=False,
-            )
+        return await self._execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=reg,
+            qc=qc,
+            output_format=output_format,
+            expect_one=expect_one,
+            required_one=required_one,
+            implicit_limit=implicit_limit,
+            inline_typenames=inline_typenames,
+            inline_typeids=inline_typeids,
+            allow_capabilities=allow_capabilities,
+            in_dc=in_dc,
+            out_dc=out_dc,
+            state=state,
+        )
 
-        else:
-            has_na_cardinality = codecs[0]
-            in_dc = <BaseCodec>codecs[1]
-            out_dc = <BaseCodec>codecs[2]
-
-            if required_one and has_na_cardinality:
-                methname = _QUERY_SINGLE_METHOD[required_one][io_format]
-                raise errors.InterfaceError(
-                    f'query cannot be executed with {methname}() as it '
-                    f'does not return any data')
-
-            ret, attrs = await self._optimistic_execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                reg=reg,
-                qc=qc,
-                io_format=io_format,
-                expect_one=expect_one,
-                required_one=required_one,
-                implicit_limit=implicit_limit,
-                inline_typenames=inline_typenames,
-                inline_typeids=inline_typeids,
-                allow_capabilities=allow_capabilities,
-                in_dc=in_dc,
-                out_dc=out_dc,
-            )
+    async def query(
+        self,
+        *,
+        query: str,
+        args,
+        kwargs,
+        reg: CodecsRegistry,
+        qc: QueryCodecsCache,
+        output_format: object,
+        expect_one: bint = False,
+        required_one: bool = False,
+        implicit_limit: int = 0,
+        inline_typenames: bool = False,
+        inline_typeids: bool = False,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
+        state: typing.Optional[dict] = None,
+    ):
+        ret = await self.execute(
+            query=query,
+            args=args,
+            kwargs=kwargs,
+            reg=reg,
+            qc=qc,
+            output_format=output_format,
+            expect_one=expect_one,
+            required_one=required_one,
+            implicit_limit=implicit_limit,
+            inline_typenames=inline_typenames,
+            inline_typeids=inline_typeids,
+            allow_capabilities=allow_capabilities,
+            state=state,
+        )
 
         if expect_one:
             if ret or not required_one:
                 if ret:
-                    return ret[0], attrs
+                    return ret[0]
                 else:
-                    if io_format == IoFormat.JSON:
-                        return 'null', attrs
+                    if output_format == OutputFormat.JSON:
+                        return 'null'
                     else:
-                        return None, attrs
+                        return None
             else:
-                methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+                methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.NoDataError(
                     f'query executed via {methname}() returned no data')
         else:
             if ret:
-                if io_format == IoFormat.JSON:
-                    return ret[0], attrs
+                if output_format == OutputFormat.JSON:
+                    return ret[0]
                 else:
-                    return ret, attrs
+                    return ret
             else:
-                if io_format == IoFormat.JSON:
-                    return '[]', attrs
+                if output_format == OutputFormat.JSON:
+                    return '[]'
                 else:
-                    return ret, attrs
+                    return ret
 
     async def dump(self, header_callback, block_callback):
         cdef:
@@ -843,8 +831,7 @@ cdef class SansIOProtocol:
             handshake_buf.write_len_prefixed_utf8(k)
             handshake_buf.write_len_prefixed_utf8(v)
 
-        # no extensions requested
-        handshake_buf.write_int16(0)
+        handshake_buf.write_int16(0)  # reserved
         handshake_buf.end_message()
 
         self.write(handshake_buf)
@@ -859,15 +846,18 @@ cdef class SansIOProtocol:
                 # means protocol negotiation.
                 major = self.buffer.read_int16()
                 minor = self.buffer.read_int16()
-                self.parse_headers()
+
+                # TODO: drop this branch when dropping protocol_v0
+                if major == LEGACY_PROTO_VER_MAJOR:
+                    self.is_legacy = True
+                    self.ignore_headers()
+
                 self.buffer.finish_message()
 
-                if (
+                if major != PROTO_VER_MAJOR and not (
                     major == LEGACY_PROTO_VER_MAJOR and
                     minor >= LEGACY_PROTO_VER_MINOR_MIN
                 ):
-                    self.is_legacy = True
-                elif major != PROTO_VER_MAJOR:
                     raise errors.ClientConnectionError(
                         f'the server requested an unsupported version of '
                         f'the protocol: {major}.{minor}'
@@ -890,6 +880,9 @@ cdef class SansIOProtocol:
 
             elif mtype == SERVER_KEY_DATA_MSG:
                 self.backend_secret = self.buffer.read_bytes(32)
+
+            elif mtype == STATE_DATA_DESC_MSG:
+                self.parse_describe_state_message()
 
             elif mtype == ERROR_RESPONSE_MSG:
                 raise self.parse_error_message()
@@ -1063,7 +1056,7 @@ cdef class SansIOProtocol:
             code = <uint32_t>self.buffer.read_int32()
             message = self.buffer.read_len_prefixed_utf8()
             # Ignore any headers: not yet specified for log messages.
-            self.parse_headers()
+            self.ignore_headers()
             self.buffer.finish_message()
 
             msg = errors.EdgeDBMessage._from_code(code, severity, message)
@@ -1079,9 +1072,6 @@ cdef class SansIOProtocol:
                 f'unexpected message type {chr(mtype)!r}')
 
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs):
-        cdef:
-             WriteBuffer tmp = WriteBuffer.new()
-
         if args and kwargs:
             raise errors.QueryArgumentError(
                 'either positional or named arguments are supported; '
@@ -1089,10 +1079,7 @@ cdef class SansIOProtocol:
 
         in_dc_type = type(in_dc)
 
-        if in_dc_type in {NullCodec, EmptyTupleCodec}:
-            # TODO: drop EmptyTupleCodec when 1.0 RC1 is released.
-            # It's only here because 0.12 protocol is only
-            # partially implemented in edgedb@master right now.
+        if in_dc_type is NullCodec:
             if args:
                 raise errors.QueryArgumentError(
                     'expected no positional arguments')
@@ -1100,11 +1087,7 @@ cdef class SansIOProtocol:
                 raise errors.QueryArgumentError(
                     'expected no named arguments')
 
-            if in_dc_type is NullCodec:
-                buf.write_bytes(EMPTY_NULL_DATA)
-            else:
-                buf.write_bytes(EMPTY_RECORD_DATA)
-
+            buf.write_bytes(EMPTY_NULL_DATA)
             return
 
         if in_dc_type is not ObjectCodec:
@@ -1122,16 +1105,35 @@ cdef class SansIOProtocol:
         cdef:
             bytes cardinality
 
-        headers = self.parse_headers()
-
         try:
+            self.ignore_headers()
+            capabilities = self.buffer.read_int64()
             cardinality = self.buffer.read_byte()
-
             in_dc, out_dc = self.parse_type_data(reg)
         finally:
             self.buffer.finish_message()
 
-        return cardinality, in_dc, out_dc, headers
+        return capabilities, cardinality, in_dc, out_dc
+
+    cdef parse_describe_state_message(self):
+        assert self.buffer.get_message_type() == STATE_DATA_DESC_MSG
+        try:
+            state_type_id = self.buffer.read_bytes(16)
+            state_typedesc = self.buffer.read_len_prefixed_bytes()
+
+            if state_type_id != self.state_type_id:
+                self.state_type_id = state_type_id
+                self.state_cache = (None, None)
+                if self.internal_reg.has_codec(state_type_id):
+                    self.state_codec = self.internal_reg.get_codec(
+                        state_type_id
+                    )
+                else:
+                    self.state_codec = self.internal_reg.build_codec(
+                        state_typedesc, self.protocol_version
+                    )
+        finally:
+            self.buffer.finish_message()
 
     cdef parse_type_data(self, CodecsRegistry reg):
         cdef:
@@ -1177,9 +1179,9 @@ cdef class SansIOProtocol:
             if buf.get_message_type() != DATA_MSG:
                 raise RuntimeError('first message is not "DataMsg"')
 
-            if not datatypes.set_check(result):
+            if not isinstance(result, list):
                 raise RuntimeError(
-                    f'result is not an edgedb.Set, but {result!r}')
+                    f'result is not a list, but {result!r}')
 
         while take_message_type(buf, DATA_MSG):
             cbuf = try_consume_message(buf, &cbuf_len)
@@ -1208,7 +1210,7 @@ cdef class SansIOProtocol:
                 frb_init(rbuf, cbuf + 6, cbuf_len - 6)
 
             row = decoder(out_dc, rbuf)
-            datatypes.set_append(result, row)
+            result.append(row)
 
             if frb_get_len(rbuf):
                 raise RuntimeError(
@@ -1217,10 +1219,12 @@ cdef class SansIOProtocol:
 
     cdef parse_command_complete_message(self):
         assert self.buffer.get_message_type() == COMMAND_COMPLETE_MSG
-        attrs = self.parse_headers()
+        self.ignore_headers()
+        self.last_capabilities = enums.Capability(self.buffer.read_int64())
         self.last_status = self.buffer.read_len_prefixed_bytes()
+        self.buffer.read_bytes(16)  # state type id
+        self.buffer.read_len_prefixed_bytes()  # state
         self.buffer.finish_message()
-        return attrs
 
     cdef parse_sync_message(self):
         cdef char status
@@ -1243,19 +1247,24 @@ cdef class SansIOProtocol:
         self.buffer.finish_message()
 
     cdef _amend_parse_error(
-        self, exc, IoFormat io_format, bint expect_one, bint required_one
+        self,
+        exc,
+        OutputFormat output_format,
+        bint expect_one,
+        bint required_one,
     ):
         if expect_one and exc.get_code() == result_cardinality_mismatch_code:
-            methname = _QUERY_SINGLE_METHOD[required_one][io_format]
+            assert output_format != OutputFormat.NONE
+            methname = _QUERY_SINGLE_METHOD[required_one][output_format]
             new_exc = errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
-                f'returns a multiset')
+                f'may return more than one element')
             new_exc.__cause__ = exc
             exc = new_exc
 
         return exc
 
-    cdef dict parse_headers(self):
+    cdef dict parse_error_headers(self):
         cdef:
             dict attrs
             uint16_t num_fields
@@ -1283,7 +1292,7 @@ cdef class SansIOProtocol:
         severity = <uint8_t>self.buffer.read_byte()
         code = <uint32_t>self.buffer.read_int32()
         msg = self.buffer.read_len_prefixed_utf8()
-        attrs = self.parse_headers()
+        attrs = self.parse_error_headers()
 
         # It's safe to always map error codes as we don't reuse them
         code = OLD_ERROR_CODES.get(code, code)
@@ -1297,6 +1306,7 @@ cdef class SansIOProtocol:
 
 cdef result_cardinality_mismatch_code = \
     errors.ResultCardinalityMismatchError._code
+cdef parameter_type_mismatch_code = errors.ParameterTypeMismatchError._code
 
 cdef bytes SYNC_MESSAGE = bytes(
     WriteBuffer.new_message(SYNC_MSG).end_message())

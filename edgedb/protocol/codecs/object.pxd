@@ -19,9 +19,12 @@
 
 @cython.final
 cdef class ObjectCodec(BaseNamedRecordCodec):
+    cdef:
+        bint is_sparse
+        object cached_dataclass_fields
 
     cdef encode_args(self, WriteBuffer buf, dict obj)
 
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple names, tuple flags,
-                       tuple cards, tuple codecs)
+                       tuple cards, tuple codecs, bint is_sparse)

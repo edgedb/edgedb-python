@@ -117,12 +117,13 @@ class TestConUtils(unittest.TestCase):
         tls_ca_file = opts.get('tlsCAFile')
         tls_security = opts.get('tlsSecurity')
         server_settings = opts.get('serverSettings')
+        wait_until_available = opts.get('waitUntilAvailable')
 
         other_opts = testcase.get('other_opts', {})
         timeout = other_opts.get('timeout')
         command_timeout = other_opts.get('command_timeout')
 
-        expected = (testcase.get('result'), testcase.get('other_results'))
+        expected = testcase.get('result')
         expected_error = testcase.get('error')
         if expected_error and expected_error.get('type'):
             expected_error = self.error_mapping.get(expected_error.get('type'))
@@ -130,11 +131,11 @@ class TestConUtils(unittest.TestCase):
                 raise RuntimeError(
                     f"unknown error type: {testcase.get('error').get('type')}")
 
-        if expected[0] is None and expected_error is None:
+        if expected is None and expected_error is None:
             raise RuntimeError(
                 'invalid test case: either "result" or "error" key '
                 'has to be specified')
-        if expected[0] is not None and expected_error is not None:
+        if expected is not None and expected_error is not None:
             raise RuntimeError(
                 'invalid test case: either "result" or "error" key '
                 'has to be specified, got both')
@@ -146,7 +147,7 @@ class TestConUtils(unittest.TestCase):
 
             stat_result = os.stat(os.getcwd())
             es.enter_context(
-                mock.patch('os.stat', lambda _: stat_result)
+                mock.patch('os.stat', lambda _, **__: stat_result)
             )
 
             if fs:
@@ -188,7 +189,7 @@ class TestConUtils(unittest.TestCase):
 
                     es.enter_context(mock.patch(
                         'os.stat',
-                        lambda d: mock.Mock(st_dev=0),
+                        lambda d, **_: mock.Mock(st_dev=0),
                     ))
 
                     es.enter_context(
@@ -224,33 +225,23 @@ class TestConUtils(unittest.TestCase):
                 timeout=timeout,
                 command_timeout=command_timeout,
                 server_settings=server_settings,
-                wait_until_available=30,
+                wait_until_available=wait_until_available,
             )
 
-            result = (
-                {
-                    'address': [
-                        connect_config.address[0], connect_config.address[1]
-                    ],
-                    'database': connect_config.database,
-                    'user': connect_config.user,
-                    'password': connect_config.password,
-                    'tlsCAData': connect_config._tls_ca_data,
-                    'tlsSecurity': connect_config.tls_security,
-                    'serverSettings': connect_config.server_settings
-                }, {
-                    k: v for k, v in client_config._asdict().items()
-                    if v is not None
-                } if testcase.get('other_results') else None
-            )
+            result = {
+                'address': [
+                    connect_config.address[0], connect_config.address[1]
+                ],
+                'database': connect_config.database,
+                'user': connect_config.user,
+                'password': connect_config.password,
+                'tlsCAData': connect_config._tls_ca_data,
+                'tlsSecurity': connect_config.tls_security,
+                'serverSettings': connect_config.server_settings,
+                'waitUntilAvailable': client_config.wait_until_available,
+            }
 
-        if expected[0] is not None:
-            if (expected[1]):
-                for k, v in expected[1].items():
-                    # If `expected` contains a type, allow that to "match" any
-                    # instance of that type that `result` may contain.
-                    if isinstance(v, type) and isinstance(result[1].get(k), v):
-                        result[1][k] = v
+        if expected is not None:
             self.assertEqual(expected, result)
 
     def test_test_connect_params_environ(self):
@@ -296,10 +287,8 @@ class TestConUtils(unittest.TestCase):
                     'password': None,
                     'tlsCAData': None,
                     'tlsSecurity': 'strict',
-                    'serverSettings': {}
-                },
-                'other_results': {
-                    'wait_until_available': 30
+                    'serverSettings': {},
+                    'waitUntilAvailable': 30,
                 },
             })
 
@@ -321,6 +310,12 @@ class TestConUtils(unittest.TestCase):
 
         for i, testcase in enumerate(testcases):
             with self.subTest(i=i):
+                wait_until_available = \
+                    testcase.get('result', {}).get('waitUntilAvailable')
+                if wait_until_available:
+                    testcase['result']['waitUntilAvailable'] = \
+                        con_utils._validate_wait_until_available(
+                            wait_until_available)
                 platform = testcase.get('platform')
                 if testcase.get('fs') and (
                     sys.platform == 'win32' or platform == 'windows'
@@ -398,3 +393,183 @@ class TestConUtils(unittest.TestCase):
         self.assertEqual(connect_config.user, 'inst1_user')
         self.assertEqual(connect_config.password, 'passw1')
         self.assertEqual(connect_config.database, 'inst1_db')
+
+    def test_validate_wait_until_available(self):
+        invalid = [
+            ' ',
+            ' PT1S',
+            '',
+            '-.1 s',
+            '-.1s',
+            '-.5 second',
+            '-.5 seconds',
+            '-.5second',
+            '-.5seconds',
+            '-.s',
+            '-1.s',
+            '.s',
+            '.seconds',
+            '1.s',
+            '1h-120m3600s',
+            '1hour-120minute3600second',
+            '1hours-120minutes3600seconds',
+            '1hours120minutes3600seconds',
+            '2.0hour46.0minutes39.0seconds',
+            '2.0hours46.0minutes39.0seconds',
+            '20 hours with other stuff should not be valid',
+            '20 minutes with other stuff should not be valid',
+            '20 ms with other stuff should not be valid',
+            '20 seconds with other stuff should not be valid',
+            '20 us with other stuff should not be valid',
+            '2hour46minute39second',
+            '2hours46minutes39seconds',
+            '3 hours is longer than 10 seconds',
+            'P-.D',
+            'P-D',
+            'PD',
+            'PT.S',
+            'PT1S ',
+            '\t',
+            'not a duration',
+            's',
+        ]
+
+        for string in invalid:
+            with self.subTest(string):
+                with self.assertRaises(ValueError):
+                    con_utils._validate_wait_until_available(string)
+
+        valid = [
+            (" 1s ", 1),
+            (" 1s", 1),
+            ("-0s", 0),
+            ("-1.0h", -3600),
+            ("-1.0hour", -3600),
+            ("-1.0hours", -3600),
+            ("-1.0m", -60),
+            ("-1.0minute", -60),
+            ("-1.0minutes", -60),
+            ("-1.0ms", -0.001),
+            ("-1.0s", -1),
+            ("-1.0second", -1),
+            ("-1.0seconds", -1),
+            ("-1.0us", -0.000001),
+            ("-1h", -3600),
+            ("-1hour", -3600),
+            ("-1hours", -3600),
+            ("-1m", -60),
+            ("-1minute", -60),
+            ("-1minutes", -60),
+            ("-1ms", -0.001),
+            ("-1s", -1),
+            ("-1second", -1),
+            ("-1seconds", -1),
+            ("-1us", -0.000001),
+            ("-2h 60m 3600s", 0),
+            ("-\t2\thour\t60\tminute\t3600\tsecond", 0),
+            (".1h", 360),
+            (".1hour", 360),
+            (".1hours", 360),
+            (".1m", 6),
+            (".1minute", 6),
+            (".1minutes", 6),
+            (".1ms", 0.0001),
+            (".1s", 0.1),
+            (".1second", 0.1),
+            (".1seconds", 0.1),
+            (".1us", 0.0000001),
+            ("1   hour 60  minute -   7200   second", 0),
+            ("1   hours 60  minutes -   7200   seconds", 0),
+            ("1.0h", 3600),
+            ("1.0hour", 3600),
+            ("1.0hours", 3600),
+            ("1.0m", 60),
+            ("1.0minute", 60),
+            ("1.0minutes", 60),
+            ("1.0ms", 0.001),
+            ("1.0s", 1),
+            ("1.0second", 1),
+            ("1.0seconds", 1),
+            ("1.0us", 0.000001),
+            ("1h -120m 3600s", 0),
+            ("1h -120m3600s", 0),
+            ("1h 60m -7200s", 0),
+            ("1h", 3600),
+            ("1hour", 3600),
+            ("1hours -120minutes 3600seconds", 0),
+            ("1hours", 3600),
+            ("1m", 60),
+            ("1minute", 60),
+            ("1minutes", 60),
+            ("1ms", 0.001),
+            ("1s ", 1),
+            ("1s", 1),
+            ("1s\t", 1),
+            ("1second", 1),
+            ("1seconds", 1),
+            ("1us", 0.000001),
+            ("2  h  46  m  39  s", 9999),
+            ("2  hour  46  minute  39  second", 9999),
+            ("2  hours  46  minutes  39  seconds", 9999),
+            ("2.0  h  46.0  m  39.0  s", 9999),
+            ("2.0  hour  46.0  minute  39.0  second", 9999),
+            ("2.0  hours  46.0  minutes  39.0  seconds", 9999),
+            ("2.0h 46.0m 39.0s", 9999),
+            ("2.0h46.0m39.0s", 9999),
+            ("2.0hour 46.0minute 39.0second", 9999),
+            ("2.0hours 46.0minutes 39.0seconds", 9999),
+            ("2h 46m 39s", 9999),
+            ("2h46m39s", 9999),
+            ("2hour 46minute 39second", 9999),
+            ("2hours 46minutes 39seconds", 9999),
+            ("39.0\tsecond 2.0  hour  46.0  minute", 9999),
+            ("PT", 0),
+            ("PT-.1", -360),
+            ("PT-.1H", -360),
+            ("PT-.1M", -6),
+            ("PT-.1S", -0.1),
+            ("PT-0.000001S", -0.000001),
+            ("PT-0S", 0),
+            ("PT-1", -3600),
+            ("PT-1.", -3600),
+            ("PT-1.0", -3600),
+            ("PT-1.0H", -3600),
+            ("PT-1.0M", -60),
+            ("PT-1.0S", -1),
+            ("PT-1.H", -3600),
+            ("PT-1.M", -60),
+            ("PT-1.S", -1),
+            ("PT-1H", -3600),
+            ("PT-1M", -60),
+            ("PT-1S", -1),
+            ("PT.1", 360),
+            ("PT.1H", 360),
+            ("PT.1M", 6),
+            ("PT.1S", 0.1),
+            ("PT0.000001S", 0.000001),
+            ("PT0S", 0),
+            ("PT1", 3600),
+            ("PT1.", 3600),
+            ("PT1.0", 3600),
+            ("PT1.0H", 3600),
+            ("PT1.0M", 60),
+            ("PT1.0M", 60),
+            ("PT1.0S", 1),
+            ("PT1.H", 3600),
+            ("PT1.M", 60),
+            ("PT1.S", 1),
+            ("PT1H", 3600),
+            ("PT1M", 60),
+            ("PT1S", 1),
+            ("PT2.0H46.0M39.0S", 9999),
+            ("PT2H46M39S", 9999),
+            ("\t-\t2\thours\t60\tminutes\t3600\tseconds\t", 0),
+            ("\t1s", 1),
+            ("\t1s\t", 1),
+        ]
+        for string, expected in valid:
+            with self.subTest(duration=string):
+                self.assertEqual(
+                    expected,
+                    con_utils._validate_wait_until_available(string)
+                )

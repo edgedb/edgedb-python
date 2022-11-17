@@ -59,6 +59,7 @@ typedef struct {
     EdgeRecordFieldDesc *descs;
     Py_ssize_t idpos;
     Py_ssize_t size;
+    PyObject *get_dataclass_fields_func;
 } EdgeRecordDescObject;
 
 typedef enum {
@@ -82,28 +83,7 @@ EdgeFieldCardinality EdgeRecordDesc_PointerCardinality(PyObject *, Py_ssize_t);
 Py_ssize_t EdgeRecordDesc_GetSize(PyObject *);
 edge_attr_lookup_t EdgeRecordDesc_Lookup(PyObject *, PyObject *, Py_ssize_t *);
 PyObject * EdgeRecordDesc_List(PyObject *, uint8_t, uint8_t);
-
-
-
-/* === edgedb.Tuple ========================================= */
-
-#define EDGE_TUPLE_FREELIST_SIZE 500
-#define EDGE_TUPLE_FREELIST_MAXSAVE 20
-
-extern PyTypeObject EdgeTuple_Type;
-
-#define EdgeTuple_Check(d) (Py_TYPE(d) == &EdgeTuple_Type)
-
-typedef struct {
-    PyObject_VAR_HEAD
-    PyObject *weakreflist;
-    PyObject *ob_item[1];
-} EdgeTupleObject;
-
-PyObject * EdgeTuple_InitType(void);
-PyObject * EdgeTuple_New(Py_ssize_t size);
-int EdgeTuple_SetItem(PyObject *, Py_ssize_t, PyObject *);
-
+PyObject * EdgeRecordDesc_GetDataclassFields(PyObject *);
 
 
 /* === edgedb.NamedTuple ==================================== */
@@ -113,18 +93,9 @@ int EdgeTuple_SetItem(PyObject *, Py_ssize_t, PyObject *);
 
 extern PyTypeObject EdgeNamedTuple_Type;
 
-#define EdgeNamedTuple_Check(d) (Py_TYPE(d) == &EdgeNamedTuple_Type)
-
-typedef struct {
-    PyObject_VAR_HEAD
-    PyObject *desc;
-    PyObject *weakreflist;
-    PyObject *ob_item[1];
-} EdgeNamedTupleObject;
-
 PyObject * EdgeNamedTuple_InitType(void);
+PyObject * EdgeNamedTuple_Type_New(PyObject *);
 PyObject * EdgeNamedTuple_New(PyObject *);
-int EdgeNamedTuple_SetItem(PyObject *, Py_ssize_t, PyObject *);
 
 
 /* === edgedb.Object ======================================== */
@@ -152,50 +123,6 @@ int EdgeObject_SetItem(PyObject *, Py_ssize_t, PyObject *);
 PyObject * EdgeObject_GetItem(PyObject *, Py_ssize_t);
 
 PyObject * EdgeObject_GetID(PyObject *ob);
-
-
-/* === edgedb.Set =========================================== */
-
-extern PyTypeObject EdgeSet_Type;
-
-#define EdgeSet_Check(d) (Py_TYPE(d) == &EdgeSet_Type)
-
-typedef struct {
-    PyObject_HEAD
-    Py_hash_t cached_hash;
-    PyObject *weakreflist;
-    PyObject *els;
-} EdgeSetObject;
-
-PyObject * EdgeSet_InitType(void);
-PyObject * EdgeSet_New(Py_ssize_t);
-
-int EdgeSet_SetItem(PyObject *, Py_ssize_t, PyObject *);
-PyObject * EdgeSet_GetItem(PyObject *, Py_ssize_t);
-
-int EdgeSet_AppendItem(PyObject *, PyObject *);
-Py_ssize_t EdgeSet_Len(PyObject *);
-
-
-/* === edgedb.Array ========================================= */
-
-#define EDGE_ARRAY_FREELIST_SIZE 500
-#define EDGE_ARRAY_FREELIST_MAXSAVE 10
-
-extern PyTypeObject EdgeArray_Type;
-
-#define EdgeArray_Check(d) (Py_TYPE(d) == &EdgeArray_Type)
-
-typedef struct {
-    PyObject_VAR_HEAD
-    PyObject *weakreflist;
-    Py_hash_t cached_hash;
-    PyObject *ob_item[1];
-} EdgeArrayObject;
-
-PyObject * EdgeArray_InitType(void);
-PyObject * EdgeArray_New(Py_ssize_t size);
-int EdgeArray_SetItem(PyObject *, Py_ssize_t, PyObject *);
 
 
 /* === edgedb.Link ========================================== */

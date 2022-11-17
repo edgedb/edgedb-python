@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,18 +17,11 @@
 #
 
 
-cdef class EnumDescriptor:
+@cython.final
+cdef class RangeCodec(BaseCodec):
+
     cdef:
-        object tid
-        dict index
-        tuple labels
+        BaseCodec sub_codec
 
-    cdef get_index(self, EnumValue v)
-
-
-cdef class EnumValue:
-    cdef:
-        EnumDescriptor desc
-        str label
-
-    cdef get_index(self)
+    @staticmethod
+    cdef BaseCodec new(bytes tid, BaseCodec sub_codec)

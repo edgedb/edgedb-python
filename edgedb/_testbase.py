@@ -104,7 +104,7 @@ def _start_cluster(*, cleanup_atexit=True):
         if sys.platform == 'win32':
             help_args = ['wsl', '-u', 'edgedb'] + help_args
 
-        if "--generate-self-signed-cert" in subprocess.run(
+        supported_opts = subprocess.run(
             help_args,
             universal_newlines=True,
             stdout=subprocess.PIPE,
@@ -112,7 +112,11 @@ def _start_cluster(*, cleanup_atexit=True):
             encoding="utf-8",
             env=env,
             cwd=tmpdir.name,
-        ).stdout:
+        ).stdout
+
+        if "--tls-cert-mode" in supported_opts:
+            args.append("--tls-cert-mode=generate_self_signed")
+        elif "--generate-self-signed-cert" in supported_opts:
             args.append("--generate-self-signed-cert")
 
         if sys.platform == 'win32':
@@ -334,27 +338,46 @@ class TestAsyncIOClient(edgedb.AsyncIOClient):
     def dbname(self):
         return self._impl._working_params.database
 
+    @property
+    def is_proto_lt_1_0(self):
+        return self.connection._protocol.is_legacy
+
 
 class TestClient(edgedb.Client):
     @property
     def connection(self):
         return self._impl._holders[0]._con
 
+    @property
+    def is_proto_lt_1_0(self):
+        return self.connection._protocol.is_legacy
+
+    @property
+    def dbname(self):
+        return self._impl._working_params.database
+
 
 class ConnectedTestCaseMixin:
+    is_client_async = True
 
     @classmethod
-    def test_client(
+    def make_test_client(
         cls, *,
         cluster=None,
         database='edgedb',
         user='edgedb',
         password='test',
-        connection_class=asyncio_client.AsyncIOConnection,
+        connection_class=...,
     ):
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
-        return TestAsyncIOClient(
+        if connection_class is ...:
+            connection_class = (
+                asyncio_client.AsyncIOConnection
+                if cls.is_client_async
+                else blocking_client.BlockingIOConnection
+            )
+        return (TestAsyncIOClient if cls.is_client_async else TestClient)(
             connection_class=connection_class,
             max_concurrency=1,
             **conargs,
@@ -372,6 +395,10 @@ class ConnectedTestCaseMixin:
                             database=database))
         return conargs
 
+    @classmethod
+    def adapt_call(cls, coro):
+        return cls.loop.run_until_complete(coro)
+
 
 class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     SETUP = None
@@ -381,22 +408,12 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     SETUP_METHOD = None
     TEARDOWN_METHOD = None
 
-    # Turns on "EdgeDB developer" mode which allows using restricted
-    # syntax like FROM SQL and similar. It allows modifying standard
-    # library (e.g. declaring casts).
-    INTERNAL_TESTMODE = True
-
     BASE_TEST_CLASS = True
     TEARDOWN_RETRY_DROP_DB = 1
 
     def setUp(self):
-        if self.INTERNAL_TESTMODE:
-            self.loop.run_until_complete(
-                self.client.execute(
-                    'CONFIGURE SESSION SET __internal_testmode := true;'))
-
         if self.SETUP_METHOD:
-            self.loop.run_until_complete(
+            self.adapt_call(
                 self.client.execute(self.SETUP_METHOD))
 
         super().setUp()
@@ -404,7 +421,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     def tearDown(self):
         try:
             if self.TEARDOWN_METHOD:
-                self.loop.run_until_complete(
+                self.adapt_call(
                     self.client.execute(self.TEARDOWN_METHOD))
         finally:
             try:
@@ -412,9 +429,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     raise AssertionError(
                         'test connection is still in transaction '
                         '*after* the test')
-
-                self.loop.run_until_complete(
-                    self.client.execute('RESET ALIAS *;'))
 
             finally:
                 super().tearDown()
@@ -431,21 +445,27 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         # Only open an extra admin connection if necessary.
         if not class_set_up:
             script = f'CREATE DATABASE {dbname};'
-            cls.admin_client = cls.test_client()
-            cls.loop.run_until_complete(cls.admin_client.execute(script))
+            cls.admin_client = cls.make_test_client()
+            cls.adapt_call(cls.admin_client.execute(script))
 
-        cls.client = cls.test_client(database=dbname)
+        cls.client = cls.make_test_client(database=dbname)
 
         if not class_set_up:
             script = cls.get_setup_script()
             if script:
                 # The setup is expected to contain a CREATE MIGRATION,
                 # which needs to be wrapped in a transaction.
-                async def execute():
-                    async for tr in cls.client.transaction():
-                        async with tr:
-                            await tr.execute(script)
-                cls.loop.run_until_complete(execute())
+                if cls.is_client_async:
+                    async def execute():
+                        async for tr in cls.client.transaction():
+                            async with tr:
+                                await tr.execute(script)
+                else:
+                    def execute():
+                        for tr in cls.client.transaction():
+                            with tr:
+                                tr.execute(script)
+                cls.adapt_call(execute())
 
     @classmethod
     def get_database_name(cls):
@@ -503,35 +523,35 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     def tearDownClass(cls):
         script = ''
 
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
-
-        if cls.TEARDOWN and not class_set_up:
+        if cls.TEARDOWN:
             script = cls.TEARDOWN.strip()
 
         try:
             if script:
-                cls.loop.run_until_complete(
+                cls.adapt_call(
                     cls.client.execute(script))
         finally:
             try:
-                cls.loop.run_until_complete(cls.client.aclose())
+                if cls.is_client_async:
+                    cls.adapt_call(cls.client.aclose())
+                else:
+                    cls.client.close()
 
-                if not class_set_up:
-                    dbname = cls.get_database_name()
-                    script = f'DROP DATABASE {dbname};'
+                dbname = cls.get_database_name()
+                script = f'DROP DATABASE {dbname};'
 
-                    retry = cls.TEARDOWN_RETRY_DROP_DB
-                    for i in range(retry):
-                        try:
-                            cls.loop.run_until_complete(
-                                cls.admin_client.execute(script))
-                        except edgedb.errors.ExecutionError:
-                            if i < retry - 1:
-                                time.sleep(0.1)
-                            else:
-                                raise
-                        except edgedb.errors.UnknownDatabaseError:
-                            break
+                retry = cls.TEARDOWN_RETRY_DROP_DB
+                for i in range(retry):
+                    try:
+                        cls.adapt_call(
+                            cls.admin_client.execute(script))
+                    except edgedb.errors.ExecutionError:
+                        if i < retry - 1:
+                            time.sleep(0.1)
+                        else:
+                            raise
+                    except edgedb.errors.UnknownDatabaseError:
+                        break
 
             except Exception:
                 log.exception('error running teardown')
@@ -540,8 +560,11 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             finally:
                 try:
                     if cls.admin_client is not None:
-                        cls.loop.run_until_complete(
-                            cls.admin_client.aclose())
+                        if cls.is_client_async:
+                            cls.adapt_call(
+                                cls.admin_client.aclose())
+                        else:
+                            cls.admin_client.close()
                 finally:
                     super().tearDownClass()
 
@@ -553,27 +576,11 @@ class AsyncQueryTestCase(DatabaseTestCase):
 class SyncQueryTestCase(DatabaseTestCase):
     BASE_TEST_CLASS = True
     TEARDOWN_RETRY_DROP_DB = 5
+    is_client_async = False
 
-    def setUp(self):
-        super().setUp()
-
-        cls = type(self)
-        cls.async_client = cls.client
-
-        conargs = cls.get_connect_args().copy()
-        conargs.update(dict(database=cls.async_client.dbname))
-
-        cls.client = TestClient(
-            connection_class=blocking_client.BlockingIOConnection,
-            max_concurrency=1,
-            **conargs
-        )
-
-    def tearDown(self):
-        cls = type(self)
-        cls.client.close()
-        cls.client = cls.async_client
-        del cls.async_client
+    @classmethod
+    def adapt_call(cls, result):
+        return result
 
 
 _lock_cnt = 0
@@ -588,3 +595,8 @@ def gen_lock_key():
 if os.environ.get('USE_UVLOOP'):
     import uvloop
     uvloop.install()
+elif sys.platform == 'win32' and sys.version_info[:2] == (3, 7):
+    # The default policy on win32 of Python 3.7 is SelectorEventLoop, which
+    # does not implement some subprocess functions required by the tests,
+    # so we have to manually set it to the proactor one (default in 3.8).
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())

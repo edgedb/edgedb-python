@@ -1,8 +1,30 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2020-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+from __future__ import annotations
 import abc
+import dataclasses
 import typing
 
+from . import describe
+from . import enums
 from . import options
-from .datatypes import datatypes
 from .protocol import protocol
 
 __all__ = (
@@ -14,6 +36,8 @@ __all__ = (
     "AsyncIOExecutor",
     "ReadOnlyExecutor",
     "AsyncIOReadOnlyExecutor",
+    "DescribeContext",
+    "DescribeResult",
 )
 
 
@@ -29,7 +53,7 @@ class QueryCache(typing.NamedTuple):
 
 
 class QueryOptions(typing.NamedTuple):
-    io_format: protocol.IoFormat
+    output_format: protocol.OutputFormat
     expect_one: bool
     required_one: bool
 
@@ -39,35 +63,57 @@ class QueryContext(typing.NamedTuple):
     cache: QueryCache
     query_options: QueryOptions
     retry_options: typing.Optional[options.RetryOptions]
+    state: typing.Optional[options.State]
+
+
+class ExecuteContext(typing.NamedTuple):
+    query: QueryWithArgs
+    cache: QueryCache
+    state: typing.Optional[options.State]
+
+
+@dataclasses.dataclass
+class DescribeContext:
+    query: str
+    state: typing.Optional[options.State]
+    inject_type_names: bool
+
+
+@dataclasses.dataclass
+class DescribeResult:
+    input_type: typing.Optional[describe.AnyType]
+    output_type: typing.Optional[describe.AnyType]
+    output_cardinality: enums.Cardinality
+    capabilities: enums.Capability
 
 
 _query_opts = QueryOptions(
-    io_format=protocol.IoFormat.BINARY,
+    output_format=protocol.OutputFormat.BINARY,
     expect_one=False,
     required_one=False,
 )
 _query_single_opts = QueryOptions(
-    io_format=protocol.IoFormat.BINARY,
+    output_format=protocol.OutputFormat.BINARY,
     expect_one=True,
     required_one=False,
 )
 _query_required_single_opts = QueryOptions(
-    io_format=protocol.IoFormat.BINARY,
+    output_format=protocol.OutputFormat.BINARY,
     expect_one=True,
     required_one=True,
 )
 _query_json_opts = QueryOptions(
-    io_format=protocol.IoFormat.JSON,
+    output_format=protocol.OutputFormat.JSON,
     expect_one=False,
     required_one=False,
 )
 _query_single_json_opts = QueryOptions(
-    io_format=protocol.IoFormat.JSON,
+    output_format=protocol.OutputFormat.JSON,
     expect_one=True,
     required_one=False,
 )
 _query_required_single_json_opts = QueryOptions(
-    io_format=protocol.IoFormat.JSON,
+    output_format=protocol.OutputFormat.JSON,
     expect_one=True,
     required_one=True,
 )
@@ -83,6 +129,9 @@ class BaseReadOnlyExecutor(abc.ABC):
     def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
         return None
 
+    def _get_state(self) -> options.State:
+        ...
+
 
 class ReadOnlyExecutor(BaseReadOnlyExecutor):
     """Subclasses can execute *at least* read-only queries"""
@@ -93,12 +142,13 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
     def _query(self, query_context: QueryContext):
         ...
 
-    def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+    def query(self, query: str, *args, **kwargs) -> list:
         return self._query(QueryContext(
             query=QueryWithArgs(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
     def query_single(
@@ -109,6 +159,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
     def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -117,6 +168,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
     def query_json(self, query: str, *args, **kwargs) -> str:
@@ -125,6 +177,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -133,6 +186,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
     def query_required_single_json(self, query: str, *args, **kwargs) -> str:
@@ -141,12 +195,19 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
-    # TODO(tailhook) add *args, **kwargs, when they are supported
     @abc.abstractmethod
-    def execute(self, query: str) -> None:
+    def _execute(self, execute_context: ExecuteContext):
         ...
+
+    def execute(self, commands: str, *args, **kwargs) -> None:
+        self._execute(ExecuteContext(
+            query=QueryWithArgs(commands, args, kwargs),
+            cache=self._get_query_cache(),
+            state=self._get_state(),
+        ))
 
 
 class Executor(ReadOnlyExecutor):
@@ -164,12 +225,13 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
     async def _query(self, query_context: QueryContext):
         ...
 
-    async def query(self, query: str, *args, **kwargs) -> datatypes.Set:
+    async def query(self, query: str, *args, **kwargs) -> list:
         return await self._query(QueryContext(
             query=QueryWithArgs(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
     async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -178,6 +240,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
     async def query_required_single(
@@ -191,6 +254,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
@@ -199,6 +263,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
     async def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -207,6 +272,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
     async def query_required_single_json(
@@ -220,12 +286,19 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
+            state=self._get_state(),
         ))
 
-    # TODO(tailhook) add *args, **kwargs, when they are supported
     @abc.abstractmethod
-    async def execute(self, query: str) -> None:
+    async def _execute(self, execute_context: ExecuteContext) -> None:
         ...
+
+    async def execute(self, commands: str, *args, **kwargs) -> None:
+        await self._execute(ExecuteContext(
+            query=QueryWithArgs(commands, args, kwargs),
+            cache=self._get_query_cache(),
+            state=self._get_state(),
+        ))
 
 
 class AsyncIOExecutor(AsyncIOReadOnlyExecutor):

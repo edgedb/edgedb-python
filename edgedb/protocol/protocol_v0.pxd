@@ -17,4 +17,15 @@
 #
 
 cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
-    pass
+    cdef parse_legacy_describe_type_message(self, CodecsRegistry reg)
+    cdef parse_legacy_command_complete_message(self)
+    cdef legacy_write_headers(self, WriteBuffer buf, dict headers)
+    cdef legacy_write_execute_headers(
+        self,
+        WriteBuffer buf,
+        int implicit_limit,
+        bint inline_typenames,
+        bint inline_typeids,
+        uint64_t allow_capabilities,
+    )
+    cdef dict legacy_parse_headers(self)

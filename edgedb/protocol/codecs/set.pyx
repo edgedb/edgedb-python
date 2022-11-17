@@ -20,13 +20,6 @@
 @cython.final
 cdef class SetCodec(BaseArrayCodec):
 
-    cdef _new_collection(self, Py_ssize_t size):
-        return datatypes.set_new(size)
-
-    cdef _set_collection_item(self, object collection, Py_ssize_t i,
-                              object element):
-        datatypes.set_set(collection, i, element)
-
     @staticmethod
     cdef BaseCodec new(bytes tid, BaseCodec sub_codec):
         cdef:
@@ -66,7 +59,7 @@ cdef class SetCodec(BaseArrayCodec):
 
         if ndims == 0:
             # Special case for an empty set.
-            return self._new_collection(0)
+            return []
         elif ndims > 1:
             raise RuntimeError('expected a two-dimensional array for a '
                                'set of arrays')
@@ -74,7 +67,7 @@ cdef class SetCodec(BaseArrayCodec):
         elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(frb_read(buf, 4))
         frb_read(buf, 4)  # Ignore the lower bound information
 
-        result = self._new_collection(elem_count)
+        result = cpython.PyList_New(elem_count)
         for i in range(elem_count):
             frb_read(buf, 4)  # ignore array element size
 
@@ -97,6 +90,14 @@ cdef class SetCodec(BaseArrayCodec):
                 raise RuntimeError(
                     f'unexpected trailing data in buffer after '
                     f'set element decoding: {frb_get_len(&elem_buf)}')
-            self._set_collection_item(result, i, elem)
+            cpython.Py_INCREF(elem)
+            cpython.PyList_SET_ITEM(result, i, elem)
 
         return result
+
+    def make_type(self, describe_context):
+        return describe.ArrayType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=None,
+            element_type=self.sub_codec.make_type(describe_context),
+        )

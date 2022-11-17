@@ -24,6 +24,7 @@
 
 static int init_type_called = 0;
 static Py_hash_t base_hash = -1;
+extern PyObject* at_sign_ptr;
 
 
 PyObject *
@@ -276,7 +277,12 @@ link_getattr(EdgeLinkObject *o, PyObject *name)
     assert(EdgeRecordDesc_Check(desc));
 
     Py_ssize_t pos;
-    edge_attr_lookup_t ret = EdgeRecordDesc_Lookup(desc, name, &pos);
+    PyObject *prefixed_name = PyUnicode_Concat(at_sign_ptr, name);
+    if (prefixed_name == NULL) {
+        return NULL;
+    }
+    edge_attr_lookup_t ret = EdgeRecordDesc_Lookup(desc, prefixed_name, &pos);
+    Py_DECREF(prefixed_name);
     switch (ret) {
         case L_ERROR:
             return NULL;
@@ -311,6 +317,18 @@ link_dir(EdgeLinkObject *o, PyObject *args)
 
     if (ret == NULL) {
         return NULL;
+    }
+
+    PyObject *name, *stripped;
+    for (Py_ssize_t i = 0; i < PyList_GET_SIZE(ret); i++) {
+        name = PyList_GET_ITEM(ret, i);
+        stripped = PyUnicode_Substring(name, 1, PyUnicode_GET_LENGTH(name));
+        if (stripped == NULL) {
+            Py_DECREF(ret);
+            return NULL;
+        }
+        PyList_SET_ITEM(ret, i, stripped);
+        Py_DECREF(name);
     }
 
     PyObject *str = PyUnicode_FromString("source");

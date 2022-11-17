@@ -17,6 +17,7 @@
 #
 
 
+import datetime
 import queue
 import socket
 import ssl
@@ -32,8 +33,12 @@ from . import transaction
 from .protocol import blocking_proto
 
 
+DEFAULT_PING_BEFORE_IDLE_TIMEOUT = datetime.timedelta(seconds=5)
+MINIMUM_PING_WAIT_TIME = datetime.timedelta(seconds=1)
+
+
 class BlockingIOConnection(base_client.BaseConnection):
-    __slots__ = ()
+    __slots__ = ("_ping_wait_time",)
 
     async def connect_addr(self, addr, timeout):
         deadline = time.monotonic() + timeout
@@ -97,6 +102,16 @@ class BlockingIOConnection(base_client.BaseConnection):
 
             self._protocol = proto
             self._addr = addr
+            self._ping_wait_time = max(
+                (
+                    getattr(
+                        self.get_settings().get("system_config"),
+                        "session_idle_timeout",
+                    )
+                    - DEFAULT_PING_BEFORE_IDLE_TIMEOUT
+                ),
+                MINIMUM_PING_WAIT_TIME,
+            ).total_seconds()
 
         except Exception:
             sock.close()
@@ -110,22 +125,51 @@ class BlockingIOConnection(base_client.BaseConnection):
         return not (proto and proto.sock is not None and
                     proto.sock.fileno() >= 0 and proto.connected)
 
+    async def close(self, timeout=None):
+        """Send graceful termination message wait for connection to drop."""
+        if not self.is_closed():
+            try:
+                self._protocol.terminate()
+                if timeout is None:
+                    await self._protocol.wait_for_disconnect()
+                else:
+                    await self._protocol.wait_for(
+                        self._protocol.wait_for_disconnect(), timeout
+                    )
+            except Exception:
+                self.terminate()
+                raise
+            finally:
+                self._cleanup()
+
     def _dispatch_log_message(self, msg):
         for cb in self._log_listeners:
             cb(self, msg)
+
+    async def raw_query(self, query_context: abstract.QueryContext):
+        try:
+            if (
+                time.monotonic() - self._protocol.last_active_timestamp
+                > self._ping_wait_time
+            ):
+                await self._protocol._sync()
+        except errors.ClientConnectionError:
+            await self.connect()
+
+        return await super().raw_query(query_context)
 
 
 class _PoolConnectionHolder(base_client.PoolConnectionHolder):
     __slots__ = ()
     _event_class = threading.Event
 
-    async def close(self, *, wait=True):
+    async def close(self, *, wait=True, timeout=None):
         if self._con is None:
             return
-        await self._con.close()
+        await self._con.close(timeout=timeout)
 
     async def wait_until_released(self, timeout=None):
-        self._release_event.wait(timeout)
+        return self._release_event.wait(timeout)
 
 
 class _PoolImpl(base_client.BasePoolImpl):
@@ -200,17 +244,27 @@ class _PoolImpl(base_client.BasePoolImpl):
             if timeout is None:
                 for ch in self._holders:
                     await ch.wait_until_released()
-            else:
-                remaining = timeout
                 for ch in self._holders:
-                    start = time.monotonic()
-                    await ch.wait_until_released(remaining)
-                    remaining -= time.monotonic() - start
-                    if remaining <= 0:
-                        self.terminate()
-                        return
-            for ch in self._holders:
-                await ch.close()
+                    await ch.close()
+            else:
+                deadline = time.monotonic() + timeout
+                for ch in self._holders:
+                    secs = deadline - time.monotonic()
+                    if secs <= 0:
+                        raise TimeoutError
+                    if not await ch.wait_until_released(secs):
+                        raise TimeoutError
+                for ch in self._holders:
+                    secs = deadline - time.monotonic()
+                    if secs <= 0:
+                        raise TimeoutError
+                    await ch.close(timeout=secs)
+        except TimeoutError as e:
+            self.terminate()
+            raise errors.InterfaceError(
+                "client is not fully closed in {} seconds; "
+                "terminating now.".format(timeout)
+            ) from e
         except Exception:
             self.terminate()
             raise
@@ -249,8 +303,8 @@ class Iteration(transaction.BaseTransaction, abstract.Executor):
     def _query(self, query_context: abstract.QueryContext):
         return self._client._iter_coroutine(super()._query(query_context))
 
-    def execute(self, query: str) -> None:
-        self._client._iter_coroutine(super().execute(query))
+    def _execute(self, execute_context: abstract.ExecuteContext) -> None:
+        self._client._iter_coroutine(super()._execute(execute_context))
 
 
 class Retry(transaction.BaseRetry):
@@ -301,8 +355,8 @@ class Client(base_client.BaseClient, abstract.Executor):
     def _query(self, query_context: abstract.QueryContext):
         return self._iter_coroutine(super()._query(query_context))
 
-    def execute(self, query: str) -> None:
-        self._iter_coroutine(super().execute(query))
+    def _execute(self, execute_context: abstract.ExecuteContext) -> None:
+        self._iter_coroutine(super()._execute(execute_context))
 
     def ensure_connected(self):
         self._iter_coroutine(self._impl.ensure_connected())
@@ -326,6 +380,15 @@ class Client(base_client.BaseClient, abstract.Executor):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    def _describe_query(
+        self, query: str, *, inject_type_names: bool = False
+    ) -> abstract.DescribeResult:
+        return self._iter_coroutine(self._describe(abstract.DescribeContext(
+            query=query,
+            state=self._get_state(),
+            inject_type_names=inject_type_names,
+        )))
 
 
 def create_client(

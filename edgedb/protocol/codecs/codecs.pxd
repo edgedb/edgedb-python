@@ -23,6 +23,7 @@ include "./tuple.pxd"
 include "./namedtuple.pxd"
 include "./object.pxd"
 include "./array.pxd"
+include "./range.pxd"
 include "./set.pxd"
 include "./enum.pxd"
 

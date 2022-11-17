@@ -47,6 +47,31 @@ TEMPORARY_ERROR_CODES = frozenset({
     errno.ENOENT,
 })
 
+ISO_SECONDS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)S')
+ISO_MINUTES_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)M')
+ISO_HOURS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)H')
+ISO_UNITLESS_HOURS_RE = re.compile(r'^(-?\d+|-?\d+\.\d*|-?\d*\.\d+)$')
+ISO_DAYS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)D')
+ISO_WEEKS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)W')
+ISO_MONTHS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)M')
+ISO_YEARS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)Y')
+
+HUMAN_HOURS_RE = re.compile(
+    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:h(\s|\d|\.|$)|hours?(\s|$))',
+)
+HUMAN_MINUTES_RE = re.compile(
+    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:m(\s|\d|\.|$)|minutes?(\s|$))',
+)
+HUMAN_SECONDS_RE = re.compile(
+    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:s(\s|\d|\.|$)|seconds?(\s|$))',
+)
+HUMAN_MS_RE = re.compile(
+    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:ms(\s|\d|\.|$)|milliseconds?(\s|$))',
+)
+HUMAN_US_RE = re.compile(
+    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:us(\s|\d|\.|$)|microseconds?(\s|$))',
+)
+
 
 class ClientConfiguration(typing.NamedTuple):
 
@@ -156,6 +181,8 @@ class ResolvedConnectConfig:
     _tls_security = None
     _tls_security_source = None
 
+    _wait_until_available = None
+
     server_settings = {}
 
     def _set_param(self, param, value, source, validator=None):
@@ -197,6 +224,14 @@ class ResolvedConnectConfig:
     def set_tls_security(self, security, source):
         self._set_param('tls_security', security, source,
                         _validate_tls_security)
+
+    def set_wait_until_available(self, wait_until_available, source):
+        self._set_param(
+            'wait_until_available',
+            wait_until_available,
+            source,
+            _validate_wait_until_available,
+        )
 
     def add_server_settings(self, server_settings):
         _validate_server_settings(server_settings)
@@ -284,6 +319,14 @@ class ResolvedConnectConfig:
 
         return self._ssl_ctx
 
+    @property
+    def wait_until_available(self):
+        return (
+            self._wait_until_available
+            if self._wait_until_available is not None
+            else 30
+        )
+
 
 def _validate_host(host):
     if '/' in host:
@@ -326,6 +369,108 @@ def _validate_user(user):
     return user
 
 
+def _pop_iso_unit(rgex: re.Pattern, string: str) -> typing.Tuple[float, str]:
+    s = string
+    total = 0
+    match = rgex.search(string)
+    if match:
+        total += float(match.group(1))
+        s = s.replace(match.group(0), "", 1)
+
+    return (total, s)
+
+
+def _parse_iso_duration(string: str) -> typing.Union[float, int]:
+    if not string.startswith("PT"):
+        raise ValueError(f"invalid duration {string!r}")
+
+    time = string[2:]
+    match = ISO_UNITLESS_HOURS_RE.search(time)
+    if match:
+        hours = float(match.group(0))
+        return 3600 * hours
+
+    hours, time = _pop_iso_unit(ISO_HOURS_RE, time)
+    minutes, time = _pop_iso_unit(ISO_MINUTES_RE, time)
+    seconds, time = _pop_iso_unit(ISO_SECONDS_RE, time)
+
+    if time:
+        raise ValueError(f'invalid duration {string!r}')
+
+    return 3600 * hours + 60 * minutes + seconds
+
+
+def _remove_white_space(s: str) -> str:
+    return ''.join(c for c in s if not c.isspace())
+
+
+def _pop_human_duration_unit(
+    rgex: re.Pattern,
+    string: str,
+) -> typing.Tuple[float, bool, str]:
+    match = rgex.search(string)
+    if not match:
+        return 0, False, string
+
+    number = 0
+    if match.group(1):
+        literal = _remove_white_space(match.group(1))
+        if literal.endswith('.'):
+            return 0, False, string
+
+        if literal.startswith('-.'):
+            return 0, False, string
+
+        number = float(literal)
+        string = string.replace(
+            match.group(0),
+            match.group(2) or match.group(3) or "",
+            1,
+        )
+
+    return number, True, string
+
+
+def _parse_human_duration(string: str) -> float:
+    found = False
+
+    hour, f, s = _pop_human_duration_unit(HUMAN_HOURS_RE, string)
+    found |= f
+
+    minute, f, s = _pop_human_duration_unit(HUMAN_MINUTES_RE, s)
+    found |= f
+
+    second, f, s = _pop_human_duration_unit(HUMAN_SECONDS_RE, s)
+    found |= f
+
+    ms, f, s = _pop_human_duration_unit(HUMAN_MS_RE, s)
+    found |= f
+
+    us, f, s = _pop_human_duration_unit(HUMAN_US_RE, s)
+    found |= f
+
+    if s.strip() or not found:
+        raise ValueError(f'invalid duration {string!r}')
+
+    return 3600 * hour + 60 * minute + second + 0.001 * ms + 0.000001 * us
+
+
+def _parse_duration_str(string: str) -> float:
+    if string.startswith('PT'):
+        return _parse_iso_duration(string)
+    return _parse_human_duration(string)
+
+
+def _validate_wait_until_available(wait_until_available):
+    if isinstance(wait_until_available, str):
+        return _parse_duration_str(wait_until_available)
+
+    if isinstance(wait_until_available, (int, float)):
+        return wait_until_available
+
+    raise ValueError(f"invalid duration {wait_until_available!r}")
+
+
 def _validate_server_settings(server_settings):
     if (
         not isinstance(server_settings, dict) or
@@ -351,6 +496,7 @@ def _parse_connect_dsn_and_args(
     tls_ca_file,
     tls_security,
     server_settings,
+    wait_until_available,
 ):
     resolved_config = ResolvedConnectConfig()
 
@@ -404,6 +550,10 @@ def _parse_connect_dsn_and_args(
             (server_settings, '"server_settings" option')
             if server_settings is not None else None
         ),
+        wait_until_available=(
+            (wait_until_available, '"wait_until_available" option')
+            if wait_until_available is not None else None
+        )
     )
 
     if has_compound_options is False:
@@ -427,6 +577,7 @@ def _parse_connect_dsn_and_args(
         env_tls_ca = os.getenv('EDGEDB_TLS_CA')
         env_tls_ca_file = os.getenv('EDGEDB_TLS_CA_FILE')
         env_tls_security = os.getenv('EDGEDB_CLIENT_TLS_SECURITY')
+        env_wait_until_available = os.getenv('EDGEDB_WAIT_UNTIL_AVAILABLE')
 
         has_compound_options = _resolve_config_options(
             resolved_config,
@@ -479,6 +630,12 @@ def _parse_connect_dsn_and_args(
                  '"EDGEDB_CLIENT_TLS_SECURITY" environment variable')
                 if env_tls_security is not None else None
             ),
+            wait_until_available=(
+                (
+                    env_wait_until_available,
+                    '"EDGEDB_WAIT_UNTIL_AVAILABLE" environment variable'
+                ) if env_wait_until_available is not None else None
+            )
         )
 
     if not has_compound_options:
@@ -628,6 +785,12 @@ def _parse_dsn_into_config(
         resolved_config.set_tls_security
     )
 
+    handle_dsn_part(
+        'wait_until_available', None,
+        resolved_config._wait_until_available,
+        resolved_config.set_wait_until_available
+    )
+
     resolved_config.add_server_settings(query)
 
 
@@ -648,6 +811,7 @@ def _resolve_config_options(
     tls_ca_file=None,
     tls_security=None,
     server_settings=None,
+    wait_until_available=None,
 ):
     if database is not None:
         resolved_config.set_database(*database)
@@ -666,6 +830,8 @@ def _resolve_config_options(
         resolved_config.set_tls_security(*tls_security)
     if server_settings is not None:
         resolved_config.add_server_settings(server_settings[0])
+    if wait_until_available is not None:
+        resolved_config.set_wait_until_available(*wait_until_available)
 
     compound_params = [
         dsn,
@@ -808,12 +974,13 @@ def parse_connect_arguments(
         tls_ca_file=tls_ca_file,
         tls_security=tls_security,
         server_settings=server_settings,
+        wait_until_available=wait_until_available,
     )
 
     client_config = ClientConfiguration(
         connect_timeout=timeout,
         command_timeout=command_timeout,
-        wait_until_available=wait_until_available or 0,
+        wait_until_available=connect_config.wait_until_available,
     )
 
     return connect_config, client_config

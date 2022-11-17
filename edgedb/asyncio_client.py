@@ -42,7 +42,6 @@ logger = logging.getLogger(__name__)
 
 class AsyncIOConnection(base_client.BaseConnection):
     __slots__ = ("_loop",)
-    _close_exceptions = (Exception, asyncio.CancelledError)
 
     def __init__(self, loop, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -60,6 +59,18 @@ class AsyncIOConnection(base_client.BaseConnection):
 
     async def sleep(self, seconds):
         await asyncio.sleep(seconds)
+
+    async def aclose(self):
+        """Send graceful termination message wait for connection to drop."""
+        if not self.is_closed():
+            try:
+                self._protocol.terminate()
+                await self._protocol.wait_for_disconnect()
+            except (Exception, asyncio.CancelledError):
+                self.terminate()
+                raise
+            finally:
+                self._cleanup()
 
     def _protocol_factory(self):
         return asyncio_proto.AsyncIOProtocol(self._params, self._loop)
@@ -104,7 +115,7 @@ class AsyncIOConnection(base_client.BaseConnection):
             if tr is not None:
                 tr.close()
             raise con_utils.wrap_error(e) from e
-        except Exception:
+        except BaseException:
             if tr is not None:
                 tr.close()
             raise
@@ -125,9 +136,9 @@ class _PoolConnectionHolder(base_client.PoolConnectionHolder):
         if self._con is None:
             return
         if wait:
-            await self._con.close()
+            await self._con.aclose()
         else:
-            self._pool._loop.create_task(self._con.close())
+            self._pool._loop.create_task(self._con.aclose())
 
     async def wait_until_released(self, timeout=None):
         await self._release_event.wait()
@@ -346,6 +357,15 @@ class AsyncIOClient(base_client.BaseClient, abstract.AsyncIOExecutor):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.aclose()
+
+    async def _describe_query(
+        self, query: str, *, inject_type_names: bool = False
+    ) -> abstract.DescribeResult:
+        return await self._describe(abstract.DescribeContext(
+            query=query,
+            state=self._get_state(),
+            inject_type_names=inject_type_names,
+        ))
 
 
 def create_async_client(

@@ -49,6 +49,9 @@ cdef class BaseCodec:
     cdef dump(self, int level = 0):
         return f'{level * " "}{self.name}'
 
+    def make_type(self, describe_context):
+        raise NotImplementedError
+
 
 cdef class CodecPythonOverride(BaseCodec):
 
@@ -83,6 +86,9 @@ cdef class CodecPythonOverride(BaseCodec):
         codec.decoder = decoder
         return codec
 
+    def make_type(self, describe_context):
+        return self.codec.make_type(describe_context)
+
 
 cdef class EmptyTupleCodec(BaseCodec):
 
@@ -110,8 +116,15 @@ cdef class EmptyTupleCodec(BaseCodec):
                 f'got {elem_count}')
 
         if self.empty_tup is None:
-            self.empty_tup = datatypes.tuple_new(0)
+            self.empty_tup = cpython.PyTuple_New(0)
         return self.empty_tup
+
+    def make_type(self, describe_context):
+        return describe.TupleType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=None,
+            element_types=()
+        )
 
 
 cdef class NullCodec(BaseCodec):
@@ -119,6 +132,9 @@ cdef class NullCodec(BaseCodec):
     def __cinit__(self):
         self.tid = NULL_CODEC_ID
         self.name = 'null-codec'
+
+    def make_type(self, describe_context):
+        return None
 
 
 cdef class BaseRecordCodec(BaseCodec):
@@ -130,14 +146,18 @@ cdef class BaseRecordCodec(BaseCodec):
     cdef _check_encoder(self):
         if not (self.encoder_flags & RECORD_ENCODER_CHECKED):
             for codec in self.fields_codecs:
-                if not isinstance(codec, (ScalarCodec, ArrayCodec, EnumCodec)):
+                if not isinstance(
+                    codec,
+                    (ScalarCodec, ArrayCodec, TupleCodec, NamedTupleCodec,
+                     EnumCodec, RangeCodec),
+                ):
                     self.encoder_flags |= RECORD_ENCODER_INVALID
                     break
             self.encoder_flags |= RECORD_ENCODER_CHECKED
 
         if self.encoder_flags & RECORD_ENCODER_INVALID:
             raise TypeError(
-                'argument tuples only support scalars and arrays of scalars')
+                'argument tuples do not support objects')
 
     cdef encode(self, WriteBuffer buf, object obj):
         cdef:

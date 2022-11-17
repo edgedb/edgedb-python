@@ -42,7 +42,6 @@ class BaseConnection(metaclass=abc.ABCMeta):
     _log_listeners: typing.Set[
         typing.Callable[[BaseConnection_T, errors.EdgeDBMessage], None]
     ]
-    _close_exceptions = (Exception,)
     __slots__ = (
         "__weakref__",
         "_protocol",
@@ -171,8 +170,23 @@ class BaseConnection(metaclass=abc.ABCMeta):
             iteration += 1
             await self.sleep(0.01 + random.random() * 0.2)
 
-    async def privileged_execute(self, query):
-        await self._protocol.simple_query(query, enums.Capability.ALL)
+    async def privileged_execute(
+        self, execute_context: abstract.ExecuteContext
+    ):
+        if self._protocol.is_legacy:
+            await self._protocol.legacy_simple_query(
+                execute_context.query.query, enums.Capability.ALL
+            )
+        else:
+            await self._protocol.execute(
+                query=execute_context.query.query,
+                args=execute_context.query.args,
+                kwargs=execute_context.query.kwargs,
+                reg=execute_context.cache.codecs_registry,
+                qc=execute_context.cache.query_cache,
+                output_format=protocol.OutputFormat.NONE,
+                allow_capabilities=enums.Capability.ALL,
+            )
 
     def is_in_transaction(self) -> bool:
         """Return True if Connection is currently inside a transaction.
@@ -191,26 +205,33 @@ class BaseConnection(metaclass=abc.ABCMeta):
         reconnect = False
         capabilities = None
         i = 0
+        args = dict(
+            query=query_context.query.query,
+            args=query_context.query.args,
+            kwargs=query_context.query.kwargs,
+            reg=query_context.cache.codecs_registry,
+            qc=query_context.cache.query_cache,
+            output_format=query_context.query_options.output_format,
+            expect_one=query_context.query_options.expect_one,
+            required_one=query_context.query_options.required_one,
+        )
+        if self._protocol.is_legacy:
+            args["allow_capabilities"] = enums.Capability.LEGACY_EXECUTE
+        else:
+            args["allow_capabilities"] = enums.Capability.EXECUTE
+            if query_context.state is not None:
+                args["state"] = query_context.state.as_dict()
         while True:
             i += 1
             try:
                 if reconnect:
                     await self.connect(single_attempt=True)
                 if self._protocol.is_legacy:
-                    execute = self._protocol.legacy_execute_anonymous
+                    return await self._protocol.legacy_execute_anonymous(
+                        **args
+                    )
                 else:
-                    execute = self._protocol.execute_anonymous
-                return await execute(
-                    query=query_context.query.query,
-                    args=query_context.query.args,
-                    kwargs=query_context.query.kwargs,
-                    reg=query_context.cache.codecs_registry,
-                    qc=query_context.cache.query_cache,
-                    io_format=query_context.query_options.io_format,
-                    expect_one=query_context.query_options.expect_one,
-                    required_one=query_context.query_options.required_one,
-                    allow_capabilities=enums.Capability.EXECUTE,
-                )
+                    return await self._protocol.query(**args)
             except errors.EdgeDBError as e:
                 if query_context.retry_options is None:
                     raise
@@ -218,8 +239,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
                     raise e
                 if capabilities is None:
                     cache_item = query_context.cache.query_cache.get(
-                        query=query_context.query.query,
-                        io_format=query_context.query_options.io_format,
+                        query_context.query.query,
+                        query_context.query_options.output_format,
                         implicit_limit=0,
                         inline_typenames=False,
                         inline_typeids=False,
@@ -241,27 +262,53 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 await self.sleep(rule.backoff(i))
                 reconnect = self.is_closed()
 
-    async def execute(self, query: str) -> None:
-        await self._protocol.simple_query(
-            query, enums.Capability.EXECUTE
+    async def _execute(self, execute_context: abstract.ExecuteContext) -> None:
+        if self._protocol.is_legacy:
+            if execute_context.query.args or execute_context.query.kwargs:
+                raise errors.InterfaceError(
+                    "Legacy protocol doesn't support arguments in execute()"
+                )
+            await self._protocol.legacy_simple_query(
+                execute_context.query.query, enums.Capability.LEGACY_EXECUTE
+            )
+        else:
+            await self._protocol.execute(
+                query=execute_context.query.query,
+                args=execute_context.query.args,
+                kwargs=execute_context.query.kwargs,
+                reg=execute_context.cache.codecs_registry,
+                qc=execute_context.cache.query_cache,
+                output_format=protocol.OutputFormat.NONE,
+                allow_capabilities=enums.Capability.EXECUTE,
+                state=(
+                    execute_context.state.as_dict()
+                    if execute_context.state else None
+                ),
+            )
+
+    async def describe(
+        self, describe_context: abstract.DescribeContext
+    ) -> abstract.DescribeResult:
+        cardinality, in_dc, out_dc, capabilities = await self._protocol._parse(
+            describe_context.query,
+            reg=protocol.CodecsRegistry(),
+            inline_typenames=describe_context.inject_type_names,
+            state=(
+                describe_context.state.as_dict()
+                if describe_context.state else None
+            ),
+        )
+        return abstract.DescribeResult(
+            input_type=in_dc.make_type(describe_context),
+            output_type=out_dc.make_type(describe_context),
+            output_cardinality=enums.Cardinality(cardinality[0]),
+            capabilities=capabilities,
         )
 
     def terminate(self):
         if not self.is_closed():
             try:
                 self._protocol.abort()
-            finally:
-                self._cleanup()
-
-    async def close(self):
-        """Send graceful termination message wait for connection to drop."""
-        if not self.is_closed():
-            try:
-                self._protocol.terminate()
-                await self._protocol.wait_for_disconnect()
-            except self._close_exceptions:
-                self.terminate()
-                raise
             finally:
                 self._cleanup()
 
@@ -669,6 +716,9 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
     def _get_retry_options(self) -> typing.Optional[_options.RetryOptions]:
         return self._options.retry_options
 
+    def _get_state(self) -> _options.State:
+        return self._options.state
+
     @property
     def max_concurrency(self) -> int:
         """Max number of connections in the pool."""
@@ -684,15 +734,23 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
     async def _query(self, query_context: abstract.QueryContext):
         con = await self._impl.acquire()
         try:
-            result, _ = await con.raw_query(query_context)
-            return result
+            return await con.raw_query(query_context)
         finally:
             await self._impl.release(con)
 
-    async def execute(self, query: str) -> None:
+    async def _execute(self, execute_context: abstract.ExecuteContext) -> None:
         con = await self._impl.acquire()
         try:
-            await con.execute(query)
+            await con._execute(execute_context)
+        finally:
+            await self._impl.release(con)
+
+    async def _describe(
+        self, describe_context: abstract.DescribeContext
+    ) -> abstract.DescribeResult:
+        con = await self._impl.acquire()
+        try:
+            return await con.describe(describe_context)
         finally:
             await self._impl.release(con)
 

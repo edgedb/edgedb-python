@@ -144,8 +144,8 @@ class TestBlockingClient(tb.SyncQueryTestCase):
 
         class MyConnection(blocking_client.BlockingIOConnection):
             async def raw_query(self, query_context):
-                res, h = await super().raw_query(query_context)
-                return res + 1, h
+                res = await super().raw_query(query_context)
+                return res + 1
 
         def test():
             for tx in client.transaction():
@@ -330,8 +330,9 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         task = threading.Thread(target=worker)
         task.start()
 
-        flag.wait()
-        client.close(timeout=0.1)
+        with self.assertRaises(errors.InterfaceError):
+            flag.wait()
+            client.close(timeout=0.1)
 
         task.join()
 
@@ -374,6 +375,9 @@ class TestBlockingClient(tb.SyncQueryTestCase):
         self.loop.call_soon_threadsafe(broken_evt.set)
         with self.assertRaises(errors.ClientConnectionError):
             executor.query_single("SELECT 123")
+        self.loop.call_soon_threadsafe(broken_evt.clear)
+        self.assertEqual(executor.query_single("SELECT 123"), 123)
+        self.loop.call_soon_threadsafe(broken_evt.set)
         self.loop.call_soon_threadsafe(broken_evt.clear)
         self.assertEqual(executor.query_single("SELECT 123"), 123)
 

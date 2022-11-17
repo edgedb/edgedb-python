@@ -21,6 +21,7 @@ import datetime
 import decimal
 import json
 import random
+import unittest
 import uuid
 
 import asyncio
@@ -130,9 +131,8 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                     await self.client.query(f'select 10 // {i};')
 
     async def test_async_exec_error_recover_05(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'cannot accept parameters'):
-            await self.client.execute(f'select <int64>$0')
+        with self.assertRaises(edgedb.DivisionByZeroError):
+            await self.client.execute(f'select 1 / 0')
         self.assertEqual(
             await self.client.query('SELECT "HELLO"'),
             ["HELLO"])
@@ -199,76 +199,18 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             self.client.connection._get_last_status().startswith('DROP')
         )
 
-    async def test_async_query_single_command_02(self):
-        r = await self.client.query('''
-            SET MODULE default;
-        ''')
-        self.assertEqual(r, [])
-
-        r = await self.client.query('''
-            RESET ALIAS *;
-        ''')
-        self.assertEqual(r, [])
-
-        r = await self.client.query('''
-            SET ALIAS bar AS MODULE std;
-        ''')
-        self.assertEqual(r, [])
-
-        r = await self.client.query('''
-            SET MODULE default;
-        ''')
-        self.assertEqual(r, [])
-
-        r = await self.client.query('''
-            SET ALIAS bar AS MODULE std;
-        ''')
-        self.assertEqual(r, [])
-
-        r = await self.client.query_json('''
-            SET MODULE default;
-        ''')
-        self.assertEqual(r, '[]')
-
-        r = await self.client.query_json('''
-            SET ALIAS foo AS MODULE default;
-        ''')
-        self.assertEqual(r, '[]')
-
-    async def test_async_query_single_command_03(self):
+    async def test_async_query_no_return(self):
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
                 r'cannot be executed with query_required_single\(\).*'
                 r'not return'):
-            await self.client.query_required_single('set module default')
+            await self.client.query_required_single('create type Foo456')
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
                 r'cannot be executed with query_required_single_json\(\).*'
                 r'not return'):
-            await self.client.query_required_single_json('set module default')
-
-    async def test_async_query_single_command_04(self):
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
-            await self.client.query('''
-                SELECT 1;
-                SET MODULE blah;
-            ''')
-
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
-            await self.client.query_single('''
-                SELECT 1;
-                SET MODULE blah;
-            ''')
-
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
-            await self.client.query_json('''
-                SELECT 1;
-                SET MODULE blah;
-            ''')
+            await self.client.query_required_single_json('create type Bar456')
 
     async def test_async_basic_datatypes_01(self):
         for _ in range(10):
@@ -299,12 +241,14 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'query_single\(\) as it returns a multiset'):
+                    r'query_single\(\) as it may return more than one element'
+            ):
                 await self.client.query_single('SELECT {1, 2}')
 
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'query_required_single\(\) as it returns a multiset'):
+                    r'query_required_single\(\) as it may return '
+                    r'more than one element'):
                 await self.client.query_required_single('SELECT {1, 2}')
 
             with self.assertRaisesRegex(
@@ -532,20 +476,18 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             )
 
     async def test_async_mismatched_args_01(self):
-        # XXX: remove (?:keyword )? once protocol version 0.12 is stable
         with self.assertRaisesRegex(
                 edgedb.QueryArgumentError,
-                r"expected {'a'} (?:keyword )?arguments, "
+                r"expected {'a'} arguments, "
                 "got {'[bc]', '[bc]'}, "
                 r"missed {'a'}, extra {'[bc]', '[bc]'}"):
 
             await self.client.query("""SELECT <int64>$a;""", b=1, c=2)
 
     async def test_async_mismatched_args_02(self):
-        # XXX: remove (?:keyword )? once protocol version 0.12 is stable
         with self.assertRaisesRegex(
                 edgedb.QueryArgumentError,
-                r"expected {'[ab]', '[ab]'} (?:keyword )?arguments, "
+                r"expected {'[ab]', '[ab]'} arguments, "
                 r"got {'[acd]', '[acd]', '[acd]'}, "
                 r"missed {'b'}, extra {'[cd]', '[cd]'}"):
 
@@ -554,33 +496,47 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             """, a=1, c=2, d=3)
 
     async def test_async_mismatched_args_03(self):
-        # XXX: remove (?:keyword )? once protocol version 0.12 is stable
         with self.assertRaisesRegex(
                 edgedb.QueryArgumentError,
-                "expected {'a'} (?:keyword )?arguments, got {'b'}, "
+                "expected {'a'} arguments, got {'b'}, "
                 "missed {'a'}, extra {'b'}"):
 
             await self.client.query("""SELECT <int64>$a;""", b=1)
 
     async def test_async_mismatched_args_04(self):
-        # XXX: remove (?:keyword )? once protocol version 0.12 is stable
         with self.assertRaisesRegex(
                 edgedb.QueryArgumentError,
-                r"expected {'[ab]', '[ab]'} (?:keyword )?arguments, "
+                r"expected {'[ab]', '[ab]'} arguments, "
                 r"got {'a'}, "
                 r"missed {'b'}"):
 
             await self.client.query("""SELECT <int64>$a + <int64>$b;""", a=1)
 
     async def test_async_mismatched_args_05(self):
-        # XXX: remove (?:keyword )? once protocol version 0.12 is stable
         with self.assertRaisesRegex(
                 edgedb.QueryArgumentError,
-                r"expected {'a'} (?:keyword )?arguments, "
+                r"expected {'a'} arguments, "
                 r"got {'[ab]', '[ab]'}, "
                 r"extra {'b'}"):
 
             await self.client.query("""SELECT <int64>$a;""", a=1, b=2)
+
+    async def test_async_mismatched_args_06(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryArgumentError,
+                r"expected {'a'} arguments, "
+                r"got nothing, "
+                r"missed {'a'}"):
+
+            await self.client.query("""SELECT <int64>$a;""")
+
+    async def test_async_mismatched_args_07(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryArgumentError,
+            "expected no named arguments",
+        ):
+
+            await self.client.query("""SELECT 42""", a=1, b=2)
 
     async def test_async_args_uuid_pack(self):
         obj = await self.client.query_single(
@@ -591,19 +547,22 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         ot = await self.client.query_single(
             'select schema::Object {name} filter .id=<uuid>$id',
             id=obj.id)
-        self.assertEqual(obj, ot)
+        self.assertEqual(obj.id, ot.id)
+        self.assertEqual(obj.name, ot.name)
 
         # Test that a string UUID is acceptable.
         ot = await self.client.query_single(
             'select schema::Object {name} filter .id=<uuid>$id',
             id=str(obj.id))
-        self.assertEqual(obj, ot)
+        self.assertEqual(obj.id, ot.id)
+        self.assertEqual(obj.name, ot.name)
 
         # Test that a standard uuid.UUID is acceptable.
         ot = await self.client.query_single(
             'select schema::Object {name} filter .id=<uuid>$id',
             id=uuid.UUID(bytes=obj.id.bytes))
-        self.assertEqual(obj, ot)
+        self.assertEqual(obj.id, ot.id)
+        self.assertEqual(obj.name, ot.name)
 
         with self.assertRaisesRegex(edgedb.InvalidArgumentError,
                                     'invalid UUID.*length must be'):
@@ -783,6 +742,58 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 'select <decimal>$arg',
                 arg="10.2")
 
+    async def test_async_range_01(self):
+        has_range = await self.client.query(
+            "select schema::ObjectType filter .name = 'schema::Range'")
+        if not has_range:
+            raise unittest.SkipTest("server has no support for std::range")
+
+        samples = [
+            ('range<int64>', [
+                edgedb.Range(1, 2, inc_lower=True, inc_upper=False),
+                dict(
+                    input=edgedb.Range(1, 2, inc_lower=True, inc_upper=True),
+                    output=edgedb.Range(1, 3, inc_lower=True, inc_upper=False),
+                ),
+                edgedb.Range(empty=True),
+                dict(
+                    input=edgedb.Range(1, 1, inc_lower=True, inc_upper=False),
+                    output=edgedb.Range(empty=True),
+                ),
+                edgedb.Range(lower=None, upper=None),
+            ]),
+        ]
+
+        for typename, sample_data in samples:
+            for sample in sample_data:
+                with self.subTest(sample=sample, typname=typename):
+                    stmt = f"SELECT <{typename}>$0"
+                    if isinstance(sample, dict):
+                        inputval = sample['input']
+                        outputval = sample['output']
+                    else:
+                        inputval = outputval = sample
+
+                    result = await self.client.query_single(stmt, inputval)
+                    err_msg = (
+                        "unexpected result for {} when passing {!r}: "
+                        "received {!r}, expected {!r}".format(
+                            typename, inputval, result, outputval))
+
+                    self.assertEqual(result, outputval, err_msg)
+
+    async def test_async_range_02(self):
+        has_range = await self.client.query(
+            "select schema::ObjectType filter .name = 'schema::Range'")
+        if not has_range:
+            raise unittest.SkipTest("server has no support for std::range")
+
+        result = await self.client.query_single(
+            "SELECT <array<range<int32>>>$0",
+            [edgedb.Range(1, 2)]
+        )
+        self.assertEqual([edgedb.Range(1, 2)], result)
+
     async def test_async_wait_cancel_01(self):
         underscored_lock = await self.client.query_single("""
             SELECT EXISTS(
@@ -797,7 +808,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         lock_key = tb.gen_lock_key()
 
         client = self.client.with_retry_options(RetryOptions(attempts=1))
-        client2 = self.test_client(
+        client2 = self.make_test_client(
             database=self.client.dbname
         ).with_retry_options(
             RetryOptions(attempts=1)
@@ -816,10 +827,9 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                         fut = asyncio.Future()
 
                         async def exec_to_fail():
-                            with self.assertRaises((
+                            with self.assertRaises(
                                 edgedb.ClientConnectionClosedError,
-                                ConnectionResetError,
-                            )):
+                            ):
                                 async for tx2 in client2.transaction():
                                     async with tx2:
                                         # start the lazy transaction
@@ -902,18 +912,19 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             '["aaa", "bbb"]')
 
     async def test_json_elements(self):
-        result, _ = await self.client.connection.raw_query(
+        result = await self.client.connection.raw_query(
             abstract.QueryContext(
                 query=abstract.QueryWithArgs(
                     'SELECT {"aaa", "bbb"}', (), {}
                 ),
                 cache=self.client._get_query_cache(),
                 query_options=abstract.QueryOptions(
-                    io_format=protocol.IoFormat.JSON_ELEMENTS,
+                    output_format=protocol.OutputFormat.JSON_ELEMENTS,
                     expect_one=False,
                     required_one=False,
                 ),
                 retry_options=None,
+                state=None,
             )
         )
         self.assertEqual(
@@ -929,7 +940,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         if not has_sleep:
             self.skipTest("No sys::_sleep function")
 
-        client = self.test_client(database=self.client.dbname)
+        client = self.make_test_client(database=self.client.dbname)
 
         try:
             self.assertEqual(await client.query_single('SELECT 1'), 1)
@@ -981,3 +992,35 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 edgedb.CapabilityError,
                 r'cannot execute transaction control commands'):
             await self.client.execute('start transaction')
+
+    async def test_dup_link_prop_name(self):
+        obj = await self.client.query_single('''
+            CREATE TYPE test::dup_link_prop_name {
+                CREATE PROPERTY val -> str;
+            };
+            CREATE TYPE test::dup_link_prop_name_p {
+                CREATE LINK l -> test::dup_link_prop_name {
+                    CREATE PROPERTY val -> int32;
+                }
+            };
+            INSERT test::dup_link_prop_name_p {
+                l := (INSERT test::dup_link_prop_name {
+                    val := "hello",
+                    @val := 42,
+                })
+            };
+            SELECT test::dup_link_prop_name_p {
+                l: {
+                    val,
+                    @val
+                }
+            } LIMIT 1;
+        ''')
+
+        self.assertEqual(obj.l.val, "hello")
+        self.assertEqual(obj.l["@val"], 42)
+
+        await self.client.execute('''
+            DROP TYPE test::dup_link_prop_name_p;
+            DROP TYPE test::dup_link_prop_name;
+        ''')

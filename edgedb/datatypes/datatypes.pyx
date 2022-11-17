@@ -21,19 +21,22 @@ cimport cython
 cimport cpython
 
 include "./relative_duration.pyx"
+include "./date_duration.pyx"
 include "./enum.pyx"
 include "./config_memory.pyx"
 
 
 _RecordDescriptor = EdgeRecordDesc_InitType()
-Tuple = EdgeTuple_InitType()
+Tuple = tuple
 NamedTuple = EdgeNamedTuple_InitType()
 Object = EdgeObject_InitType()
-Set = EdgeSet_InitType()
-Array = EdgeArray_InitType()
+Set = list
+Array = list
 Link = EdgeLink_InitType()
 LinkSet = EdgeLinkSet_InitType()
 
+cdef str at_sign = "@"
+at_sign_ptr = <cpython.PyObject*>at_sign
 
 _EDGE_POINTER_IS_IMPLICIT = EDGE_POINTER_IS_IMPLICIT
 _EDGE_POINTER_IS_LINKPROP = EDGE_POINTER_IS_LINKPROP
@@ -45,15 +48,17 @@ def get_object_descriptor(obj):
 
 
 def create_object_factory(**pointers):
+    import dataclasses
+
     flags = ()
     names = ()
+    fields = {}
     for pname, ptype in pointers.items():
-        names += (pname,)
-
         if not isinstance(ptype, set):
             ptype = {ptype}
 
         flag = 0
+        is_linkprop = False
         for pt in ptype:
             if pt == 'link':
                 flag |= EDGE_POINTER_IS_LINK
@@ -61,15 +66,25 @@ def create_object_factory(**pointers):
                 pass
             elif pt == 'link-property':
                 flag |= EDGE_POINTER_IS_LINKPROP
+                is_linkprop = True
             elif pt == 'implicit':
                 flag |= EDGE_POINTER_IS_IMPLICIT
             else:
                 raise ValueError(f'unknown pointer type {pt}')
+        if is_linkprop:
+            names += ("@" + pname,)
+        else:
+            names += (pname,)
+            field = dataclasses.field()
+            field.name = pname
+            field._field_type = dataclasses._FIELD
+            fields[pname] = field
 
         flags += (flag,)
 
     desc = EdgeRecordDesc_New(names, flags, <object>NULL)
     size = len(pointers)
+    desc.set_dataclass_fields_func(lambda: fields)
 
     def factory(*items):
         if len(items) != size:
@@ -96,20 +111,24 @@ cdef record_desc_pointer_card(object desc, Py_ssize_t pos):
     return EdgeRecordDesc_PointerCardinality(desc, pos)
 
 
-cdef tuple_new(Py_ssize_t size):
-    return EdgeTuple_New(size)
+cdef record_desc_pointer_is_link_prop(object desc, Py_ssize_t pos):
+    return EdgeRecordDesc_PointerIsLinkProp(desc, pos)
 
 
-cdef tuple_set(object tuple, Py_ssize_t pos, object elem):
-    EdgeTuple_SetItem(tuple, pos, elem)
+cdef record_desc_pointer_is_link(object desc, Py_ssize_t pos):
+    return EdgeRecordDesc_PointerIsLink(desc, pos)
 
 
-cdef namedtuple_new(object desc):
-    return EdgeNamedTuple_New(desc)
+cdef record_desc_pointer_is_implicit(object desc, Py_ssize_t pos):
+    return EdgeRecordDesc_PointerIsImplicit(desc, pos)
 
 
-cdef namedtuple_set(object tuple, Py_ssize_t pos, object elem):
-    EdgeNamedTuple_SetItem(tuple, pos, elem)
+cdef namedtuple_new(object namedtuple_type):
+    return EdgeNamedTuple_New(namedtuple_type)
+
+
+cdef namedtuple_type_new(object desc):
+    return EdgeNamedTuple_Type_New(desc)
 
 
 cdef object_new(object desc):
@@ -118,27 +137,3 @@ cdef object_new(object desc):
 
 cdef object_set(object obj, Py_ssize_t pos, object elem):
     EdgeObject_SetItem(obj, pos, elem)
-
-
-cdef bint set_check(object set):
-    return EdgeSet_Check(set)
-
-
-cdef set_new(Py_ssize_t size):
-    return EdgeSet_New(size)
-
-
-cdef set_set(object set, Py_ssize_t pos, object elem):
-    EdgeSet_SetItem(set, pos, elem)
-
-
-cdef set_append(object set, object elem):
-    EdgeSet_AppendItem(set, elem)
-
-
-cdef array_new(Py_ssize_t size):
-    return EdgeArray_New(size)
-
-
-cdef array_set(object array, Py_ssize_t pos, object elem):
-    EdgeArray_SetItem(array, pos, elem)

@@ -76,12 +76,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-2019]
-        cibw_python: ["cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*"]
+        cibw_python: ["cp37-*", "cp38-*", "cp39-*", "cp310-*"]
         cibw_arch: ["auto64"]
-        exclude:
-            # Tests fail on this combination.
-            - os: macos-latest
-              cibw_python: "cp36-*"
 
     defaults:
       run:
@@ -126,8 +122,9 @@ jobs:
           python {project}\tests\__init__.py
         CIBW_TEST_COMMAND_LINUX: >
           PY=`which python`
+          && CODEGEN=`which edgedb-py`
           && chmod -R go+rX "$(dirname $(dirname $(dirname $PY)))"
-          && su -l edgedb -c "$PY {project}/tests/__init__.py"
+          && su -l edgedb -c "EDGEDB_PYTHON_TEST_CODEGEN_CMD=$CODEGEN $PY {project}/tests/__init__.py"
 
     - uses: actions/upload-artifact@v2
       with:

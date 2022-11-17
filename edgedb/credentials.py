@@ -1,11 +1,12 @@
 import os
 import pathlib
+import sys
 import typing
 import json
 
-try:
+if sys.version_info >= (3, 8):
     from typing import TypedDict
-except ImportError:
+else:
     from typing_extensions import TypedDict
 
 from . import platform

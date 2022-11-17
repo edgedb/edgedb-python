@@ -135,8 +135,8 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
 
         class MyConnection(asyncio_client.AsyncIOConnection):
             async def raw_query(self, query_context):
-                res, h = await super().raw_query(query_context)
-                return res + 1, h
+                res = await super().raw_query(query_context)
+                return res + 1
 
         async def test(client):
             async for tx in client.transaction():
@@ -311,9 +311,9 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
 
     async def test_client_expire_connections(self):
         class SlowCloseConnection(asyncio_client.AsyncIOConnection):
-            async def close(self):
+            async def close(self, timeout=None):
                 await asyncio.sleep(0.2)
-                await super().close()
+                await super().close(timeout=timeout)
 
         client = self.create_client(
             max_concurrency=1, connection_class=SlowCloseConnection
@@ -335,7 +335,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
             async with tx:
                 await tx.query("SELECT 42")
                 with self.assertRaises(asyncio.TimeoutError):
-                    await asyncio.wait_for(client.query("SELECT 42"), 1)
+                    await compat.wait_for(client.query("SELECT 42"), 1)
 
         await client.aclose()
 
@@ -367,6 +367,9 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         broken_evt.set()
         with self.assertRaises(errors.ClientConnectionError):
             await executor.query_single("SELECT 123")
+        broken_evt.clear()
+        self.assertEqual(await executor.query_single("SELECT 123"), 123)
+        broken_evt.set()
         broken_evt.clear()
         self.assertEqual(await executor.query_single("SELECT 123"), 123)
 
@@ -442,7 +445,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         finally:
             server.close()
             await server.wait_closed()
-            await asyncio.wait_for(client.aclose(), 5)
+            await compat.wait_for(client.aclose(), 5)
             broken.set()
             await done.wait()
 

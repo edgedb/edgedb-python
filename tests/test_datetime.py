@@ -22,7 +22,7 @@ from datetime import timedelta
 
 from edgedb import _testbase as tb
 from edgedb import errors
-from edgedb.datatypes.datatypes import RelativeDuration
+from edgedb.datatypes.datatypes import RelativeDuration, DateDuration
 
 
 class TestDatetimeTypes(tb.SyncQueryTestCase):
@@ -123,3 +123,48 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         self.assertEqual(d1.microseconds, 1)
 
         self.assertEqual(repr(d1), '<edgedb.RelativeDuration "PT0.000001S">')
+
+    async def test_date_duration_01(self):
+        try:
+            self.client.query("SELECT <cal::date_duration>'1y'")
+        except errors.InvalidReferenceError:
+            self.skipTest("feature not implemented")
+
+        delta_kwargs = [
+            dict(),
+            dict(days=1),
+            dict(days=-1),
+            dict(months=1),
+            dict(months=-1),
+            dict(days=1, months=1),
+            dict(days=-1, months=-1),
+        ]
+
+        # Fuzz it!
+        for _ in range(5000):
+            delta_kwargs.append(
+                dict(
+                    days=random.randint(-500, 500),
+                    months=random.randint(-50, 50)
+                )
+            )
+
+        durs = [DateDuration(**d) for d in delta_kwargs]
+
+        # Test that DateDuration.__str__ formats the
+        # same as <str><cal::relative_duration>
+        durs_as_text = self.client.query('''
+            WITH args := array_unpack(<array<cal::date_duration>>$0)
+            SELECT <str>args;
+        ''', durs)
+
+        # Test encode/decode roundtrip
+        durs_from_db = self.client.query('''
+            WITH args := array_unpack(<array<cal::date_duration>>$0)
+            SELECT args;
+        ''', durs)
+
+        for db_dur, client_dur in zip(durs_as_text, durs):
+            self.assertEqual(db_dur, str(client_dur))
+
+        self.assertEqual(list(durs_from_db), durs)

@@ -23,11 +23,6 @@ cdef class BaseArrayCodec(BaseCodec):
         BaseCodec sub_codec
         int32_t cardinality
 
-    cdef _new_collection(self, Py_ssize_t size)
-
-    cdef _set_collection_item(self, object collection, Py_ssize_t i,
-                              object element)
-
     cdef _decode_array(self, FRBuffer *buf)
 
 

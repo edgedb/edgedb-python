@@ -37,7 +37,7 @@ cdef class TupleCodec(BaseRecordCodec):
                 f'cannot decode Tuple: expected {len(fields_codecs)} '
                 f'elements, got {elem_count}')
 
-        result = datatypes.tuple_new(elem_count)
+        result = cpython.PyTuple_New(elem_count)
 
         for i in range(elem_count):
             frb_read(buf, 4)  # reserved
@@ -54,7 +54,8 @@ cdef class TupleCodec(BaseRecordCodec):
                         f'unexpected trailing data in buffer after '
                         f'tuple element decoding: {frb_get_len(&elem_buf)}')
 
-            datatypes.tuple_set(result, i, elem)
+            cpython.Py_INCREF(elem)
+            cpython.PyTuple_SET_ITEM(result, i, elem)
 
         return result
 
@@ -76,3 +77,13 @@ cdef class TupleCodec(BaseRecordCodec):
         codec.fields_codecs = fields_codecs
 
         return codec
+
+    def make_type(self, describe_context):
+        return describe.TupleType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=None,
+            element_types=tuple(
+                codec.make_type(describe_context)
+                for codec in self.fields_codecs
+            )
+        )

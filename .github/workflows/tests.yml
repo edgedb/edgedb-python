@@ -8,6 +8,8 @@ on:
   pull_request:
     branches:
       - master
+  workflow_dispatch:
+    inputs: {}
 
 jobs:
   test:
@@ -22,14 +24,11 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
-        edgedb-version: [stable, nightly]
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
+        edgedb-version: [stable , nightly]
         os: [ubuntu-latest, macos-latest, windows-2019]
         loop: [asyncio, uvloop]
         exclude:
-          # uvloop does not support Python 3.6
-          - loop: uvloop
-            python-version: "3.6"
           # uvloop does not support windows
           - loop: uvloop
             os: windows-2019

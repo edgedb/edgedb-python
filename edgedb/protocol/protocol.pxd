@@ -40,10 +40,11 @@ include "./codecs/codecs.pxd"
 ctypedef object (*decode_row_method)(BaseCodec, FRBuffer *buf)
 
 
-cpdef enum IoFormat:
+cpdef enum OutputFormat:
     BINARY = b'b'
     JSON = b'j'
     JSON_ELEMENTS = b'J'
+    NONE = b'n'
 
 
 cdef enum TransactionStatus:
@@ -71,7 +72,7 @@ cdef class QueryCodecsCache:
     cdef:
         LRUMapping queries
 
-    cdef set(self, str query, IoFormat io_format,
+    cdef set(self, str query, OutputFormat output_format,
              int implicit_limit, bint inline_typenames, bint inline_typeids,
              bint expect_one, bint has_na_cardinality,
              BaseCodec in_type, BaseCodec out_type, int capabilities)
@@ -97,23 +98,34 @@ cdef class SansIOProtocol:
 
         readonly bytes last_status
         readonly bytes last_details
+        readonly object last_capabilities
         readonly tuple protocol_version
 
         readonly bint is_legacy
 
+        bytes state_type_id
+        BaseCodec state_codec
+        object state_cache
+
     cdef encode_args(self, BaseCodec in_dc, WriteBuffer buf, args, kwargs)
+    cdef encode_state(self, state)
 
     cdef parse_data_messages(self, BaseCodec out_dc, result)
     cdef parse_sync_message(self)
     cdef parse_command_complete_message(self)
     cdef parse_describe_type_message(self, CodecsRegistry reg)
+    cdef parse_describe_state_message(self)
     cdef parse_type_data(self, CodecsRegistry reg)
     cdef _amend_parse_error(
-        self, exc, IoFormat io_format, bint expect_one, bint required_one)
+        self,
+        exc,
+        OutputFormat output_format,
+        bint expect_one,
+        bint required_one,
+    )
 
     cdef inline ignore_headers(self)
-    cdef dict parse_headers(self)
-    cdef write_headers(self, WriteBuffer buf, dict headers)
+    cdef dict parse_error_headers(self)
 
     cdef parse_error_message(self)
 
@@ -127,16 +139,19 @@ cdef class SansIOProtocol:
 
     cdef fallthrough(self)
 
-    cdef write_execute_headers(
+    cdef ensure_connected(self)
+
+    cdef WriteBuffer encode_parse_params(
         self,
-        WriteBuffer buf,
+        str query,
+        object output_format,
+        bint expect_one,
         int implicit_limit,
         bint inline_typenames,
         bint inline_typeids,
         uint64_t allow_capabilities,
+        object state,
     )
-
-    cdef ensure_connected(self)
 
 
 include "protocol_v0.pxd"

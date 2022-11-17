@@ -16,20 +16,22 @@
 # limitations under the License.
 #
 
+import enum
+
 
 @cython.final
 cdef class EnumCodec(BaseCodec):
 
     cdef encode(self, WriteBuffer buf, object obj):
-        if not isinstance(obj, (datatypes.EnumValue, str)):
+        if not isinstance(obj, (self.cls, str)):
             raise TypeError(
-                f'a str or edgedb.EnumValue is expected as a valid '
-                f'enum argument, got {type(obj).__name__}')
+                f'a str or edgedb.EnumValue(__tid__={self.cls.__tid__}) is '
+                f'expected as a valid enum argument, got {type(obj).__name__}')
         pgproto.text_encode(DEFAULT_CODEC_CONTEXT, buf, str(obj))
 
     cdef decode(self, FRBuffer *buf):
         label = pgproto.text_decode(DEFAULT_CODEC_CONTEXT, buf)
-        return datatypes.EnumValue(self.descriptor, label)
+        return self.cls(label)
 
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple enum_labels):
@@ -40,7 +42,23 @@ cdef class EnumCodec(BaseCodec):
 
         codec.tid = tid
         codec.name = 'Enum'
-        codec.descriptor = datatypes.EnumDescriptor(
-            pgproto.UUID(tid), enum_labels)
+        cls = "DerivedEnumValue"
+        bases = (datatypes.EnumValue,)
+        classdict = enum.EnumMeta.__prepare__(cls, bases)
+        classdict["__module__"] = "edgedb"
+        classdict["__qualname__"] = "edgedb.DerivedEnumValue"
+        classdict["__tid__"] = pgproto.UUID(tid)
+        for label in enum_labels:
+            classdict[label.upper()] = label
+        codec.cls = enum.EnumMeta(cls, bases, classdict)
+        for index, label in enumerate(enum_labels):
+            codec.cls(label)._index_ = index
 
         return codec
+
+    def make_type(self, describe_context):
+        return describe.EnumType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=self.type_name,
+            members=tuple(x.value for x in self.cls.__members__.values())
+        )

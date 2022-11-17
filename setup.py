@@ -19,9 +19,8 @@
 
 import sys
 
-if sys.version_info < (3, 6):
-    # edgedb.NamedTuple() relies on ordered **kwargs.
-    raise RuntimeError('edgedb requires Python 3.6 or greater')
+if sys.version_info < (3, 7):
+    raise RuntimeError('edgedb requires Python 3.7 or greater')
 
 import os
 import os.path
@@ -49,6 +48,8 @@ TEST_DEPENDENCIES = [
     'pycodestyle~=2.6.0',
     'pyflakes~=2.2.0',
     'flake8-bugbear~=21.4.3',
+    # importlib-metadata pinned because flake 3.8.1 will grab a too new one
+    'importlib-metadata<4.3,>=1.1.0; python_version < "3.8"',
     'flake8~=3.8.1',
     'uvloop>=0.15.1; platform_system != "Windows" and python_version >= "3.7"',
 ]
@@ -302,12 +303,9 @@ setuptools.setup(
             "edgedb.datatypes.datatypes",
             ["edgedb/datatypes/args.c",
              "edgedb/datatypes/record_desc.c",
-             "edgedb/datatypes/tuple.c",
              "edgedb/datatypes/namedtuple.c",
              "edgedb/datatypes/object.c",
-             "edgedb/datatypes/set.c",
              "edgedb/datatypes/hash.c",
-             "edgedb/datatypes/array.c",
              "edgedb/datatypes/link.c",
              "edgedb/datatypes/linkset.c",
              "edgedb/datatypes/repr.c",
@@ -340,9 +338,14 @@ setuptools.setup(
     cmdclass={'build_ext': build_ext},
     test_suite='tests.suite',
     install_requires=[
-        'typing-extensions>=3.10.0',
+        'typing-extensions>=3.10.0; python_version < "3.8.0"',
         'certifi>=2021.5.30; platform_system == "Windows"',
     ],
     extras_require=EXTRA_DEPENDENCIES,
     setup_requires=setup_requires,
+    entry_points={
+        "console_scripts": [
+            "edgedb-py=edgedb.codegen.cli:main",
+        ]
+    }
 )

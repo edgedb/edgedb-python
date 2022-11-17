@@ -21,6 +21,7 @@ import enum
 
 from . import abstract
 from . import errors
+from . import options
 
 
 class TransactionState(enum.Enum):
@@ -116,7 +117,7 @@ class BaseTransaction:
                     single_attempt=self.__iteration != 0
                 )
             try:
-                await self._connection.privileged_execute(query)
+                await self._privileged_execute(query)
             except BaseException:
                 self._state = TransactionState.FAILED
                 raise
@@ -135,9 +136,12 @@ class BaseTransaction:
                 query = self._make_rollback_query()
                 state = TransactionState.ROLLEDBACK
             try:
-                await self._connection.privileged_execute(query)
+                await self._privileged_execute(query)
             except BaseException:
                 self._state = TransactionState.FAILED
+                if extype is None:
+                    # COMMIT itself may fail; recover in connection
+                    await self._privileged_execute("ROLLBACK;")
                 raise
             else:
                 self._state = state
@@ -178,25 +182,23 @@ class BaseTransaction:
     def _get_query_cache(self) -> abstract.QueryCache:
         return self._client._get_query_cache()
 
+    def _get_state(self) -> options.State:
+        return self._client._get_state()
+
     async def _query(self, query_context: abstract.QueryContext):
         await self._ensure_transaction()
-        result, _ = await self._connection.raw_query(query_context)
-        return result
+        return await self._connection.raw_query(query_context)
 
-    async def execute(self, query: str) -> None:
-        """Execute an EdgeQL command (or commands).
-
-        Example:
-
-        .. code-block:: pycon
-
-            >>> await con.execute('''
-            ...     CREATE TYPE MyType { CREATE PROPERTY a -> int64 };
-            ...     FOR x IN {100, 200, 300} UNION INSERT MyType { a := x };
-            ... ''')
-        """
+    async def _execute(self, execute_context: abstract.ExecuteContext) -> None:
         await self._ensure_transaction()
-        await self._connection.execute(query)
+        await self._connection._execute(execute_context)
+
+    async def _privileged_execute(self, query: str) -> None:
+        await self._connection.privileged_execute(abstract.ExecuteContext(
+            query=abstract.QueryWithArgs(query, (), {}),
+            cache=self._get_query_cache(),
+            state=self._get_state(),
+        ))
 
 
 class BaseRetry:

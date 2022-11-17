@@ -17,9 +17,6 @@
 #
 
 
-from edgedb import errors
-
-
 @cython.final
 cdef class NamedTupleCodec(BaseNamedRecordCodec):
 
@@ -40,7 +37,7 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
                 f'cannot decode NamedTuple: expected {len(fields_codecs)} '
                 f'elements, got {elem_count}')
 
-        result = datatypes.namedtuple_new(self.descriptor)
+        result = datatypes.namedtuple_new(self.namedtuple_type)
 
         for i in range(elem_count):
             frb_read(buf, 4)  # reserved
@@ -57,52 +54,10 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
                         f'unexpected trailing data in buffer after named '
                         f'tuple element decoding: {frb_get_len(&elem_buf)}')
 
-            datatypes.namedtuple_set(result, i, elem)
+            cpython.Py_INCREF(elem)
+            cpython.PyTuple_SET_ITEM(result, i, elem)
 
         return result
-
-    cdef encode_kwargs(self, WriteBuffer buf, dict obj):
-        # Compatibility with old protocols. The 0.12 protocol
-        # uses `ObjectCodec.encode_args()`.
-        cdef:
-            WriteBuffer elem_data
-            Py_ssize_t objlen
-            Py_ssize_t i
-            BaseCodec sub_codec
-
-        self._check_encoder()
-
-        objlen = len(obj)
-        if objlen != len(self.fields_codecs):
-            raise self._make_missing_args_error_message(obj)
-
-        elem_data = WriteBuffer.new()
-        for i in range(objlen):
-            name = datatypes.record_desc_pointer_name(self.descriptor, i)
-            try:
-                arg = obj[name]
-            except KeyError:
-                raise self._make_missing_args_error_message(obj) from None
-
-            elem_data.write_int32(0)  # reserved bytes
-            if arg is None:
-                elem_data.write_int32(-1)
-            else:
-                sub_codec = <BaseCodec>(self.fields_codecs[i])
-                try:
-                    sub_codec.encode(elem_data, arg)
-                except (TypeError, ValueError) as e:
-                    value_repr = repr(arg)
-                    if len(value_repr) > 40:
-                        value_repr = value_repr[:40] + '...'
-                    raise errors.InvalidArgumentError(
-                        'invalid input for query argument'
-                        ' ${n}: {v} ({msg})'.format(
-                            n=name, v=value_repr, msg=e)) from e
-
-        buf.write_int32(4 + elem_data.len())  # buffer length
-        buf.write_int32(<int32_t><uint32_t>objlen)
-        buf.write_buffer(elem_data)
 
     @staticmethod
     cdef BaseCodec new(bytes tid, tuple fields_names, tuple fields_codecs):
@@ -116,29 +71,18 @@ cdef class NamedTupleCodec(BaseNamedRecordCodec):
         codec.descriptor = datatypes.record_desc_new(
             fields_names, <object>NULL, <object>NULL)
         codec.fields_codecs = fields_codecs
+        codec.namedtuple_type = datatypes.namedtuple_type_new(codec.descriptor)
 
         return codec
 
-    def _make_missing_args_error_message(self, args):
-        required_args = set()
-
-        for i in range(len(self.fields_codecs)):
-            name = datatypes.record_desc_pointer_name(self.descriptor, i)
-            required_args.add(name)
-
-        passed_args = set(args.keys())
-        missed_args = required_args - passed_args
-        extra_args = passed_args - required_args
-
-        error_message = f'expected {required_args} keyword arguments'
-        error_message += f', got {passed_args}'
-
-        missed_args = set(required_args) - set(passed_args)
-        if missed_args:
-            error_message += f', missed {missed_args}'
-
-        extra_args = set(passed_args) - set(required_args)
-        if extra_args:
-            error_message += f', extra {extra_args}'
-
-        return errors.QueryArgumentError(error_message)
+    def make_type(self, describe_context):
+        return describe.NamedTupleType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=None,
+            element_types={
+                field: codec.make_type(describe_context)
+                for field, codec in zip(
+                    self.namedtuple_type._fields, self.fields_codecs
+                )
+            }
+        )

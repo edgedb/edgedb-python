@@ -22,7 +22,7 @@ cimport cpython
 
 
 include "./relative_duration.pxd"
-include "./enum.pxd"
+include "./date_duration.pxd"
 include "./config_memory.pxd"
 
 
@@ -45,29 +45,18 @@ cdef extern from "datatypes.h":
     object EdgeRecordDesc_PointerName(object, Py_ssize_t pos)
     EdgeFieldCardinality EdgeRecordDesc_PointerCardinality(
         object, Py_ssize_t pos)
-
-    object EdgeTuple_InitType()
-    object EdgeTuple_New(Py_ssize_t)
-    int EdgeTuple_SetItem(object, Py_ssize_t, object) except -1
+    int EdgeRecordDesc_PointerIsLinkProp(object, Py_ssize_t pos)
+    int EdgeRecordDesc_PointerIsLink(object, Py_ssize_t pos)
+    int EdgeRecordDesc_PointerIsImplicit(object, Py_ssize_t pos)
 
     object EdgeNamedTuple_InitType()
     object EdgeNamedTuple_New(object)
-    int EdgeNamedTuple_SetItem(object, Py_ssize_t, object) except -1
+    object EdgeNamedTuple_Type_New(object)
 
     object EdgeObject_InitType()
     object EdgeObject_New(object);
     int EdgeObject_SetItem(object, Py_ssize_t, object) except -1
     object EdgeObject_GetRecordDesc(object)
-
-    bint EdgeSet_Check(object)
-    object EdgeSet_InitType()
-    object EdgeSet_New(Py_ssize_t);
-    int EdgeSet_SetItem(object, Py_ssize_t, object) except -1
-    int EdgeSet_AppendItem(object, object) except -1
-
-    object EdgeArray_InitType()
-    object EdgeArray_New(Py_ssize_t);
-    int EdgeArray_SetItem(object, Py_ssize_t, object) except -1
 
     object EdgeLink_InitType()
 
@@ -77,15 +66,12 @@ cdef extern from "datatypes.h":
 cdef record_desc_new(object names, object flags, object cards)
 cdef record_desc_pointer_name(object desc, Py_ssize_t pos)
 cdef record_desc_pointer_card(object desc, Py_ssize_t pos)
-cdef tuple_new(Py_ssize_t size)
-cdef tuple_set(object tuple, Py_ssize_t pos, object elem)
-cdef namedtuple_new(object desc)
-cdef namedtuple_set(object tuple, Py_ssize_t pos, object elem)
+cdef record_desc_pointer_is_link_prop(object desc, Py_ssize_t pos)
+cdef record_desc_pointer_is_link(object desc, Py_ssize_t pos)
+cdef record_desc_pointer_is_implicit(object desc, Py_ssize_t pos)
+cdef namedtuple_new(object namedtuple_type)
+cdef namedtuple_type_new(object desc)
 cdef object_new(object desc)
 cdef object_set(object tuple, Py_ssize_t pos, object elem)
-cdef bint set_check(object set)
-cdef set_new(Py_ssize_t size)
-cdef set_set(object set, Py_ssize_t pos, object elem)
-cdef set_append(object set, object elem)
-cdef array_new(Py_ssize_t size)
-cdef array_set(object array, Py_ssize_t pos, object elem)
+
+cdef extern cpython.PyObject* at_sign_ptr

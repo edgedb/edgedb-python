@@ -1,3 +1,5 @@
+#include "pythoncapi_compat.h"
+
 /*
 * This source file is part of the EdgeDB open source project.
 *
@@ -23,7 +25,7 @@
 
 
 static int init_type_called = 0;
-static Py_hash_t base_hash = -1;
+PyObject* at_sign_ptr;
 
 
 EDGE_SETUP_FREELIST(
@@ -175,17 +177,6 @@ object_traverse(EdgeObject *o, visitproc visit, void *arg)
 }
 
 
-static Py_hash_t
-object_hash(EdgeObject *o)
-{
-    if (o->cached_hash == -1) {
-        o->cached_hash = _EdgeGeneric_HashWithBase(
-            base_hash, o->ob_item, Py_SIZE(o));
-    }
-    return o->cached_hash;
-}
-
-
 static PyObject *
 object_getattr(EdgeObject *o, PyObject *name)
 {
@@ -196,10 +187,19 @@ object_getattr(EdgeObject *o, PyObject *name)
         case L_ERROR:
             return NULL;
 
-        case L_LINKPROP:
-        case L_NOT_FOUND:
+        case L_NOT_FOUND: {
+            // Used in `dataclasses.as_dict()`
+            if (
+                PyUnicode_CompareWithASCIIString(
+                    name, "__dataclass_fields__"
+                ) == 0
+            ) {
+                return EdgeRecordDesc_GetDataclassFields((PyObject *)o->desc);
+            }
             return PyObject_GenericGetAttr((PyObject *)o, name);
+        }
 
+        case L_LINKPROP:
         case L_LINK:
         case L_PROPERTY: {
             PyObject *val = EdgeObject_GET_ITEM(o, pos);
@@ -217,7 +217,8 @@ object_getitem(EdgeObject *o, PyObject *name)
 {
     Py_ssize_t pos;
     edge_attr_lookup_t ret = EdgeRecordDesc_Lookup(
-        (PyObject *)o->desc, name, &pos);
+        (PyObject *)o->desc, name, &pos
+    );
     switch (ret) {
         case L_ERROR:
             return NULL;
@@ -229,21 +230,53 @@ object_getitem(EdgeObject *o, PyObject *name)
                 name);
             return NULL;
 
-        case L_LINKPROP:
-        case L_NOT_FOUND:
-            PyErr_Format(
-                PyExc_KeyError,
-                "link %R does not exist",
-                name);
+        case L_LINKPROP: {
+            PyObject *val = EdgeObject_GET_ITEM(o, pos);
+            Py_INCREF(val);
+            return val;
+        }
+
+        case L_NOT_FOUND: {
+            int prefixed = 0;
+            if (PyUnicode_Check(name)) {
+                prefixed = PyUnicode_Tailmatch(
+                    name, at_sign_ptr, 0, PY_SSIZE_T_MAX, -1
+                );
+                if (prefixed == -1) {
+                    return NULL;
+                }
+            }
+            if (prefixed) {
+                PyErr_Format(
+                    PyExc_KeyError,
+                    "link property %R does not exist",
+                    name);
+            } else {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "link property %R should be accessed with '@' prefix",
+                    name);
+            }
             return NULL;
+        }
 
         case L_LINK: {
+            int res = PyErr_WarnEx(
+                PyExc_DeprecationWarning,
+                "getting link on object is deprecated since 1.0, "
+                "please use dot notation to access linked objects, "
+                "and a following ['@...'] for the link properties.",
+                1
+            );
+            if (res != 0) {
+                return NULL;
+            }
             PyObject *val = EdgeObject_GET_ITEM(o, pos);
 
-            if (EdgeSet_Check(val)) {
+            if (PyList_Check(val)) {
                 return EdgeLinkSet_New(name, (PyObject *)o, val);
             }
-            else if (val == Py_None) {
+            else if (Py_IsNone(val)) {
                 Py_RETURN_NONE;
             }
             else {
@@ -255,36 +288,6 @@ object_getitem(EdgeObject *o, PyObject *name)
             abort();
     }
 
-}
-
-
-static PyObject *
-object_richcompare(EdgeObject *v, EdgeObject *w, int op)
-{
-    if (!EdgeObject_Check(v) || !EdgeObject_Check(w)) {
-        Py_RETURN_NOTIMPLEMENTED;
-    }
-
-    Py_ssize_t v_id_pos = EdgeRecordDesc_IDPos(v->desc);
-    Py_ssize_t w_id_pos = EdgeRecordDesc_IDPos(w->desc);
-
-    if (v_id_pos < 0 || w_id_pos < 0 ||
-        v_id_pos >= Py_SIZE(v) || w_id_pos >= Py_SIZE(w))
-    {
-        PyErr_SetString(
-            PyExc_TypeError, "invalid object ID field offset");
-        return NULL;
-    }
-
-    PyObject *v_id = EdgeObject_GET_ITEM(v, v_id_pos);
-    PyObject *w_id = EdgeObject_GET_ITEM(w, w_id_pos);
-
-    Py_INCREF(v_id);
-    Py_INCREF(w_id);
-    PyObject *ret = PyObject_RichCompare(v_id, w_id, op);
-    Py_DECREF(v_id);
-    Py_DECREF(w_id);
-    return ret;
 }
 
 
@@ -345,12 +348,10 @@ PyTypeObject EdgeObject_Type = {
     .tp_basicsize = sizeof(EdgeObject) - sizeof(PyObject *),
     .tp_itemsize = sizeof(PyObject *),
     .tp_dealloc = (destructor)object_dealloc,
-    .tp_hash = (hashfunc)object_hash,
     .tp_methods = object_methods,
     .tp_as_mapping = &object_as_mapping,
     .tp_getattro = (getattrofunc)object_getattr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_richcompare = (richcmpfunc)object_richcompare,
     .tp_traverse = (traverseproc)object_traverse,
     .tp_free = PyObject_GC_Del,
     .tp_repr = (reprfunc)object_repr,
@@ -365,10 +366,15 @@ EdgeObject_InitType(void)
         return NULL;
     }
 
-    base_hash = _EdgeGeneric_HashString("edgedb.Object");
-    if (base_hash == -1) {
+    // Pass the `dataclasses.is_dataclass(obj)` check - which then checks
+    // `hasattr(type(obj), "__dataclass_fields__")`, the dict is always empty
+    PyObject *default_fields = PyDict_New();
+    if (default_fields == NULL) {
         return NULL;
     }
+    PyDict_SetItemString(
+        EdgeObject_Type.tp_dict, "__dataclass_fields__", default_fields
+    );
 
     init_type_called = 1;
     return (PyObject *)&EdgeObject_Type;

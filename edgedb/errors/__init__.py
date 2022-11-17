@@ -22,6 +22,8 @@ __all__ = _base.__all__ + (  # type: ignore
     'TypeSpecNotFoundError',
     'UnexpectedMessageError',
     'InputDataError',
+    'ParameterTypeMismatchError',
+    'StateMismatchError',
     'ResultCardinalityMismatchError',
     'CapabilityError',
     'UnsupportedCapabilityError',
@@ -75,6 +77,7 @@ __all__ = _base.__all__ + (  # type: ignore
     'InvalidValueError',
     'DivisionByZeroError',
     'NumericOutOfRangeError',
+    'AccessPolicyError',
     'IntegrityError',
     'ConstraintViolationError',
     'CardinalityViolationError',
@@ -138,6 +141,15 @@ class UnexpectedMessageError(BinaryProtocolError):
 
 class InputDataError(ProtocolError):
     _code = 0x_03_02_00_00
+
+
+class ParameterTypeMismatchError(InputDataError):
+    _code = 0x_03_02_01_00
+
+
+class StateMismatchError(InputDataError):
+    _code = 0x_03_02_02_00
+    tags = frozenset({SHOULD_RETRY})
 
 
 class ResultCardinalityMismatchError(ProtocolError):
@@ -350,6 +362,10 @@ class DivisionByZeroError(InvalidValueError):
 
 class NumericOutOfRangeError(InvalidValueError):
     _code = 0x_05_01_00_02
+
+
+class AccessPolicyError(InvalidValueError):
+    _code = 0x_05_01_00_03
 
 
 class IntegrityError(ExecutionError):

@@ -371,6 +371,115 @@ Client
         mis-configuration by triggering the first connection attempt
         explicitly.
 
+    .. py:method:: with_transaction_options(options=None)
+
+        Returns a shallow copy of the client with adjusted transaction options.
+
+        :param TransactionOptions options:
+            Object that encapsulates transaction options.
+
+        See :ref:`edgedb-python-transaction-options` for details.
+
+    .. py:method:: with_retry_options(options=None)
+
+        Returns a shallow copy of the client with adjusted retry options.
+
+        :param RetryOptions options: Object that encapsulates retry options.
+
+        See :ref:`edgedb-python-retry-options` for details.
+
+    .. py:method:: with_state(state)
+
+        Returns a shallow copy of the client with adjusted state.
+
+        :param State state: Object that encapsulates state.
+
+        See :ref:`edgedb-python-state` for details.
+
+    .. py:method:: with_default_module(module=None)
+
+        Returns a shallow copy of the client with adjusted default module.
+
+        This is equivalent to using the ``set module`` command, or using the
+        ``reset module`` command when giving ``None``.
+
+        :type module: str or None
+        :param module: Adjust the *default module*.
+
+        See :py:meth:`State.with_default_module` for details.
+
+    .. py:method:: with_module_aliases(aliases_dict=None, /, **aliases)
+
+        Returns a shallow copy of the client with adjusted module aliases.
+
+        This is equivalent to using the ``set alias`` command.
+
+        :type aliases_dict: dict[str, str] or None
+        :param aliases_dict: This is an optional positional-only argument.
+
+        :param dict[str, str] aliases:
+            Adjust the module aliases after applying ``aliases_dict`` if set.
+
+        See :py:meth:`State.with_module_aliases` for details.
+
+    .. py:method:: without_module_aliases(*aliases)
+
+        Returns a shallow copy of the client without specified module aliases.
+
+        This is equivalent to using the ``reset alias`` command.
+
+        :param tuple[str] aliases: Module aliases to reset.
+
+        See :py:meth:`State.without_module_aliases` for details.
+
+    .. py:method:: with_config(config_dict=None, /, **config)
+
+        Returns a shallow copy of the client with adjusted session config.
+
+        This is equivalent to using the ``configure session set`` command.
+
+        :type config_dict: dict[str, object] or None
+        :param config_dict: This is an optional positional-only argument.
+
+        :param dict[str, object] config:
+            Adjust the config settings after applying ``config_dict`` if set.
+
+        See :py:meth:`State.with_config` for details.
+
+    .. py:method:: without_config(*config_names)
+
+        Returns a shallow copy of the client without specified session config.
+
+        This is equivalent to using the ``configure session reset`` command.
+
+        :param tuple[str] config_names: Config to reset.
+
+        See :py:meth:`State.without_config` for details.
+
+    .. py:method:: with_globals(globals_dict=None, /, **globals_)
+
+        Returns a shallow copy of the client with adjusted global values.
+
+        This is equivalent to using the ``set global`` command.
+
+        :type globals_dict: dict[str, object] or None
+        :param globals_dict: This is an optional positional-only argument.
+
+        :param dict[str, object] globals_:
+            Adjust the global values after applying ``globals_dict`` if set.
+
+        See :py:meth:`State.with_globals` for details.
+
+    .. py:method:: without_globals(*global_names)
+
+        Returns a shallow copy of the client without specified globals.
+
+        This is equivalent to using the ``reset global`` command.
+
+        :param tuple[str] global_names: Globals to reset.
+
+        See :py:meth:`State.without_globals` for details.
+
 
 .. _edgedb-python-asyncio-api-transaction:
 
@@ -443,6 +552,20 @@ Transactions allocate expensive server resources and having
 too many concurrently running long-running transactions will
 negatively impact the performance of the DB server.
 
+To rollback a transaction that is in progress raise an exception.
+
+.. code-block:: python
+
+   class RollBack(Exception):
+       "A user defined exception."
+
+   try:
+       async for tx in client.transaction():
+           async with tx:
+               raise RollBack
+   except RollBack:
+       pass
+
 See also:
 
 * RFC1004_
@@ -467,7 +590,7 @@ See also:
 
     Represents a transaction.
 
-    Instances of this type are yielded by a :py:class`AsyncIORetry` iterator.
+    Instances of this type are yielded by a :py:class:`AsyncIORetry` iterator.
 
     .. describe:: async with c:
 

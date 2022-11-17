@@ -32,6 +32,10 @@ and :ref:`asyncio <edgedb-python-asyncio-api-reference>` implementations.
 
   EdgeDB Python types documentation.
 
+* :ref:`edgedb-python-advanced`
+
+  Advanced usages of the state and optional customization.
+
 
 .. toctree::
    :maxdepth: 3
@@ -42,3 +46,5 @@ and :ref:`asyncio <edgedb-python-asyncio-api-reference>` implementations.
    api/asyncio_client
    api/blocking_client
    api/types
+   api/codegen
+   api/advanced
