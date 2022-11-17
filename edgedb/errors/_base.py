@@ -213,14 +213,14 @@ def _severity_name(severity):
 
 def _format_error(msg, query, start, offset, line, col, hint):
     rv = io.StringIO()
-    rv.write(f"{BOLD}{msg}{ENDC}\n")
+    rv.write(f"{BOLD}{msg}{ENDC}{LINESEP}")
     lines = query.splitlines(keepends=True)
     num_len = len(str(len(lines)))
-    rv.write(f"{OKBLUE}{'':>{num_len}} ┌─{ENDC} query:{line}:{col}\n")
-    rv.write(f"{OKBLUE}{'':>{num_len}} │ {ENDC} \n")
+    rv.write(f"{OKBLUE}{'':>{num_len}} ┌─{ENDC} query:{line}:{col}{LINESEP}")
+    rv.write(f"{OKBLUE}{'':>{num_len}} │ {ENDC}{LINESEP}")
     for num, line in enumerate(lines):
         length = len(line)
-        line = line.rstrip()  # we'll use our own newline
+        line = line.rstrip()  # we'll use our own line separator
         if start >= length:
             # skip lines before the error
             start -= length
@@ -240,18 +240,18 @@ def _format_error(msg, query, start, offset, line, col, hint):
         if offset > length:
             # Error is ending beyond current line
             line = repr(line)[1:-1]
-            rv.write(f"{FAIL}{line}{ENDC}\n")
+            rv.write(f"{FAIL}{line}{ENDC}{LINESEP}")
             if start >= 0:
                 # Multi-line error starts
                 rv.write(f"{OKBLUE}{'':>{num_len}} │ "
-                         f"{FAIL}╭─{'─' * start}^{ENDC} \n")
+                         f"{FAIL}╭─{'─' * start}^{ENDC}{LINESEP}")
             offset -= length
             start = -1  # mark multi-line
         else:
             # Error is ending within current line
             first_half = repr(line[:offset])[1:-1]
             line = repr(line[offset:])[1:-1]
-            rv.write(f"{FAIL}{first_half}{ENDC}{line}\n")
+            rv.write(f"{FAIL}{first_half}{ENDC}{line}{LINESEP}")
             size = _unicode_width(first_half)
             if start >= 0:
                 # Mark single-line error
@@ -313,3 +313,4 @@ if os.getenv(
 else:
     HEADER = OKBLUE = OKCYAN = OKGREEN = WARNING = ""
     FAIL = ENDC = BOLD = UNDERLINE = ""
+LINESEP = os.linesep
