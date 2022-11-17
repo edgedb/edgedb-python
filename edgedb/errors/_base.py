@@ -17,6 +17,11 @@
 #
 
 
+import io
+import os
+import sys
+import unicodedata
+
 __all__ = (
     'EdgeDBError', 'EdgeDBMessage',
 )
@@ -79,6 +84,7 @@ class EdgeDBErrorMeta(Meta):
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     _code = None
+    _query = None
     tags = frozenset()
 
     def __init__(self, *args, **kwargs):
@@ -94,14 +100,24 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         return int(self._read_str_field(FIELD_POSITION_START, -1))
 
     @property
+    def _position_start(self):
+        # not a stable API method
+        return int(self._read_str_field(FIELD_CHARACTER_START, -1))
+
+    @property
+    def _position_end(self):
+        # not a stable API method
+        return int(self._read_str_field(FIELD_CHARACTER_END, -1))
+
+    @property
     def _line(self):
         # not a stable API method
-        return int(self._read_str_field(FIELD_LINE, -1))
+        return int(self._read_str_field(FIELD_LINE_START, -1))
 
     @property
     def _col(self):
         # not a stable API method
-        return int(self._read_str_field(FIELD_COLUMN, -1))
+        return int(self._read_str_field(FIELD_COLUMN_START, -1))
 
     @property
     def _hint(self):
@@ -126,6 +142,21 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         exc = cls(*args, **kwargs)
         exc._code = code
         return exc
+
+    def __str__(self):
+        msg = super().__str__()
+        if self._query and self._position_start >= 0:
+            return _format_error(
+                msg,
+                self._query,
+                self._position_start,
+                max(1, self._position_end - self._position_start),
+                self._line if self._line > 0 else "?",
+                self._col if self._col > 0 else "?",
+                self._hint or "error",
+            )
+        else:
+            return msg
 
 
 def _lookup_cls(code: int, *, meta: type, default: type):
@@ -180,6 +211,67 @@ def _severity_name(severity):
     return 'PANIC'
 
 
+def _format_error(msg, query, start, offset, line, col, hint):
+    rv = io.StringIO()
+    rv.write(f"{BOLD}{msg}{ENDC}\n")
+    lines = query.splitlines(keepends=True)
+    num_len = len(str(len(lines)))
+    rv.write(f"{OKBLUE}{'':>{num_len}} ┌─{ENDC} query:{line}:{col}\n")
+    rv.write(f"{OKBLUE}{'':>{num_len}} │ {ENDC} \n")
+    for num, line in enumerate(lines):
+        length = len(line)
+        line = line.rstrip()  # we'll use our own newline
+        if start >= length:
+            # skip lines before the error
+            start -= length
+            continue
+
+        if start >= 0:
+            # Error starts in current line, write the line before the error
+            first_half = repr(line[:start])[1:-1]
+            line = line[start:]
+            length -= start
+            rv.write(f"{OKBLUE}{num + 1:>{num_len}} │   {ENDC}{first_half}")
+            start = _unicode_width(first_half)
+        else:
+            # Multi-line error continues
+            rv.write(f"{OKBLUE}{num + 1:>{num_len}} │ {FAIL}│ {ENDC}")
+
+        if offset > length:
+            # Error is ending beyond current line
+            line = repr(line)[1:-1]
+            rv.write(f"{FAIL}{line}{ENDC}\n")
+            if start >= 0:
+                # Multi-line error starts
+                rv.write(f"{OKBLUE}{'':>{num_len}} │ "
+                         f"{FAIL}╭─{'─' * start}^{ENDC} \n")
+            offset -= length
+            start = -1  # mark multi-line
+        else:
+            # Error is ending within current line
+            first_half = repr(line[:offset])[1:-1]
+            line = repr(line[offset:])[1:-1]
+            rv.write(f"{FAIL}{first_half}{ENDC}{line}\n")
+            size = _unicode_width(first_half)
+            if start >= 0:
+                # Mark single-line error
+                rv.write(f"{OKBLUE}{'':>{num_len}} │   {' ' * start}"
+                         f"{FAIL}{'^' * size} {hint}{ENDC}")
+            else:
+                # End of multi-line error
+                rv.write(f"{OKBLUE}{'':>{num_len}} │ "
+                         f"{FAIL}╰─{'─' * (size - 1)}^ {hint}{ENDC}")
+            break
+    return rv.getvalue()
+
+
+def _unicode_width(text):
+    return sum(
+        2 if unicodedata.east_asian_width(c) == "W" else 1
+        for c in unicodedata.normalize("NFC", text)
+    )
+
+
 FIELD_HINT = 0x_00_01
 FIELD_DETAILS = 0x_00_02
 FIELD_SERVER_TRACEBACK = 0x_01_01
@@ -187,8 +279,14 @@ FIELD_SERVER_TRACEBACK = 0x_01_01
 # XXX: Subject to be changed/deprecated.
 FIELD_POSITION_START = 0x_FF_F1
 FIELD_POSITION_END = 0x_FF_F2
-FIELD_LINE = 0x_FF_F3
-FIELD_COLUMN = 0x_FF_F4
+FIELD_LINE_START = 0x_FF_F3
+FIELD_COLUMN_START = 0x_FF_F4
+FIELD_UTF16_COLUMN_START = 0x_FF_F5
+FIELD_LINE_END = 0x_FF_F6
+FIELD_COLUMN_END = 0x_FF_F7
+FIELD_UTF16_COLUMN_END = 0x_FF_F8
+FIELD_CHARACTER_START = 0x_FF_F9
+FIELD_CHARACTER_END = 0x_FF_FA
 
 
 EDGE_SEVERITY_DEBUG = 20
@@ -198,3 +296,20 @@ EDGE_SEVERITY_WARNING = 80
 EDGE_SEVERITY_ERROR = 120
 EDGE_SEVERITY_FATAL = 200
 EDGE_SEVERITY_PANIC = 255
+
+
+if os.getenv(
+    "EDGEDB_PRETTY_ERROR", "1" if sys.stderr.isatty() else "0"
+).lower() in {"1", "yes", "y", "true", "t", "on"}:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+else:
+    HEADER = OKBLUE = OKCYAN = OKGREEN = WARNING = ""
+    FAIL = ENDC = BOLD = UNDERLINE = ""
