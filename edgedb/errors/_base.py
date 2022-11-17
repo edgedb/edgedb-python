@@ -145,7 +145,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     def __str__(self):
         msg = super().__str__()
-        if self._query and self._position_start >= 0:
+        if SHOW_HINT and self._query and self._position_start >= 0:
             return _format_error(
                 msg,
                 self._query,
@@ -281,8 +281,8 @@ def _init_colors():
     COLOR_INITIALIZED = True
     try:
         use_color = os.getenv(
-            "EDGEDB_PRETTY_ERROR", "1" if sys.stderr.isatty() else "0"
-        ).lower() in {"1", "yes", "y", "true", "t", "on"}
+            "EDGEDB_PRETTY_ERROR", str(sys.stderr.isatty())
+        ).lower() in ENV_ON_FLAGS
     except Exception:
         use_color = False
     if use_color:
@@ -327,4 +327,6 @@ EDGE_SEVERITY_PANIC = 255
 
 
 LINESEP = os.linesep
+ENV_ON_FLAGS = {"1", "yes", "y", "true", "t", "on"}
+SHOW_HINT = os.getenv("EDGEDB_ERROR_HINT", "1").lower() in ENV_ON_FLAGS
 COLOR_INITIALIZED = False
