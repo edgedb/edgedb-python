@@ -212,12 +212,13 @@ def _severity_name(severity):
 
 
 def _format_error(msg, query, start, offset, line, col, hint):
+    _init_colors()
     rv = io.StringIO()
     rv.write(f"{BOLD}{msg}{ENDC}{LINESEP}")
     lines = query.splitlines(keepends=True)
     num_len = len(str(len(lines)))
-    rv.write(f"{OKBLUE}{'':>{num_len}} ┌─{ENDC} query:{line}:{col}{LINESEP}")
-    rv.write(f"{OKBLUE}{'':>{num_len}} │ {ENDC}{LINESEP}")
+    rv.write(f"{BLUE}{'':>{num_len}} ┌─{ENDC} query:{line}:{col}{LINESEP}")
+    rv.write(f"{BLUE}{'':>{num_len}} │ {ENDC}{LINESEP}")
     for num, line in enumerate(lines):
         length = len(line)
         line = line.rstrip()  # we'll use our own line separator
@@ -231,11 +232,11 @@ def _format_error(msg, query, start, offset, line, col, hint):
             first_half = repr(line[:start])[1:-1]
             line = line[start:]
             length -= start
-            rv.write(f"{OKBLUE}{num + 1:>{num_len}} │   {ENDC}{first_half}")
+            rv.write(f"{BLUE}{num + 1:>{num_len}} │   {ENDC}{first_half}")
             start = _unicode_width(first_half)
         else:
             # Multi-line error continues
-            rv.write(f"{OKBLUE}{num + 1:>{num_len}} │ {FAIL}│ {ENDC}")
+            rv.write(f"{BLUE}{num + 1:>{num_len}} │ {FAIL}│ {ENDC}")
 
         if offset > length:
             # Error is ending beyond current line
@@ -243,7 +244,7 @@ def _format_error(msg, query, start, offset, line, col, hint):
             rv.write(f"{FAIL}{line}{ENDC}{LINESEP}")
             if start >= 0:
                 # Multi-line error starts
-                rv.write(f"{OKBLUE}{'':>{num_len}} │ "
+                rv.write(f"{BLUE}{'':>{num_len}} │ "
                          f"{FAIL}╭─{'─' * start}^{ENDC}{LINESEP}")
             offset -= length
             start = -1  # mark multi-line
@@ -255,11 +256,11 @@ def _format_error(msg, query, start, offset, line, col, hint):
             size = _unicode_width(first_half)
             if start >= 0:
                 # Mark single-line error
-                rv.write(f"{OKBLUE}{'':>{num_len}} │   {' ' * start}"
+                rv.write(f"{BLUE}{'':>{num_len}} │   {' ' * start}"
                          f"{FAIL}{'^' * size} {hint}{ENDC}")
             else:
                 # End of multi-line error
-                rv.write(f"{OKBLUE}{'':>{num_len}} │ "
+                rv.write(f"{BLUE}{'':>{num_len}} │ "
                          f"{FAIL}╰─{'─' * (size - 1)}^ {hint}{ENDC}")
             break
     return rv.getvalue()
@@ -270,6 +271,33 @@ def _unicode_width(text):
         2 if unicodedata.east_asian_width(c) == "W" else 1
         for c in unicodedata.normalize("NFC", text)
     )
+
+
+def _init_colors():
+    global HEADER, BLUE, CYAN, GREEN, WARNING, FAIL, ENDC, BOLD, UNDERLINE
+    global COLOR_INITIALIZED
+    if COLOR_INITIALIZED:
+        return
+    COLOR_INITIALIZED = True
+    try:
+        use_color = os.getenv(
+            "EDGEDB_PRETTY_ERROR", "1" if sys.stderr.isatty() else "0"
+        ).lower() in {"1", "yes", "y", "true", "t", "on"}
+    except Exception:
+        use_color = False
+    if use_color:
+        HEADER = '\033[95m'
+        BLUE = '\033[94m'
+        CYAN = '\033[96m'
+        GREEN = '\033[92m'
+        WARNING = '\033[93m'
+        FAIL = '\033[91m'
+        ENDC = '\033[0m'
+        BOLD = '\033[1m'
+        UNDERLINE = '\033[4m'
+    else:
+        HEADER = BLUE = CYAN = GREEN = WARNING = ""
+        FAIL = ENDC = BOLD = UNDERLINE = ""
 
 
 FIELD_HINT = 0x_00_01
@@ -298,19 +326,5 @@ EDGE_SEVERITY_FATAL = 200
 EDGE_SEVERITY_PANIC = 255
 
 
-if os.getenv(
-    "EDGEDB_PRETTY_ERROR", "1" if sys.stderr.isatty() else "0"
-).lower() in {"1", "yes", "y", "true", "t", "on"}:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-else:
-    HEADER = OKBLUE = OKCYAN = OKGREEN = WARNING = ""
-    FAIL = ENDC = BOLD = UNDERLINE = ""
 LINESEP = os.linesep
+COLOR_INITIALIZED = False
