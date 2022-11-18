@@ -380,6 +380,12 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                                     'combine positional and named parameters'):
             await self.client.query('select <int64>$0 + <int64>$bar;')
 
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError,
+                                    "None is not allowed"):
+            await self.client.query(
+                "select <array<int64>>$0", [1, None, 3]
+            )
+
     async def test_async_args_04(self):
         aware_datetime = datetime.datetime.now(datetime.timezone.utc)
         naive_datetime = datetime.datetime.now()
