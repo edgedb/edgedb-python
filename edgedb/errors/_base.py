@@ -19,8 +19,9 @@
 
 import io
 import os
-import sys
+import traceback
 import unicodedata
+import warnings
 
 __all__ = (
     'EdgeDBError', 'EdgeDBMessage',
@@ -146,15 +147,29 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     def __str__(self):
         msg = super().__str__()
         if SHOW_HINT and self._query and self._position_start >= 0:
-            return _format_error(
-                msg,
-                self._query,
-                self._position_start,
-                max(1, self._position_end - self._position_start),
-                self._line if self._line > 0 else "?",
-                self._col if self._col > 0 else "?",
-                self._hint or "error",
-            )
+            try:
+                return _format_error(
+                    msg,
+                    self._query,
+                    self._position_start,
+                    max(1, self._position_end - self._position_start),
+                    self._line if self._line > 0 else "?",
+                    self._col if self._col > 0 else "?",
+                    self._hint or "error",
+                )
+            except Exception:
+                return "".join(
+                    (
+                        msg,
+                        LINESEP,
+                        LINESEP,
+                        "During formatting of the above exception, "
+                        "another exception occurred:",
+                        LINESEP,
+                        LINESEP,
+                        traceback.format_exc(),
+                    )
+                )
         else:
             return msg
 
@@ -212,13 +227,13 @@ def _severity_name(severity):
 
 
 def _format_error(msg, query, start, offset, line, col, hint):
-    _init_colors()
+    c = get_color()
     rv = io.StringIO()
-    rv.write(f"{BOLD}{msg}{ENDC}{LINESEP}")
+    rv.write(f"{c.BOLD}{msg}{c.ENDC}{LINESEP}")
     lines = query.splitlines(keepends=True)
     num_len = len(str(len(lines)))
-    rv.write(f"{BLUE}{'':>{num_len}} ┌─{ENDC} query:{line}:{col}{LINESEP}")
-    rv.write(f"{BLUE}{'':>{num_len}} │ {ENDC}{LINESEP}")
+    rv.write(f"{c.BLUE}{'':>{num_len}} ┌─{c.ENDC} query:{line}:{col}{LINESEP}")
+    rv.write(f"{c.BLUE}{'':>{num_len}} │ {c.ENDC}{LINESEP}")
     for num, line in enumerate(lines):
         length = len(line)
         line = line.rstrip()  # we'll use our own line separator
@@ -232,36 +247,36 @@ def _format_error(msg, query, start, offset, line, col, hint):
             first_half = repr(line[:start])[1:-1]
             line = line[start:]
             length -= start
-            rv.write(f"{BLUE}{num + 1:>{num_len}} │   {ENDC}{first_half}")
+            rv.write(f"{c.BLUE}{num + 1:>{num_len}} │   {c.ENDC}{first_half}")
             start = _unicode_width(first_half)
         else:
             # Multi-line error continues
-            rv.write(f"{BLUE}{num + 1:>{num_len}} │ {FAIL}│ {ENDC}")
+            rv.write(f"{c.BLUE}{num + 1:>{num_len}} │ {c.FAIL}│ {c.ENDC}")
 
         if offset > length:
             # Error is ending beyond current line
             line = repr(line)[1:-1]
-            rv.write(f"{FAIL}{line}{ENDC}{LINESEP}")
+            rv.write(f"{c.FAIL}{line}{c.ENDC}{LINESEP}")
             if start >= 0:
                 # Multi-line error starts
-                rv.write(f"{BLUE}{'':>{num_len}} │ "
-                         f"{FAIL}╭─{'─' * start}^{ENDC}{LINESEP}")
+                rv.write(f"{c.BLUE}{'':>{num_len}} │ "
+                         f"{c.FAIL}╭─{'─' * start}^{c.ENDC}{LINESEP}")
             offset -= length
             start = -1  # mark multi-line
         else:
             # Error is ending within current line
             first_half = repr(line[:offset])[1:-1]
             line = repr(line[offset:])[1:-1]
-            rv.write(f"{FAIL}{first_half}{ENDC}{line}{LINESEP}")
+            rv.write(f"{c.FAIL}{first_half}{c.ENDC}{line}{LINESEP}")
             size = _unicode_width(first_half)
             if start >= 0:
                 # Mark single-line error
-                rv.write(f"{BLUE}{'':>{num_len}} │   {' ' * start}"
-                         f"{FAIL}{'^' * size} {hint}{ENDC}")
+                rv.write(f"{c.BLUE}{'':>{num_len}} │   {' ' * start}"
+                         f"{c.FAIL}{'^' * size} {hint}{c.ENDC}")
             else:
                 # End of multi-line error
-                rv.write(f"{BLUE}{'':>{num_len}} │ "
-                         f"{FAIL}╰─{'─' * (size - 1)}^ {hint}{ENDC}")
+                rv.write(f"{c.BLUE}{'':>{num_len}} │ "
+                         f"{c.FAIL}╰─{'─' * (size - 1)}^ {hint}{c.ENDC}")
             break
     return rv.getvalue()
 
@@ -271,33 +286,6 @@ def _unicode_width(text):
         2 if unicodedata.east_asian_width(c) == "W" else 1
         for c in unicodedata.normalize("NFC", text)
     )
-
-
-def _init_colors():
-    global HEADER, BLUE, CYAN, GREEN, WARNING, FAIL, ENDC, BOLD, UNDERLINE
-    global COLOR_INITIALIZED
-    if COLOR_INITIALIZED:
-        return
-    COLOR_INITIALIZED = True
-    try:
-        use_color = os.getenv(
-            "EDGEDB_PRETTY_ERROR", str(sys.stderr.isatty())
-        ).lower() in ENV_ON_FLAGS
-    except Exception:
-        use_color = False
-    if use_color:
-        HEADER = '\033[95m'
-        BLUE = '\033[94m'
-        CYAN = '\033[96m'
-        GREEN = '\033[92m'
-        WARNING = '\033[93m'
-        FAIL = '\033[91m'
-        ENDC = '\033[0m'
-        BOLD = '\033[1m'
-        UNDERLINE = '\033[4m'
-    else:
-        HEADER = BLUE = CYAN = GREEN = WARNING = ""
-        FAIL = ENDC = BOLD = UNDERLINE = ""
 
 
 FIELD_HINT = 0x_00_01
@@ -327,6 +315,16 @@ EDGE_SEVERITY_PANIC = 255
 
 
 LINESEP = os.linesep
-ENV_ON_FLAGS = {"1", "yes", "y", "true", "t", "on"}
-SHOW_HINT = os.getenv("EDGEDB_ERROR_HINT", "1").lower() in ENV_ON_FLAGS
-COLOR_INITIALIZED = False
+
+try:
+    SHOW_HINT = {"default": True, "enabled": True, "disabled": False}[
+        os.getenv("EDGEDB_ERROR_HINT", "default")
+    ]
+except KeyError:
+    warnings.warn(
+        "EDGEDB_ERROR_HINT can only be one of: default, enabled or disabled"
+    )
+    SHOW_HINT = False
+
+
+from edgedb.color import get_color
