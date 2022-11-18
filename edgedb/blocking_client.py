@@ -152,8 +152,8 @@ class BlockingIOConnection(base_client.BaseConnection):
                 time.monotonic() - self._protocol.last_active_timestamp
                 > self._ping_wait_time
             ):
-                await self._protocol._sync()
-        except errors.ClientConnectionError:
+                await self._protocol.ping()
+        except (errors.IdleSessionTimeoutError, errors.ClientConnectionError):
             await self.connect()
 
         return await super().raw_query(query_context)
