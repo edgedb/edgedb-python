@@ -23,7 +23,17 @@ import sys
 from . import generator
 
 
-parser = argparse.ArgumentParser(
+class ColoredArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        c = generator.C
+        self.exit(
+            2,
+            f"{c.BOLD}{c.FAIL}error:{c.ENDC} "
+            f"{c.BOLD}{message:s}{c.ENDC}\n",
+        )
+
+
+parser = ColoredArgumentParser(
     description="Generate Python code for .edgeql files."
 )
 parser.add_argument("--dsn")
