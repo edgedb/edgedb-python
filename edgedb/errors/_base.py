@@ -17,6 +17,12 @@
 #
 
 
+import io
+import os
+import traceback
+import unicodedata
+import warnings
+
 __all__ = (
     'EdgeDBError', 'EdgeDBMessage',
 )
@@ -79,6 +85,7 @@ class EdgeDBErrorMeta(Meta):
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     _code = None
+    _query = None
     tags = frozenset()
 
     def __init__(self, *args, **kwargs):
@@ -94,14 +101,24 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         return int(self._read_str_field(FIELD_POSITION_START, -1))
 
     @property
+    def _position_start(self):
+        # not a stable API method
+        return int(self._read_str_field(FIELD_CHARACTER_START, -1))
+
+    @property
+    def _position_end(self):
+        # not a stable API method
+        return int(self._read_str_field(FIELD_CHARACTER_END, -1))
+
+    @property
     def _line(self):
         # not a stable API method
-        return int(self._read_str_field(FIELD_LINE, -1))
+        return int(self._read_str_field(FIELD_LINE_START, -1))
 
     @property
     def _col(self):
         # not a stable API method
-        return int(self._read_str_field(FIELD_COLUMN, -1))
+        return int(self._read_str_field(FIELD_COLUMN_START, -1))
 
     @property
     def _hint(self):
@@ -126,6 +143,35 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         exc = cls(*args, **kwargs)
         exc._code = code
         return exc
+
+    def __str__(self):
+        msg = super().__str__()
+        if SHOW_HINT and self._query and self._position_start >= 0:
+            try:
+                return _format_error(
+                    msg,
+                    self._query,
+                    self._position_start,
+                    max(1, self._position_end - self._position_start),
+                    self._line if self._line > 0 else "?",
+                    self._col if self._col > 0 else "?",
+                    self._hint or "error",
+                )
+            except Exception:
+                return "".join(
+                    (
+                        msg,
+                        LINESEP,
+                        LINESEP,
+                        "During formatting of the above exception, "
+                        "another exception occurred:",
+                        LINESEP,
+                        LINESEP,
+                        traceback.format_exc(),
+                    )
+                )
+        else:
+            return msg
 
 
 def _lookup_cls(code: int, *, meta: type, default: type):
@@ -180,6 +226,68 @@ def _severity_name(severity):
     return 'PANIC'
 
 
+def _format_error(msg, query, start, offset, line, col, hint):
+    c = get_color()
+    rv = io.StringIO()
+    rv.write(f"{c.BOLD}{msg}{c.ENDC}{LINESEP}")
+    lines = query.splitlines(keepends=True)
+    num_len = len(str(len(lines)))
+    rv.write(f"{c.BLUE}{'':>{num_len}} ┌─{c.ENDC} query:{line}:{col}{LINESEP}")
+    rv.write(f"{c.BLUE}{'':>{num_len}} │ {c.ENDC}{LINESEP}")
+    for num, line in enumerate(lines):
+        length = len(line)
+        line = line.rstrip()  # we'll use our own line separator
+        if start >= length:
+            # skip lines before the error
+            start -= length
+            continue
+
+        if start >= 0:
+            # Error starts in current line, write the line before the error
+            first_half = repr(line[:start])[1:-1]
+            line = line[start:]
+            length -= start
+            rv.write(f"{c.BLUE}{num + 1:>{num_len}} │   {c.ENDC}{first_half}")
+            start = _unicode_width(first_half)
+        else:
+            # Multi-line error continues
+            rv.write(f"{c.BLUE}{num + 1:>{num_len}} │ {c.FAIL}│ {c.ENDC}")
+
+        if offset > length:
+            # Error is ending beyond current line
+            line = repr(line)[1:-1]
+            rv.write(f"{c.FAIL}{line}{c.ENDC}{LINESEP}")
+            if start >= 0:
+                # Multi-line error starts
+                rv.write(f"{c.BLUE}{'':>{num_len}} │ "
+                         f"{c.FAIL}╭─{'─' * start}^{c.ENDC}{LINESEP}")
+            offset -= length
+            start = -1  # mark multi-line
+        else:
+            # Error is ending within current line
+            first_half = repr(line[:offset])[1:-1]
+            line = repr(line[offset:])[1:-1]
+            rv.write(f"{c.FAIL}{first_half}{c.ENDC}{line}{LINESEP}")
+            size = _unicode_width(first_half)
+            if start >= 0:
+                # Mark single-line error
+                rv.write(f"{c.BLUE}{'':>{num_len}} │   {' ' * start}"
+                         f"{c.FAIL}{'^' * size} {hint}{c.ENDC}")
+            else:
+                # End of multi-line error
+                rv.write(f"{c.BLUE}{'':>{num_len}} │ "
+                         f"{c.FAIL}╰─{'─' * (size - 1)}^ {hint}{c.ENDC}")
+            break
+    return rv.getvalue()
+
+
+def _unicode_width(text):
+    return sum(
+        2 if unicodedata.east_asian_width(c) == "W" else 1
+        for c in unicodedata.normalize("NFC", text)
+    )
+
+
 FIELD_HINT = 0x_00_01
 FIELD_DETAILS = 0x_00_02
 FIELD_SERVER_TRACEBACK = 0x_01_01
@@ -187,8 +295,14 @@ FIELD_SERVER_TRACEBACK = 0x_01_01
 # XXX: Subject to be changed/deprecated.
 FIELD_POSITION_START = 0x_FF_F1
 FIELD_POSITION_END = 0x_FF_F2
-FIELD_LINE = 0x_FF_F3
-FIELD_COLUMN = 0x_FF_F4
+FIELD_LINE_START = 0x_FF_F3
+FIELD_COLUMN_START = 0x_FF_F4
+FIELD_UTF16_COLUMN_START = 0x_FF_F5
+FIELD_LINE_END = 0x_FF_F6
+FIELD_COLUMN_END = 0x_FF_F7
+FIELD_UTF16_COLUMN_END = 0x_FF_F8
+FIELD_CHARACTER_START = 0x_FF_F9
+FIELD_CHARACTER_END = 0x_FF_FA
 
 
 EDGE_SEVERITY_DEBUG = 20
@@ -198,3 +312,19 @@ EDGE_SEVERITY_WARNING = 80
 EDGE_SEVERITY_ERROR = 120
 EDGE_SEVERITY_FATAL = 200
 EDGE_SEVERITY_PANIC = 255
+
+
+LINESEP = os.linesep
+
+try:
+    SHOW_HINT = {"default": True, "enabled": True, "disabled": False}[
+        os.getenv("EDGEDB_ERROR_HINT", "default")
+    ]
+except KeyError:
+    warnings.warn(
+        "EDGEDB_ERROR_HINT can only be one of: default, enabled or disabled"
+    )
+    SHOW_HINT = False
+
+
+from edgedb.color import get_color

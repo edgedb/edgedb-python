@@ -305,6 +305,7 @@ cdef class SansIOProtocol:
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
+                    exc._query = query
                     exc = self._amend_parse_error(
                         exc, output_format, expect_one, required_one)
 
@@ -435,6 +436,7 @@ cdef class SansIOProtocol:
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
+                    exc._query = query
                     if exc.get_code() == parameter_type_mismatch_code:
                         if not isinstance(in_dc, NullCodec):
                             buf = WriteBuffer.new()
