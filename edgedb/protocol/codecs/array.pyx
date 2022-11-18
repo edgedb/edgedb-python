@@ -60,7 +60,10 @@ cdef class BaseArrayCodec(BaseCodec):
         for i in range(objlen):
             item = obj[i]
             if item is None:
-                elem_data.write_int32(-1)
+                raise ValueError(
+                    "invalid array element at index {}: "
+                    "None is not allowed".format(i)
+                )
             else:
                 try:
                     self.sub_codec.encode(elem_data, item)
