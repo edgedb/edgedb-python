@@ -44,26 +44,16 @@ Client
         the :ref:`DSN Specification <ref_dsn>`.
 
     :param host:
-        Database host address as one of the following:
-
-        - an IP address or a domain name;
-        - an absolute path to the directory containing the database
-          server Unix-domain socket (not supported on Windows);
-        - a sequence of any of the above, in which case the addresses
-          will be tried in order, and the host of the first successful
-          connection will be used for the whole connection pool.
+        Database host address as an IP address or a domain name;
 
         If not specified, the following will be tried, in order:
 
         - host address(es) parsed from the *dsn* argument,
         - the value of the ``EDGEDB_HOST`` environment variable,
-        - on Unix, common directories used for EdgeDB Unix-domain
-          sockets: ``"/run/edgedb"`` and ``"/var/run/edgedb"``,
         - ``"localhost"``.
 
     :param port:
-        Port number to connect to at the server host
-        (or Unix-domain socket file extension).  If multiple host
+        Port number to connect to at the server host. If multiple host
         addresses were specified, this parameter may specify a
         sequence of port numbers of the same length as the host sequence,
         or it may specify a single port number to be used for all host
