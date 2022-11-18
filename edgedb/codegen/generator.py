@@ -135,7 +135,7 @@ class Generator:
             sys.exit(2)
         print(f"Found EdgeDB project: {self._project_dir}", file=sys.stderr)
         self._client = edgedb.create_client(**_get_conn_args(args))
-        self._file_mode = args.file
+        self._single_mode_files = args.file
         self._method_names = set()
         self._describe_results = []
 
@@ -165,7 +165,7 @@ class Generator:
         for target, suffix, is_async in SUFFIXES:
             if target in self._targets:
                 self._async = is_async
-                if self._file_mode:
+                if self._single_mode_files:
                     self._generate_single_file(suffix)
                 else:
                     self._generate_files(suffix)
@@ -188,7 +188,7 @@ class Generator:
         with source.open() as f:
             query = f.read()
         name = source.stem
-        if self._file_mode:
+        if self._single_mode_files:
             if name in self._method_names:
                 print(f"Conflict method names: {name}", file=sys.stderr)
                 sys.exit(17)
@@ -210,8 +210,7 @@ class Generator:
                 f.write(buf.getvalue())
 
     def _generate_single_file(self, suffix: str):
-        target = self._project_dir / f"{FILE_MODE_OUTPUT_FILE}{suffix}"
-        print(f"Generating {target}", file=sys.stderr)
+        print(f"Generating single file output...", file=sys.stderr)
         buf = io.StringIO()
         output = []
         sources = []
@@ -225,8 +224,15 @@ class Generator:
             if i < len(output) - 1:
                 print(file=buf)
                 print(file=buf)
-        with target.open("w") as f:
-            f.write(buf.getvalue())
+
+        for target in self._single_mode_files:
+            if target:
+                target = pathlib.Path(target).absolute()
+            else:
+                target = self._project_dir / f"{FILE_MODE_OUTPUT_FILE}{suffix}"
+            print(f"Writing {target}", file=sys.stderr)
+            with target.open("w") as f:
+                f.write(buf.getvalue())
 
     def _write_comments(
         self, f: io.TextIOBase, src: typing.List[pathlib.Path]

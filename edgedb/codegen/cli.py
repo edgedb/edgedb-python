@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser(
     description="Generate Python code for .edgeql files."
 )
 parser.add_argument("--dsn")
-parser.add_argument("--credentials_file", metavar="PATH")
+parser.add_argument("--credentials-file", metavar="PATH")
 parser.add_argument("-I", "--instance", metavar="NAME")
 parser.add_argument("-H", "--host")
 parser.add_argument("-P", "--port")
@@ -42,7 +42,8 @@ parser.add_argument(
 )
 parser.add_argument(
     "--file",
-    action="store_true",
+    action="append",
+    nargs="?",
     help="Generate a single file instead of one per .edgeql file.",
 )
 parser.add_argument(
