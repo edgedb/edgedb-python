@@ -28,7 +28,7 @@ For `edgedb-python` version: Run `pip freeze` from your project directory and lo
 For Python version: Run `python --version`
 -->
 
-- OS (e.g. iOS):
+- OS:
 - EdgeDB version:
 - EdgeDB CLI version:
 - `edgedb-dart` version:
