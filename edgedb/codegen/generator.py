@@ -29,8 +29,10 @@ import edgedb
 from edgedb import abstract
 from edgedb import describe
 from edgedb.con_utils import find_edgedb_project_dir
+from edgedb.color import get_color
 
 
+C = get_color()
 SYS_VERSION_INFO = os.getenv("EDGEDB_PYTHON_CODEGEN_PY_VER")
 if SYS_VERSION_INFO:
     SYS_VERSION_INFO = tuple(map(int, SYS_VERSION_INFO.split(".")))[:2]
@@ -88,13 +90,20 @@ class NoPydanticValidation:
 """
 
 
+def print_msg(msg):
+    print(msg, file=sys.stderr)
+
+
+def print_error(msg):
+    print_msg(f"{C.BOLD}{C.FAIL}error: {C.ENDC}{C.BOLD}{msg}{C.ENDC}")
+
+
 def _get_conn_args(args: argparse.Namespace):
     if args.password_from_stdin:
         if args.password:
-            print(
+            print_error(
                 "--password and --password-from-stdin are "
                 "mutually exclusive",
-                file=sys.stderr,
             )
             sys.exit(22)
         if sys.stdin.isatty():
@@ -104,7 +113,7 @@ def _get_conn_args(args: argparse.Namespace):
     else:
         password = args.password
     if args.dsn and args.instance:
-        print("--dsn and --instance are mutually exclusive", file=sys.stderr)
+        print_error("--dsn and --instance are mutually exclusive")
         sys.exit(22)
     return dict(
         dsn=args.dsn or args.instance,
@@ -133,9 +142,9 @@ class Generator:
                 "codegen must be run under an EdgeDB project dir"
             )
             sys.exit(2)
-        print(f"Found EdgeDB project: {self._project_dir}", file=sys.stderr)
+        print_msg(f"Found EdgeDB project: {C.BOLD}{self._project_dir}{C.ENDC}")
         self._client = edgedb.create_client(**_get_conn_args(args))
-        self._file_mode = args.file
+        self._single_mode_files = args.file
         self._method_names = set()
         self._describe_results = []
 
@@ -165,11 +174,12 @@ class Generator:
         for target, suffix, is_async in SUFFIXES:
             if target in self._targets:
                 self._async = is_async
-                if self._file_mode:
+                if self._single_mode_files:
                     self._generate_single_file(suffix)
                 else:
                     self._generate_files(suffix)
                 self._new_file()
+        print_msg(f"{C.GREEN}{C.BOLD}Done.{C.ENDC}")
 
     def _process_dir(self, dir_: pathlib.Path):
         for file_or_dir in dir_.iterdir():
@@ -184,13 +194,13 @@ class Generator:
                 self._process_file(file_or_dir)
 
     def _process_file(self, source: pathlib.Path):
-        print(f"Processing {source}", file=sys.stderr)
+        print_msg(f"{C.BOLD}Processing{C.ENDC} {C.BLUE}{source}{C.ENDC}")
         with source.open() as f:
             query = f.read()
         name = source.stem
-        if self._file_mode:
+        if self._single_mode_files:
             if name in self._method_names:
-                print(f"Conflict method names: {name}", file=sys.stderr)
+                print_error(f"Conflict method names: {name}")
                 sys.exit(17)
             self._method_names.add(name)
         dr = self._client._describe_query(query, inject_type_names=True)
@@ -199,7 +209,7 @@ class Generator:
     def _generate_files(self, suffix: str):
         for name, source, query, dr in self._describe_results:
             target = source.parent / f"{name}{suffix}"
-            print(f"Generating {target}", file=sys.stderr)
+            print_msg(f"{C.BOLD}Generating{C.ENDC} {C.BLUE}{target}{C.ENDC}")
             self._new_file()
             content = self._generate(name, query, dr)
             buf = io.StringIO()
@@ -210,8 +220,7 @@ class Generator:
                 f.write(buf.getvalue())
 
     def _generate_single_file(self, suffix: str):
-        target = self._project_dir / f"{FILE_MODE_OUTPUT_FILE}{suffix}"
-        print(f"Generating {target}", file=sys.stderr)
+        print_msg(f"{C.BOLD}Generating single file output...{C.ENDC}")
         buf = io.StringIO()
         output = []
         sources = []
@@ -225,8 +234,15 @@ class Generator:
             if i < len(output) - 1:
                 print(file=buf)
                 print(file=buf)
-        with target.open("w") as f:
-            f.write(buf.getvalue())
+
+        for target in self._single_mode_files:
+            if target:
+                target = pathlib.Path(target).absolute()
+            else:
+                target = self._project_dir / f"{FILE_MODE_OUTPUT_FILE}{suffix}"
+            print_msg(f"{C.BOLD}Writing{C.ENDC} {C.BLUE}{target}{C.ENDC}")
+            with target.open("w") as f:
+                f.write(buf.getvalue())
 
     def _write_comments(
         self, f: io.TextIOBase, src: typing.List[pathlib.Path]
@@ -510,10 +526,7 @@ class Generator:
                     name = new
                     break
             else:
-                print(
-                    f"Failed to find a unique name for: {name}",
-                    file=sys.stderr,
-                )
+                print_error(f"Failed to find a unique name for: {name}")
                 sys.exit(17)
         self._names.add(name)
         return name

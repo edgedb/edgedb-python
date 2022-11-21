@@ -23,11 +23,21 @@ import sys
 from . import generator
 
 
-parser = argparse.ArgumentParser(
+class ColoredArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        c = generator.C
+        self.exit(
+            2,
+            f"{c.BOLD}{c.FAIL}error:{c.ENDC} "
+            f"{c.BOLD}{message:s}{c.ENDC}\n",
+        )
+
+
+parser = ColoredArgumentParser(
     description="Generate Python code for .edgeql files."
 )
 parser.add_argument("--dsn")
-parser.add_argument("--credentials_file", metavar="PATH")
+parser.add_argument("--credentials-file", metavar="PATH")
 parser.add_argument("-I", "--instance", metavar="NAME")
 parser.add_argument("-H", "--host")
 parser.add_argument("-P", "--port")
@@ -42,7 +52,8 @@ parser.add_argument(
 )
 parser.add_argument(
     "--file",
-    action="store_true",
+    action="append",
+    nargs="?",
     help="Generate a single file instead of one per .edgeql file.",
 )
 parser.add_argument(
