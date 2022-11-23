@@ -282,10 +282,9 @@ def _format_error(msg, query, start, offset, line, col, hint):
 
 
 def _unicode_width(text):
-    return sum(
-        2 if unicodedata.east_asian_width(c) == "W" else 1
-        for c in unicodedata.normalize("NFC", text)
-    )
+    return sum(0 if unicodedata.category(c) in ('Mn', 'Cf') else
+               2 if unicodedata.east_asian_width(c) == "W" else 1
+               for c in text)
 
 
 FIELD_HINT = 0x_00_01
