@@ -17,6 +17,8 @@
 #
 
 
+import base64
+import binascii
 import errno
 import json
 import os
@@ -70,6 +72,9 @@ HUMAN_MS_RE = re.compile(
 )
 HUMAN_US_RE = re.compile(
     r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:us(\s|\d|\.|$)|microseconds?(\s|$))',
+)
+INSTANCE_NAME_RE = re.compile(
+    r'^([A-Za-z_]\w*)(?:/([A-Za-z_]\w*))?$',
 )
 
 
@@ -175,6 +180,9 @@ class ResolvedConnectConfig:
     _password = None
     _password_source = None
 
+    _secret_key = None
+    _secret_key_source = None
+
     _tls_ca_data = None
     _tls_ca_data_source = None
 
@@ -210,6 +218,9 @@ class ResolvedConnectConfig:
 
     def set_password(self, password, source):
         self._set_param('password', password, source)
+
+    def set_secret_key(self, secret_key, source):
+        self._set_param('secret_key', secret_key, source)
 
     def set_tls_ca_data(self, ca_data, source):
         self._set_param('tls_ca_data', ca_data, source)
@@ -255,6 +266,10 @@ class ResolvedConnectConfig:
     @property
     def password(self):
         return self._password
+
+    @property
+    def secret_key(self):
+        return self._secret_key
 
     @property
     def tls_security(self):
@@ -491,6 +506,7 @@ def _parse_connect_dsn_and_args(
     credentials_file,
     user,
     password,
+    secret_key,
     database,
     tls_ca,
     tls_ca_file,
@@ -534,6 +550,10 @@ def _parse_connect_dsn_and_args(
             (password, '"password" option')
             if password is not None else None
         ),
+        secret_key=(
+            (secret_key, '"secret_key" option')
+            if secret_key is not None else None
+        ),
         tls_ca=(
             (tls_ca, '"tls_ca" option')
             if tls_ca is not None else None
@@ -574,6 +594,7 @@ def _parse_connect_dsn_and_args(
         env_database = os.getenv('EDGEDB_DATABASE')
         env_user = os.getenv('EDGEDB_USER')
         env_password = os.getenv('EDGEDB_PASSWORD')
+        env_secret_key = os.getenv('EDGEDB_SECRET_KEY')
         env_tls_ca = os.getenv('EDGEDB_TLS_CA')
         env_tls_ca_file = os.getenv('EDGEDB_TLS_CA_FILE')
         env_tls_security = os.getenv('EDGEDB_CLIENT_TLS_SECURITY')
@@ -616,6 +637,10 @@ def _parse_connect_dsn_and_args(
             password=(
                 (env_password, '"EDGEDB_PASSWORD" environment variable')
                 if env_password is not None else None
+            ),
+            secret_key=(
+                (env_secret_key, '"EDGEDB_SECRET_KEY" environment variable')
+                if env_secret_key is not None else None
             ),
             tls_ca=(
                 (env_tls_ca, '"EDGEDB_TLS_CA" environment variable')
@@ -775,6 +800,11 @@ def _parse_dsn_into_config(
     )
 
     handle_dsn_part(
+        'secret_key', None,
+        resolved_config._secret_key, resolved_config.set_secret_key
+    )
+
+    handle_dsn_part(
         'tls_ca_file', None,
         resolved_config._tls_ca_data, resolved_config.set_tls_ca_file
     )
@@ -794,6 +824,47 @@ def _parse_dsn_into_config(
     resolved_config.add_server_settings(query)
 
 
+def _jwt_base64_decode(payload):
+    remainder = len(payload) % 4
+    if remainder == 2:
+        payload += '=='
+    elif remainder == 3:
+        payload += '='
+    elif remainder != 0:
+        raise errors.ClientConnectionError("Invalid secret key")
+    payload = base64.urlsafe_b64decode(payload.encode("utf-8"))
+    return json.loads(payload.decode("utf-8"))
+
+
+def _parse_cloud_instance_name_into_config(
+    resolved_config: ResolvedConnectConfig,
+    source: str,
+    org_slug: str,
+    instance_name: str,
+):
+    secret_key = resolved_config.secret_key
+    if secret_key is None:
+        try:
+            path = platform.config_dir() / "cloud.json"
+            with open(path, encoding="utf-8") as f:
+                secret_key = json.load(f)["access_token"]
+        except Exception:
+            raise errors.ClientConnectionError(
+                "Cannot connect to cloud instances without secret key."
+            )
+        resolved_config.set_secret_key(secret_key, "cloud.json")
+    try:
+        dns_zone = _jwt_base64_decode(secret_key.split(".", 2)[1])["iss"]
+    except errors.EdgeDBError:
+        raise
+    except Exception:
+        raise errors.ClientConnectionError("Invalid secret key")
+    payload = f"{org_slug}/{instance_name}".encode("utf-8")
+    dns_bucket = binascii.crc_hqx(payload, 0) % 9900
+    host = f"{instance_name}.{org_slug}.c-{dns_bucket:x}.i.{dns_zone}"
+    resolved_config.set_host(host, source)
+
+
 def _resolve_config_options(
     resolved_config: ResolvedConnectConfig,
     compound_error: str,
@@ -807,6 +878,7 @@ def _resolve_config_options(
     database=None,
     user=None,
     password=None,
+    secret_key=None,
     tls_ca=None,
     tls_ca_file=None,
     tls_security=None,
@@ -819,6 +891,8 @@ def _resolve_config_options(
         resolved_config.set_user(*user)
     if password is not None:
         resolved_config.set_password(*password)
+    if secret_key is not None:
+        resolved_config.set_secret_key(*secret_key)
     if tls_ca_file is not None:
         if tls_ca is not None:
             raise errors.ClientConnectionError(
@@ -869,21 +943,22 @@ def _resolve_config_options(
                     creds = cred_utils.validate_credentials(cred_data)
                 source = "credentials"
             else:
-                if (
-                    re.match(
-                        '^[A-Za-z_][A-Za-z_0-9]*$',
-                        instance_name[0]
-                    ) is None
-                ):
+                name_match = INSTANCE_NAME_RE.match(instance_name[0])
+                if name_match is None:
                     raise ValueError(
                         f'invalid DSN or instance name: "{instance_name[0]}"'
                     )
+                source = instance_name[1]
+                org, inst = name_match.groups()
+                if inst is not None:
+                    _parse_cloud_instance_name_into_config(
+                        resolved_config, source, org, inst
+                    )
+                    return True
 
                 creds = cred_utils.read_credentials(
                     cred_utils.get_credentials_path(instance_name[0]),
                 )
-
-                source = instance_name[1]
 
             resolved_config.set_host(creds.get('host'), source)
             resolved_config.set_port(creds.get('port'), source)
@@ -939,6 +1014,7 @@ def parse_connect_arguments(
     database,
     user,
     password,
+    secret_key,
     tls_ca,
     tls_ca_file,
     tls_security,
@@ -970,6 +1046,7 @@ def parse_connect_arguments(
         database=database,
         user=user,
         password=password,
+        secret_key=secret_key,
         tls_ca=tls_ca,
         tls_ca_file=tls_ca_file,
         tls_security=tls_security,
