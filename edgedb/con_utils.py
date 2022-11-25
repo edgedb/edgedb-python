@@ -191,6 +191,9 @@ class ResolvedConnectConfig:
 
     _wait_until_available = None
 
+    _cloud_profile = None
+    _cloud_profile_source = None
+
     server_settings = {}
 
     def _set_param(self, param, value, source, validator=None):
@@ -521,6 +524,7 @@ def _parse_connect_dsn_and_args(
         if dsn is not None and re.match('(?i)^[a-z]+://', dsn)
         else (None, dsn)
     )
+    cloud_profile = os.getenv('EDGEDB_CLOUD_PROFILE')
 
     has_compound_options = _resolve_config_options(
         resolved_config,
@@ -573,7 +577,12 @@ def _parse_connect_dsn_and_args(
         wait_until_available=(
             (wait_until_available, '"wait_until_available" option')
             if wait_until_available is not None else None
-        )
+        ),
+        cloud_profile=(
+            (cloud_profile,
+             '"EDGEDB_CLOUD_PROFILE" environment variable')
+            if cloud_profile is not None else None
+        ),
     )
 
     if has_compound_options is False:
@@ -660,7 +669,7 @@ def _parse_connect_dsn_and_args(
                     env_wait_until_available,
                     '"EDGEDB_WAIT_UNTIL_AVAILABLE" environment variable'
                 ) if env_wait_until_available is not None else None
-            )
+            ),
         )
 
     if not has_compound_options:
@@ -669,15 +678,25 @@ def _parse_connect_dsn_and_args(
         if os.path.exists(stash_dir):
             with open(os.path.join(stash_dir, 'instance-name'), 'rt') as f:
                 instance_name = f.read().strip()
+            cloud_profile_file = os.path.join(stash_dir, 'cloud-profile')
+            if os.path.exists(cloud_profile_file):
+                with open(cloud_profile_file, 'rt') as f:
+                    cloud_profile = f.read().strip()
+            else:
+                cloud_profile = None
 
-                _resolve_config_options(
-                    resolved_config,
-                    '',
-                    instance_name=(
-                        instance_name,
-                        f'project linked instance ("{instance_name}")'
-                    )
-                )
+            _resolve_config_options(
+                resolved_config,
+                '',
+                instance_name=(
+                    instance_name,
+                    f'project linked instance ("{instance_name}")'
+                ),
+                cloud_profile=(
+                    cloud_profile,
+                    f'project defined cloud profile ("{cloud_profile}")'
+                ),
+            )
         else:
             raise errors.ClientConnectionError(
                 f'Found `edgedb.toml` but the project is not initialized. '
@@ -845,14 +864,23 @@ def _parse_cloud_instance_name_into_config(
     secret_key = resolved_config.secret_key
     if secret_key is None:
         try:
-            path = platform.config_dir() / "cloud.json"
-            with open(path, encoding="utf-8") as f:
-                secret_key = json.load(f)["access_token"]
+            config_dir = platform.config_dir()
+            if resolved_config._cloud_profile is None:
+                profile = profile_src = "default"
+            else:
+                profile = resolved_config._cloud_profile
+                profile_src = resolved_config._cloud_profile_source
+            path = config_dir / "cloud-credentials" / f"{profile}.json"
+            with open(path, "rt") as f:
+                secret_key = json.load(f)["secret_key"]
         except Exception:
             raise errors.ClientConnectionError(
                 "Cannot connect to cloud instances without secret key."
             )
-        resolved_config.set_secret_key(secret_key, "cloud.json")
+        resolved_config.set_secret_key(
+            secret_key,
+            f"cloud-credentials/{profile}.json specified by {profile_src}",
+        )
     try:
         dns_zone = _jwt_base64_decode(secret_key.split(".", 2)[1])["iss"]
     except errors.EdgeDBError:
@@ -884,6 +912,7 @@ def _resolve_config_options(
     tls_security=None,
     server_settings=None,
     wait_until_available=None,
+    cloud_profile=None,
 ):
     if database is not None:
         resolved_config.set_database(*database)
@@ -906,6 +935,8 @@ def _resolve_config_options(
         resolved_config.add_server_settings(server_settings[0])
     if wait_until_available is not None:
         resolved_config.set_wait_until_available(*wait_until_available)
+    if cloud_profile is not None:
+        resolved_config._set_param('cloud_profile', *cloud_profile)
 
     compound_params = [
         dsn,
