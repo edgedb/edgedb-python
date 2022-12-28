@@ -15,6 +15,7 @@ Client
 .. py:function:: create_async_client(dsn=None, *, \
             host=None, port=None, \
             user=None, password=None, \
+            secret_key=None, \
             database=None, \
             timeout=60, \
             concurrency=None)
@@ -81,6 +82,14 @@ Client
         Password to be used for authentication, if the server requires
         one.  If not specified, the value parsed from the *dsn* argument
         is used, or the value of the ``EDGEDB_PASSWORD`` environment variable.
+        Note that the use of the environment variable is discouraged as
+        other users and applications may be able to read it without needing
+        specific privileges.
+
+    :param secret_key:
+        Secret key to be used for authentication, if the server requires one.
+        If not specified, the value parsed from the *dsn* argument is used,
+        or the value of the ``EDGEDB_SECRET_KEY`` environment variable.
         Note that the use of the environment variable is discouraged as
         other users and applications may be able to read it without needing
         specific privileges.

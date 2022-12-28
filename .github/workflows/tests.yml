@@ -26,12 +26,23 @@ jobs:
       matrix:
         python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
         edgedb-version: [stable , nightly]
-        os: [ubuntu-latest, macos-latest, windows-2019]
+        os: [ubuntu-20.04, ubuntu-latest, macos-latest, windows-2019]
         loop: [asyncio, uvloop]
         exclude:
           # uvloop does not support windows
           - loop: uvloop
             os: windows-2019
+          # Python 3.7 on ubuntu-22.04 has a broken OpenSSL 3.0
+          - python-version: 3.7
+            os: ubuntu-latest
+          - python-version: 3.8
+            os: ubuntu-20.04
+          - python-version: 3.9
+            os: ubuntu-20.04
+          - python-version: 3.10
+            os: ubuntu-20.04
+          - python-version: 3.11
+            os: ubuntu-20.04
 
     steps:
     - uses: actions/checkout@v2
@@ -70,7 +81,7 @@ jobs:
         server-version: ${{ matrix.edgedb-version }}
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       if: steps.release.outputs.version == 0
       with:
         python-version: ${{ matrix.python-version }}
