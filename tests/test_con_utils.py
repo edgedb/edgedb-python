@@ -68,7 +68,12 @@ class TestConUtils(unittest.TestCase):
         'file_not_found': (FileNotFoundError, 'No such file or directory'),
         'invalid_tls_security': (
             ValueError, 'tls_security can only be one of `insecure`, '
-            '|tls_security must be set to strict')
+            '|tls_security must be set to strict'),
+        'invalid_secret_key': (
+            errors.ClientConnectionError, "Invalid secret key"),
+        'secret_key_not_found': (
+            errors.ClientConnectionError,
+            "Cannot connect to cloud instances without secret key"),
     }
 
     @contextlib.contextmanager
@@ -98,6 +103,7 @@ class TestConUtils(unittest.TestCase):
         env = testcase.get('env', {})
         test_env = {'EDGEDB_HOST': None, 'EDGEDB_PORT': None,
                     'EDGEDB_USER': None, 'EDGEDB_PASSWORD': None,
+                    'EDGEDB_SECRET_KEY': None,
                     'EDGEDB_DATABASE': None, 'PGSSLMODE': None,
                     'XDG_CONFIG_HOME': None}
         test_env.update(env)
@@ -105,7 +111,7 @@ class TestConUtils(unittest.TestCase):
         fs = testcase.get('fs')
 
         opts = testcase.get('opts', {})
-        dsn = opts.get('dsn')
+        dsn = opts['instance'] if 'instance' in opts else opts.get('dsn')
         credentials = opts.get('credentials')
         credentials_file = opts.get('credentialsFile')
         host = opts.get('host')
@@ -113,6 +119,7 @@ class TestConUtils(unittest.TestCase):
         database = opts.get('database')
         user = opts.get('user')
         password = opts.get('password')
+        secret_key = opts.get('secretKey')
         tls_ca = opts.get('tlsCA')
         tls_ca_file = opts.get('tlsCAFile')
         tls_security = opts.get('tlsSecurity')
@@ -172,6 +179,9 @@ class TestConUtils(unittest.TestCase):
                             files[instance] = v['instance-name']
                             project = os.path.join(dir, 'project-path')
                             files[project] = v['project-path']
+                            if 'cloud-profile' in v:
+                                profile = os.path.join(dir, 'cloud-profile')
+                                files[profile] = v['cloud-profile']
                             del files[f]
 
                     es.enter_context(
@@ -219,6 +229,7 @@ class TestConUtils(unittest.TestCase):
                 database=database,
                 user=user,
                 password=password,
+                secret_key=secret_key,
                 tls_ca=tls_ca,
                 tls_ca_file=tls_ca_file,
                 tls_security=tls_security,
@@ -235,6 +246,7 @@ class TestConUtils(unittest.TestCase):
                 'database': connect_config.database,
                 'user': connect_config.user,
                 'password': connect_config.password,
+                'secretKey': connect_config.secret_key,
                 'tlsCAData': connect_config._tls_ca_data,
                 'tlsSecurity': connect_config.tls_security,
                 'serverSettings': connect_config.server_settings,
@@ -285,6 +297,7 @@ class TestConUtils(unittest.TestCase):
                     'database': 'edgedb',
                     'user': '__test__',
                     'password': None,
+                    'secretKey': None,
                     'tlsCAData': None,
                     'tlsSecurity': 'strict',
                     'serverSettings': {},
@@ -378,6 +391,7 @@ class TestConUtils(unittest.TestCase):
                         credentials_file=None,
                         user=None,
                         password=None,
+                        secret_key=None,
                         database=None,
                         tls_ca=None,
                         tls_ca_file=None,
