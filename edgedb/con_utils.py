@@ -524,7 +524,6 @@ def _parse_connect_dsn_and_args(
         if dsn is not None and re.match('(?i)^[a-z]+://', dsn)
         else (None, dsn)
     )
-    cloud_profile = os.getenv('EDGEDB_CLOUD_PROFILE')
 
     has_compound_options = _resolve_config_options(
         resolved_config,
@@ -578,11 +577,6 @@ def _parse_connect_dsn_and_args(
             (wait_until_available, '"wait_until_available" option')
             if wait_until_available is not None else None
         ),
-        cloud_profile=(
-            (cloud_profile,
-             '"EDGEDB_CLOUD_PROFILE" environment variable')
-            if cloud_profile is not None else None
-        ),
     )
 
     if has_compound_options is False:
@@ -608,6 +602,7 @@ def _parse_connect_dsn_and_args(
         env_tls_ca_file = os.getenv('EDGEDB_TLS_CA_FILE')
         env_tls_security = os.getenv('EDGEDB_CLIENT_TLS_SECURITY')
         env_wait_until_available = os.getenv('EDGEDB_WAIT_UNTIL_AVAILABLE')
+        cloud_profile = os.getenv('EDGEDB_CLOUD_PROFILE')
 
         has_compound_options = _resolve_config_options(
             resolved_config,
@@ -669,6 +664,11 @@ def _parse_connect_dsn_and_args(
                     env_wait_until_available,
                     '"EDGEDB_WAIT_UNTIL_AVAILABLE" environment variable'
                 ) if env_wait_until_available is not None else None
+            ),
+            cloud_profile=(
+                (cloud_profile,
+                 '"EDGEDB_CLOUD_PROFILE" environment variable')
+                if cloud_profile is not None else None
             ),
         )
 
