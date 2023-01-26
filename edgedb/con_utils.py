@@ -888,8 +888,8 @@ def _parse_cloud_instance_name_into_config(
     except Exception:
         raise errors.ClientConnectionError("Invalid secret key")
     payload = f"{org_slug}/{instance_name}".encode("utf-8")
-    dns_bucket = binascii.crc_hqx(payload, 0) % 9900
-    host = f"{instance_name}.{org_slug}.c-{dns_bucket:x}.i.{dns_zone}"
+    dns_bucket = binascii.crc_hqx(payload, 0) % 100
+    host = f"{instance_name}--{org_slug}.c-{dns_bucket:02d}.i.{dns_zone}"
     resolved_config.set_host(host, source)
 
 
