@@ -558,7 +558,7 @@ Generally it's recommended to not execute any long running
 code within the transaction unless absolutely necessary.
 
 Transactions allocate expensive server resources, and having
-too many concurrently long-running transactions will
+too many concurrent long-running transactions will
 negatively impact the performance of the DB server.
 
 To rollback a transaction that is in progress raise an exception.
