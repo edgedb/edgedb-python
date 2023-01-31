@@ -78,8 +78,8 @@ types and vice versa.  See :ref:`edgedb-python-datatypes` for details.
 Client connection pools
 -----------------------
 
-For server-type type applications that handle frequent requests and need
-the database connection for a short period time while handling a request,
+For server-type applications that handle frequent requests and need
+the database connection for a short period of time while handling a request,
 the use of a connection pool is recommended. Both :py:class:`edgedb.Client`
 and :py:class:`edgedb.AsyncIOClient` come with such a pool.
 
