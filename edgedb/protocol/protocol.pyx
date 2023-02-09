@@ -850,7 +850,7 @@ cdef class SansIOProtocol:
             'database': self.con_params.database,
         }
         if self.con_params.secret_key:
-            params['token'] = self.con_params.secret_key
+            params['secret_key'] = self.con_params.secret_key
         handshake_buf.write_int16(len(params))
         for k, v in params.items():
             handshake_buf.write_len_prefixed_utf8(k)

@@ -61,14 +61,10 @@ class BlockingIOConnection(base_client.BaseConnection):
                         raise TimeoutError
 
                     # Upgrade to TLS
-                    if self._params.ssl_ctx.check_hostname:
-                        server_hostname = addr[0]
-                    else:
-                        server_hostname = None
                     sock.settimeout(time_left)
                     try:
                         sock = self._params.ssl_ctx.wrap_socket(
-                            sock, server_hostname=server_hostname
+                            sock, server_hostname=addr[0]
                         )
                     except ssl.CertificateError as e:
                         raise con_utils.wrap_error(e) from e
