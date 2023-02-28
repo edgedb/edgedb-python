@@ -995,6 +995,10 @@ cdef register_base_scalar_codecs():
         config_memory_encode,
         config_memory_decode)
 
+    register_base_scalar_codec(
+        'fts::language',
+        pgproto.text_encode,
+        pgproto.text_decode)
 
     register_base_scalar_codec(
         'ext::pgvector::vector',
