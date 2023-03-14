@@ -32,6 +32,10 @@ and :ref:`asyncio <edgedb-python-asyncio-api-reference>` implementations.
 
   EdgeDB Python types documentation.
 
+* :ref:`edgedb-python-codegen`
+
+  Python code generation command-line tool documentation.
+  
 * :ref:`edgedb-python-advanced`
 
   Advanced usages of the state and optional customization.
