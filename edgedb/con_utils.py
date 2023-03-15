@@ -74,13 +74,14 @@ HUMAN_US_RE = re.compile(
     r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:us(\s|\d|\.|$)|microseconds?(\s|$))',
 )
 INSTANCE_NAME_RE = re.compile(
-    r'^(\w(?:\w|-(?=\w))*)(?:/(\w(?:\w|-(?=\w))*))?$',
+    r'^(\w(?:-?\w)*)(?:/(\w(?:-?\w)*))?$',
     re.ASCII,
 )
 DSN_RE = re.compile(
     r'^[a-z]+://',
     re.IGNORECASE,
 )
+DOMAIN_LABEL_MAX_LENGTH = 63
 
 
 class ClientConfiguration(typing.NamedTuple):
@@ -866,9 +867,10 @@ def _parse_cloud_instance_name_into_config(
     instance_name: str,
 ):
     label = f"{instance_name}--{org_slug}"
-    if len(label) > 63:
+    if len(label) > DOMAIN_LABEL_MAX_LENGTH:
         raise ValueError(
-            f"invalid instance name: too long for cloud: "
+            f"invalid instance name: cloud instance name length cannot exceed "
+            f"{DOMAIN_LABEL_MAX_LENGTH - 1} characters: "
             f"{org_slug}/{instance_name}"
         )
     secret_key = resolved_config.secret_key
