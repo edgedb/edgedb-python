@@ -74,7 +74,11 @@ HUMAN_US_RE = re.compile(
     r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:us(\s|\d|\.|$)|microseconds?(\s|$))',
 )
 INSTANCE_NAME_RE = re.compile(
-    r'^(\w(?:-?\w)*)(?:/(\w(?:-?\w)*))?$',
+    r'^(\w(?:-?\w)*)$',
+    re.ASCII,
+)
+CLOUD_INSTANCE_NAME_RE = re.compile(
+    r'^([A-Za-z0-9](?:-?[A-Za-z0-9])*)/([A-Za-z0-9](?:-?[A-Za-z0-9])*)$',
     re.ASCII,
 )
 DSN_RE = re.compile(
@@ -985,23 +989,23 @@ def _resolve_config_options(
                 else:
                     creds = cred_utils.validate_credentials(cred_data)
                 source = "credentials"
+            elif INSTANCE_NAME_RE.match(instance_name[0]):
+                source = instance_name[1]
+                creds = cred_utils.read_credentials(
+                    cred_utils.get_credentials_path(instance_name[0]),
+                )
             else:
-                name_match = INSTANCE_NAME_RE.match(instance_name[0])
+                name_match = CLOUD_INSTANCE_NAME_RE.match(instance_name[0])
                 if name_match is None:
                     raise ValueError(
                         f'invalid DSN or instance name: "{instance_name[0]}"'
                     )
                 source = instance_name[1]
                 org, inst = name_match.groups()
-                if inst is not None:
-                    _parse_cloud_instance_name_into_config(
-                        resolved_config, source, org, inst
-                    )
-                    return True
-
-                creds = cred_utils.read_credentials(
-                    cred_utils.get_credentials_path(instance_name[0]),
+                _parse_cloud_instance_name_into_config(
+                    resolved_config, source, org, inst
                 )
+                return True
 
             resolved_config.set_host(creds.get('host'), source)
             resolved_config.set_port(creds.get('port'), source)
