@@ -74,8 +74,18 @@ HUMAN_US_RE = re.compile(
     r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:us(\s|\d|\.|$)|microseconds?(\s|$))',
 )
 INSTANCE_NAME_RE = re.compile(
-    r'^([A-Za-z_]\w*)(?:/([A-Za-z_]\w*))?$',
+    r'^(\w(?:-?\w)*)$',
+    re.ASCII,
 )
+CLOUD_INSTANCE_NAME_RE = re.compile(
+    r'^([A-Za-z0-9](?:-?[A-Za-z0-9])*)/([A-Za-z0-9](?:-?[A-Za-z0-9])*)$',
+    re.ASCII,
+)
+DSN_RE = re.compile(
+    r'^[a-z]+://',
+    re.IGNORECASE,
+)
+DOMAIN_LABEL_MAX_LENGTH = 63
 
 
 class ClientConfiguration(typing.NamedTuple):
@@ -519,11 +529,10 @@ def _parse_connect_dsn_and_args(
 ):
     resolved_config = ResolvedConnectConfig()
 
-    dsn, instance_name = (
-        (dsn, None)
-        if dsn is not None and re.match('(?i)^[a-z]+://', dsn)
-        else (None, dsn)
-    )
+    if dsn and DSN_RE.match(dsn):
+        instance_name = None
+    else:
+        instance_name, dsn = dsn, None
 
     has_compound_options = _resolve_config_options(
         resolved_config,
@@ -861,6 +870,13 @@ def _parse_cloud_instance_name_into_config(
     org_slug: str,
     instance_name: str,
 ):
+    label = f"{instance_name}--{org_slug}"
+    if len(label) > DOMAIN_LABEL_MAX_LENGTH:
+        raise ValueError(
+            f"invalid instance name: cloud instance name length cannot exceed "
+            f"{DOMAIN_LABEL_MAX_LENGTH - 1} characters: "
+            f"{org_slug}/{instance_name}"
+        )
     secret_key = resolved_config.secret_key
     if secret_key is None:
         try:
@@ -889,7 +905,7 @@ def _parse_cloud_instance_name_into_config(
         raise errors.ClientConnectionError("Invalid secret key")
     payload = f"{org_slug}/{instance_name}".encode("utf-8")
     dns_bucket = binascii.crc_hqx(payload, 0) % 100
-    host = f"{instance_name}--{org_slug}.c-{dns_bucket:02d}.i.{dns_zone}"
+    host = f"{label}.c-{dns_bucket:02d}.i.{dns_zone}"
     resolved_config.set_host(host, source)
 
 
@@ -973,23 +989,23 @@ def _resolve_config_options(
                 else:
                     creds = cred_utils.validate_credentials(cred_data)
                 source = "credentials"
+            elif INSTANCE_NAME_RE.match(instance_name[0]):
+                source = instance_name[1]
+                creds = cred_utils.read_credentials(
+                    cred_utils.get_credentials_path(instance_name[0]),
+                )
             else:
-                name_match = INSTANCE_NAME_RE.match(instance_name[0])
+                name_match = CLOUD_INSTANCE_NAME_RE.match(instance_name[0])
                 if name_match is None:
                     raise ValueError(
                         f'invalid DSN or instance name: "{instance_name[0]}"'
                     )
                 source = instance_name[1]
                 org, inst = name_match.groups()
-                if inst is not None:
-                    _parse_cloud_instance_name_into_config(
-                        resolved_config, source, org, inst
-                    )
-                    return True
-
-                creds = cred_utils.read_credentials(
-                    cred_utils.get_credentials_path(instance_name[0]),
+                _parse_cloud_instance_name_into_config(
+                    resolved_config, source, org, inst
                 )
+                return True
 
             resolved_config.set_host(creds.get('host'), source)
             resolved_config.set_port(creds.get('port'), source)
