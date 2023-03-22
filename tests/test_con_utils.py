@@ -46,6 +46,8 @@ class TestConUtils(unittest.TestCase):
             RuntimeError, 'cannot read credentials'),
         'invalid_dsn_or_instance_name': (
             ValueError, 'invalid DSN or instance name'),
+        'invalid_instance_name': (
+            ValueError, 'invalid instance name'),
         'invalid_dsn': (ValueError, 'invalid DSN'),
         'unix_socket_unsupported': (
             ValueError, 'unix socket paths not supported'),
