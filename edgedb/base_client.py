@@ -186,6 +186,10 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 qc=execute_context.cache.query_cache,
                 output_format=protocol.OutputFormat.NONE,
                 allow_capabilities=enums.Capability.ALL,
+                state=(
+                    execute_context.state.as_dict()
+                    if execute_context.state else None
+                ),
             )
 
     def is_in_transaction(self) -> bool:
