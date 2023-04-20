@@ -1030,3 +1030,18 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             DROP TYPE test::dup_link_prop_name_p;
             DROP TYPE test::dup_link_prop_name;
         ''')
+
+    async def test_transaction_state(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "cannot assign to id"):
+            async for tx in self.client.transaction():
+                async with tx:
+                    await tx.execute('''
+                        INSERT test::Tmp { id := <uuid>$0, tmp := '' }
+                    ''', uuid.uuid4())
+
+        client = self.client.with_config(allow_user_specified_id=True)
+        async for tx in client.transaction():
+            async with tx:
+                await tx.execute('''
+                    INSERT test::Tmp { id := <uuid>$0, tmp := '' }
+                ''', uuid.uuid4())
