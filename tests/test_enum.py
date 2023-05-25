@@ -99,3 +99,12 @@ class TestEnum(tb.AsyncQueryTestCase):
         c_red = await self.client.query_single('SELECT <Color>"red"')
         c_red2 = await self.client.query_single('SELECT <Color>$0', c_red)
         self.assertIs(c_red, c_red2)
+
+    async def test_enum_04(self):
+        enums = await self.client.query_single(
+            'SELECT <array<Color>>$0', ['red', 'white']
+        )
+        enums2 = await self.client.query_single(
+            'SELECT <array<Color>>$0', enums
+        )
+        self.assertEqual(enums, enums2)
