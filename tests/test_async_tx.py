@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import asyncio
 import itertools
 
 import edgedb
@@ -89,3 +90,17 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
                 async with tx:
                     await tx.execute("start migration to {};")
         self.assertEqual(await self.client.query_single("select 42"), 42)
+
+    async def test_async_transaction_exclusive(self):
+        async for tx in self.client.transaction():
+            async with tx:
+                query = "select sys::_sleep(0.01)"
+                f1 = self.loop.create_task(tx.execute(query))
+                f2 = self.loop.create_task(tx.execute(query))
+                with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    "concurrent queries within the same transaction "
+                    "are not allowed"
+                ):
+                    await asyncio.wait_for(f1, timeout=5)
+                    await asyncio.wait_for(f2, timeout=5)
