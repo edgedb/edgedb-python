@@ -311,7 +311,10 @@ class Iteration(transaction.BaseTransaction, abstract.Executor):
     @contextlib.contextmanager
     def _exclusive(self):
         if not self._lock.acquire(blocking=False):
-            raise errors.InterfaceError("another operation is in progress")
+            raise errors.InterfaceError(
+                "concurrent queries within the same transaction "
+                "are not allowed"
+            )
         try:
             yield
         finally:

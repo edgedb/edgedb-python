@@ -98,7 +98,9 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
                 f1 = self.loop.create_task(tx.execute(query))
                 f2 = self.loop.create_task(tx.execute(query))
                 with self.assertRaisesRegex(
-                    edgedb.InterfaceError, "another operation is in progress"
+                    edgedb.InterfaceError,
+                    "concurrent queries within the same transaction "
+                    "are not allowed"
                 ):
                     await asyncio.wait_for(f1, timeout=5)
                     await asyncio.wait_for(f2, timeout=5)

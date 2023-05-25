@@ -312,7 +312,10 @@ class AsyncIOIteration(transaction.BaseTransaction, abstract.AsyncIOExecutor):
     @contextlib.contextmanager
     def _exclusive(self):
         if self._locked:
-            raise errors.InterfaceError("concurrent queries within the same transaction are not allowed")
+            raise errors.InterfaceError(
+                "concurrent queries within the same transaction "
+                "are not allowed"
+            )
         self._locked = True
         try:
             yield

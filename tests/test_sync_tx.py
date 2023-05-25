@@ -107,7 +107,9 @@ class TestSyncTx(tb.SyncQueryTestCase):
                     f1 = executor.submit(tx.execute, query)
                     f2 = executor.submit(tx.execute, query)
                     with self.assertRaisesRegex(
-                        edgedb.InterfaceError, "another operation is in progress"
+                        edgedb.InterfaceError,
+                        "concurrent queries within the same transaction "
+                        "are not allowed"
                     ):
                         f1.result(timeout=5)
                         f2.result(timeout=5)
