@@ -34,6 +34,10 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
         };
     '''
 
+    TEARDOWN_METHOD = '''
+        DELETE test::TransactionTest;
+    '''
+
     TEARDOWN = '''
         DROP TYPE test::TransactionTest;
     '''
@@ -104,3 +108,54 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
                 ):
                     await asyncio.wait_for(f1, timeout=5)
                     await asyncio.wait_for(f2, timeout=5)
+
+    async def test_async_transaction_savepoint_1(self):
+        async for tx in self.client.transaction():
+            async with tx:
+                sp1 = await tx.declare_savepoint("sp1")
+                sp2 = await tx.declare_savepoint("sp2")
+                with self.assertRaisesRegex(
+                    edgedb.InterfaceError, "savepoint.*already exists"
+                ):
+                    await tx.declare_savepoint("sp1")
+                await tx.execute('''
+                    INSERT test::TransactionTest { name := '1' };
+                ''')
+                await sp2.release()
+                with self.assertRaisesRegex(
+                    edgedb.InterfaceError, "savepoint.*is no longer active"
+                ):
+                    await sp2.release()
+                await sp1.release()
+
+        result = await self.client.query('SELECT test::TransactionTest.name')
+
+        self.assertEqual(result, ["1"])
+
+    async def test_async_transaction_savepoint_2(self):
+        async for tx in self.client.transaction():
+            async with tx:
+                await tx.execute('''
+                    INSERT test::TransactionTest { name := '1' };
+                ''')
+                sp1 = await tx.declare_savepoint("sp1")
+                await tx.execute('''
+                    INSERT test::TransactionTest { name := '2' };
+                ''')
+                sp2 = await tx.declare_savepoint("sp2")
+                await tx.execute('''
+                    INSERT test::TransactionTest { name := '3' };
+                ''')
+                await sp1.rollback()
+                with self.assertRaisesRegex(
+                    edgedb.InterfaceError, "savepoint.*is no longer active"
+                ):
+                    await sp1.rollback()
+                with self.assertRaisesRegex(
+                    edgedb.InterfaceError, "savepoint.*is no longer active"
+                ):
+                    await sp2.rollback()
+
+        result = await self.client.query('SELECT test::TransactionTest.name')
+
+        self.assertEqual(result, ["1"])

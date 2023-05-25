@@ -270,6 +270,14 @@ class _PoolImpl(base_client.BasePoolImpl):
             self._closing = False
 
 
+class Savepoint(transaction.Savepoint):
+    def release(self):
+        self._tx._client._iter_coroutine(super().release())
+
+    def rollback(self):
+        self._tx._client._iter_coroutine(super().rollback())
+
+
 class Iteration(transaction.BaseTransaction, abstract.Executor):
 
     __slots__ = ("_managed", "_lock")
@@ -319,6 +327,11 @@ class Iteration(transaction.BaseTransaction, abstract.Executor):
             yield
         finally:
             self._lock.release()
+
+    def declare_savepoint(self, savepoint: str) -> Savepoint:
+        return self._client._iter_coroutine(
+            self._declare_savepoint(savepoint, cls=Savepoint)
+        )
 
 
 class Retry(transaction.BaseRetry):

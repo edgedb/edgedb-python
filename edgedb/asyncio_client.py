@@ -322,6 +322,9 @@ class AsyncIOIteration(transaction.BaseTransaction, abstract.AsyncIOExecutor):
         finally:
             self._locked = False
 
+    async def declare_savepoint(self, savepoint: str) -> transaction.Savepoint:
+        return await self._declare_savepoint(savepoint)
+
 
 class AsyncIORetry(transaction.BaseRetry):
 
