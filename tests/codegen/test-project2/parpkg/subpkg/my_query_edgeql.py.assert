@@ -17,6 +17,9 @@ MyScalar = int
 class MyEnum(enum.Enum):
     THIS = "This"
     THAT = "That"
+    E_1 = "1"
+    F_B = "f. b"
+    F_B_1 = "f-b"
 
 
 @dataclasses.dataclass
@@ -135,7 +138,7 @@ def my_query(
     return executor.query_single(
         """\
         create scalar type MyScalar extending int64;
-        create scalar type MyEnum extending enum<This, That>;
+        create scalar type MyEnum extending enum<'This', 'That', '1', 'f. b', 'f-b'>;
 
         select {
         	a := <uuid>$a,

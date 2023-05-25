@@ -483,8 +483,8 @@ class Generator:
             buf = io.StringIO()
             self._imports.add("enum")
             print(f"class {rv}(enum.Enum):", file=buf)
-            for member in type_.members:
-                print(f'{INDENT}{member.upper()} = "{member}"', file=buf)
+            for member, member_id in self._to_unique_idents(type_.members):
+                print(f'{INDENT}{member_id.upper()} = "{member}"', file=buf)
             self._defs[rv] = buf.getvalue().strip()
 
         elif isinstance(type_, describe.RangeType):
@@ -537,3 +537,37 @@ class Generator:
             return "".join(map(str.title, parts))
         else:
             return name
+
+    def _to_unique_idents(
+        self, names: typing.Iterable[typing.Tuple[str, str]]
+    ) -> typing.Iterator[str]:
+        dedup = set()
+        for name in names:
+            if name.isidentifier():
+                name_id = name
+                sep = name.endswith("_")
+            else:
+                sep = True
+                result = []
+                for i, c in enumerate(name):
+                    if c.isdigit():
+                        if i == 0:
+                            result.append("e_")
+                        result.append(c)
+                        sep = False
+                    elif c.isidentifier():
+                        result.append(c)
+                        sep = c == "_"
+                    elif not sep:
+                        result.append("_")
+                        sep = True
+                name_id = "".join(result)
+            rv = name_id
+            if not sep:
+                name_id = name_id + "_"
+            i = 1
+            while rv in dedup:
+                rv = f"{name_id}{i}"
+                i += 1
+            dedup.add(rv)
+            yield name, rv
