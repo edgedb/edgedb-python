@@ -145,6 +145,20 @@ class Generator:
         print_msg(f"Found EdgeDB project: {C.BOLD}{self._project_dir}{C.ENDC}")
         self._client = edgedb.create_client(**_get_conn_args(args))
         self._single_mode_files = args.file
+        self._search_dirs = []
+        for search_dir in args.dir or []:
+            search_dir = pathlib.Path(search_dir).absolute()
+            if (
+                search_dir == self._project_dir
+                or self._project_dir in search_dir.parents
+            ):
+                self._search_dirs.append(search_dir)
+            else:
+                print(
+                    f"--dir '{search_dir}' is not under "
+                    f"the project directory: {self._project_dir}"
+                )
+                sys.exit(1)
         self._method_names = set()
         self._describe_results = []
 
@@ -170,7 +184,11 @@ class Generator:
             print(f"Failed to connect to EdgeDB instance: {e}")
             sys.exit(61)
         with self._client:
-            self._process_dir(self._project_dir)
+            if self._search_dirs:
+                for search_dir in self._search_dirs:
+                    self._process_dir(search_dir)
+            else:
+                self._process_dir(self._project_dir)
         for target, suffix, is_async in SUFFIXES:
             if target in self._targets:
                 self._async = is_async
