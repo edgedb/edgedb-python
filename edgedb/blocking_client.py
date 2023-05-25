@@ -17,6 +17,7 @@
 #
 
 
+import contextlib
 import datetime
 import queue
 import socket
@@ -271,22 +272,25 @@ class _PoolImpl(base_client.BasePoolImpl):
 
 class Iteration(transaction.BaseTransaction, abstract.Executor):
 
-    __slots__ = ("_managed",)
+    __slots__ = ("_managed", "_lock")
 
     def __init__(self, retry, client, iteration):
         super().__init__(retry, client, iteration)
         self._managed = False
+        self._lock = threading.Lock()
 
     def __enter__(self):
-        if self._managed:
-            raise errors.InterfaceError(
-                'cannot enter context: already in a `with` block')
-        self._managed = True
-        return self
+        with self._exclusive():
+            if self._managed:
+                raise errors.InterfaceError(
+                    'cannot enter context: already in a `with` block')
+            self._managed = True
+            return self
 
     def __exit__(self, extype, ex, tb):
-        self._managed = False
-        return self._client._iter_coroutine(self._exit(extype, ex))
+        with self._exclusive():
+            self._managed = False
+            return self._client._iter_coroutine(self._exit(extype, ex))
 
     async def _ensure_transaction(self):
         if not self._managed:
@@ -297,10 +301,24 @@ class Iteration(transaction.BaseTransaction, abstract.Executor):
         await super()._ensure_transaction()
 
     def _query(self, query_context: abstract.QueryContext):
-        return self._client._iter_coroutine(super()._query(query_context))
+        with self._exclusive():
+            return self._client._iter_coroutine(super()._query(query_context))
 
     def _execute(self, execute_context: abstract.ExecuteContext) -> None:
-        self._client._iter_coroutine(super()._execute(execute_context))
+        with self._exclusive():
+            self._client._iter_coroutine(super()._execute(execute_context))
+
+    @contextlib.contextmanager
+    def _exclusive(self):
+        if not self._lock.acquire(blocking=False):
+            raise errors.InterfaceError(
+                "concurrent queries within the same transaction "
+                "are not allowed"
+            )
+        try:
+            yield
+        finally:
+            self._lock.release()
 
 
 class Retry(transaction.BaseRetry):
