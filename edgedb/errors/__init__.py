@@ -68,6 +68,7 @@ __all__ = _base.__all__ + (  # type: ignore
     'DuplicateFunctionDefinitionError',
     'DuplicateConstraintDefinitionError',
     'DuplicateCastDefinitionError',
+    'DuplicateMigrationError',
     'SessionTimeoutError',
     'IdleSessionTimeoutError',
     'QueryTimeoutError',
@@ -78,6 +79,7 @@ __all__ = _base.__all__ + (  # type: ignore
     'DivisionByZeroError',
     'NumericOutOfRangeError',
     'AccessPolicyError',
+    'QueryAssertionError',
     'IntegrityError',
     'ConstraintViolationError',
     'CardinalityViolationError',
@@ -86,6 +88,7 @@ __all__ = _base.__all__ + (  # type: ignore
     'TransactionConflictError',
     'TransactionSerializationError',
     'TransactionDeadlockError',
+    'WatchError',
     'ConfigurationError',
     'AccessError',
     'AuthenticationError',
@@ -328,12 +331,17 @@ class DuplicateCastDefinitionError(DuplicateDefinitionError):
     _code = 0x_04_05_02_0A
 
 
+class DuplicateMigrationError(DuplicateDefinitionError):
+    _code = 0x_04_05_02_0B
+
+
 class SessionTimeoutError(QueryError):
     _code = 0x_04_06_00_00
 
 
 class IdleSessionTimeoutError(SessionTimeoutError):
     _code = 0x_04_06_01_00
+    tags = frozenset({SHOULD_RETRY})
 
 
 class QueryTimeoutError(SessionTimeoutError):
@@ -366,6 +374,10 @@ class NumericOutOfRangeError(InvalidValueError):
 
 class AccessPolicyError(InvalidValueError):
     _code = 0x_05_01_00_03
+
+
+class QueryAssertionError(InvalidValueError):
+    _code = 0x_05_01_00_04
 
 
 class IntegrityError(ExecutionError):
@@ -401,6 +413,10 @@ class TransactionSerializationError(TransactionConflictError):
 class TransactionDeadlockError(TransactionConflictError):
     _code = 0x_05_03_01_02
     tags = frozenset({SHOULD_RETRY})
+
+
+class WatchError(ExecutionError):
+    _code = 0x_05_04_00_00
 
 
 class ConfigurationError(EdgeDBError):
