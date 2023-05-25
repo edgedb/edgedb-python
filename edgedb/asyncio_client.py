@@ -18,6 +18,7 @@
 
 
 import asyncio
+import contextlib
 import logging
 import socket
 import ssl
@@ -273,11 +274,12 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
 
 class AsyncIOIteration(transaction.BaseTransaction, abstract.AsyncIOExecutor):
 
-    __slots__ = ("_managed",)
+    __slots__ = ("_managed", "_locked")
 
     def __init__(self, retry, client, iteration):
         super().__init__(retry, client, iteration)
         self._managed = False
+        self._locked = False
 
     async def __aenter__(self):
         if self._managed:
@@ -287,8 +289,9 @@ class AsyncIOIteration(transaction.BaseTransaction, abstract.AsyncIOExecutor):
         return self
 
     async def __aexit__(self, extype, ex, tb):
-        self._managed = False
-        return await self._exit(extype, ex)
+        with self._exclusive():
+            self._managed = False
+            return await self._exit(extype, ex)
 
     async def _ensure_transaction(self):
         if not self._managed:
@@ -297,6 +300,24 @@ class AsyncIOIteration(transaction.BaseTransaction, abstract.AsyncIOExecutor):
                 "Use `async with transaction:`"
             )
         await super()._ensure_transaction()
+
+    async def _query(self, query_context: abstract.QueryContext):
+        with self._exclusive():
+            return await super()._query(query_context)
+
+    async def _execute(self, execute_context: abstract.ExecuteContext) -> None:
+        with self._exclusive():
+            await super()._execute(execute_context)
+
+    @contextlib.contextmanager
+    def _exclusive(self):
+        if self._locked:
+            raise errors.InterfaceError("another operation is in progress")
+        self._locked = True
+        try:
+            yield
+        finally:
+            self._locked = False
 
 
 class AsyncIORetry(transaction.BaseRetry):

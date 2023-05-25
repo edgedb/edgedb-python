@@ -17,6 +17,7 @@
 #
 
 import itertools
+from concurrent.futures import ThreadPoolExecutor
 
 import edgedb
 
@@ -97,3 +98,16 @@ class TestSyncTx(tb.SyncQueryTestCase):
                 with tx:
                     tx.execute("start migration to {};")
         self.assertEqual(self.client.query_single("select 42"), 42)
+
+    def test_sync_transaction_exclusive(self):
+        for tx in self.client.transaction():
+            with tx:
+                query = "select sys::_sleep(0.01)"
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    f1 = executor.submit(tx.execute, query)
+                    f2 = executor.submit(tx.execute, query)
+                    with self.assertRaisesRegex(
+                        edgedb.InterfaceError, "another operation is in progress"
+                    ):
+                        f1.result(timeout=5)
+                        f2.result(timeout=5)
