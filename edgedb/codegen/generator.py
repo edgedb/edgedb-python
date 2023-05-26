@@ -502,7 +502,7 @@ class Generator:
         type_: typing.Optional[describe.AnyType],
         name_hint: str,
         cardinality: edgedb.Cardinality,
-        optional_default: bool = False,
+        keyword_argument: bool = False,
     ):
         rv = self._generate_code(type_, name_hint)
         if cardinality == edgedb.Cardinality.AT_MOST_ONE:
