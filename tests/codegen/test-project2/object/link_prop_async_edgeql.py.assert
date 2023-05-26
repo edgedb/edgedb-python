@@ -7,7 +7,6 @@ import dataclasses
 import datetime
 import edgedb
 import typing
-import typing_extensions
 import uuid
 
 
@@ -34,11 +33,11 @@ class LinkPropResultFriendsItem(NoPydanticValidation):
     created_at: typing.Optional[datetime.datetime]
 
     @typing.overload
-    def __getitem__(self, key: typing_extensions.Literal["@created_at"]) -> typing.Optional[datetime.datetime]:
+    def __getitem__(self, key: typing.Literal["@created_at"]) -> typing.Optional[datetime.datetime]:
         ...
 
     @typing.overload
-    def __getitem__(self, key: typing_extensions.Literal["@strength"]) -> typing.Optional[float]:
+    def __getitem__(self, key: typing.Literal["@strength"]) -> typing.Optional[float]:
         ...
 
     def __getitem__(self, key: str) -> typing.Any:
