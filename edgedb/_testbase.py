@@ -135,7 +135,7 @@ def _start_cluster(*, cleanup_atexit=True):
             stderr=subprocess.STDOUT,
         )
 
-        for _ in range(250):
+        for _ in range(600):
             try:
                 with open(status_file, 'rb') as f:
                     for line in f:
@@ -171,6 +171,11 @@ def _start_cluster(*, cleanup_atexit=True):
 
         client = edgedb.create_client(password='test', **con_args)
         client.ensure_connected()
+        client.execute("""
+            # Set session_idle_transaction_timeout to 5 minutes.
+            CONFIGURE INSTANCE SET session_idle_transaction_timeout :=
+                <duration>'5 minutes';
+        """)
         _default_cluster = {
             'proc': p,
             'client': client,

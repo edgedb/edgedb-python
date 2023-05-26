@@ -39,7 +39,7 @@ jobs:
         mkdir -p dist/
         echo "${VERSION}" > dist/VERSION
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: dist
         path: dist/
@@ -52,7 +52,7 @@ jobs:
       PIP_DISABLE_PIP_VERSION_CHECK: 1
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
@@ -65,19 +65,41 @@ jobs:
         pip install -U setuptools wheel pip
         python setup.py sdist
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: dist
         path: dist/*.tar.*
 
-  build-wheels:
+  build-wheels-matrix:
     needs: validate-release-request
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.set-matrix.outputs.include }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install cibuildwheel==2.12.3
+      - id: set-matrix
+        # Cannot test on Musl distros yet.
+        run: |
+          MATRIX_INCLUDE=$(
+            {
+              cibuildwheel --print-build-identifiers --platform linux --arch x86_64,aarch64 | grep cp | grep many |  jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,arm64 | grep cp |  jq -nRc '{"only": inputs, "os": "macos-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | grep cp |  jq -nRc '{"only": inputs, "os": "windows-2019"}'
+            } | jq -sc
+          )
+          echo "include=$MATRIX_INCLUDE" >> $GITHUB_OUTPUT
+  build-wheels:
+    needs: build-wheels-matrix
     runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.only }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-2019]
-        cibw_python: ["cp37-*", "cp38-*", "cp39-*", "cp310-*"]
-        cibw_arch: ["auto64"]
+        include: ${{ fromJson(needs.build-wheels-matrix.outputs.include) }}
 
     defaults:
       run:
@@ -87,32 +109,32 @@ jobs:
       PIP_DISABLE_PIP_VERSION_CHECK: 1
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
 
     - name: Setup WSL
-      if: ${{ steps.release.outputs.version == 0 && matrix.os == 'windows-2019' }}
-      uses: vampire/setup-wsl@v1
+      if: ${{ matrix.os == 'windows-2019' }}
+      uses: vampire/setup-wsl@v2
       with:
         wsl-shell-user: edgedb
         additional-packages:
           ca-certificates
           curl
 
+    - name: Set up QEMU
+      if: runner.os == 'Linux'
+      uses: docker/setup-qemu-action@v2
+
     - name: Install EdgeDB
       uses: edgedb/setup-edgedb@v1
 
-    - uses: pypa/cibuildwheel@v2.3.1
+    - uses: pypa/cibuildwheel@v2.12.3
+      with:
+          only: ${{ matrix.only }}
       env:
         CIBW_BUILD_VERBOSITY: 1
-        CIBW_BUILD: ${{ matrix.cibw_python }}
-        # Cannot test on Musl distros yet.
-        CIBW_SKIP: "*-musllinux*"
-        CIBW_ARCHS: ${{ matrix.cibw_arch }}
-        # EdgeDB doesn't run on CentOS 6, so use 2014 as baseline
-        CIBW_MANYLINUX_X86_64_IMAGE: "quay.io/pypa/manylinux2014_x86_64"
         CIBW_BEFORE_ALL_LINUX: >
           .github/workflows/install-edgedb.sh
         CIBW_TEST_EXTRAS: "test"
@@ -126,7 +148,7 @@ jobs:
           && chmod -R go+rX "$(dirname $(dirname $(dirname $PY)))"
           && su -l edgedb -c "EDGEDB_PYTHON_TEST_CODEGEN_CMD=$CODEGEN $PY {project}/tests/__init__.py"
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: dist
         path: wheelhouse/*.whl
@@ -136,12 +158,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 5
         submodules: false
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: dist
         path: dist/
