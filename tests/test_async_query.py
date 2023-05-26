@@ -19,6 +19,7 @@
 
 import datetime
 import decimal
+import enum
 import json
 import random
 import unittest
@@ -912,6 +913,31 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 edgedb.InvalidArgumentError, 'a str or edgedb.EnumValue'):
             await self.client.query_single('SELECT <MyEnum>$0', 123)
 
+    async def test_enum_argument_02(self):
+        class MyEnum(enum.Enum):
+            A = "A"
+            B = "B"
+            C = "C"
+
+        A = await self.client.query_single('SELECT <MyEnum>$0', MyEnum.A)
+        self.assertEqual(str(A), 'A')
+        self.assertEqual(A, MyEnum.A)
+        self.assertEqual(MyEnum.A, A)
+        self.assertLess(A, MyEnum.B)
+        self.assertGreater(MyEnum.B, A)
+
+        mapping = {MyEnum.A: 1, MyEnum.B: 2}
+        self.assertEqual(mapping[A], 1)
+
+        with self.assertRaises(ValueError):
+            _ = A > MyEnum.C
+        with self.assertRaises(ValueError):
+            _ = A < MyEnum.C
+        with self.assertRaises(ValueError):
+            _ = A == MyEnum.C
+        with self.assertRaises(edgedb.InvalidArgumentError):
+            await self.client.query_single('SELECT <MyEnum>$0', MyEnum.C)
+
     async def test_json(self):
         self.assertEqual(
             await self.client.query_json('SELECT {"aaa", "bbb"}'),
@@ -1030,3 +1056,18 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             DROP TYPE test::dup_link_prop_name_p;
             DROP TYPE test::dup_link_prop_name;
         ''')
+
+    async def test_transaction_state(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "cannot assign to id"):
+            async for tx in self.client.transaction():
+                async with tx:
+                    await tx.execute('''
+                        INSERT test::Tmp { id := <uuid>$0, tmp := '' }
+                    ''', uuid.uuid4())
+
+        client = self.client.with_config(allow_user_specified_id=True)
+        async for tx in client.transaction():
+            async with tx:
+                await tx.execute('''
+                    INSERT test::Tmp { id := <uuid>$0, tmp := '' }
+                ''', uuid.uuid4())

@@ -27,33 +27,42 @@ class EnumValue(enum.Enum):
     def __repr__(self):
         return f'<edgedb.EnumValue {self._value_!r}>'
 
+    @classmethod
+    def _try_from(cls, value):
+        if isinstance(value, EnumValue):
+            return value
+        elif isinstance(value, enum.Enum):
+            return cls(value.value)
+        else:
+            raise TypeError
+
     def __lt__(self, other):
-        if not isinstance(other, EnumValue):
-            return NotImplemented
+        other = self._try_from(other)
         if self.__tid__ != other.__tid__:
             return NotImplemented
         return self._index_ < other._index_
 
     def __gt__(self, other):
-        if not isinstance(other, EnumValue):
-            return NotImplemented
+        other = self._try_from(other)
         if self.__tid__ != other.__tid__:
             return NotImplemented
         return self._index_ > other._index_
 
     def __le__(self, other):
-        if not isinstance(other, EnumValue):
-            return NotImplemented
+        other = self._try_from(other)
         if self.__tid__ != other.__tid__:
             return NotImplemented
         return self._index_ <= other._index_
 
     def __ge__(self, other):
-        if not isinstance(other, EnumValue):
-            return NotImplemented
+        other = self._try_from(other)
         if self.__tid__ != other.__tid__:
             return NotImplemented
         return self._index_ >= other._index_
 
+    def __eq__(self, other):
+        other = self._try_from(other)
+        return self is other
+
     def __hash__(self):
-        return hash((self.__tid__, self._value_))
+        return hash(self._value_)

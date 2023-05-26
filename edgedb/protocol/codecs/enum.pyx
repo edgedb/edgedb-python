@@ -24,9 +24,13 @@ cdef class EnumCodec(BaseCodec):
 
     cdef encode(self, WriteBuffer buf, object obj):
         if not isinstance(obj, (self.cls, str)):
-            raise TypeError(
-                f'a str or edgedb.EnumValue(__tid__={self.cls.__tid__}) is '
-                f'expected as a valid enum argument, got {type(obj).__name__}')
+            try:
+                obj = self.cls._try_from(obj)
+            except (TypeError, ValueError):
+                raise TypeError(
+                    f'a str or edgedb.EnumValue(__tid__={self.cls.__tid__}) '
+                    f'is expected as a valid enum argument, '
+                    f'got {type(obj).__name__}') from None
         pgproto.text_encode(DEFAULT_CODEC_CONTEXT, buf, str(obj))
 
     cdef decode(self, FRBuffer *buf):

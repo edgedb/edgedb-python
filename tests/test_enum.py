@@ -43,8 +43,10 @@ class TestEnum(tb.AsyncQueryTestCase):
         self.assertEqual(repr(ct_red), "<edgedb.EnumValue 'red'>")
 
         self.assertEqual(str(ct_red), 'red')
-        self.assertNotEqual(ct_red, 'red')
-        self.assertFalse(ct_red == 'red')
+        with self.assertRaises(TypeError):
+            _ = ct_red != 'red'
+        with self.assertRaises(TypeError):
+            _ = ct_red == 'red'
         self.assertFalse(ct_red == c_red)
 
         self.assertEqual(ct_red, ct_red)
@@ -74,8 +76,8 @@ class TestEnum(tb.AsyncQueryTestCase):
         with self.assertRaises(TypeError):
             _ = ct_red >= c_red
 
-        self.assertNotEqual(hash(ct_red), hash(c_red))
-        self.assertNotEqual(hash(ct_red), hash('red'))
+        self.assertEqual(hash(ct_red), hash(c_red))
+        self.assertEqual(hash(ct_red), hash('red'))
 
     async def test_enum_02(self):
         c_red = await self.client.query_single('SELECT <Color>"red"')
@@ -99,3 +101,12 @@ class TestEnum(tb.AsyncQueryTestCase):
         c_red = await self.client.query_single('SELECT <Color>"red"')
         c_red2 = await self.client.query_single('SELECT <Color>$0', c_red)
         self.assertIs(c_red, c_red2)
+
+    async def test_enum_04(self):
+        enums = await self.client.query_single(
+            'SELECT <array<Color>>$0', ['red', 'white']
+        )
+        enums2 = await self.client.query_single(
+            'SELECT <array<Color>>$0', enums
+        )
+        self.assertEqual(enums, enums2)
