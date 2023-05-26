@@ -325,7 +325,7 @@ class Generator:
                 kw_only = True
                 for el_name, el in dr.input_type.elements.items():
                     args[el_name] = self._generate_code_with_cardinality(
-                        el.type, el_name, el.cardinality, optional_default=True
+                        el.type, el_name, el.cardinality, keyword_argument=True
                     )
 
         if self._async:
@@ -511,7 +511,7 @@ class Generator:
             else:
                 self._imports.add("typing")
                 rv = f"typing.Optional[{rv}]"
-            if optional_default:
+            if keyword_argument:
                 rv = f"{rv} = None"
         return rv
 
