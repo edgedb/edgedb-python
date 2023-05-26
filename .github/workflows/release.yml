@@ -115,8 +115,8 @@ jobs:
         submodules: true
 
     - name: Setup WSL
-      if: ${{ steps.release.outputs.version == 0 && matrix.os == 'windows-2019' }}
-      uses: vampire/setup-wsl@v1
+      if: ${{ matrix.os == 'windows-2019' }}
+      uses: vampire/setup-wsl@v2
       with:
         wsl-shell-user: edgedb
         additional-packages:
