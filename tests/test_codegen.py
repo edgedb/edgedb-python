@@ -43,9 +43,13 @@ class TestCodegen(tb.AsyncQueryTestCase):
             for project in container.iterdir():
                 if project.name == "linked":
                     continue
-                cwd = td_path / project.name
-                shutil.copytree(project, cwd)
-                await self._test_codegen(env, cwd)
+                with self.subTest(msg=project.name):
+                    cwd = td_path / project.name
+                    shutil.copytree(project, cwd)
+                    try:
+                        await self._test_codegen(env, cwd)
+                    except subprocess.CalledProcessError as e:
+                        self.fail("Codegen failed: " + e.stdout.decode())
 
     async def _test_codegen(self, env, cwd: pathlib.Path):
         async def run(*args, extra_env=None):
@@ -67,6 +71,11 @@ class TestCodegen(tb.AsyncQueryTestCase):
                 p.terminate()
                 await p.wait()
                 raise
+            else:
+                if p.returncode:
+                    raise subprocess.CalledProcessError(
+                        p.returncode, args, output=await p.stdout.read(),
+                    )
 
         cmd = env.get("EDGEDB_PYTHON_TEST_CODEGEN_CMD", "edgedb-py")
         await run(
@@ -90,7 +99,7 @@ class TestCodegen(tb.AsyncQueryTestCase):
 
         for f in cwd.rglob("*.py"):
             a = f.with_suffix(".py.assert")
-            self.assertEqual(f.read_text(), a.read_text())
+            self.assertEqual(f.read_text(), a.read_text(), msg=f.name)
         for a in cwd.rglob("*.py.assert"):
             f = a.with_suffix("")
             self.assertTrue(f.exists(), f"{f} doesn't exist")

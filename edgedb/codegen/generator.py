@@ -325,7 +325,7 @@ class Generator:
                 kw_only = True
                 for el_name, el in dr.input_type.elements.items():
                     args[el_name] = self._generate_code_with_cardinality(
-                        el.type, el_name, el.cardinality
+                        el.type, el_name, el.cardinality, keyword_argument=True
                     )
 
         if self._async:
@@ -502,6 +502,7 @@ class Generator:
         type_: typing.Optional[describe.AnyType],
         name_hint: str,
         cardinality: edgedb.Cardinality,
+        keyword_argument: bool = False,
     ):
         rv = self._generate_code(type_, name_hint)
         if cardinality == edgedb.Cardinality.AT_MOST_ONE:
@@ -510,6 +511,8 @@ class Generator:
             else:
                 self._imports.add("typing")
                 rv = f"typing.Optional[{rv}]"
+            if keyword_argument:
+                rv = f"{rv} = None"
         return rv
 
     def _find_name(self, name: str) -> str:
