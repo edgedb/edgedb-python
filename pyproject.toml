@@ -1,3 +1,59 @@
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+########################################################################################
+# External Tool Config
+########################################################################################
+[tool.mypy]
+python_version = "3.8"
+warn_unused_configs = true
+namespace_packages = true
+# plugins = "pydantic.mypy"
+
+[tool.ruff]
+select = [
+    "E",   # pydocstyle
+    "W",   # pydocstyle
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "D",   # docstrings
+    "RUF", # ruff
+]
+ignore = [
+    "D100", # Missing docstring in public module
+    "D101", # Missing docstring in public class
+    "D102", # Missing docstring in public method
+    "D103", # Missing docstring in public function
+    "D104", # Missing docstring in public package
+    "D107", # Missing docstring in `__init__`
+    "D105", # Missing docstring in magic method
+    "D205", # 1 blank line required between summary line and description
+    #
+    "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
+]
+
+# Same as Black.
+line-length = 88
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Assume Python 3.8. (minimum supported)
+target-version = "py38"
+
+# The source code paths to consider, e.g., when resolving first- vs. third-party imports
+src = ["edgedb", "tests"]
+
+[tool.ruff.isort]
+known-first-party = ["edgedb", "tests"]
+required-imports = ["from __future__ import annotations"]
+
+[tool.ruff.pydocstyle]
+# Use Google-style docstrings.
+convention = "google"
+
+[tool.ruff.format]
+# Prefer single quotes over double quotes.
+quote-style = "single"

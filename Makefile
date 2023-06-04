@@ -1,4 +1,4 @@
-.PHONY: compile debug test quicktest clean all gen-errors gen-types _touch
+.PHONY: compile debug lint test quicktest clean all gen-errors gen-types _touch
 
 
 PYTHON ?= python
@@ -50,6 +50,10 @@ gen-types:
 debug: _touch
 	EDGEDB_DEBUG=1 $(PYTHON) setup.py build_ext --inplace
 
+
+lint:
+	$(PYTHON) -m pip install pre-commit
+	pre-commit run --all-files
 
 test:
 	PYTHONASYNCIODEBUG=1 $(PYTHON) setup.py test
