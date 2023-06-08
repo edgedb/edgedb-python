@@ -527,7 +527,7 @@ cdef pgvector_encode_memview(pgproto.CodecContext settings, WriteBuffer buf,
 
     objlen = len(obj)
     if objlen > PGVECTOR_MAX_DIM:
-        raise ValueError('too many dimensions in vector value')
+        raise ValueError('too many elements in vector value')
 
     buf.write_int32(4 + objlen*4)
     buf.write_int16(objlen)
@@ -566,7 +566,7 @@ cdef pgvector_encode(pgproto.CodecContext settings, WriteBuffer buf,
     # but the types are different in critical ways.
     objlen = len(obj)
     if objlen > PGVECTOR_MAX_DIM:
-        raise ValueError('too many dimensions in vector value')
+        raise ValueError('too many elements in vector value')
 
     buf.write_int32(4 + objlen*4)
     buf.write_int16(objlen)
