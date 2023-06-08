@@ -515,7 +515,7 @@ cdef config_memory_decode(pgproto.CodecContext settings, FRBuffer *buf):
     return datatypes.ConfigMemory(bytes=bytes)
 
 
-DEF PGVECTOR_MAX_DIM = 16000
+DEF PGVECTOR_MAX_DIM = (1 << 16) - 1
 
 
 cdef pgvector_encode_memview(pgproto.CodecContext settings, WriteBuffer buf,
