@@ -806,7 +806,7 @@ cdef register_base_scalar_codecs():
         pgproto.text_decode)
 
     register_base_scalar_codec(
-        'vector::vector',
+        'ext::pgvector::vector',
         pgvector_encode,
         pgvector_decode,
         uuid.UUID('9565dd88-04f5-11ee-a691-0b6ebe179825'),
