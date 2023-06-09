@@ -42,13 +42,13 @@ class TestVector(tb.SyncQueryTestCase):
             self.skipTest("feature not implemented")
 
         self.client.execute('''
-            create extension pgvector version '0.4.0'
+            create extension pgvector;
         ''')
 
     def tearDown(self):
         try:
             self.client.execute('''
-                drop extension pgvector version '0.4.0'
+                drop extension pgvector;
             ''')
         finally:
             super().tearDown()
