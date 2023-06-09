@@ -36,90 +36,80 @@ class TestVector(tb.SyncQueryTestCase):
 
         if not self.client.query_required_single('''
             select exists (
-              select sys::ExtensionPackage filter .name = 'vector'
+              select sys::ExtensionPackage filter .name = 'pgvector'
             )
         '''):
             self.skipTest("feature not implemented")
 
         self.client.execute('''
-            create extension vector version '1.0'
+            create extension pgvector;
         ''')
 
     def tearDown(self):
         try:
             self.client.execute('''
-                drop extension vector version '1.0'
+                drop extension pgvector;
             ''')
         finally:
             super().tearDown()
 
     async def test_vector_01(self):
-        # if not self.client.query_required_single('''
-        #     select exists (
-        #       select sys::ExtensionPackage filter .name = 'vector'
-        #     )
-        # '''):
-        #     self.skipTest("feature not implemented")
-
-        # self.client.execute('''
-        #     create extension vector version '1.0'
-        # ''')
-
         val = self.client.query_single('''
-            select <vector::vector>'[1.5,2.0,3.8]'
+            select <ext::pgvector::vector>[1.5,2.0,3.8]
         ''')
         self.assertTrue(isinstance(val, array.array))
         self.assertEqual(val, array.array('f', [1.5, 2.0, 3.8]))
 
         val = self.client.query_single(
             '''
-                select <str><vector::vector>$0
+                select <json><ext::pgvector::vector>$0
             ''',
             [3.0, 9.0, -42.5],
         )
-        self.assertEqual(val, '[3,9,-42.5]')
+        self.assertEqual(val, '[3, 9, -42.5]')
 
         val = self.client.query_single(
             '''
-                select <str><vector::vector>$0
+                select <json><ext::pgvector::vector>$0
             ''',
             array.array('f', [3.0, 9.0, -42.5])
         )
-        self.assertEqual(val, '[3,9,-42.5]')
+        self.assertEqual(val, '[3, 9, -42.5]')
 
         val = self.client.query_single(
             '''
-                select <str><vector::vector>$0
+                select <json><ext::pgvector::vector>$0
             ''',
             array.array('i', [1, 2, 3]),
         )
-        self.assertEqual(val, '[1,2,3]')
+        self.assertEqual(val, '[1, 2, 3]')
 
         # Test that the fast-path works: if the encoder tries to
         # call __getitem__ on this brokenarray, it will fail.
         val = self.client.query_single(
             '''
-                select <str><vector::vector>$0
+                select <json><ext::pgvector::vector>$0
             ''',
             brokenarray('f', [3.0, 9.0, -42.5])
         )
-        self.assertEqual(val, '[3,9,-42.5]')
+        self.assertEqual(val, '[3, 9, -42.5]')
 
         # I don't think it's worth adding a dependency to test this,
         # but this works too:
         # import numpy as np
         # val = self.client.query_single(
         #     '''
-        #     select <str><vector::vector>$0
+        #     select <json><ext::pgvector::vector>$0
         #     ''',
         #     np.asarray([3.0, 9.0, -42.5], dtype=np.float32),
         # )
+        # self.assertEqual(val, '[3,9,-42.5]')
 
         # Some sad path tests
         with self.assertRaises(edgedb.InvalidArgumentError):
             self.client.query_single(
                 '''
-                    select <vector::vector>$0
+                    select <ext::pgvector::vector>$0
                 ''',
                 [3.0, None, -42.5],
             )
@@ -127,7 +117,7 @@ class TestVector(tb.SyncQueryTestCase):
         with self.assertRaises(edgedb.InvalidArgumentError):
             self.client.query_single(
                 '''
-                    select <vector::vector>$0
+                    select <ext::pgvector::vector>$0
                 ''',
                 [3.0, 'x', -42.5],
             )
@@ -135,7 +125,7 @@ class TestVector(tb.SyncQueryTestCase):
         with self.assertRaises(edgedb.InvalidArgumentError):
             self.client.query_single(
                 '''
-                    select <vector::vector>$0
+                    select <ext::pgvector::vector>$0
                 ''',
                 'foo',
             )
