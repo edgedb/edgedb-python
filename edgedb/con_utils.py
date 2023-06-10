@@ -870,6 +870,9 @@ def _parse_cloud_instance_name_into_config(
     org_slug: str,
     instance_name: str,
 ):
+    org_slug = org_slug.lower()
+    instance_name = instance_name.lower()
+
     label = f"{instance_name}--{org_slug}"
     if len(label) > DOMAIN_LABEL_MAX_LENGTH:
         raise ValueError(
