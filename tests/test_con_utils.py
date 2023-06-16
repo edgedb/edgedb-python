@@ -32,6 +32,7 @@ from edgedb import errors
 
 
 class TestConUtils(unittest.TestCase):
+    maxDiff = 1000
 
     error_mapping = {
         'credentials_file_not_found': (
@@ -184,6 +185,9 @@ class TestConUtils(unittest.TestCase):
                             if 'cloud-profile' in v:
                                 profile = os.path.join(dir, 'cloud-profile')
                                 files[profile] = v['cloud-profile']
+                            if 'database' in v:
+                                database_file = os.path.join(dir, 'database')
+                                files[database_file] = v['database']
                             del files[f]
 
                     es.enter_context(
