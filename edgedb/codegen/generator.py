@@ -67,6 +67,7 @@ TYPE_MAPPING = {
     "cal::relative_duration": "edgedb.RelativeDuration",
     "cal::date_duration": "edgedb.DateDuration",
     "cfg::memory": "edgedb.ConfigMemory",
+    "ext::pgvector::vector": "array.array",
 }
 
 TYPE_IMPORTS = {
@@ -77,6 +78,7 @@ TYPE_IMPORTS = {
     "cal::local_date": "datetime",
     "cal::local_time": "datetime",
     "cal::local_datetime": "datetime",
+    "ext::pgvector::vector": "array",
 }
 
 PYDANTIC_MIXIN = """\

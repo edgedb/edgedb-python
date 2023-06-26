@@ -3,6 +3,7 @@
 
 
 from __future__ import annotations
+import array
 import dataclasses
 import datetime
 import edgedb
@@ -88,6 +89,8 @@ class MyQueryResult(NoPydanticValidation):
     az: typing.Optional[MyScalar]
     ba: MyEnum
     bb: typing.Optional[MyEnum]
+    bc: array.array
+    bd: typing.Optional[array.array]
 
 
 async def my_query(
@@ -143,6 +146,8 @@ async def my_query(
     av: typing.Optional[edgedb.Range[datetime.datetime]] = None,
     aw: edgedb.Range[datetime.date],
     ax: typing.Optional[edgedb.Range[datetime.date]] = None,
+    bc: array.array,
+    bd: typing.Optional[array.array] = None,
 ) -> MyQueryResult:
     return await executor.query_single(
         """\
@@ -204,6 +209,8 @@ async def my_query(
         	az := <optional MyScalar>{},
         	ba := MyEnum.This,
         	bb := <optional MyEnum>{},
+        	bc := <ext::pgvector::vector>$bc,
+        	bd := <optional ext::pgvector::vector>$bd,
         }\
         """,
         a=a,
@@ -256,4 +263,6 @@ async def my_query(
         av=av,
         aw=aw,
         ax=ax,
+        bc=bc,
+        bd=bd,
     )
