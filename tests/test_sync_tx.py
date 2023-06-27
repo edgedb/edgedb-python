@@ -121,12 +121,8 @@ class TestSyncTx(tb.SyncQueryTestCase):
     def test_sync_transaction_savepoint_1(self):
         for tx in self.client.transaction():
             with tx:
-                sp1 = tx.declare_savepoint("sp1")
-                sp2 = tx.declare_savepoint("sp2")
-                with self.assertRaisesRegex(
-                    edgedb.InterfaceError, "savepoint.*already exists"
-                ):
-                    tx.declare_savepoint("sp1")
+                sp1 = tx.savepoint()
+                sp2 = tx.savepoint()
                 tx.execute('''
                     INSERT test::TransactionTest { name := '1' };
                 ''')
@@ -147,11 +143,11 @@ class TestSyncTx(tb.SyncQueryTestCase):
                 tx.execute('''
                     INSERT test::TransactionTest { name := '1' };
                 ''')
-                sp1 = tx.declare_savepoint("sp1")
+                sp1 = tx.savepoint()
                 tx.execute('''
                     INSERT test::TransactionTest { name := '2' };
                 ''')
-                sp2 = tx.declare_savepoint("sp2")
+                sp2 = tx.savepoint()
                 tx.execute('''
                     INSERT test::TransactionTest { name := '3' };
                 ''')

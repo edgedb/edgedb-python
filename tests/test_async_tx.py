@@ -112,12 +112,8 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
     async def test_async_transaction_savepoint_1(self):
         async for tx in self.client.transaction():
             async with tx:
-                sp1 = await tx.declare_savepoint("sp1")
-                sp2 = await tx.declare_savepoint("sp2")
-                with self.assertRaisesRegex(
-                    edgedb.InterfaceError, "savepoint.*already exists"
-                ):
-                    await tx.declare_savepoint("sp1")
+                sp1 = await tx.savepoint()
+                sp2 = await tx.savepoint()
                 await tx.execute('''
                     INSERT test::TransactionTest { name := '1' };
                 ''')
@@ -138,11 +134,11 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
                 await tx.execute('''
                     INSERT test::TransactionTest { name := '1' };
                 ''')
-                sp1 = await tx.declare_savepoint("sp1")
+                sp1 = await tx.savepoint()
                 await tx.execute('''
                     INSERT test::TransactionTest { name := '2' };
                 ''')
-                sp2 = await tx.declare_savepoint("sp2")
+                sp2 = await tx.savepoint()
                 await tx.execute('''
                     INSERT test::TransactionTest { name := '3' };
                 ''')

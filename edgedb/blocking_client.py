@@ -25,6 +25,7 @@ import ssl
 import threading
 import time
 import typing
+import uuid
 
 from . import abstract
 from . import base_client
@@ -328,9 +329,10 @@ class Iteration(transaction.BaseTransaction, abstract.Executor):
         finally:
             self._lock.release()
 
-    def declare_savepoint(self, savepoint: str) -> Savepoint:
+    def savepoint(self) -> Savepoint:
+        name = uuid.uuid4().hex
         return self._client._iter_coroutine(
-            self._declare_savepoint(savepoint, cls=Savepoint)
+            self._declare_savepoint(name, cls=Savepoint)
         )
 
 
