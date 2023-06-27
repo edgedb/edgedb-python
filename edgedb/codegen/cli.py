@@ -57,6 +57,11 @@ parser.add_argument(
     help="Generate a single file instead of one per .edgeql file.",
 )
 parser.add_argument(
+    "--dir",
+    action="append",
+    help="Only search .edgeql files under specified directories.",
+)
+parser.add_argument(
     "--target",
     choices=["blocking", "async"],
     nargs="*",

@@ -26,6 +26,9 @@ class NoPydanticValidation:
 class MyEnum(enum.Enum):
     THIS = "This"
     THAT = "That"
+    E_1 = "1"
+    F_B = "f. b"
+    F_B_1 = "f-b"
 
 
 @dataclasses.dataclass
@@ -91,60 +94,60 @@ async def my_query(
     executor: edgedb.AsyncIOExecutor,
     *,
     a: uuid.UUID,
-    b: typing.Optional[uuid.UUID],
+    b: typing.Optional[uuid.UUID] = None,
     c: str,
-    d: typing.Optional[str],
+    d: typing.Optional[str] = None,
     e: bytes,
-    f: typing.Optional[bytes],
+    f: typing.Optional[bytes] = None,
     g: int,
-    h: typing.Optional[int],
+    h: typing.Optional[int] = None,
     i: int,
-    j: typing.Optional[int],
+    j: typing.Optional[int] = None,
     k: int,
-    l: typing.Optional[int],
+    l: typing.Optional[int] = None,
     m: float,
-    n: typing.Optional[float],
+    n: typing.Optional[float] = None,
     o: float,
-    p: typing.Optional[float],
+    p: typing.Optional[float] = None,
     q: bool,
-    r: typing.Optional[bool],
+    r: typing.Optional[bool] = None,
     s: datetime.datetime,
-    t: typing.Optional[datetime.datetime],
+    t: typing.Optional[datetime.datetime] = None,
     u: datetime.datetime,
-    v: typing.Optional[datetime.datetime],
+    v: typing.Optional[datetime.datetime] = None,
     w: datetime.date,
-    x: typing.Optional[datetime.date],
+    x: typing.Optional[datetime.date] = None,
     y: datetime.time,
-    z: typing.Optional[datetime.time],
+    z: typing.Optional[datetime.time] = None,
     aa: datetime.timedelta,
-    ab: typing.Optional[datetime.timedelta],
+    ab: typing.Optional[datetime.timedelta] = None,
     ac: int,
-    ad: typing.Optional[int],
+    ad: typing.Optional[int] = None,
     ae: edgedb.RelativeDuration,
-    af: typing.Optional[edgedb.RelativeDuration],
+    af: typing.Optional[edgedb.RelativeDuration] = None,
     ag: edgedb.DateDuration,
-    ah: typing.Optional[edgedb.DateDuration],
+    ah: typing.Optional[edgedb.DateDuration] = None,
     ai: edgedb.ConfigMemory,
-    aj: typing.Optional[edgedb.ConfigMemory],
+    aj: typing.Optional[edgedb.ConfigMemory] = None,
     ak: edgedb.Range[int],
-    al: typing.Optional[edgedb.Range[int]],
+    al: typing.Optional[edgedb.Range[int]] = None,
     am: edgedb.Range[int],
-    an: typing.Optional[edgedb.Range[int]],
+    an: typing.Optional[edgedb.Range[int]] = None,
     ao: edgedb.Range[float],
-    ap: typing.Optional[edgedb.Range[float]],
+    ap: typing.Optional[edgedb.Range[float]] = None,
     aq: edgedb.Range[float],
-    ar: typing.Optional[edgedb.Range[float]],
+    ar: typing.Optional[edgedb.Range[float]] = None,
     as_: edgedb.Range[datetime.datetime],
-    at: typing.Optional[edgedb.Range[datetime.datetime]],
+    at: typing.Optional[edgedb.Range[datetime.datetime]] = None,
     au: edgedb.Range[datetime.datetime],
-    av: typing.Optional[edgedb.Range[datetime.datetime]],
+    av: typing.Optional[edgedb.Range[datetime.datetime]] = None,
     aw: edgedb.Range[datetime.date],
-    ax: typing.Optional[edgedb.Range[datetime.date]],
+    ax: typing.Optional[edgedb.Range[datetime.date]] = None,
 ) -> MyQueryResult:
     return await executor.query_single(
         """\
         create scalar type MyScalar extending int64;
-        create scalar type MyEnum extending enum<This, That>;
+        create scalar type MyEnum extending enum<'This', 'That', '1', 'f. b', 'f-b'>;
 
         select {
         	a := <uuid>$a,

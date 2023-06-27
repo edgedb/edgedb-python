@@ -868,3 +868,18 @@ class TestSyncQuery(tb.SyncQueryTestCase):
             r'cannot execute transaction control commands',
         ):
             self.client.execute('start transaction')
+
+    def test_transaction_state(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "cannot assign to id"):
+            for tx in self.client.transaction():
+                with tx:
+                    tx.execute('''
+                        INSERT test::Tmp { id := <uuid>$0, tmp := '' }
+                    ''', uuid.uuid4())
+
+        client = self.client.with_config(allow_user_specified_id=True)
+        for tx in client.transaction():
+            with tx:
+                tx.execute('''
+                    INSERT test::Tmp { id := <uuid>$0, tmp := '' }
+                ''', uuid.uuid4())
