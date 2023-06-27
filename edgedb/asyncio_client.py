@@ -324,7 +324,7 @@ class AsyncIOIteration(transaction.BaseTransaction, abstract.AsyncIOExecutor):
             self._locked = False
 
     async def savepoint(self) -> transaction.Savepoint:
-        name = uuid.uuid4().hex
+        name = "s" + uuid.uuid4().hex
         return await self._declare_savepoint(name)
 
 

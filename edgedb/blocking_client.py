@@ -330,7 +330,7 @@ class Iteration(transaction.BaseTransaction, abstract.Executor):
             self._lock.release()
 
     def savepoint(self) -> Savepoint:
-        name = uuid.uuid4().hex
+        name = "s" + uuid.uuid4().hex
         return self._client._iter_coroutine(
             self._declare_savepoint(name, cls=Savepoint)
         )
