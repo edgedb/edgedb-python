@@ -29,7 +29,7 @@ repos:
         entry: codespell
         language: python
         types: [text]
-        args: []
+        args: [-L, "commitish,"]
         require_serial: false
         additional_dependencies: []
   - repo: https://github.com/adrienverge/yamllint

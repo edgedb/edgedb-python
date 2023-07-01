@@ -433,26 +433,26 @@ class TestSyncQuery(tb.SyncQueryTestCase):
 
         # Test that the custom UUID that our driver uses can be
         # passed back as a parameter.
-        ot = self.client.query_single(
+        obj2 = self.client.query_single(
             "select schema::Object {name} filter .id=<uuid>$id", id=obj.id
         )
-        self.assertEqual(obj.id, ot.id)
-        self.assertEqual(obj.name, ot.name)
+        self.assertEqual(obj.id, obj2.id)
+        self.assertEqual(obj.name, obj2.name)
 
         # Test that a string UUID is acceptable.
-        ot = self.client.query_single(
+        obj2 = self.client.query_single(
             "select schema::Object {name} filter .id=<uuid>$id", id=str(obj.id)
         )
-        self.assertEqual(obj.id, ot.id)
-        self.assertEqual(obj.name, ot.name)
+        self.assertEqual(obj.id, obj2.id)
+        self.assertEqual(obj.name, obj2.name)
 
         # Test that a standard uuid.UUID is acceptable.
-        ot = self.client.query_single(
+        obj2 = self.client.query_single(
             "select schema::Object {name} filter .id=<uuid>$id",
             id=uuid.UUID(bytes=obj.id.bytes),
         )
-        self.assertEqual(obj.id, ot.id)
-        self.assertEqual(obj.name, ot.name)
+        self.assertEqual(obj.id, obj2.id)
+        self.assertEqual(obj.name, obj2.name)
 
         with self.assertRaisesRegex(
             edgedb.InvalidArgumentError, "invalid UUID.*length must be"

@@ -37,7 +37,7 @@ class TestFlake8(unittest.TestCase):
         try:
             import flake8  # NoQA
         except ImportError:
-            raise unittest.SkipTest("flake8 moudule is missing")
+            raise unittest.SkipTest("flake8 module is missing")
 
         for subdir in ["edgedb", "tests"]:  # ignore any top-level test files
             try:

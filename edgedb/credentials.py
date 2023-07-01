@@ -98,13 +98,13 @@ def validate_credentials(data: dict) -> Credentials:
             raise ValueError("`tls_security` must be a string")
         result["tls_security"] = tls_security
 
-    missmatch = ValueError(
+    mismatch = ValueError(
         f"tls_verify_hostname={verify} and "
         f"tls_security={tls_security} are incompatible"
     )
     if tls_security == "strict" and verify is False:
-        raise missmatch
+        raise mismatch
     if tls_security in {"no_host_verification", "insecure"} and verify is True:
-        raise missmatch
+        raise mismatch
 
     return result
