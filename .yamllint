@@ -1,0 +1,10 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 270
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+  new-lines: disable
+  truthy: disable
