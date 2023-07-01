@@ -23,6 +23,8 @@ import traceback
 import unicodedata
 import warnings
 
+from edgedb.color import get_color
+
 __all__ = (
     "EdgeDBError",
     "EdgeDBMessage",
@@ -331,6 +333,3 @@ except KeyError:
         "EDGEDB_ERROR_HINT can only be one of: default, enabled or disabled"
     )
     SHOW_HINT = False
-
-
-from edgedb.color import get_color
