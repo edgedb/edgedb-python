@@ -706,6 +706,12 @@ def _parse_connect_dsn_and_args(
                     f'project defined cloud profile ("{cloud_profile}")'
                 ),
             )
+
+            opt_database_file = os.path.join(stash_dir, 'database')
+            if os.path.exists(opt_database_file):
+                with open(opt_database_file, 'rt') as f:
+                    database = f.read().strip()
+                resolved_config.set_database(database, "project")
         else:
             raise errors.ClientConnectionError(
                 f'Found `edgedb.toml` but the project is not initialized. '
@@ -870,6 +876,9 @@ def _parse_cloud_instance_name_into_config(
     org_slug: str,
     instance_name: str,
 ):
+    org_slug = org_slug.lower()
+    instance_name = instance_name.lower()
+
     label = f"{instance_name}--{org_slug}"
     if len(label) > DOMAIN_LABEL_MAX_LENGTH:
         raise ValueError(

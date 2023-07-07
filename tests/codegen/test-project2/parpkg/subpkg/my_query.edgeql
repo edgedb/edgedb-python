@@ -1,5 +1,5 @@
 create scalar type MyScalar extending int64;
-create scalar type MyEnum extending enum<This, That>;
+create scalar type MyEnum extending enum<'This', 'That', '1', 'f. b', 'f-b'>;
 
 select {
 	a := <uuid>$a,

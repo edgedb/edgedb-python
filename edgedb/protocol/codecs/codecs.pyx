@@ -17,12 +17,15 @@
 #
 
 
+import array
 import decimal
 import uuid
 import datetime
 from edgedb import describe
 from edgedb import enums
 from edgedb.datatypes import datatypes
+
+from libc.string cimport memcpy
 
 
 include "./edb_types.pxi"
@@ -504,14 +507,16 @@ cdef dict BASE_SCALAR_CODECS = {}
 cdef register_base_scalar_codec(
         str name,
         pgproto.encode_func encoder,
-        pgproto.decode_func decoder):
+        pgproto.decode_func decoder,
+        object tid = None):
 
     cdef:
         BaseCodec codec
 
-    tid = TYPE_IDS.get(name)
     if tid is None:
-        raise RuntimeError(f'cannot find known ID for type {name!r}')
+        tid = TYPE_IDS.get(name)
+        if tid is None:
+            raise RuntimeError(f'cannot find known ID for type {name!r}')
     tid = tid.bytes
 
     if tid in BASE_SCALAR_CODECS:
@@ -665,6 +670,94 @@ cdef config_memory_decode(pgproto.CodecContext settings, FRBuffer *buf):
     bytes = hton.unpack_int64(frb_read(buf, 8))
 
     return datatypes.ConfigMemory(bytes=bytes)
+
+
+DEF PGVECTOR_MAX_DIM = (1 << 16) - 1
+
+
+cdef pgvector_encode_memview(pgproto.CodecContext settings, WriteBuffer buf,
+                             float[:] obj):
+    cdef:
+        float item
+        Py_ssize_t objlen
+        Py_ssize_t i
+
+    objlen = len(obj)
+    if objlen > PGVECTOR_MAX_DIM:
+        raise ValueError('too many elements in vector value')
+
+    buf.write_int32(4 + objlen*4)
+    buf.write_int16(objlen)
+    buf.write_int16(0)
+    for i in range(objlen):
+        buf.write_float(obj[i])
+
+
+cdef pgvector_encode(pgproto.CodecContext settings, WriteBuffer buf,
+                     object obj):
+    cdef:
+        float item
+        Py_ssize_t objlen
+        float[:] memview
+        Py_ssize_t i
+
+    # If we can take a typed memview of the object, we use that.
+    # That is good, because it means we can consume array.array and
+    # numpy.ndarray without needing to unbox.
+    # Otherwise we take the slow path, indexing into the array using
+    # the normal protocol.
+    try:
+        memview = obj
+    except (ValueError, TypeError) as e:
+        pass
+    else:
+        pgvector_encode_memview(settings, buf, memview)
+        return
+
+    if not _is_array_iterable(obj):
+        raise TypeError(
+            'a sized iterable container expected (got type {!r})'.format(
+                type(obj).__name__))
+
+    # Annoyingly, this is literally identical code to the fast path...
+    # but the types are different in critical ways.
+    objlen = len(obj)
+    if objlen > PGVECTOR_MAX_DIM:
+        raise ValueError('too many elements in vector value')
+
+    buf.write_int32(4 + objlen*4)
+    buf.write_int16(objlen)
+    buf.write_int16(0)
+    for i in range(objlen):
+        buf.write_float(obj[i])
+
+
+cdef object ONE_EL_ARRAY = array.array('f', [0.0])
+
+
+cdef pgvector_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        int32_t dim
+        Py_ssize_t size
+        Py_buffer view
+        char *p
+        float[:] array_view
+
+    dim = hton.unpack_uint16(frb_read(buf, 2))
+    frb_read(buf, 2)
+
+    size = dim * 4
+    p = frb_read(buf, size)
+
+    # Create a float array with size dim
+    val = ONE_EL_ARRAY * dim
+
+    # And fill it with the buffer contents
+    array_view = val
+    memcpy(&array_view[0], p, size)
+    val.byteswap()
+
+    return val
 
 
 cdef checked_decimal_encode(
@@ -868,5 +961,13 @@ cdef register_base_scalar_codecs():
         'fts::language',
         pgproto.text_encode,
         pgproto.text_decode)
+
+    register_base_scalar_codec(
+        'ext::pgvector::vector',
+        pgvector_encode,
+        pgvector_decode,
+        uuid.UUID('9565dd88-04f5-11ee-a691-0b6ebe179825'),
+    )
+
 
 register_base_scalar_codecs()

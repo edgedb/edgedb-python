@@ -39,7 +39,7 @@ cdef class BaseArrayCodec(BaseCodec):
 
         if not isinstance(
             self.sub_codec,
-            (ScalarCodec, TupleCodec, NamedTupleCodec, RangeCodec)
+            (ScalarCodec, TupleCodec, NamedTupleCodec, RangeCodec, EnumCodec)
         ):
             raise TypeError(
                 'only arrays of scalars are supported (got type {!r})'.format(

@@ -145,6 +145,20 @@ class Generator:
         print_msg(f"Found EdgeDB project: {C.BOLD}{self._project_dir}{C.ENDC}")
         self._client = edgedb.create_client(**_get_conn_args(args))
         self._single_mode_files = args.file
+        self._search_dirs = []
+        for search_dir in args.dir or []:
+            search_dir = pathlib.Path(search_dir).absolute()
+            if (
+                search_dir == self._project_dir
+                or self._project_dir in search_dir.parents
+            ):
+                self._search_dirs.append(search_dir)
+            else:
+                print(
+                    f"--dir '{search_dir}' is not under "
+                    f"the project directory: {self._project_dir}"
+                )
+                sys.exit(1)
         self._method_names = set()
         self._describe_results = []
 
@@ -170,7 +184,11 @@ class Generator:
             print(f"Failed to connect to EdgeDB instance: {e}")
             sys.exit(61)
         with self._client:
-            self._process_dir(self._project_dir)
+            if self._search_dirs:
+                for search_dir in self._search_dirs:
+                    self._process_dir(search_dir)
+            else:
+                self._process_dir(self._project_dir)
         for target, suffix, is_async in SUFFIXES:
             if target in self._targets:
                 self._async = is_async
@@ -325,7 +343,7 @@ class Generator:
                 kw_only = True
                 for el_name, el in dr.input_type.elements.items():
                     args[el_name] = self._generate_code_with_cardinality(
-                        el.type, el_name, el.cardinality
+                        el.type, el_name, el.cardinality, keyword_argument=True
                     )
 
         if self._async:
@@ -483,8 +501,8 @@ class Generator:
             buf = io.StringIO()
             self._imports.add("enum")
             print(f"class {rv}(enum.Enum):", file=buf)
-            for member in type_.members:
-                print(f'{INDENT}{member.upper()} = "{member}"', file=buf)
+            for member, member_id in self._to_unique_idents(type_.members):
+                print(f'{INDENT}{member_id.upper()} = "{member}"', file=buf)
             self._defs[rv] = buf.getvalue().strip()
 
         elif isinstance(type_, describe.RangeType):
@@ -502,6 +520,7 @@ class Generator:
         type_: typing.Optional[describe.AnyType],
         name_hint: str,
         cardinality: edgedb.Cardinality,
+        keyword_argument: bool = False,
     ):
         rv = self._generate_code(type_, name_hint)
         if cardinality == edgedb.Cardinality.AT_MOST_ONE:
@@ -510,6 +529,8 @@ class Generator:
             else:
                 self._imports.add("typing")
                 rv = f"typing.Optional[{rv}]"
+            if keyword_argument:
+                rv = f"{rv} = None"
         return rv
 
     def _find_name(self, name: str) -> str:
@@ -537,3 +558,37 @@ class Generator:
             return "".join(map(str.title, parts))
         else:
             return name
+
+    def _to_unique_idents(
+        self, names: typing.Iterable[typing.Tuple[str, str]]
+    ) -> typing.Iterator[str]:
+        dedup = set()
+        for name in names:
+            if name.isidentifier():
+                name_id = name
+                sep = name.endswith("_")
+            else:
+                sep = True
+                result = []
+                for i, c in enumerate(name):
+                    if c.isdigit():
+                        if i == 0:
+                            result.append("e_")
+                        result.append(c)
+                        sep = False
+                    elif c.isidentifier():
+                        result.append(c)
+                        sep = c == "_"
+                    elif not sep:
+                        result.append("_")
+                        sep = True
+                name_id = "".join(result)
+            rv = name_id
+            if not sep:
+                name_id = name_id + "_"
+            i = 1
+            while rv in dedup:
+                rv = f"{name_id}{i}"
+                i += 1
+            dedup.add(rv)
+            yield name, rv
