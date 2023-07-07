@@ -156,7 +156,7 @@ cdef class ArrayCodec(BaseArrayCodec):
     def make_type(self, describe_context):
         return describe.ArrayType(
             desc_id=uuid.UUID(bytes=self.tid),
-            name=None,
+            name=self.type_name,
             element_type=self.sub_codec.make_type(describe_context),
         )
 

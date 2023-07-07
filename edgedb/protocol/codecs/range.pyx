@@ -143,6 +143,6 @@ cdef class RangeCodec(BaseCodec):
     def make_type(self, describe_context):
         return describe.RangeType(
             desc_id=uuid.UUID(bytes=self.tid),
-            name=None,
+            name=self.type_name,
             value_type=self.sub_codec.make_type(describe_context),
         )
