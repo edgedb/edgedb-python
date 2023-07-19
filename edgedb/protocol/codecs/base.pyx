@@ -149,7 +149,7 @@ cdef class BaseRecordCodec(BaseCodec):
                 if not isinstance(
                     codec,
                     (ScalarCodec, ArrayCodec, TupleCodec, NamedTupleCodec,
-                     EnumCodec, RangeCodec),
+                     EnumCodec, RangeCodec, MultirangeCodec),
                 ):
                     self.encoder_flags |= RECORD_ENCODER_INVALID
                     break

@@ -799,6 +799,83 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         )
         self.assertEqual([edgedb.Range(1, 2)], result)
 
+    async def test_async_multirange_01(self):
+        has_range = await self.client.query(
+            "select schema::ObjectType filter .name = 'schema::Multirange'")
+        if not has_range:
+            raise unittest.SkipTest(
+                "server has no support for std::multirange")
+
+        samples = [
+            ('multirange<int64>', [
+                edgedb.Multirange(),
+                dict(
+                    input=edgedb.Multirange([edgedb.Range(empty=True)]),
+                    output=edgedb.Multirange(),
+                ),
+                edgedb.Multirange([
+                    edgedb.Range(None, 0),
+                    edgedb.Range(1, 2),
+                    edgedb.Range(4),
+                ]),
+                dict(
+                    input=edgedb.Multirange([
+                        edgedb.Range(None, 2, inc_upper=True),
+                        edgedb.Range(5, 9),
+                        edgedb.Range(5, 9),
+                        edgedb.Range(5, 9),
+                        edgedb.Range(None, 2, inc_upper=True),
+                    ]),
+                    output=edgedb.Multirange([
+                        edgedb.Range(5, 9),
+                        edgedb.Range(None, 3),
+                    ]),
+                ),
+                dict(
+                    input=edgedb.Multirange([
+                        edgedb.Range(None, 2),
+                        edgedb.Range(-5, 9),
+                        edgedb.Range(13),
+                    ]),
+                    output=edgedb.Multirange([
+                        edgedb.Range(None, 9),
+                        edgedb.Range(13),
+                    ]),
+                ),
+            ]),
+        ]
+
+        for typename, sample_data in samples:
+            for sample in sample_data:
+                with self.subTest(sample=sample, typname=typename):
+                    stmt = f"SELECT <{typename}>$0"
+                    if isinstance(sample, dict):
+                        inputval = sample['input']
+                        outputval = sample['output']
+                    else:
+                        inputval = outputval = sample
+
+                    result = await self.client.query_single(stmt, inputval)
+                    err_msg = (
+                        "unexpected result for {} when passing {!r}: "
+                        "received {!r}, expected {!r}".format(
+                            typename, inputval, result, outputval))
+
+                    self.assertEqual(result, outputval, err_msg)
+
+    async def test_async_multirange_02(self):
+        has_range = await self.client.query(
+            "select schema::ObjectType filter .name = 'schema::Multirange'")
+        if not has_range:
+            raise unittest.SkipTest(
+                "server has no support for std::multirange")
+
+        result = await self.client.query_single(
+            "SELECT <array<multirange<int32>>>$0",
+            [edgedb.Multirange([edgedb.Range(1, 2)])]
+        )
+        self.assertEqual([edgedb.Multirange([edgedb.Range(1, 2)])], result)
+
     async def test_async_wait_cancel_01(self):
         underscored_lock = await self.client.query_single("""
             SELECT EXISTS(

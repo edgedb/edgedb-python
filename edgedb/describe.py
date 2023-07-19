@@ -91,3 +91,8 @@ class SparseObjectType(ObjectType):
 @dataclasses.dataclass(frozen=True)
 class RangeType(AnyType):
     value_type: AnyType
+
+
+@dataclasses.dataclass(frozen=True)
+class MultirangeType(AnyType):
+    value_type: AnyType

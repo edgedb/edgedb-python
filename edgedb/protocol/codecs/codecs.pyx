@@ -54,6 +54,7 @@ DEF CTYPE_INPUT_SHAPE = 8
 DEF CTYPE_RANGE = 9
 DEF CTYPE_OBJECT = 10
 DEF CTYPE_COMPOUND = 11
+DEF CTYPE_MULTIRANGE = 12
 DEF CTYPE_ANNO_TYPENAME = 255
 
 DEF _CODECS_BUILD_CACHE_SIZE = 200
@@ -163,6 +164,9 @@ cdef class CodecsRegistry:
                 frb_read(spec, 4)
 
             elif t == CTYPE_RANGE:
+                frb_read(spec, 2)
+
+            elif t == CTYPE_MULTIRANGE:
                 frb_read(spec, 2)
 
             elif t == CTYPE_ENUM:
@@ -442,6 +446,24 @@ cdef class CodecsRegistry:
             pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             sub_codec = <BaseCodec>codecs_list[pos]
             res = RangeCodec.new(tid, sub_codec)
+            res.type_name = type_name
+
+        elif t == CTYPE_MULTIRANGE:
+            if protocol_version >= (2, 0):
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                type_name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                schema_defined = <bint>frb_read(spec, 1)[0]
+                ancestor_count = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                for _ in range(ancestor_count):
+                    ancestor_pos = <uint16_t>hton.unpack_int16(
+                        frb_read(spec, 2))
+                    ancestor_codec = codecs_list[ancestor_pos]
+            else:
+                type_name = None
+            pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            sub_codec = <BaseCodec>codecs_list[pos]
+            res = MultirangeCodec.new(tid, sub_codec)
             res.type_name = type_name
 
         elif t == CTYPE_OBJECT and protocol_version >= (2, 0):

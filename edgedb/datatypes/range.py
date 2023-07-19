@@ -16,8 +16,8 @@
 # limitations under the License.
 #
 
-from typing import Generic, Optional, TypeVar
-
+from typing import (TypeVar, Any, Generic, Optional, Iterable, Iterator,
+                    Sequence)
 
 T = TypeVar("T")
 
@@ -78,8 +78,17 @@ class Range(Generic[T]):
     def __bool__(self):
         return not self.is_empty()
 
-    def __eq__(self, other):
-        if not isinstance(other, Range):
+    def __eq__(self, other) -> bool:
+        if isinstance(other, Multirange):
+            if self._empty:
+                return len(self) == 0
+            elif len(other) == 1:
+                o = other._ranges[0]
+            else:
+                return False
+        if isinstance(other, Range):
+            o = other
+        else:
             return NotImplemented
 
         return (
@@ -87,13 +96,13 @@ class Range(Generic[T]):
             self._upper,
             self._inc_lower,
             self._inc_upper,
-            self._empty
-        ) == (
-            other._lower,
-            other._upper,
-            other._inc_lower,
-            other._inc_upper,
             self._empty,
+        ) == (
+            o._lower,
+            o._upper,
+            o._inc_lower,
+            o._inc_upper,
+            o._empty,
         )
 
     def __hash__(self) -> int:
@@ -125,3 +134,44 @@ class Range(Generic[T]):
         return f"<Range {desc}>"
 
     __repr__ = __str__
+
+
+# TODO: maybe we should implement range and multirange operations as well as
+# normalization of the sub-ranges?
+class Multirange(Iterable[T]):
+
+    _ranges: Sequence[T]
+
+    def __init__(self, iterable: Optional[Iterable[T]] = None) -> None:
+        if iterable is not None:
+            self._ranges = tuple(iterable)
+        else:
+            self._ranges = tuple()
+
+    def __len__(self) -> int:
+        return len(self._ranges)
+
+    def __iter__(self) -> Iterator[T]:
+        return iter(self._ranges)
+
+    def __reversed__(self) -> Iterator[T]:
+        return reversed(self._ranges)
+
+    def __str__(self) -> str:
+        return f'<Multirange {list(self._ranges)}>'
+
+    __repr__ = __str__
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Multirange):
+            return set(self._ranges) == set(other._ranges)
+        elif isinstance(other, Range):
+            if other.is_empty():
+                return len(self) == 0
+            else:
+                return len(self) == 1 and self._ranges[0] == other
+        else:
+            return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash(self._ranges)

@@ -46,7 +46,8 @@ cdef class RangeCodec(BaseCodec):
 
         return codec
 
-    cdef encode(self, WriteBuffer buf, object obj):
+    @staticmethod
+    cdef encode_range(WriteBuffer buf, object obj, BaseCodec sub_codec):
         cdef:
             uint8_t flags = 0
             WriteBuffer sub_data
@@ -56,10 +57,10 @@ cdef class RangeCodec(BaseCodec):
             bint inc_upper = obj.inc_upper
             bint empty = obj.is_empty()
 
-        if not isinstance(self.sub_codec, ScalarCodec):
+        if not isinstance(sub_codec, ScalarCodec):
             raise TypeError(
                 'only scalar ranges are supported (got type {!r})'.format(
-                    type(self.sub_codec).__name__
+                    type(sub_codec).__name__
                 )
             )
 
@@ -78,14 +79,14 @@ cdef class RangeCodec(BaseCodec):
         sub_data = WriteBuffer.new()
         if lower is not None:
             try:
-                self.sub_codec.encode(sub_data, lower)
+                sub_codec.encode(sub_data, lower)
             except TypeError as e:
                 raise ValueError(
                     'invalid range lower bound: {}'.format(
                         e.args[0])) from None
         if upper is not None:
             try:
-                self.sub_codec.encode(sub_data, upper)
+                sub_codec.encode(sub_data, upper)
             except TypeError as e:
                 raise ValueError(
                     'invalid range upper bound: {}'.format(
@@ -95,7 +96,8 @@ cdef class RangeCodec(BaseCodec):
         buf.write_byte(<int8_t>flags)
         buf.write_buffer(sub_data)
 
-    cdef decode(self, FRBuffer *buf):
+    @staticmethod
+    cdef decode_range(FRBuffer *buf, BaseCodec sub_codec):
         cdef:
             uint8_t flags = <uint8_t>frb_read(buf, 1)[0]
             bint empty = (flags & RANGE_EMPTY) != 0
@@ -107,7 +109,6 @@ cdef class RangeCodec(BaseCodec):
             object upper = None
             int32_t sub_len
             FRBuffer sub_buf
-            BaseCodec sub_codec = self.sub_codec
 
         if has_lower:
             sub_len = hton.unpack_int32(frb_read(buf, 4))
@@ -137,11 +138,118 @@ cdef class RangeCodec(BaseCodec):
             empty=empty,
         )
 
+    cdef encode(self, WriteBuffer buf, object obj):
+        RangeCodec.encode_range(buf, obj, self.sub_codec)
+
+    cdef decode(self, FRBuffer *buf):
+        return RangeCodec.decode_range(buf, self.sub_codec)
+
     cdef dump(self, int level = 0):
         return f'{level * " "}{self.name}\n{self.sub_codec.dump(level + 1)}'
 
     def make_type(self, describe_context):
         return describe.RangeType(
+            desc_id=uuid.UUID(bytes=self.tid),
+            name=self.type_name,
+            value_type=self.sub_codec.make_type(describe_context),
+        )
+
+
+@cython.final
+cdef class MultirangeCodec(BaseCodec):
+
+    def __cinit__(self):
+        self.sub_codec = None
+
+    @staticmethod
+    cdef BaseCodec new(bytes tid, BaseCodec sub_codec):
+        cdef:
+            MultirangeCodec codec
+
+        codec = MultirangeCodec.__new__(MultirangeCodec)
+
+        codec.tid = tid
+        codec.name = 'Multirange'
+        codec.sub_codec = sub_codec
+
+        return codec
+
+    cdef encode(self, WriteBuffer buf, object obj):
+        cdef:
+            WriteBuffer elem_data
+            Py_ssize_t objlen
+            Py_ssize_t elem_data_len
+
+        if not isinstance(self.sub_codec, ScalarCodec):
+            raise TypeError(
+                f'only scalar multiranges are supported (got type '
+                f'{type(self.sub_codec).__name__!r})'
+            )
+
+        if not _is_array_iterable(obj):
+            raise TypeError(
+                f'a sized iterable container expected (got type '
+                f'{type(obj).__name__!r})'
+            )
+
+        objlen = len(obj)
+        if objlen > _MAXINT32:
+            raise ValueError('too many elements in multirange value')
+
+        elem_data = WriteBuffer.new()
+        for item in obj:
+            try:
+                RangeCodec.encode_range(elem_data, item, self.sub_codec)
+            except TypeError as e:
+                raise ValueError(
+                    f'invalid multirange element: {e.args[0]}') from None
+
+        elem_data_len = elem_data.len()
+        if elem_data_len > _MAXINT32 - 4:
+            raise OverflowError(
+                f'size of encoded multirange datum exceeds the maximum '
+                f'allowed {_MAXINT32 - 4} bytes')
+
+        # Datum length
+        buf.write_int32(4 + <int32_t>elem_data_len)
+        # Number of elements in multirange
+        buf.write_int32(<int32_t>objlen)
+        buf.write_buffer(elem_data)
+
+    cdef decode(self, FRBuffer *buf):
+        cdef:
+            Py_ssize_t elem_count = <Py_ssize_t><uint32_t>hton.unpack_int32(
+                frb_read(buf, 4))
+            object result
+            Py_ssize_t i
+            int32_t elem_len
+            FRBuffer elem_buf
+
+        result = cpython.PyList_New(elem_count)
+        for i in range(elem_count):
+            elem_len = hton.unpack_int32(frb_read(buf, 4))
+            if elem_len == -1:
+                raise RuntimeError(
+                    'unexpected NULL element in multirange value')
+            else:
+                frb_slice_from(&elem_buf, buf, elem_len)
+                elem = RangeCodec.decode_range(&elem_buf, self.sub_codec)
+                if frb_get_len(&elem_buf):
+                    raise RuntimeError(
+                        f'unexpected trailing data in buffer after '
+                        f'multirange element decoding: '
+                        f'{frb_get_len(&elem_buf)}')
+
+            cpython.Py_INCREF(elem)
+            cpython.PyList_SET_ITEM(result, i, elem)
+
+        return range_mod.Multirange(result)
+
+    cdef dump(self, int level = 0):
+        return f'{level * " "}{self.name}\n{self.sub_codec.dump(level + 1)}'
+
+    def make_type(self, describe_context):
+        return describe.MultirangeType(
             desc_id=uuid.UUID(bytes=self.tid),
             name=self.type_name,
             value_type=self.sub_codec.make_type(describe_context),
