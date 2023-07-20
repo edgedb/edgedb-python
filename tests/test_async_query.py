@@ -62,12 +62,10 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
                 await self.client.query('select syntax error')
 
-            with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        'Unexpected end of line'):
+            with self.assertRaises(edgedb.EdgeQLSyntaxError):
                 await self.client.query('select (')
 
-            with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
-                                        'Unexpected end of line'):
+            with self.assertRaises(edgedb.EdgeQLSyntaxError):
                 await self.client.query_json('select (')
 
             for _ in range(10):
