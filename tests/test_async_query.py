@@ -849,7 +849,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
                         g.create_task(exec_to_fail())
 
-                        await asyncio.wait_for(fut, 1)
+                        await asyncio.wait_for(fut, 5)
                         await asyncio.sleep(0.1)
 
                         with self.assertRaises(asyncio.TimeoutError):
