@@ -79,7 +79,7 @@ class Range(Generic[T]):
         return not self.is_empty()
 
     def __eq__(self, other) -> bool:
-        if isinstance(other, Multirange):
+        if isinstance(other, MultiRange):
             if self._empty:
                 return len(self) == 0
             elif len(other) == 1:
@@ -138,7 +138,7 @@ class Range(Generic[T]):
 
 # TODO: maybe we should implement range and multirange operations as well as
 # normalization of the sub-ranges?
-class Multirange(Iterable[T]):
+class MultiRange(Iterable[T]):
 
     _ranges: Sequence[T]
 
@@ -158,12 +158,12 @@ class Multirange(Iterable[T]):
         return reversed(self._ranges)
 
     def __str__(self) -> str:
-        return f'<Multirange {list(self._ranges)}>'
+        return f'<MultiRange {list(self._ranges)}>'
 
     __repr__ = __str__
 
     def __eq__(self, other: Any) -> bool:
-        if isinstance(other, Multirange):
+        if isinstance(other, MultiRange):
             return set(self._ranges) == set(other._ranges)
         elif isinstance(other, Range):
             if other.is_empty():

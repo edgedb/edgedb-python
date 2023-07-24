@@ -156,7 +156,7 @@ cdef class RangeCodec(BaseCodec):
 
 
 @cython.final
-cdef class MultirangeCodec(BaseCodec):
+cdef class MultiRangeCodec(BaseCodec):
 
     def __cinit__(self):
         self.sub_codec = None
@@ -164,12 +164,12 @@ cdef class MultirangeCodec(BaseCodec):
     @staticmethod
     cdef BaseCodec new(bytes tid, BaseCodec sub_codec):
         cdef:
-            MultirangeCodec codec
+            MultiRangeCodec codec
 
-        codec = MultirangeCodec.__new__(MultirangeCodec)
+        codec = MultiRangeCodec.__new__(MultiRangeCodec)
 
         codec.tid = tid
-        codec.name = 'Multirange'
+        codec.name = 'MultiRange'
         codec.sub_codec = sub_codec
 
         return codec
@@ -243,13 +243,13 @@ cdef class MultirangeCodec(BaseCodec):
             cpython.Py_INCREF(elem)
             cpython.PyList_SET_ITEM(result, i, elem)
 
-        return range_mod.Multirange(result)
+        return range_mod.MultiRange(result)
 
     cdef dump(self, int level = 0):
         return f'{level * " "}{self.name}\n{self.sub_codec.dump(level + 1)}'
 
     def make_type(self, describe_context):
-        return describe.MultirangeType(
+        return describe.MultiRangeType(
             desc_id=uuid.UUID(bytes=self.tid),
             name=self.type_name,
             value_type=self.sub_codec.make_type(describe_context),

@@ -34,7 +34,7 @@ cdef class RangeCodec(BaseCodec):
 
 
 @cython.final
-cdef class MultirangeCodec(BaseCodec):
+cdef class MultiRangeCodec(BaseCodec):
 
     cdef:
         BaseCodec sub_codec

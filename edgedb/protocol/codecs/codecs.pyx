@@ -463,7 +463,7 @@ cdef class CodecsRegistry:
                 type_name = None
             pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             sub_codec = <BaseCodec>codecs_list[pos]
-            res = MultirangeCodec.new(tid, sub_codec)
+            res = MultiRangeCodec.new(tid, sub_codec)
             res.type_name = type_name
 
         elif t == CTYPE_OBJECT and protocol_version >= (2, 0):

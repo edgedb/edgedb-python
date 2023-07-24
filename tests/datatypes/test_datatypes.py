@@ -1082,33 +1082,33 @@ class TestRange(unittest.TestCase):
         )
 
 
-class TestMultirange(unittest.TestCase):
+class TestMultiRange(unittest.TestCase):
 
     def test_multirange_empty_1(self):
-        t = edgedb.Multirange()
+        t = edgedb.MultiRange()
         self.assertEqual(len(t), 0)
-        self.assertEqual(t, edgedb.Multirange([]))
+        self.assertEqual(t, edgedb.MultiRange([]))
 
     def test_multirange_2(self):
-        t = edgedb.Multirange([
+        t = edgedb.MultiRange([
             edgedb.Range(1, 2),
             edgedb.Range(4),
         ])
         self.assertEqual(
-            repr(t), "<Multirange [<Range [1, 2]>, <Range [4, ]>]>")
+            repr(t), "<MultiRange [<Range [1, 2]>, <Range [4, ]>]>")
         self.assertEqual(
-            str(t), "<Multirange [<Range [1, 2]>, <Range [4, ]>]>")
+            str(t), "<MultiRange [<Range [1, 2]>, <Range [4, ]>]>")
 
         self.assertEqual(
             t,
-            edgedb.Multirange([
+            edgedb.MultiRange([
                 edgedb.Range(1, 2),
                 edgedb.Range(4),
             ])
         )
 
     def test_multirange_3(self):
-        t = edgedb.Multirange([
+        t = edgedb.MultiRange([
             edgedb.Range(1, 2),
         ])
         self.assertEqual(t, edgedb.Range(1, 2))
@@ -1119,7 +1119,7 @@ class TestMultirange(unittest.TestCase):
             edgedb.Range(1, 2),
             edgedb.Range(4),
         ]
-        t = edgedb.Multirange([
+        t = edgedb.MultiRange([
             edgedb.Range(None, 0),
             edgedb.Range(1, 2),
             edgedb.Range(4),
@@ -1132,24 +1132,24 @@ class TestMultirange(unittest.TestCase):
         # test hash
         self.assertEqual(
             {
-                edgedb.Multirange([
+                edgedb.MultiRange([
                     edgedb.Range(1, 2),
                     edgedb.Range(4),
                 ]),
-                edgedb.Multirange([edgedb.Range(None, 2, inc_upper=True)]),
-                edgedb.Multirange([
+                edgedb.MultiRange([edgedb.Range(None, 2, inc_upper=True)]),
+                edgedb.MultiRange([
                     edgedb.Range(1, 2),
                     edgedb.Range(4),
                 ]),
-                edgedb.Multirange([
+                edgedb.MultiRange([
                     edgedb.Range(1, 2),
                     edgedb.Range(4),
                 ]),
-                edgedb.Multirange([edgedb.Range(None, 2, inc_upper=True)]),
+                edgedb.MultiRange([edgedb.Range(None, 2, inc_upper=True)]),
             },
             {
-                edgedb.Multirange([edgedb.Range(None, 2, inc_upper=True)]),
-                edgedb.Multirange([
+                edgedb.MultiRange([edgedb.Range(None, 2, inc_upper=True)]),
+                edgedb.MultiRange([
                     edgedb.Range(1, 2),
                     edgedb.Range(4),
                 ]),
@@ -1159,14 +1159,14 @@ class TestMultirange(unittest.TestCase):
     def test_multirange_6(self):
         # test hash
         self.assertEqual(
-            edgedb.Multirange([
+            edgedb.MultiRange([
                 edgedb.Range(None, 2, inc_upper=True),
                 edgedb.Range(5, 9),
                 edgedb.Range(5, 9),
                 edgedb.Range(5, 9),
                 edgedb.Range(None, 2, inc_upper=True),
             ]),
-            edgedb.Multirange([
+            edgedb.MultiRange([
                 edgedb.Range(5, 9),
                 edgedb.Range(None, 2, inc_upper=True),
             ]),

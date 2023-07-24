@@ -94,5 +94,5 @@ class RangeType(AnyType):
 
 
 @dataclasses.dataclass(frozen=True)
-class MultirangeType(AnyType):
+class MultiRangeType(AnyType):
     value_type: AnyType
