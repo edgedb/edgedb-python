@@ -25,6 +25,11 @@ from edgedb import errors
 from edgedb.datatypes.datatypes import RelativeDuration, DateDuration
 
 
+USECS_PER_HOUR = 3600000000
+USECS_PER_MINUTE = 60000000
+USECS_PER_SEC = 1000000
+
+
 class TestDatetimeTypes(tb.SyncQueryTestCase):
 
     async def test_duration_01(self):
@@ -59,6 +64,57 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
             SELECT args;
         ''', durs)
         self.assertEqual(list(durs_from_db), durs)
+
+    async def test_duration_02(self):
+        # Make sure that when we break down the microseconds into the bigger
+        # components we still get consistent values.
+        tdn1h = timedelta(microseconds=-USECS_PER_HOUR)
+        tdn1m = timedelta(microseconds=-USECS_PER_MINUTE)
+        tdn1s = timedelta(microseconds=-USECS_PER_SEC)
+        tdn1us = timedelta(microseconds=-1)
+        durs = [
+            (
+                tdn1h, tdn1m,
+                timedelta(microseconds=-USECS_PER_HOUR - USECS_PER_MINUTE),
+            ),
+            (
+                tdn1h, tdn1s,
+                timedelta(microseconds=-USECS_PER_HOUR - USECS_PER_SEC),
+            ),
+            (
+                tdn1m, tdn1s,
+                timedelta(microseconds=-USECS_PER_MINUTE - USECS_PER_SEC),
+            ),
+            (
+                tdn1h, tdn1us,
+                timedelta(microseconds=-USECS_PER_HOUR - 1),
+            ),
+            (
+                tdn1m, tdn1us,
+                timedelta(microseconds=-USECS_PER_MINUTE - 1),
+            ),
+            (
+                tdn1s, tdn1us,
+                timedelta(microseconds=-USECS_PER_SEC - 1),
+            ),
+        ]
+
+        # Test encode
+        durs_enc = self.client.query('''
+            WITH args := array_unpack(
+                <array<tuple<duration, duration, duration>>>$0)
+            SELECT args.0 + args.1 = args.2;
+        ''', durs)
+
+        # Test decode
+        durs_dec = self.client.query('''
+            WITH args := array_unpack(
+                <array<tuple<duration, duration, duration>>>$0)
+            SELECT (args.0 + args.1, args.2);
+        ''', durs)
+
+        self.assertEqual(durs_enc, [True] * len(durs))
+        self.assertEqual(list(durs_dec), [(d[2], d[2]) for d in durs])
 
     async def test_relative_duration_01(self):
         try:
@@ -124,6 +180,41 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
 
         self.assertEqual(repr(d1), '<edgedb.RelativeDuration "PT0.000001S">')
 
+    async def test_relative_duration_03(self):
+        # Make sure that when we break down the microseconds into the bigger
+        # components we still get the sign correctly in string
+        # representation.
+        durs = [
+            RelativeDuration(microseconds=-USECS_PER_HOUR),
+            RelativeDuration(microseconds=-USECS_PER_MINUTE),
+            RelativeDuration(microseconds=-USECS_PER_SEC),
+            RelativeDuration(microseconds=-USECS_PER_HOUR - USECS_PER_MINUTE),
+            RelativeDuration(microseconds=-USECS_PER_HOUR - USECS_PER_SEC),
+            RelativeDuration(microseconds=-USECS_PER_MINUTE - USECS_PER_SEC),
+            RelativeDuration(microseconds=-USECS_PER_HOUR - USECS_PER_MINUTE -
+                             USECS_PER_SEC),
+            RelativeDuration(microseconds=-USECS_PER_HOUR - 1),
+            RelativeDuration(microseconds=-USECS_PER_MINUTE - 1),
+            RelativeDuration(microseconds=-USECS_PER_SEC - 1),
+            RelativeDuration(microseconds=-1),
+        ]
+
+        # Test that RelativeDuration.__str__ formats the
+        # same as <str><cal::relative_duration>
+        durs_as_text = self.client.query('''
+            WITH args := array_unpack(<array<cal::relative_duration>>$0)
+            SELECT <str>args;
+        ''', durs)
+
+        # Test encode/decode roundtrip
+        durs_from_db = self.client.query('''
+            WITH args := array_unpack(<array<cal::relative_duration>>$0)
+            SELECT args;
+        ''', durs)
+
+        self.assertEqual(durs_as_text, [str(d) for d in durs])
+        self.assertEqual(list(durs_from_db), durs)
+
     async def test_date_duration_01(self):
         try:
             self.client.query("SELECT <cal::date_duration>'1y'")
@@ -167,4 +258,33 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         for db_dur, client_dur in zip(durs_as_text, durs):
             self.assertEqual(db_dur, str(client_dur))
 
+        self.assertEqual(list(durs_from_db), durs)
+
+    async def test_date_duration_02(self):
+        # Make sure that when we break down the microseconds into the bigger
+        # components we still get the sign correctly in string
+        # representation.
+        durs = [
+            DateDuration(months=11),
+            DateDuration(months=12),
+            DateDuration(months=13),
+            DateDuration(months=-11),
+            DateDuration(months=-12),
+            DateDuration(months=-13),
+        ]
+
+        # Test that DateDuration.__str__ formats the
+        # same as <str><cal::date_duration>
+        durs_as_text = self.client.query('''
+            WITH args := array_unpack(<array<cal::date_duration>>$0)
+            SELECT <str>args;
+        ''', durs)
+
+        # Test encode/decode roundtrip
+        durs_from_db = self.client.query('''
+            WITH args := array_unpack(<array<cal::date_duration>>$0)
+            SELECT args;
+        ''', durs)
+
+        self.assertEqual(durs_as_text, [str(d) for d in durs])
         self.assertEqual(list(durs_from_db), durs)
