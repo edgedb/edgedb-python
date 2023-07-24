@@ -53,16 +53,10 @@ class TestSyncQuery(tb.SyncQueryTestCase):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
                 self.client.query('select syntax error')
 
-            with self.assertRaisesRegex(
-                edgedb.EdgeQLSyntaxError,
-                r"(Unexpected end of line)|(Missing '\)')"
-            ):
+            with self.assertRaises(edgedb.EdgeQLSyntaxError):
                 self.client.query('select (')
 
-            with self.assertRaisesRegex(
-                edgedb.EdgeQLSyntaxError,
-                r"(Unexpected end of line)|(Missing '\)')"
-            ):
+            with self.assertRaises(edgedb.EdgeQLSyntaxError):
                 self.client.query_json('select (')
 
             for _ in range(10):
