@@ -79,13 +79,6 @@ class Range(Generic[T]):
         return not self.is_empty()
 
     def __eq__(self, other) -> bool:
-        if isinstance(other, MultiRange):
-            if self._empty:
-                return len(self) == 0
-            elif len(other) == 1:
-                o = other._ranges[0]
-            else:
-                return False
         if isinstance(other, Range):
             o = other
         else:
@@ -165,11 +158,6 @@ class MultiRange(Iterable[T]):
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, MultiRange):
             return set(self._ranges) == set(other._ranges)
-        elif isinstance(other, Range):
-            if other.is_empty():
-                return len(self) == 0
-            else:
-                return len(self) == 1 and self._ranges[0] == other
         else:
             return NotImplemented
 

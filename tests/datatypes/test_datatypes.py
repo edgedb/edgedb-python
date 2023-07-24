@@ -1108,12 +1108,6 @@ class TestMultiRange(unittest.TestCase):
         )
 
     def test_multirange_3(self):
-        t = edgedb.MultiRange([
-            edgedb.Range(1, 2),
-        ])
-        self.assertEqual(t, edgedb.Range(1, 2))
-
-    def test_multirange_4(self):
         ranges = [
             edgedb.Range(None, 0),
             edgedb.Range(1, 2),
@@ -1128,7 +1122,7 @@ class TestMultiRange(unittest.TestCase):
         for el, r in zip(t, ranges):
             self.assertEqual(el, r)
 
-    def test_multirange_5(self):
+    def test_multirange_4(self):
         # test hash
         self.assertEqual(
             {
@@ -1156,7 +1150,7 @@ class TestMultiRange(unittest.TestCase):
             }
         )
 
-    def test_multirange_6(self):
+    def test_multirange_5(self):
         # test hash
         self.assertEqual(
             edgedb.MultiRange([
