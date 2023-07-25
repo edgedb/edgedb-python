@@ -1003,3 +1003,165 @@ class TestArray(unittest.TestCase):
         self.assertNotEqual(
             edgedb.Array([1, 2, 3]),
             False)
+
+
+class TestRange(unittest.TestCase):
+
+    def test_range_empty_1(self):
+        t = edgedb.Range(empty=True)
+        self.assertEqual(t.lower, None)
+        self.assertEqual(t.upper, None)
+        self.assertFalse(t.inc_lower)
+        self.assertFalse(t.inc_upper)
+        self.assertTrue(t.is_empty())
+        self.assertFalse(t)
+
+        self.assertEqual(t, edgedb.Range(1, 1, empty=True))
+
+        with self.assertRaisesRegex(ValueError, 'conflicting arguments'):
+            edgedb.Range(1, 2, empty=True)
+
+    def test_range_2(self):
+        t = edgedb.Range(1, 2)
+        self.assertEqual(repr(t), "<Range [1, 2]>")
+        self.assertEqual(str(t), "<Range [1, 2]>")
+
+        self.assertEqual(t.lower, 1)
+        self.assertEqual(t.upper, 2)
+        self.assertTrue(t.inc_lower)
+        self.assertFalse(t.inc_upper)
+        self.assertFalse(t.is_empty())
+        self.assertTrue(t)
+
+    def test_range_3(self):
+        t = edgedb.Range(1)
+        self.assertEqual(t.lower, 1)
+        self.assertEqual(t.upper, None)
+        self.assertTrue(t.inc_lower)
+        self.assertFalse(t.inc_upper)
+        self.assertFalse(t.is_empty())
+
+        t = edgedb.Range(None, 1)
+        self.assertEqual(t.lower, None)
+        self.assertEqual(t.upper, 1)
+        self.assertFalse(t.inc_lower)
+        self.assertFalse(t.inc_upper)
+        self.assertFalse(t.is_empty())
+
+        t = edgedb.Range(None, None)
+        self.assertEqual(t.lower, None)
+        self.assertEqual(t.upper, None)
+        self.assertFalse(t.inc_lower)
+        self.assertFalse(t.inc_upper)
+        self.assertFalse(t.is_empty())
+
+    def test_range_4(self):
+        for il in (False, True):
+            for iu in (False, True):
+                t = edgedb.Range(1, 2, inc_lower=il, inc_upper=iu)
+                self.assertEqual(t.lower, 1)
+                self.assertEqual(t.upper, 2)
+                self.assertEqual(t.inc_lower, il)
+                self.assertEqual(t.inc_upper, iu)
+                self.assertFalse(t.is_empty())
+
+    def test_range_5(self):
+        # test hash
+        self.assertEqual(
+            {
+                edgedb.Range(None, 2, inc_upper=True),
+                edgedb.Range(1, 2),
+                edgedb.Range(1, 2),
+                edgedb.Range(1, 2),
+                edgedb.Range(None, 2, inc_upper=True),
+            },
+            {
+                edgedb.Range(1, 2),
+                edgedb.Range(None, 2, inc_upper=True),
+            }
+        )
+
+
+class TestMultiRange(unittest.TestCase):
+
+    def test_multirange_empty_1(self):
+        t = edgedb.MultiRange()
+        self.assertEqual(len(t), 0)
+        self.assertEqual(t, edgedb.MultiRange([]))
+
+    def test_multirange_2(self):
+        t = edgedb.MultiRange([
+            edgedb.Range(1, 2),
+            edgedb.Range(4),
+        ])
+        self.assertEqual(
+            repr(t), "<MultiRange [<Range [1, 2]>, <Range [4, ]>]>")
+        self.assertEqual(
+            str(t), "<MultiRange [<Range [1, 2]>, <Range [4, ]>]>")
+
+        self.assertEqual(
+            t,
+            edgedb.MultiRange([
+                edgedb.Range(1, 2),
+                edgedb.Range(4),
+            ])
+        )
+
+    def test_multirange_3(self):
+        ranges = [
+            edgedb.Range(None, 0),
+            edgedb.Range(1, 2),
+            edgedb.Range(4),
+        ]
+        t = edgedb.MultiRange([
+            edgedb.Range(None, 0),
+            edgedb.Range(1, 2),
+            edgedb.Range(4),
+        ])
+
+        for el, r in zip(t, ranges):
+            self.assertEqual(el, r)
+
+    def test_multirange_4(self):
+        # test hash
+        self.assertEqual(
+            {
+                edgedb.MultiRange([
+                    edgedb.Range(1, 2),
+                    edgedb.Range(4),
+                ]),
+                edgedb.MultiRange([edgedb.Range(None, 2, inc_upper=True)]),
+                edgedb.MultiRange([
+                    edgedb.Range(1, 2),
+                    edgedb.Range(4),
+                ]),
+                edgedb.MultiRange([
+                    edgedb.Range(1, 2),
+                    edgedb.Range(4),
+                ]),
+                edgedb.MultiRange([edgedb.Range(None, 2, inc_upper=True)]),
+            },
+            {
+                edgedb.MultiRange([edgedb.Range(None, 2, inc_upper=True)]),
+                edgedb.MultiRange([
+                    edgedb.Range(1, 2),
+                    edgedb.Range(4),
+                ]),
+            }
+        )
+
+    def test_multirange_5(self):
+        # test hash
+        self.assertEqual(
+            edgedb.MultiRange([
+                edgedb.Range(None, 2, inc_upper=True),
+                edgedb.Range(5, 9),
+                edgedb.Range(5, 9),
+                edgedb.Range(5, 9),
+                edgedb.Range(None, 2, inc_upper=True),
+            ]),
+            edgedb.MultiRange([
+                edgedb.Range(5, 9),
+                edgedb.Range(None, 2, inc_upper=True),
+            ]),
+        )

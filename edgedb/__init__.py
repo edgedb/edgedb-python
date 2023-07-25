@@ -25,7 +25,7 @@ from edgedb.datatypes.datatypes import (
     Tuple, NamedTuple, EnumValue, RelativeDuration, DateDuration, ConfigMemory
 )
 from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
-from edgedb.datatypes.range import Range
+from edgedb.datatypes.range import Range, MultiRange
 
 from .abstract import (
     Executor, AsyncIOExecutor, ReadOnlyExecutor, AsyncIOReadOnlyExecutor,
