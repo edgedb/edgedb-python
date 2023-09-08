@@ -220,8 +220,8 @@ async def my_query(
     av: edgedb.Range[datetime.datetime] | None = None,
     aw: edgedb.Range[datetime.date],
     ax: edgedb.Range[datetime.date] | None = None,
-    bc: array.array,
-    bd: array.array | None = None,
+    bc: typing.Sequence[float],
+    bd: typing.Sequence[float] | None = None,
 ) -> MyQueryResult:
     return await executor.query_single(
         """\

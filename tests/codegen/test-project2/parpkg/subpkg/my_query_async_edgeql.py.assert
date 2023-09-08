@@ -146,8 +146,8 @@ async def my_query(
     av: typing.Optional[edgedb.Range[datetime.datetime]] = None,
     aw: edgedb.Range[datetime.date],
     ax: typing.Optional[edgedb.Range[datetime.date]] = None,
-    bc: array.array,
-    bd: typing.Optional[array.array] = None,
+    bc: typing.Sequence[float],
+    bd: typing.Optional[typing.Sequence[float]] = None,
 ) -> MyQueryResult:
     return await executor.query_single(
         """\
