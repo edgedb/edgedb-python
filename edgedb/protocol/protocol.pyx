@@ -148,7 +148,7 @@ cdef class SansIOProtocol:
         self.internal_reg = CodecsRegistry()
         self.server_settings = {}
         self.reset_status()
-        self.protocol_version = (PROTO_VER_MAJOR, 0)
+        self.protocol_version = (PROTO_VER_MAJOR, PROTO_VER_MINOR)
 
         self.state_type_id = NULL_CODEC_ID
         self.state_codec = None
@@ -873,22 +873,19 @@ cdef class SansIOProtocol:
                 minor = self.buffer.read_int16()
 
                 # TODO: drop this branch when dropping protocol_v0
-                if major == LEGACY_PROTO_VER_MAJOR:
+                if major == 0:
                     self.is_legacy = True
                     self.ignore_headers()
 
                 self.buffer.finish_message()
 
-                if major != PROTO_VER_MAJOR and not (
-                    major == LEGACY_PROTO_VER_MAJOR and
-                    minor >= LEGACY_PROTO_VER_MINOR_MIN
-                ):
+                if (major, minor) < (MIN_PROTO_VER_MAJOR, MIN_PROTO_VER_MINOR):
                     raise errors.ClientConnectionError(
                         f'the server requested an unsupported version of '
                         f'the protocol: {major}.{minor}'
                     )
-
-                self.protocol_version = (major, minor)
+                else:
+                    self.protocol_version = (major, minor)
 
             elif mtype == AUTH_REQUEST_MSG:
                 # Authentication...

@@ -25,7 +25,7 @@ from edgedb.datatypes.datatypes import (
     Tuple, NamedTuple, EnumValue, RelativeDuration, DateDuration, ConfigMemory
 )
 from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
-from edgedb.datatypes.range import Range
+from edgedb.datatypes.range import Range, MultiRange
 
 from .abstract import (
     Executor, AsyncIOExecutor, ReadOnlyExecutor, AsyncIOReadOnlyExecutor,
@@ -137,6 +137,7 @@ from .errors import (
     DuplicateFunctionDefinitionError,
     DuplicateConstraintDefinitionError,
     DuplicateCastDefinitionError,
+    DuplicateMigrationError,
     SessionTimeoutError,
     IdleSessionTimeoutError,
     QueryTimeoutError,
@@ -147,6 +148,7 @@ from .errors import (
     DivisionByZeroError,
     NumericOutOfRangeError,
     AccessPolicyError,
+    QueryAssertionError,
     IntegrityError,
     ConstraintViolationError,
     CardinalityViolationError,
@@ -155,11 +157,13 @@ from .errors import (
     TransactionConflictError,
     TransactionSerializationError,
     TransactionDeadlockError,
+    WatchError,
     ConfigurationError,
     AccessError,
     AuthenticationError,
     AvailabilityError,
     BackendUnavailableError,
+    ServerOfflineError,
     BackendError,
     UnsupportedBackendFeatureError,
     LogMessage,
@@ -234,6 +238,7 @@ __all__.extend([
     "DuplicateFunctionDefinitionError",
     "DuplicateConstraintDefinitionError",
     "DuplicateCastDefinitionError",
+    "DuplicateMigrationError",
     "SessionTimeoutError",
     "IdleSessionTimeoutError",
     "QueryTimeoutError",
@@ -244,6 +249,7 @@ __all__.extend([
     "DivisionByZeroError",
     "NumericOutOfRangeError",
     "AccessPolicyError",
+    "QueryAssertionError",
     "IntegrityError",
     "ConstraintViolationError",
     "CardinalityViolationError",
@@ -252,11 +258,13 @@ __all__.extend([
     "TransactionConflictError",
     "TransactionSerializationError",
     "TransactionDeadlockError",
+    "WatchError",
     "ConfigurationError",
     "AccessError",
     "AuthenticationError",
     "AvailabilityError",
     "BackendUnavailableError",
+    "ServerOfflineError",
     "BackendError",
     "UnsupportedBackendFeatureError",
     "LogMessage",

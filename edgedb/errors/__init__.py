@@ -94,6 +94,7 @@ __all__ = _base.__all__ + (  # type: ignore
     'AuthenticationError',
     'AvailabilityError',
     'BackendUnavailableError',
+    'ServerOfflineError',
     'BackendError',
     'UnsupportedBackendFeatureError',
     'LogMessage',
@@ -438,6 +439,11 @@ class AvailabilityError(EdgeDBError):
 class BackendUnavailableError(AvailabilityError):
     _code = 0x_08_00_00_01
     tags = frozenset({SHOULD_RETRY})
+
+
+class ServerOfflineError(AvailabilityError):
+    _code = 0x_08_00_00_02
+    tags = frozenset({SHOULD_RECONNECT, SHOULD_RETRY})
 
 
 class BackendError(EdgeDBError):

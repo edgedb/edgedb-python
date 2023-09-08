@@ -25,3 +25,19 @@ cdef class RangeCodec(BaseCodec):
 
     @staticmethod
     cdef BaseCodec new(bytes tid, BaseCodec sub_codec)
+
+    @staticmethod
+    cdef encode_range(WriteBuffer buf, object obj, BaseCodec sub_codec)
+
+    @staticmethod
+    cdef decode_range(FRBuffer *buf, BaseCodec sub_codec)
+
+
+@cython.final
+cdef class MultiRangeCodec(BaseCodec):
+
+    cdef:
+        BaseCodec sub_codec
+
+    @staticmethod
+    cdef BaseCodec new(bytes tid, BaseCodec sub_codec)

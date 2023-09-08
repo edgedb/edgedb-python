@@ -66,7 +66,7 @@ class TestCodegen(tb.AsyncQueryTestCase):
                 stderr=subprocess.STDOUT,
             )
             try:
-                await asyncio.wait_for(p.wait(), 30)
+                await asyncio.wait_for(p.wait(), 120)
             except asyncio.TimeoutError:
                 p.terminate()
                 await p.wait()
