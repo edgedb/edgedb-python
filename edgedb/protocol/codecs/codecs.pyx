@@ -52,6 +52,9 @@ DEF CTYPE_ARRAY = 6
 DEF CTYPE_ENUM = 7
 DEF CTYPE_INPUT_SHAPE = 8
 DEF CTYPE_RANGE = 9
+DEF CTYPE_OBJECT = 10
+DEF CTYPE_COMPOUND = 11
+DEF CTYPE_MULTIRANGE = 12
 DEF CTYPE_ANNO_TYPENAME = 255
 
 DEF _CODECS_BUILD_CACHE_SIZE = 200
@@ -94,8 +97,9 @@ cdef class CodecsRegistry:
     cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list,
                                 protocol_version):
         cdef:
-            uint8_t t = <uint8_t>(frb_read(spec, 1)[0])
-            bytes tid = frb_read(spec, 16)[:16]
+            uint32_t desc_len = 0
+            uint8_t t
+            bytes tid
             uint16_t els
             uint16_t i
             uint32_t str_len
@@ -104,12 +108,21 @@ cdef class CodecsRegistry:
             BaseCodec res
             BaseCodec sub_codec
 
+        if protocol_version >= (2, 0):
+            desc_len = frb_get_len(spec) - 16 - 1
+
+        t = <uint8_t>(frb_read(spec, 1)[0])
+        tid = frb_read(spec, 16)[:16]
+
         res = self.codecs.get(tid, None)
         if res is None:
             res = self.codecs_build_cache.get(tid, None)
         if res is not None:
             # We have a codec for this "tid"; advance the buffer
             # so that we can process the next codec.
+            if desc_len > 0:
+                frb_read(spec, desc_len)
+                return res
 
             if t == CTYPE_SET:
                 frb_read(spec, 2)
@@ -153,6 +166,9 @@ cdef class CodecsRegistry:
             elif t == CTYPE_RANGE:
                 frb_read(spec, 2)
 
+            elif t == CTYPE_MULTIRANGE:
+                frb_read(spec, 2)
+
             elif t == CTYPE_ENUM:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
                 for i in range(els):
@@ -182,7 +198,50 @@ cdef class CodecsRegistry:
             sub_codec = <BaseCodec>codecs_list[pos]
             res = SetCodec.new(tid, sub_codec)
 
-        elif t == CTYPE_SHAPE or t == CTYPE_INPUT_SHAPE:
+        elif t == CTYPE_SHAPE:
+            if protocol_version >= (2, 0):
+                ephemeral_free_shape = <bint>frb_read(spec, 1)[0]
+                objtype_pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+
+            els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            codecs = cpython.PyTuple_New(els)
+            names = cpython.PyTuple_New(els)
+            flags = cpython.PyTuple_New(els)
+            cards = cpython.PyTuple_New(els)
+            for i in range(els):
+                flag = hton.unpack_uint32(frb_read(spec, 4))  # flags
+                cardinality = <uint8_t>frb_read(spec, 1)[0]
+
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+
+                if flag & datatypes._EDGE_POINTER_IS_LINKPROP:
+                    name = "@" + name
+                cpython.Py_INCREF(name)
+                cpython.PyTuple_SetItem(names, i, name)
+
+                sub_codec = codecs_list[pos]
+                cpython.Py_INCREF(sub_codec)
+                cpython.PyTuple_SetItem(codecs, i, sub_codec)
+
+                cpython.Py_INCREF(flag)
+                cpython.PyTuple_SetItem(flags, i, flag)
+
+                cpython.Py_INCREF(cardinality)
+                cpython.PyTuple_SetItem(cards, i, cardinality)
+
+                if protocol_version >= (2, 0):
+                    source_type_pos = <uint16_t>hton.unpack_int16(
+                        frb_read(spec, 2))
+                    source_type = codecs_list[source_type_pos]
+
+            res = ObjectCodec.new(
+                tid, names, flags, cards, codecs, t == CTYPE_INPUT_SHAPE
+            )
+
+        elif t == CTYPE_INPUT_SHAPE:
             els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             codecs = cpython.PyTuple_New(els)
             names = cpython.PyTuple_New(els)
@@ -223,15 +282,60 @@ cdef class CodecsRegistry:
                 res = <BaseCodec>BASE_SCALAR_CODECS[tid]
 
         elif t == CTYPE_SCALAR:
-            pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
-            codec = codecs_list[pos]
-            if type(codec) is not ScalarCodec:
-                raise RuntimeError(
-                    f'a scalar codec expected for base scalar type, '
-                    f'got {type(codec).__name__}')
-            res = (<ScalarCodec>codecs_list[pos]).derive(tid)
+            if protocol_version >= (2, 0):
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                type_name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                schema_defined = <bint>frb_read(spec, 1)[0]
+
+                ancestor_count = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                ancestors = []
+                for _ in range(ancestor_count):
+                    ancestor_pos = <uint16_t>hton.unpack_int16(
+                        frb_read(spec, 2))
+                    ancestor_codec = codecs_list[ancestor_pos]
+                    if type(ancestor_codec) is not ScalarCodec:
+                        raise RuntimeError(
+                            f'a scalar codec expected for base scalar type, '
+                            f'got {type(ancestor_codec).__name__}')
+                    ancestors.append(ancestor_codec)
+
+                if ancestor_count == 0:
+                    if tid in self.base_codec_overrides:
+                        res = self.base_codec_overrides[tid]
+                    else:
+                        res = <BaseCodec>BASE_SCALAR_CODECS[tid]
+                else:
+                    fundamental_codec = ancestors[-1]
+                    if type(fundamental_codec) is not ScalarCodec:
+                        raise RuntimeError(
+                            f'a scalar codec expected for base scalar type, '
+                            f'got {type(fundamental_codec).__name__}')
+                    res = (<ScalarCodec>fundamental_codec).derive(tid)
+                res.type_name = type_name
+            else:
+                fundamental_pos = <uint16_t>hton.unpack_int16(
+                    frb_read(spec, 2))
+                fundamental_codec = codecs_list[fundamental_pos]
+                if type(fundamental_codec) is not ScalarCodec:
+                    raise RuntimeError(
+                        f'a scalar codec expected for base scalar type, '
+                        f'got {type(fundamental_codec).__name__}')
+                res = (<ScalarCodec>fundamental_codec).derive(tid)
 
         elif t == CTYPE_TUPLE:
+            if protocol_version >= (2, 0):
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                type_name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                schema_defined = <bint>frb_read(spec, 1)[0]
+                ancestor_count = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                for _ in range(ancestor_count):
+                    ancestor_pos = <uint16_t>hton.unpack_int16(
+                        frb_read(spec, 2))
+                    ancestor_codec = codecs_list[ancestor_pos]
+            else:
+                type_name = None
             els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             codecs = cpython.PyTuple_New(els)
             for i in range(els):
@@ -242,8 +346,21 @@ cdef class CodecsRegistry:
                 cpython.PyTuple_SetItem(codecs, i, sub_codec)
 
             res = TupleCodec.new(tid, codecs)
+            res.type_name = type_name
 
         elif t == CTYPE_NAMEDTUPLE:
+            if protocol_version >= (2, 0):
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                type_name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                schema_defined = <bint>frb_read(spec, 1)[0]
+                ancestor_count = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                for _ in range(ancestor_count):
+                    ancestor_pos = <uint16_t>hton.unpack_int16(
+                        frb_read(spec, 2))
+                    ancestor_codec = codecs_list[ancestor_pos]
+            else:
+                type_name = None
             els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             codecs = cpython.PyTuple_New(els)
             names = cpython.PyTuple_New(els)
@@ -261,8 +378,21 @@ cdef class CodecsRegistry:
                 cpython.PyTuple_SetItem(codecs, i, sub_codec)
 
             res = NamedTupleCodec.new(tid, names, codecs)
+            res.type_name = type_name
 
         elif t == CTYPE_ENUM:
+            if protocol_version >= (2, 0):
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                type_name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                schema_defined = <bint>frb_read(spec, 1)[0]
+                ancestor_count = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                for _ in range(ancestor_count):
+                    ancestor_pos = <uint16_t>hton.unpack_int16(
+                        frb_read(spec, 2))
+                    ancestor_codec = codecs_list[ancestor_pos]
+            else:
+                type_name = None
             els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             names = cpython.PyTuple_New(els)
             for i in range(els):
@@ -274,8 +404,21 @@ cdef class CodecsRegistry:
                 cpython.PyTuple_SetItem(names, i, name)
 
             res = EnumCodec.new(tid, names)
+            res.type_name = type_name
 
         elif t == CTYPE_ARRAY:
+            if protocol_version >= (2, 0):
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                type_name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                schema_defined = <bint>frb_read(spec, 1)[0]
+                ancestor_count = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                for _ in range(ancestor_count):
+                    ancestor_pos = <uint16_t>hton.unpack_int16(
+                        frb_read(spec, 2))
+                    ancestor_codec = codecs_list[ancestor_pos]
+            else:
+                type_name = None
             pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             if els != 1:
@@ -285,11 +428,53 @@ cdef class CodecsRegistry:
             dim_len = hton.unpack_int32(frb_read(spec, 4))
             sub_codec = <BaseCodec>codecs_list[pos]
             res = ArrayCodec.new(tid, sub_codec, dim_len)
+            res.type_name = type_name
 
         elif t == CTYPE_RANGE:
+            if protocol_version >= (2, 0):
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                type_name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                schema_defined = <bint>frb_read(spec, 1)[0]
+                ancestor_count = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                for _ in range(ancestor_count):
+                    ancestor_pos = <uint16_t>hton.unpack_int16(
+                        frb_read(spec, 2))
+                    ancestor_codec = codecs_list[ancestor_pos]
+            else:
+                type_name = None
             pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
             sub_codec = <BaseCodec>codecs_list[pos]
             res = RangeCodec.new(tid, sub_codec)
+            res.type_name = type_name
+
+        elif t == CTYPE_MULTIRANGE:
+            if protocol_version >= (2, 0):
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                type_name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                schema_defined = <bint>frb_read(spec, 1)[0]
+                ancestor_count = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                for _ in range(ancestor_count):
+                    ancestor_pos = <uint16_t>hton.unpack_int16(
+                        frb_read(spec, 2))
+                    ancestor_codec = codecs_list[ancestor_pos]
+            else:
+                type_name = None
+            pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            sub_codec = <BaseCodec>codecs_list[pos]
+            res = MultiRangeCodec.new(tid, sub_codec)
+            res.type_name = type_name
+
+        elif t == CTYPE_OBJECT and protocol_version >= (2, 0):
+            # Ignore
+            frb_read(spec, desc_len)
+            res = NULL_CODEC
+
+        elif t == CTYPE_COMPOUND and protocol_version >= (2, 0):
+            # Ignore
+            frb_read(spec, desc_len)
+            res = NULL_CODEC
 
         else:
             raise NotImplementedError(
@@ -321,6 +506,7 @@ cdef class CodecsRegistry:
     cdef BaseCodec build_codec(self, bytes spec, protocol_version):
         cdef:
             FRBuffer buf
+            FRBuffer elem_buf
             BaseCodec res
             list codecs_list
 
@@ -331,7 +517,16 @@ cdef class CodecsRegistry:
 
         codecs_list = []
         while frb_get_len(&buf):
-            res = self._build_codec(&buf, codecs_list, protocol_version)
+            if protocol_version >= (2, 0):
+                desc_len = <uint32_t>hton.unpack_int32(frb_read(&buf, 4))
+                frb_slice_from(&elem_buf, &buf, desc_len)
+                res = self._build_codec(
+                    &elem_buf, codecs_list, protocol_version)
+                if frb_get_len(&elem_buf):
+                    raise RuntimeError(
+                        f'unexpected trailing data in type descriptor datum')
+            else:
+                res = self._build_codec(&buf, codecs_list, protocol_version)
             if res is None:
                 # An annotation; ignore.
                 continue

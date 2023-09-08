@@ -39,7 +39,8 @@ cdef class BaseArrayCodec(BaseCodec):
 
         if not isinstance(
             self.sub_codec,
-            (ScalarCodec, TupleCodec, NamedTupleCodec, RangeCodec, EnumCodec)
+            (ScalarCodec, TupleCodec, NamedTupleCodec, EnumCodec,
+             RangeCodec, MultiRangeCodec)
         ):
             raise TypeError(
                 'only arrays of scalars are supported (got type {!r})'.format(
@@ -156,7 +157,7 @@ cdef class ArrayCodec(BaseArrayCodec):
     def make_type(self, describe_context):
         return describe.ArrayType(
             desc_id=uuid.UUID(bytes=self.tid),
-            name=None,
+            name=self.type_name,
             element_type=self.sub_codec.make_type(describe_context),
         )
 

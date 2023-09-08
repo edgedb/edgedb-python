@@ -81,7 +81,7 @@ cdef class TupleCodec(BaseRecordCodec):
     def make_type(self, describe_context):
         return describe.TupleType(
             desc_id=uuid.UUID(bytes=self.tid),
-            name=None,
+            name=self.type_name,
             element_types=tuple(
                 codec.make_type(describe_context)
                 for codec in self.fields_codecs

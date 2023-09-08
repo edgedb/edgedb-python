@@ -108,7 +108,12 @@ cdef class RelativeDuration:
             buf.append(f'{min}M')
 
         if sec or fsec:
-            sign = '-' if min < 0 or fsec < 0 else ''
+            # If the original microseconds are negative we expect '-' in front
+            # of all non-zero hour/min/second components. The hour/min sign
+            # can be taken as is, but seconds are constructed out of sec and
+            # fsec parts, both of which have their own sign and thus we cannot
+            # just use their string representations directly.
+            sign = '-' if self.microseconds < 0 else ''
             buf.append(f'{sign}{abs(sec)}')
 
             if fsec:
