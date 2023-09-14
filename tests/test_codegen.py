@@ -28,6 +28,14 @@ from edgedb import _testbase as tb
 
 
 class TestCodegen(tb.AsyncQueryTestCase):
+    SETUP = '''
+        create extension pgvector;
+    '''
+
+    TEARDOWN = '''
+        drop extension pgvector;
+    '''
+
     async def test_codegen(self):
         env = os.environ.copy()
         env.update(
@@ -36,6 +44,7 @@ class TestCodegen(tb.AsyncQueryTestCase):
                 for k, v in self.get_connect_args().items()
             }
         )
+        env["EDGEDB_DATABASE"] = self.get_database_name()
         container = pathlib.Path(__file__).absolute().parent / "codegen"
         with tempfile.TemporaryDirectory() as td:
             td_path = pathlib.Path(td)

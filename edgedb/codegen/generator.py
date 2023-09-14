@@ -67,6 +67,7 @@ TYPE_MAPPING = {
     "cal::relative_duration": "edgedb.RelativeDuration",
     "cal::date_duration": "edgedb.DateDuration",
     "cfg::memory": "edgedb.ConfigMemory",
+    "ext::pgvector::vector": "array.array",
 }
 
 TYPE_IMPORTS = {
@@ -77,7 +78,22 @@ TYPE_IMPORTS = {
     "cal::local_date": "datetime",
     "cal::local_time": "datetime",
     "cal::local_datetime": "datetime",
+    "ext::pgvector::vector": "array",
 }
+
+INPUT_TYPE_MAPPING = TYPE_MAPPING.copy()
+INPUT_TYPE_MAPPING.update(
+    {
+        "ext::pgvector::vector": "typing.Sequence[float]",
+    }
+)
+
+INPUT_TYPE_IMPORTS = TYPE_IMPORTS.copy()
+INPUT_TYPE_IMPORTS.update(
+    {
+        "ext::pgvector::vector": "typing",
+    }
+)
 
 PYDANTIC_MIXIN = """\
 class NoPydanticValidation:
@@ -336,14 +352,18 @@ class Generator:
             if "".join(dr.input_type.elements.keys()).isdecimal():
                 for el_name, el in dr.input_type.elements.items():
                     args[int(el_name)] = self._generate_code_with_cardinality(
-                        el.type, f"arg{el_name}", el.cardinality
+                        el.type, f"arg{el_name}", el.cardinality, is_input=True
                     )
                 args = {f"arg{i}": v for i, v in sorted(args.items())}
             else:
                 kw_only = True
                 for el_name, el in dr.input_type.elements.items():
                     args[el_name] = self._generate_code_with_cardinality(
-                        el.type, el_name, el.cardinality, keyword_argument=True
+                        el.type,
+                        el_name,
+                        el.cardinality,
+                        keyword_argument=True,
+                        is_input=True
                     )
 
         if self._async:
@@ -392,22 +412,28 @@ class Generator:
         return buf.getvalue()
 
     def _generate_code(
-        self, type_: typing.Optional[describe.AnyType], name_hint: str
+        self,
+        type_: typing.Optional[describe.AnyType],
+        name_hint: str,
+        is_input: bool = False,
     ) -> str:
         if type_ is None:
             return "None"
 
-        if type_.desc_id in self._cache:
-            return self._cache[type_.desc_id]
+        if (type_.desc_id, is_input) in self._cache:
+            return self._cache[(type_.desc_id, is_input)]
+
+        imports = INPUT_TYPE_IMPORTS if is_input else TYPE_IMPORTS
+        mapping = INPUT_TYPE_MAPPING if is_input else TYPE_MAPPING
 
         if isinstance(type_, describe.BaseScalarType):
-            if type_.name in TYPE_IMPORTS:
-                self._imports.add(TYPE_IMPORTS[type_.name])
-            rv = TYPE_MAPPING[type_.name]
+            if import_str := imports.get(type_.name):
+                self._imports.add(import_str)
+            rv = mapping[type_.name]
 
         elif isinstance(type_, describe.SequenceType):
             el_type = self._generate_code(
-                type_.element_type, f"{name_hint}Item"
+                type_.element_type, f"{name_hint}Item", is_input
             )
             if SYS_VERSION_INFO >= (3, 9):
                 rv = f"list[{el_type}]"
@@ -417,7 +443,7 @@ class Generator:
 
         elif isinstance(type_, describe.TupleType):
             elements = ", ".join(
-                self._generate_code(el_type, f"{name_hint}Item")
+                self._generate_code(el_type, f"{name_hint}Item", is_input)
                 for el_type in type_.element_types
             )
             if SYS_VERSION_INFO >= (3, 9):
@@ -429,9 +455,9 @@ class Generator:
         elif isinstance(type_, describe.ScalarType):
             rv = self._find_name(type_.name)
             base_type_name = type_.base_type.name
-            if base_type_name in TYPE_IMPORTS:
-                self._imports.add(TYPE_IMPORTS[base_type_name])
-            value = TYPE_MAPPING[base_type_name]
+            if import_str := imports.get(base_type_name):
+                self._imports.add(import_str)
+            value = mapping[base_type_name]
             self._aliases[rv] = f"{rv} = {value}"
 
         elif isinstance(type_, describe.ObjectType):
@@ -487,7 +513,7 @@ class Generator:
             print(f"class {rv}(typing.NamedTuple):", file=buf)
             for el_name, el_type in type_.element_types.items():
                 el_code = self._generate_code(
-                    el_type, f"{rv}{self._snake_to_camel(el_name)}"
+                    el_type, f"{rv}{self._snake_to_camel(el_name)}", is_input
                 )
                 print(f"{INDENT}{el_name}: {el_code}", file=buf)
             self._defs[rv] = buf.getvalue().strip()
@@ -502,13 +528,13 @@ class Generator:
             self._defs[rv] = buf.getvalue().strip()
 
         elif isinstance(type_, describe.RangeType):
-            value = self._generate_code(type_.value_type, name_hint)
+            value = self._generate_code(type_.value_type, name_hint, is_input)
             rv = f"edgedb.Range[{value}]"
 
         else:
             rv = "??"
 
-        self._cache[type_.desc_id] = rv
+        self._cache[(type_.desc_id, is_input)] = rv
         return rv
 
     def _generate_code_with_cardinality(
@@ -517,8 +543,9 @@ class Generator:
         name_hint: str,
         cardinality: edgedb.Cardinality,
         keyword_argument: bool = False,
+        is_input: bool = False,
     ):
-        rv = self._generate_code(type_, name_hint)
+        rv = self._generate_code(type_, name_hint, is_input)
         if cardinality == edgedb.Cardinality.AT_MOST_ONE:
             if SYS_VERSION_INFO >= (3, 10):
                 rv = f"{rv} | None"
