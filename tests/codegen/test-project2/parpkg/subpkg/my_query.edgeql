@@ -56,4 +56,6 @@ select {
 	az := <optional MyScalar>{},
 	ba := MyEnum.This,
 	bb := <optional MyEnum>{},
+	bc := <ext::pgvector::vector>$bc,
+	bd := <optional ext::pgvector::vector>$bd,
 }
