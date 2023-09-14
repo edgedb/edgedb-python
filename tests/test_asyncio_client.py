@@ -21,7 +21,6 @@ import random
 
 import edgedb
 
-from edgedb import compat
 from edgedb import _testbase as tb
 from edgedb import errors
 from edgedb import asyncio_client
@@ -304,7 +303,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
 
         with self.assertRaises(asyncio.TimeoutError):
             await flag
-            await compat.wait_for(client.aclose(), timeout=0.1)
+            await asyncio.wait_for(client.aclose(), timeout=0.1)
 
         with self.assertRaises(errors.ClientConnectionClosedError):
             await task
@@ -335,7 +334,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
             async with tx:
                 await tx.query("SELECT 42")
                 with self.assertRaises(asyncio.TimeoutError):
-                    await compat.wait_for(client.query("SELECT 42"), 1)
+                    await asyncio.wait_for(client.query("SELECT 42"), 1)
 
         await client.aclose()
 
@@ -445,7 +444,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         finally:
             server.close()
             await server.wait_closed()
-            await compat.wait_for(client.aclose(), 5)
+            await asyncio.wait_for(client.aclose(), 5)
             broken.set()
             await done.wait()
 
