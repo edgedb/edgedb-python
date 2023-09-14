@@ -1,18 +1,12 @@
 import os
 import pathlib
-import sys
 import typing
 import json
-
-if sys.version_info >= (3, 8):
-    from typing import TypedDict
-else:
-    from typing_extensions import TypedDict
 
 from . import platform
 
 
-class RequiredCredentials(TypedDict, total=True):
+class RequiredCredentials(typing.TypedDict, total=True):
     port: int
     user: str
 

@@ -19,8 +19,8 @@
 
 import sys
 
-if sys.version_info < (3, 7):
-    raise RuntimeError('edgedb requires Python 3.7 or greater')
+if sys.version_info < (3, 8):
+    raise RuntimeError('edgedb requires Python 3.8 or greater')
 
 import os
 import os.path
@@ -48,10 +48,8 @@ TEST_DEPENDENCIES = [
     'pycodestyle~=2.6.0',
     'pyflakes~=2.2.0',
     'flake8-bugbear~=21.4.3',
-    # importlib-metadata pinned because flake 3.8.1 will grab a too new one
-    'importlib-metadata<4.3,>=1.1.0; python_version < "3.8"',
     'flake8~=3.8.1',
-    'uvloop>=0.15.1; platform_system != "Windows" and python_version >= "3.7"',
+    'uvloop>=0.15.1; platform_system != "Windows"',
 ]
 
 # Dependencies required to build documentation.
@@ -339,7 +337,6 @@ setuptools.setup(
     test_suite='tests.suite',
     python_requires=">=3.7",
     install_requires=[
-        'typing-extensions>=3.10.0; python_version < "3.8.0"',
         'certifi>=2021.5.30; platform_system == "Windows"',
     ],
     extras_require=EXTRA_DEPENDENCIES,

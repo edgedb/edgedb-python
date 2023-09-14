@@ -92,10 +92,6 @@ EdgeNamedTuple_New(PyObject *type)
         if (nt == NULL) {
             return NULL;
         }
-#if PY_VERSION_HEX < 0x03080000
-        // Workaround for Python issue 35810; no longer necessary in Python 3.8
-        Py_INCREF(type);
-#endif
     }
     assert(nt != NULL);
     assert(Py_SIZE(nt) == size);
