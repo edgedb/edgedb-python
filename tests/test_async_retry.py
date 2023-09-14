@@ -22,7 +22,6 @@ import logging
 import unittest.mock
 
 import edgedb
-from edgedb import compat
 from edgedb import errors
 from edgedb import RetryOptions
 from edgedb import _testbase as tb
@@ -195,7 +194,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
             client = client.with_retry_options(options)
             client2 = client2.with_retry_options(options)
 
-        results = await compat.wait_for(asyncio.gather(
+        results = await asyncio.wait_for(asyncio.gather(
             transaction1(client),
             transaction1(client2),
             return_exceptions=True,

@@ -29,11 +29,14 @@ import asyncio
 import edgedb
 
 from edgedb import abstract
-from edgedb import compat
-from edgedb import _taskgroup as tg
 from edgedb import _testbase as tb
 from edgedb.options import RetryOptions
 from edgedb.protocol import protocol
+
+try:
+    from asyncio import TaskGroup
+except ImportError:
+    from edgedb._taskgroup import TaskGroup
 
 
 class TestAsyncQuery(tb.AsyncQueryTestCase):
@@ -904,7 +907,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                     lock_key))
 
                 try:
-                    async with tg.TaskGroup() as g:
+                    async with TaskGroup() as g:
 
                         fut = asyncio.Future()
 
@@ -936,7 +939,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                             # cancelled, which, in turn, will terminate the
                             # connection rudely, and exec_to_fail() will get
                             # ConnectionResetError.
-                            await compat.wait_for(
+                            await asyncio.wait_for(
                                 client2.aclose(), timeout=0.5
                             )
 
@@ -1055,7 +1058,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
             protocol_before = client._impl._holders[0]._con._protocol
 
             with self.assertRaises(asyncio.TimeoutError):
-                await compat.wait_for(
+                await asyncio.wait_for(
                     client.query_single('SELECT sys::_sleep(10)'),
                     timeout=0.1)
 

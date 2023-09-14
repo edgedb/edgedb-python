@@ -14,7 +14,7 @@ The Python driver for EdgeDB
 **edgedb-python** is the official EdgeDB driver for Python.
 It provides both blocking IO and asyncio implementations.
 
-The library requires Python 3.7 or later.
+The library requires Python 3.8 or later.
 
 
 Documentation

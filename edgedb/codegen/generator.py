@@ -485,11 +485,7 @@ class Generator:
             if link_props:
                 print(file=buf)
                 self._imports.add("typing")
-                if SYS_VERSION_INFO >= (3, 8):
-                    typing_literal = "typing.Literal"
-                else:
-                    self._imports.add("typing_extensions")
-                    typing_literal = "typing_extensions.Literal"
+                typing_literal = "typing.Literal"
                 for el_name, el_code in link_props:
                     print(f"{INDENT}@typing.overload", file=buf)
                     print(
