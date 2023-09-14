@@ -26,7 +26,6 @@ import typing
 
 from . import abstract
 from . import base_client
-from . import compat
 from . import con_utils
 from . import errors
 from . import transaction
@@ -55,7 +54,7 @@ class AsyncIOConnection(base_client.BaseConnection):
 
     async def connect_addr(self, addr, timeout):
         try:
-            await compat.wait_for(self._connect_addr(addr), timeout)
+            await asyncio.wait_for(self._connect_addr(addr), timeout)
         except asyncio.TimeoutError as e:
             raise TimeoutError from e
 
@@ -206,7 +205,7 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
         if timeout is None:
             return await _acquire_impl()
         else:
-            return await compat.wait_for(
+            return await asyncio.wait_for(
                 _acquire_impl(), timeout=timeout)
 
     async def _release(self, holder):
