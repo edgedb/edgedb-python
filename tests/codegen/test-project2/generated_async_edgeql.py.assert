@@ -12,6 +12,7 @@
 
 
 from __future__ import annotations
+import array
 import dataclasses
 import datetime
 import edgedb
@@ -113,6 +114,8 @@ class MyQueryResult:
     az: MyScalar | None
     ba: MyEnum
     bb: MyEnum | None
+    bc: array.array
+    bd: array.array | None
 
 
 @dataclasses.dataclass
@@ -217,6 +220,8 @@ async def my_query(
     av: edgedb.Range[datetime.datetime] | None,
     aw: edgedb.Range[datetime.date],
     ax: edgedb.Range[datetime.date] | None,
+    bc: typing.Sequence[float],
+    bd: typing.Sequence[float] | None,
 ) -> MyQueryResult:
     return await executor.query_single(
         """\
@@ -278,6 +283,8 @@ async def my_query(
         	az := <optional MyScalar>{},
         	ba := MyEnum.This,
         	bb := <optional MyEnum>{},
+        	bc := <ext::pgvector::vector>$bc,
+        	bd := <optional ext::pgvector::vector>$bd,
         }\
         """,
         a=a,
@@ -330,6 +337,8 @@ async def my_query(
         av=av,
         aw=aw,
         ax=ax,
+        bc=bc,
+        bd=bd,
     )
 
 
