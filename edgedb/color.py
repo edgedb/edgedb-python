@@ -24,7 +24,7 @@ def get_color() -> Color:
 
     if COLOR is None:
         COLOR = Color()
-        if type(USE_COLOR) is bool:
+        if isinstance(USE_COLOR, bool):
             use_color = USE_COLOR
         else:
             try:
