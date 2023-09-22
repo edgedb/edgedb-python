@@ -32,6 +32,7 @@ from . import con_utils
 from . import errors
 from . import transaction
 from .protocol import blocking_proto
+from .protocol.protocol import OutputFormat
 
 
 DEFAULT_PING_BEFORE_IDLE_TIMEOUT = datetime.timedelta(seconds=5)
@@ -396,12 +397,17 @@ class Client(base_client.BaseClient, abstract.Executor):
         self.close()
 
     def _describe_query(
-        self, query: str, *, inject_type_names: bool = False
+        self,
+        query: str,
+        *,
+        inject_type_names: bool = False,
+        output_format: OutputFormat = OutputFormat.BINARY,
     ) -> abstract.DescribeResult:
         return self._iter_coroutine(self._describe(abstract.DescribeContext(
             query=query,
             state=self._get_state(),
             inject_type_names=inject_type_names,
+            output_format=output_format,
         )))
 
 
