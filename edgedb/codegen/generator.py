@@ -452,7 +452,7 @@ class Generator:
                 rv = f"typing.Tuple[{elements}]"
 
         elif isinstance(type_, describe.ScalarType):
-            rv = self._find_name(type_.name)
+            rv = self._find_name(type_.name or name_hint)
             base_type_name = type_.base_type.name
             if import_str := imports.get(base_type_name):
                 self._imports.add(import_str)

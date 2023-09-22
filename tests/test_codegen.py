@@ -27,12 +27,17 @@ import tempfile
 from edgedb import _testbase as tb
 
 
+ASSERT_SUFFIX = os.environ.get("EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX", ".assert")
+
+
 class TestCodegen(tb.AsyncQueryTestCase):
     SETUP = '''
         create extension pgvector;
+        create scalar type v3 extending ext::pgvector::vector<3>;
     '''
 
     TEARDOWN = '''
+        drop scalar type v3;
         drop extension pgvector;
     '''
 
@@ -98,8 +103,10 @@ class TestCodegen(tb.AsyncQueryTestCase):
         )
 
         for f in cwd.rglob("*.py"):
-            a = f.with_suffix(".py.assert")
-            self.assertEqual(f.read_text(), a.read_text())
+            a = f.with_suffix(f".py{ASSERT_SUFFIX}")
+            if not a.exists():
+                a = f.with_suffix(".py.assert")
+            self.assertEqual(f.read_text(), a.read_text(), f.name)
         for a in cwd.rglob("*.py.assert"):
             f = a.with_suffix("")
             self.assertTrue(f.exists(), f"{f} doesn't exist")
