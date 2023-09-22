@@ -78,6 +78,7 @@ class DescribeContext:
     state: typing.Optional[options.State]
     inject_type_names: bool
     output_format: protocol.OutputFormat
+    expect_one: bool
 
 
 @dataclasses.dataclass
