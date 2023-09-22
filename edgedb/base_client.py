@@ -297,6 +297,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
             describe_context.query,
             reg=protocol.CodecsRegistry(),
             inline_typenames=describe_context.inject_type_names,
+            output_format=describe_context.output_format,
             state=(
                 describe_context.state.as_dict()
                 if describe_context.state else None
