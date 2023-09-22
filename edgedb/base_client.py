@@ -298,6 +298,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
             reg=protocol.CodecsRegistry(),
             inline_typenames=describe_context.inject_type_names,
             output_format=describe_context.output_format,
+            expect_one=describe_context.expect_one,
+            allow_capabilities=enums.Capability.EXECUTE,
             state=(
                 describe_context.state.as_dict()
                 if describe_context.state else None
