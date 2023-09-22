@@ -335,7 +335,7 @@ setuptools.setup(
     ],
     cmdclass={'build_ext': build_ext},
     test_suite='tests.suite',
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=[
         'certifi>=2021.5.30; platform_system == "Windows"',
     ],
