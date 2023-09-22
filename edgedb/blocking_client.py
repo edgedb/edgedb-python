@@ -402,12 +402,14 @@ class Client(base_client.BaseClient, abstract.Executor):
         *,
         inject_type_names: bool = False,
         output_format: OutputFormat = OutputFormat.BINARY,
+        expect_one: bool = False,
     ) -> abstract.DescribeResult:
         return self._iter_coroutine(self._describe(abstract.DescribeContext(
             query=query,
             state=self._get_state(),
             inject_type_names=inject_type_names,
             output_format=output_format,
+            expect_one=expect_one,
         )))
 
 
