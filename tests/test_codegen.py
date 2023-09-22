@@ -30,9 +30,11 @@ from edgedb import _testbase as tb
 class TestCodegen(tb.AsyncQueryTestCase):
     SETUP = '''
         create extension pgvector;
+        create scalar type v3 extending ext::pgvector::vector<3>;
     '''
 
     TEARDOWN = '''
+        drop scalar type v3;
         drop extension pgvector;
     '''
 
