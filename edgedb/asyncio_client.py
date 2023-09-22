@@ -31,6 +31,7 @@ from . import con_utils
 from . import errors
 from . import transaction
 from .protocol import asyncio_proto
+from .protocol.protocol import OutputFormat
 
 
 __all__ = (
@@ -383,12 +384,17 @@ class AsyncIOClient(base_client.BaseClient, abstract.AsyncIOExecutor):
         await self.aclose()
 
     async def _describe_query(
-        self, query: str, *, inject_type_names: bool = False
+        self,
+        query: str,
+        *,
+        inject_type_names: bool = False,
+        output_format: OutputFormat = OutputFormat.BINARY,
     ) -> abstract.DescribeResult:
         return await self._describe(abstract.DescribeContext(
             query=query,
             state=self._get_state(),
             inject_type_names=inject_type_names,
+            output_format=output_format,
         ))
 
 
