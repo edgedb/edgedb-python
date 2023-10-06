@@ -1110,7 +1110,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
         ''')
 
     async def test_transaction_state(self):
-        with self.assertRaisesRegex(edgedb.QueryError, "cannot assign to id"):
+        with self.assertRaisesRegex(edgedb.QueryError, "cannot assign to.*id"):
             async for tx in self.client.transaction():
                 async with tx:
                     await tx.execute('''
