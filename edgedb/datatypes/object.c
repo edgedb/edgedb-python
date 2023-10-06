@@ -51,13 +51,6 @@ EdgeObject_New(PyObject *desc)
         return NULL;
     }
 
-    if (EdgeRecordDesc_IDPos(desc) < 0) {
-        PyErr_SetString(
-            PyExc_ValueError,
-            "Cannot create Object without 'id' field");
-        return NULL;
-    }
-
     Py_ssize_t size = EdgeRecordDesc_GetSize(desc);
 
     if (size > EDGE_MAX_TUPLE_SIZE) {
@@ -137,7 +130,10 @@ EdgeObject_GetID(PyObject *ob)
     assert(EdgeObject_Check(ob));
     EdgeObject *o = (EdgeObject *)ob;
     Py_ssize_t i = EdgeRecordDesc_IDPos(o->desc);
-    if (i < 0 || i >= Py_SIZE(o)) {
+    if (i < 0) {
+        Py_RETURN_NONE;
+    }
+    if (i >= Py_SIZE(o)) {
         PyErr_BadInternalCall();
         return NULL;
     }

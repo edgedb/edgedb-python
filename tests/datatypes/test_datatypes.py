@@ -561,8 +561,8 @@ class TestObject(unittest.TestCase):
             lb='link-property',
             c='property'
         )
-        with self.assertRaisesRegex(ValueError, "without 'id' field"):
-            f(1, 2, 3)
+        x = f(1, 2, 3)
+        self.assertFalse(hasattr(x, 'id'))
 
     def test_object_6(self):
         User = private.create_object_factory(
