@@ -868,7 +868,7 @@ class TestSyncQuery(tb.SyncQueryTestCase):
             self.client.execute('start transaction')
 
     def test_transaction_state(self):
-        with self.assertRaisesRegex(edgedb.QueryError, "cannot assign to id"):
+        with self.assertRaisesRegex(edgedb.QueryError, "cannot assign to.*id"):
             for tx in self.client.transaction():
                 with tx:
                     tx.execute('''
