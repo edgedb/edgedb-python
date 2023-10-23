@@ -550,8 +550,8 @@ Python code. Here is an example:
             )
 
 In the above example, the execution of the HTTP request would be retried
-too. The core of the issue is that whenever transaction is interrupted
-user might have the email changed (as the result of concurrent
+too. The core of the issue is that whenever a transaction is interrupted
+the user's email might have been changed (as the result of a concurrent
 transaction), so we have to redo all the work done.
 
 Generally it's recommended to not execute any long running

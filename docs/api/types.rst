@@ -101,7 +101,7 @@ Objects
 
     .. versionchanged:: 1.0
 
-        ``edgedb.Object.__hash__`` is just ``object.__hash__` in version 1.0.
+        ``edgedb.Object.__hash__`` is just ``object.__hash__`` in version 1.0.
         Similarly, ``==`` is equivalent to the ``is`` operator comparing
         ``edgedb.Object`` instances, and ``<``, ``<=``, ``>``, ``>=`` are not
         allowed on ``edgedb.Object`` instances.
