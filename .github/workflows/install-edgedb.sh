@@ -12,7 +12,7 @@ chmod +x "/usr/local/bin/edgedb"
 
 useradd --shell /bin/bash edgedb
 
-su -l edgedb -c "edgedb server install"
+su -l edgedb -c "edgedb server install --version 3.0"
 ln -s $(su -l edgedb -c "edgedb server info --latest --bin-path") \
     "/usr/local/bin/edgedb-server"
 
