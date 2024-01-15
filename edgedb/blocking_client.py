@@ -24,7 +24,6 @@ import socket
 import ssl
 import threading
 import time
-import typing
 
 from . import abstract, base_client, con_utils, errors, transaction
 from .protocol import blocking_proto
@@ -176,7 +175,7 @@ class _PoolImpl(base_client.BasePoolImpl):
         self,
         connect_args,
         *,
-        max_concurrency: typing.Optional[int],
+        max_concurrency: int | None,
         connection_class,
     ):
         if not issubclass(connection_class, BlockingIOConnection):
@@ -420,17 +419,17 @@ def create_client(
     dsn=None,
     *,
     max_concurrency=None,
-    host: str = None,
-    port: int = None,
-    credentials: str = None,
-    credentials_file: str = None,
-    user: str = None,
-    password: str = None,
-    secret_key: str = None,
-    database: str = None,
-    tls_ca: str = None,
-    tls_ca_file: str = None,
-    tls_security: str = None,
+    host: str | None = None,
+    port: int | None = None,
+    credentials: str | None = None,
+    credentials_file: str | None = None,
+    user: str | None = None,
+    password: str | None = None,
+    secret_key: str | None = None,
+    database: str | None = None,
+    tls_ca: str | None = None,
+    tls_ca_file: str | None = None,
+    tls_security: str | None = None,
     wait_until_available: int = 30,
     timeout: int = 10,
 ):

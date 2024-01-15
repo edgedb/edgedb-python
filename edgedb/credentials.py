@@ -14,11 +14,11 @@ class RequiredCredentials(typing.TypedDict, total=True):
 
 
 class Credentials(RequiredCredentials, total=False):
-    host: typing.Optional[str]
-    password: typing.Optional[str]
-    database: typing.Optional[str]
-    tls_ca: typing.Optional[str]
-    tls_security: typing.Optional[str]
+    host: str | None
+    password: str | None
+    database: str | None
+    tls_ca: str | None
+    tls_security: str | None
 
 
 def get_credentials_path(instance_name: str) -> pathlib.Path:

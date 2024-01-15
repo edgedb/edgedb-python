@@ -61,20 +61,20 @@ class QueryContext(typing.NamedTuple):
     query: QueryWithArgs
     cache: QueryCache
     query_options: QueryOptions
-    retry_options: typing.Optional[options.RetryOptions]
-    state: typing.Optional[options.State]
+    retry_options: options.RetryOptions | None
+    state: options.State | None
 
 
 class ExecuteContext(typing.NamedTuple):
     query: QueryWithArgs
     cache: QueryCache
-    state: typing.Optional[options.State]
+    state: options.State | None
 
 
 @dataclasses.dataclass
 class DescribeContext:
     query: str
-    state: typing.Optional[options.State]
+    state: options.State | None
     inject_type_names: bool
     output_format: protocol.OutputFormat
     expect_one: bool
@@ -82,8 +82,8 @@ class DescribeContext:
 
 @dataclasses.dataclass
 class DescribeResult:
-    input_type: typing.Optional[describe.AnyType]
-    output_type: typing.Optional[describe.AnyType]
+    input_type: describe.AnyType | None
+    output_type: describe.AnyType | None
     output_cardinality: enums.Cardinality
     capabilities: enums.Capability
 
@@ -127,7 +127,7 @@ class BaseReadOnlyExecutor(abc.ABC):
     def _get_query_cache(self) -> QueryCache:
         ...
 
-    def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
+    def _get_retry_options(self) -> options.RetryOptions | None:
         return None
 
     def _get_state(self) -> options.State:
@@ -135,7 +135,7 @@ class BaseReadOnlyExecutor(abc.ABC):
 
 
 class ReadOnlyExecutor(BaseReadOnlyExecutor):
-    """Subclasses can execute *at least* read-only queries"""
+    """Subclasses can execute *at least* read-only queries."""
 
     __slots__ = ()
 
@@ -156,7 +156,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
 
     def query_single(
         self, query: str, *args, **kwargs
-    ) -> typing.Union[typing.Any, None]:
+    ) -> typing.Any | None:
         return self._query(
             QueryContext(
                 query=QueryWithArgs(query, args, kwargs),
@@ -226,13 +226,13 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
 
 
 class Executor(ReadOnlyExecutor):
-    """Subclasses can execute both read-only and modification queries"""
+    """Subclasses can execute both read-only and modification queries."""
 
     __slots__ = ()
 
 
 class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
-    """Subclasses can execute *at least* read-only queries"""
+    """Subclasses can execute *at least* read-only queries."""
 
     __slots__ = ()
 
@@ -325,6 +325,6 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
 
 
 class AsyncIOExecutor(AsyncIOReadOnlyExecutor):
-    """Subclasses can execute both read-only and modification queries"""
+    """Subclasses can execute both read-only and modification queries."""
 
     __slots__ = ()

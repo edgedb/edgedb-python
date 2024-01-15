@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import dataclasses
-import typing
 import uuid
 
 from . import enums
@@ -27,7 +26,7 @@ from . import enums
 @dataclasses.dataclass(frozen=True)
 class AnyType:
     desc_id: uuid.UUID
-    name: typing.Optional[str]
+    name: str | None
 
 
 @dataclasses.dataclass(frozen=True)

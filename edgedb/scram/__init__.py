@@ -45,7 +45,7 @@ def generate_nonce(length: int = RAW_NONCE_LENGTH) -> str:
 def build_verifier(
     password: str,
     *,
-    salt: typing.Optional[bytes] = None,
+    salt: bytes | None = None,
     iterations: int = DEFAULT_ITERATIONS,
 ) -> str:
     """Build the SCRAM verifier for the given password.

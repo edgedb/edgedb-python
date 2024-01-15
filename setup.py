@@ -17,16 +17,12 @@
 #
 from __future__ import annotations
 
-import sys
-
-if sys.version_info < (3, 8):
-    raise RuntimeError("edgedb requires Python 3.8 or greater")
-
 import os
 import os.path
 import pathlib
 import re
 import subprocess
+import sys
 
 # We use vanilla build_ext, to avoid importing Cython via
 # the setuptools version.
@@ -62,12 +58,7 @@ EXTRA_DEPENDENCIES = {
     "docs": DOC_DEPENDENCIES,
     "test": TEST_DEPENDENCIES,
     # Dependencies required to develop edgedb.
-    "dev": [
-        CYTHON_DEPENDENCY,
-        "pytest>=3.6.0",
-    ]
-    + DOC_DEPENDENCIES
-    + TEST_DEPENDENCIES,
+    "dev": [CYTHON_DEPENDENCY, "pytest>=3.6.0", *DOC_DEPENDENCIES, *TEST_DEPENDENCIES,], # noqa: E501
 }
 
 
@@ -167,17 +158,10 @@ class build_py(setuptools_build_py.build_py, VersionMixin):
 
 
 class build_ext(distutils_build_ext.build_ext):
-    user_options = distutils_build_ext.build_ext.user_options + [
-        (
-            "cython-always",
-            None,
-            "run cythonize() even if .c files are present",
-        ),
-        (
-            "cython-annotate",
-            None,
-            "Produce a colorized HTML version of the Cython source.",
-        ),
+    user_options = [
+        *distutils_build_ext.build_ext.user_options,
+        ("cython-always", None, "run cythonize() even if .c files are present"), # noqa: E501
+        ("cython-annotate", None, "Produce a colorized HTML version of the Cython source."), # noqa: E501
         ("cython-directives=", None, "Cython compiler directives"),
     ]
 
@@ -188,7 +172,7 @@ class build_ext(distutils_build_ext.build_ext):
         if getattr(self, "_initialized", False):
             return
 
-        super(build_ext, self).initialize_options()
+        super().initialize_options()
 
         if os.environ.get("EDGEDB_DEBUG"):
             self.cython_always = True
@@ -270,7 +254,7 @@ class build_ext(distutils_build_ext.build_ext):
                 annotate=self.cython_annotate,
             )
 
-        super(build_ext, self).finalize_options()
+        super().finalize_options()
 
 
 INCLUDE_DIRS = [

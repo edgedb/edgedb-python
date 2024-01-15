@@ -31,8 +31,8 @@ BaseConnection_T = typing.TypeVar("BaseConnection_T", bound="BaseConnection")
 
 class BaseConnection(metaclass=abc.ABCMeta):
     _protocol: typing.Any
-    _addr: typing.Optional[typing.Union[str, tuple[str, int]]]
-    _addrs: typing.Iterable[typing.Union[str, tuple[str, int]]]
+    _addr: str | tuple[str, int] | None
+    _addrs: typing.Iterable[str | tuple[str, int]]
     _config: con_utils.ClientConfiguration
     _params: con_utils.ResolvedConnectConfig
     _log_listeners: set[
@@ -51,7 +51,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
 
     def __init__(
         self,
-        addrs: typing.Iterable[typing.Union[str, tuple[str, int]]],
+        addrs: typing.Iterable[str | tuple[str, int]],
         config: con_utils.ClientConfiguration,
         params: con_utils.ResolvedConnectConfig,
     ):
@@ -74,7 +74,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
     def connected_addr(self):
         return self._addr
 
-    def _get_last_status(self) -> typing.Optional[str]:
+    def _get_last_status(self) -> str | None:
         if self._protocol is None:
             return None
         status = self._protocol.last_status
@@ -465,7 +465,7 @@ class BasePoolImpl(abc.ABC):
         connect_args,
         connection_factory,
         *,
-        max_concurrency: typing.Optional[int],
+        max_concurrency: int | None,
     ):
         self._connection_factory = connection_factory
         self._connect_args = connect_args
@@ -669,19 +669,19 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         self,
         *,
         connection_class,
-        max_concurrency: typing.Optional[int],
+        max_concurrency: int | None,
         dsn=None,
-        host: str = None,
-        port: int = None,
-        credentials: str = None,
-        credentials_file: str = None,
-        user: str = None,
-        password: str = None,
-        secret_key: str = None,
-        database: str = None,
-        tls_ca: str = None,
-        tls_ca_file: str = None,
-        tls_security: str = None,
+        host: str | None = None,
+        port: int | None = None,
+        credentials: str | None = None,
+        credentials_file: str | None = None,
+        user: str | None = None,
+        password: str | None = None,
+        secret_key: str | None = None,
+        database: str | None = None,
+        tls_ca: str | None = None,
+        tls_ca_file: str | None = None,
+        tls_security: str | None = None,
         wait_until_available: int = 30,
         timeout: int = 10,
         **kwargs,
@@ -722,7 +722,7 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
             query_cache=self._impl.query_cache,
         )
 
-    def _get_retry_options(self) -> typing.Optional[_options.RetryOptions]:
+    def _get_retry_options(self) -> _options.RetryOptions | None:
         return self._options.retry_options
 
     def _get_state(self) -> _options.State:

@@ -8,7 +8,7 @@ __all__ = [
 
 
 class Tag:
-    """Error tag
+    """Error tag.
 
     Tags are used to differentiate certain properties of errors that apply to
     error classes across hierarchy.

@@ -100,7 +100,7 @@ def _start_cluster(*, cleanup_atexit=True):
 
         help_args = [edgedb_server, "--help"]
         if sys.platform == "win32":
-            help_args = ["wsl", "-u", "edgedb"] + help_args
+            help_args = ["wsl", "-u", "edgedb", *help_args]
 
         supported_opts = subprocess.run(
             help_args,
@@ -118,7 +118,7 @@ def _start_cluster(*, cleanup_atexit=True):
             args.append("--generate-self-signed-cert")
 
         if sys.platform == "win32":
-            args = ["wsl", "-u", "edgedb"] + args
+            args = ["wsl", "-u", "edgedb", *args]
 
         if env.get("EDGEDB_DEBUG_SERVER"):
             server_stdout = None

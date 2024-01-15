@@ -417,7 +417,7 @@ class Generator:
 
     def _generate_code(
         self,
-        type_: typing.Optional[describe.AnyType],
+        type_: describe.AnyType | None,
         name_hint: str,
         is_input: bool = False,
     ) -> str:
@@ -541,7 +541,7 @@ class Generator:
 
     def _generate_code_with_cardinality(
         self,
-        type_: typing.Optional[describe.AnyType],
+        type_: describe.AnyType | None,
         name_hint: str,
         cardinality: edgedb.Cardinality,
         keyword_argument: bool = False,

@@ -16,20 +16,20 @@ def default_backoff(attempt):
 
 
 class RetryCondition:
-    """Specific condition to retry on for fine-grained control"""
+    """Specific condition to retry on for fine-grained control."""
 
     TransactionConflict = enum.auto()
     NetworkError = enum.auto()
 
 
 class IsolationLevel:
-    """Isolation level for transaction"""
+    """Isolation level for transaction."""
 
     Serializable = "SERIALIZABLE"
 
 
 class RetryOptions:
-    """An immutable class that contains rules for `transaction()`"""
+    """An immutable class that contains rules for `transaction()`."""
 
     __slots__ = ["_default", "_overrides"]
 
@@ -73,7 +73,7 @@ class RetryOptions:
 
 
 class TransactionOptions:
-    """Options for `transaction()`"""
+    """Options for `transaction()`."""
 
     __slots__ = ["_isolation", "_readonly", "_deferrable"]
 
@@ -119,10 +119,10 @@ class State:
 
     def __init__(
         self,
-        default_module: typing.Optional[str] = None,
-        module_aliases: typing.Mapping[str, str] = None,
-        config: typing.Mapping[str, typing.Any] = None,
-        globals_: typing.Mapping[str, typing.Any] = None,
+        default_module: str | None = None,
+        module_aliases: typing.Mapping[str, str] | None = None,
+        config: typing.Mapping[str, typing.Any] | None = None,
+        globals_: typing.Mapping[str, typing.Any] | None = None,
     ):
         self._module = default_module
         self._aliases = {} if module_aliases is None else dict(module_aliases)
@@ -144,7 +144,7 @@ class State:
     def defaults(cls):
         return cls()
 
-    def with_default_module(self, module: typing.Optional[str] = None):
+    def with_default_module(self, module: str | None = None):
         return self._new(
             default_module=module,
             module_aliases=self._aliases,
@@ -320,7 +320,7 @@ class _OptionsMixin:
         result._options = self._options.with_state(state)
         return result
 
-    def with_default_module(self, module: typing.Optional[str] = None):
+    def with_default_module(self, module: str | None = None):
         result = self._shallow_clone()
         result._options = self._options.with_state(
             self._options.state.with_default_module(module)
@@ -371,7 +371,7 @@ class _OptionsMixin:
 
 
 class _Options:
-    """Internal class for storing connection options"""
+    """Internal class for storing connection options."""
 
     __slots__ = ["_retry_options", "_transaction_options", "_state"]
 

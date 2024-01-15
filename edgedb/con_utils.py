@@ -409,7 +409,7 @@ def _pop_iso_unit(rgex: re.Pattern, string: str) -> tuple[float, str]:
     return (total, s)
 
 
-def _parse_iso_duration(string: str) -> typing.Union[float, int]:
+def _parse_iso_duration(string: str) -> float | int:
     if not string.startswith("PT"):
         raise ValueError(f"invalid duration {string!r}")
 
@@ -1180,7 +1180,7 @@ def render_client_no_connection_error(prefix, addr, attempts, duration):
 
 
 def _extract_errno(s):
-    """Extract multiple errnos from error string
+    """Extract multiple errnos from error string.
 
     When we connect to a host that has multiple underlying IP addresses, say
     ``localhost`` having ``::1`` and ``127.0.0.1``, we get
