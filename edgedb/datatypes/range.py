@@ -15,21 +15,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import annotations
 
-from typing import (TypeVar, Any, Generic, Optional, Iterable, Iterator,
-                    Sequence)
+from typing import (
+    Any,
+    Generic,
+    Iterable,
+    Iterator,
+    Sequence,
+    TypeVar,
+)
 
 T = TypeVar("T")
 
 
 class Range(Generic[T]):
-
     __slots__ = ("_lower", "_upper", "_inc_lower", "_inc_upper", "_empty")
 
     def __init__(
         self,
-        lower: Optional[T] = None,
-        upper: Optional[T] = None,
+        lower: T | None = None,
+        upper: T | None = None,
         *,
         inc_lower: bool = True,
         inc_upper: bool = False,
@@ -38,13 +44,10 @@ class Range(Generic[T]):
         self._empty = empty
 
         if empty:
-            if (
-                lower != upper
-                or lower is not None and inc_upper and inc_lower
-            ):
+            if lower != upper or lower is not None and inc_upper and inc_lower:
                 raise ValueError(
                     "conflicting arguments in range constructor: "
-                    "\"empty\" is `true` while the specified bounds "
+                    '"empty" is `true` while the specified bounds '
                     "suggest otherwise"
                 )
 
@@ -57,7 +60,7 @@ class Range(Generic[T]):
             self._inc_upper = upper is not None and inc_upper
 
     @property
-    def lower(self) -> Optional[T]:
+    def lower(self) -> T | None:
         return self._lower
 
     @property
@@ -65,7 +68,7 @@ class Range(Generic[T]):
         return self._inc_lower
 
     @property
-    def upper(self) -> Optional[T]:
+    def upper(self) -> T | None:
         return self._upper
 
     @property
@@ -99,13 +102,15 @@ class Range(Generic[T]):
         )
 
     def __hash__(self) -> int:
-        return hash((
-            self._lower,
-            self._upper,
-            self._inc_lower,
-            self._inc_upper,
-            self._empty,
-        ))
+        return hash(
+            (
+                self._lower,
+                self._upper,
+                self._inc_lower,
+                self._inc_upper,
+                self._empty,
+            )
+        )
 
     def __str__(self) -> str:
         if self._empty:
@@ -132,10 +137,9 @@ class Range(Generic[T]):
 # TODO: maybe we should implement range and multirange operations as well as
 # normalization of the sub-ranges?
 class MultiRange(Iterable[T]):
-
     _ranges: Sequence[T]
 
-    def __init__(self, iterable: Optional[Iterable[T]] = None) -> None:
+    def __init__(self, iterable: Iterable[T] | None = None) -> None:
         if iterable is not None:
             self._ranges = tuple(iterable)
         else:
@@ -151,7 +155,7 @@ class MultiRange(Iterable[T]):
         return reversed(self._ranges)
 
     def __str__(self) -> str:
-        return f'<MultiRange {list(self._ranges)}>'
+        return f"<MultiRange {list(self._ranges)}>"
 
     __repr__ = __str__
 

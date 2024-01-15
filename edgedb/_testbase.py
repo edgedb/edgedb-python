@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import annotations
 
 import asyncio
 import atexit
@@ -33,9 +33,7 @@ import time
 import unittest
 
 import edgedb
-from edgedb import asyncio_client
-from edgedb import blocking_client
-
+from edgedb import asyncio_client, blocking_client
 
 log = logging.getLogger(__name__)
 
@@ -44,9 +42,9 @@ log = logging.getLogger(__name__)
 def silence_asyncio_long_exec_warning():
     def flt(log_record):
         msg = log_record.getMessage()
-        return not msg.startswith('Executing ')
+        return not msg.startswith("Executing ")
 
-    logger = logging.getLogger('asyncio')
+    logger = logging.getLogger("asyncio")
     logger.addFilter(flt)
     try:
         yield
@@ -56,8 +54,8 @@ def silence_asyncio_long_exec_warning():
 
 def _get_wsl_path(win_path):
     return (
-        re.sub(r'^([A-Z]):', lambda m: f'/mnt/{m.group(1)}', win_path)
-        .replace("\\", '/')
+        re.sub(r"^([A-Z]):", lambda m: f"/mnt/{m.group(1)}", win_path)
+        .replace("\\", "/")
         .lower()
     )
 
@@ -79,7 +77,7 @@ def _start_cluster(*, cleanup_atexit=True):
 
     try:
         tmpdir = tempfile.TemporaryDirectory()
-        status_file = os.path.join(tmpdir.name, 'server-status')
+        status_file = os.path.join(tmpdir.name, "server-status")
 
         # if running on windows adjust the path for WSL
         status_file_unix = _get_wsl_path(status_file)
@@ -87,9 +85,9 @@ def _start_cluster(*, cleanup_atexit=True):
         env = os.environ.copy()
         # Make sure the PYTHONPATH of _this_ process does
         # not interfere with the server's.
-        env.pop('PYTHONPATH', None)
+        env.pop("PYTHONPATH", None)
 
-        edgedb_server = env.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
+        edgedb_server = env.get("EDGEDB_SERVER_BINARY", "edgedb-server")
         args = [
             edgedb_server,
             "--temp-dir",
@@ -101,12 +99,12 @@ def _start_cluster(*, cleanup_atexit=True):
         ]
 
         help_args = [edgedb_server, "--help"]
-        if sys.platform == 'win32':
-            help_args = ['wsl', '-u', 'edgedb'] + help_args
+        if sys.platform == "win32":
+            help_args = ["wsl", "-u", "edgedb", *help_args]
 
         supported_opts = subprocess.run(
             help_args,
-            universal_newlines=True,
+            text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             encoding="utf-8",
@@ -119,10 +117,10 @@ def _start_cluster(*, cleanup_atexit=True):
         elif "--generate-self-signed-cert" in supported_opts:
             args.append("--generate-self-signed-cert")
 
-        if sys.platform == 'win32':
-            args = ['wsl', '-u', 'edgedb'] + args
+        if sys.platform == "win32":
+            args = ["wsl", "-u", "edgedb", *args]
 
-        if env.get('EDGEDB_DEBUG_SERVER'):
+        if env.get("EDGEDB_DEBUG_SERVER"):
             server_stdout = None
         else:
             server_stdout = subprocess.DEVNULL
@@ -137,54 +135,56 @@ def _start_cluster(*, cleanup_atexit=True):
 
         for _ in range(600):
             try:
-                with open(status_file, 'rb') as f:
+                with open(status_file, "rb") as f:
                     for line in f:
-                        if line.startswith(b'READY='):
+                        if line.startswith(b"READY="):
                             break
                     else:
-                        raise RuntimeError('not ready')
+                        raise RuntimeError("not ready")
                 break
             except Exception:
                 time.sleep(1)
         else:
-            raise RuntimeError('server status file not found')
+            raise RuntimeError("server status file not found")
 
-        data = json.loads(line.split(b'READY=')[1])
-        con_args = dict(host='localhost', port=data['port'])
-        if 'tls_cert_file' in data:
-            if sys.platform == 'win32':
-                con_args['tls_ca_file'] = os.path.join(
+        data = json.loads(line.split(b"READY=")[1])
+        con_args = dict(host="localhost", port=data["port"])
+        if "tls_cert_file" in data:
+            if sys.platform == "win32":
+                con_args["tls_ca_file"] = os.path.join(
                     tmpdir.name, "edbtlscert.pem"
                 )
                 subprocess.check_call(
                     [
-                        'wsl',
-                        '-u',
-                        'edgedb',
-                        'cp',
-                        data['tls_cert_file'],
-                        _get_wsl_path(con_args['tls_ca_file'])
+                        "wsl",
+                        "-u",
+                        "edgedb",
+                        "cp",
+                        data["tls_cert_file"],
+                        _get_wsl_path(con_args["tls_ca_file"]),
                     ]
                 )
             else:
-                con_args['tls_ca_file'] = data['tls_cert_file']
+                con_args["tls_ca_file"] = data["tls_cert_file"]
 
-        client = edgedb.create_client(password='test', **con_args)
+        client = edgedb.create_client(password="test", **con_args)
         client.ensure_connected()
-        client.execute("""
+        client.execute(
+            """
             # Set session_idle_transaction_timeout to 5 minutes.
             CONFIGURE INSTANCE SET session_idle_transaction_timeout :=
                 <duration>'5 minutes';
-        """)
+        """
+        )
         _default_cluster = {
-            'proc': p,
-            'client': client,
-            'con_args': con_args,
+            "proc": p,
+            "client": client,
+            "con_args": con_args,
         }
 
-        if 'tls_cert_file' in data:
+        if "tls_cert_file" in data:
             # Keep the temp dir which we also copied the cert from WSL
-            _default_cluster['_tmpdir'] = tmpdir
+            _default_cluster["_tmpdir"] = tmpdir
 
         atexit.register(client.close)
     except Exception as e:
@@ -201,7 +201,7 @@ class TestCaseMeta(type(unittest.TestCase)):
     def _iter_methods(bases, ns):
         for base in bases:
             for methname in dir(base):
-                if not methname.startswith('test_'):
+                if not methname.startswith("test_"):
                     continue
 
                 meth = getattr(base, methname)
@@ -211,7 +211,7 @@ class TestCaseMeta(type(unittest.TestCase)):
                 yield methname, meth
 
         for methname, meth in ns.items():
-            if not methname.startswith('test_'):
+            if not methname.startswith("test_"):
                 continue
 
             if not inspect.iscoroutinefunction(meth):
@@ -232,14 +232,15 @@ class TestCaseMeta(type(unittest.TestCase)):
                     # than hunting them down every time, simply
                     # retry the test.
                     self.loop.run_until_complete(
-                        __meth__(self, *args, **kwargs))
+                        __meth__(self, *args, **kwargs)
+                    )
                 except edgedb.TransactionSerializationError:
                     if try_no == 3:
                         raise
                     else:
-                        self.loop.run_until_complete(self.client.execute(
-                            'ROLLBACK;'
-                        ))
+                        self.loop.run_until_complete(
+                            self.client.execute("ROLLBACK;")
+                        )
                         try_no += 1
                 else:
                     break
@@ -257,12 +258,13 @@ class TestCaseMeta(type(unittest.TestCase)):
             mcls.add_method(methname, ns, meth)
 
         cls = super().__new__(mcls, name, bases, ns)
-        if not ns.get('BASE_TEST_CLASS') and hasattr(cls, 'get_database_name'):
+        if not ns.get("BASE_TEST_CLASS") and hasattr(cls, "get_database_name"):
             dbname = cls.get_database_name()
 
             if name in mcls._database_names:
                 raise TypeError(
-                    f'{name} wants duplicate database name: {dbname}')
+                    f"{name} wants duplicate database name: {dbname}"
+                )
 
             mcls._database_names.add(name)
 
@@ -282,7 +284,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         asyncio.set_event_loop(None)
 
     def add_fail_notes(self, **kwargs):
-        if not hasattr(self, 'fail_notes'):
+        if not hasattr(self, "fail_notes"):
             self.fail_notes = {}
         self.fail_notes.update(kwargs)
 
@@ -296,8 +298,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             raise
 
     @contextlib.contextmanager
-    def assertRaisesRegex(self, exception, regex, msg=None,
-                          **kwargs):
+    def assertRaisesRegex(self, exception, regex, msg=None, **kwargs):
         with super().assertRaisesRegex(exception, regex, msg=msg):
             try:
                 yield
@@ -307,9 +308,10 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                         val = getattr(e, attr_name)
                         if val != expected_val:
                             raise self.failureException(
-                                f'{exception.__name__} context attribute '
-                                f'{attr_name!r} is {val} (expected '
-                                f'{expected_val!r})') from e
+                                f"{exception.__name__} context attribute "
+                                f"{attr_name!r} is {val} (expected "
+                                f"{expected_val!r})"
+                            ) from e
                 raise
 
     def addCleanup(self, func, *args, **kwargs):
@@ -318,11 +320,11 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             res = func(*args, **kwargs)
             if inspect.isawaitable(res):
                 self.loop.run_until_complete(res)
+
         super().addCleanup(cleanup)
 
 
 class ClusterTestCase(TestCase):
-
     BASE_TEST_CLASS = True
 
     @classmethod
@@ -367,15 +369,17 @@ class ConnectedTestCaseMixin:
 
     @classmethod
     def make_test_client(
-        cls, *,
+        cls,
+        *,
         cluster=None,
-        database='edgedb',
-        user='edgedb',
-        password='test',
+        database="edgedb",
+        user="edgedb",
+        password="test",
         connection_class=...,
     ):
         conargs = cls.get_connect_args(
-            cluster=cluster, database=database, user=user, password=password)
+            cluster=cluster, database=database, user=user, password=password
+        )
         if connection_class is ...:
             connection_class = (
                 asyncio_client.AsyncIOConnection
@@ -389,15 +393,11 @@ class ConnectedTestCaseMixin:
         )
 
     @classmethod
-    def get_connect_args(cls, *,
-                         cluster=None,
-                         database='edgedb',
-                         user='edgedb',
-                         password='test'):
-        conargs = cls.cluster['con_args'].copy()
-        conargs.update(dict(user=user,
-                            password=password,
-                            database=database))
+    def get_connect_args(
+        cls, *, cluster=None, database="edgedb", user="edgedb", password="test"
+    ):
+        conargs = cls.cluster["con_args"].copy()
+        conargs.update(dict(user=user, password=password, database=database))
         return conargs
 
     @classmethod
@@ -418,22 +418,21 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
     def setUp(self):
         if self.SETUP_METHOD:
-            self.adapt_call(
-                self.client.execute(self.SETUP_METHOD))
+            self.adapt_call(self.client.execute(self.SETUP_METHOD))
 
         super().setUp()
 
     def tearDown(self):
         try:
             if self.TEARDOWN_METHOD:
-                self.adapt_call(
-                    self.client.execute(self.TEARDOWN_METHOD))
+                self.adapt_call(self.client.execute(self.TEARDOWN_METHOD))
         finally:
             try:
                 if self.client.connection.is_in_transaction():
                     raise AssertionError(
-                        'test connection is still in transaction '
-                        '*after* the test')
+                        "test connection is still in transaction "
+                        "*after* the test"
+                    )
 
             finally:
                 super().tearDown()
@@ -445,11 +444,11 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
         cls.admin_client = None
 
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
+        class_set_up = os.environ.get("EDGEDB_TEST_CASES_SET_UP")
 
         # Only open an extra admin connection if necessary.
         if not class_set_up:
-            script = f'CREATE DATABASE {dbname};'
+            script = f"CREATE DATABASE {dbname};"
             cls.admin_client = cls.make_test_client()
             cls.adapt_call(cls.admin_client.execute(script))
 
@@ -461,23 +460,26 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 # The setup is expected to contain a CREATE MIGRATION,
                 # which needs to be wrapped in a transaction.
                 if cls.is_client_async:
+
                     async def execute():
                         async for tr in cls.client.transaction():
                             async with tr:
                                 await tr.execute(script)
                 else:
+
                     def execute():
                         for tr in cls.client.transaction():
                             with tr:
                                 tr.execute(script)
+
                 cls.adapt_call(execute())
 
     @classmethod
     def get_database_name(cls):
-        if cls.__name__.startswith('TestEdgeQL'):
-            dbname = cls.__name__[len('TestEdgeQL'):]
-        elif cls.__name__.startswith('Test'):
-            dbname = cls.__name__[len('Test'):]
+        if cls.__name__.startswith("TestEdgeQL"):
+            dbname = cls.__name__[len("TestEdgeQL") :]
+        elif cls.__name__.startswith("Test"):
+            dbname = cls.__name__[len("Test") :]
         else:
             dbname = cls.__name__
 
@@ -485,27 +487,26 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
     @classmethod
     def get_setup_script(cls):
-        script = ''
+        script = ""
 
         # Look at all SCHEMA entries and potentially create multiple
         # modules, but always create the 'test' module.
-        schema = ['\nmodule test {}']
+        schema = ["\nmodule test {}"]
         for name, val in cls.__dict__.items():
-            m = re.match(r'^SCHEMA(?:_(\w+))?', name)
+            m = re.match(r"^SCHEMA(?:_(\w+))?", name)
             if m:
-                module_name = (m.group(1) or 'test').lower().replace(
-                    '__', '.')
+                module_name = (m.group(1) or "test").lower().replace("__", ".")
 
-                with open(val, 'r') as sf:
+                with open(val) as sf:
                     module = sf.read()
 
-                schema.append(f'\nmodule {module_name} {{ {module} }}')
+                schema.append(f"\nmodule {module_name} {{ {module} }}")
 
         # Don't wrap the script into a transaction here, so that
         # potentially it's easier to stitch multiple such scripts
         # together in a fashion similar to what `edb inittestdb` does.
         script += f'\nSTART MIGRATION TO {{ {"".join(schema)} }};'
-        script += f'\nPOPULATE MIGRATION; \nCOMMIT MIGRATION;'
+        script += "\nPOPULATE MIGRATION; \nCOMMIT MIGRATION;"
 
         if cls.SETUP:
             if not isinstance(cls.SETUP, (list, tuple)):
@@ -514,27 +515,26 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 scripts = cls.SETUP
 
             for scr in scripts:
-                if '\n' not in scr and os.path.exists(scr):
-                    with open(scr, 'rt') as f:
+                if "\n" not in scr and os.path.exists(scr):
+                    with open(scr) as f:
                         setup = f.read()
                 else:
                     setup = scr
 
-                script += '\n' + setup
+                script += "\n" + setup
 
-        return script.strip(' \n')
+        return script.strip(" \n")
 
     @classmethod
     def tearDownClass(cls):
-        script = ''
+        script = ""
 
         if cls.TEARDOWN:
             script = cls.TEARDOWN.strip()
 
         try:
             if script:
-                cls.adapt_call(
-                    cls.client.execute(script))
+                cls.adapt_call(cls.client.execute(script))
         finally:
             try:
                 if cls.is_client_async:
@@ -543,13 +543,12 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     cls.client.close()
 
                 dbname = cls.get_database_name()
-                script = f'DROP DATABASE {dbname};'
+                script = f"DROP DATABASE {dbname};"
 
                 retry = cls.TEARDOWN_RETRY_DROP_DB
                 for i in range(retry):
                     try:
-                        cls.adapt_call(
-                            cls.admin_client.execute(script))
+                        cls.adapt_call(cls.admin_client.execute(script))
                     except edgedb.errors.ExecutionError:
                         if i < retry - 1:
                             time.sleep(0.1)
@@ -559,15 +558,14 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                         break
 
             except Exception:
-                log.exception('error running teardown')
+                log.exception("error running teardown")
                 # skip the exception so that original error is shown instead
                 # of finalizer error
             finally:
                 try:
                     if cls.admin_client is not None:
                         if cls.is_client_async:
-                            cls.adapt_call(
-                                cls.admin_client.aclose())
+                            cls.adapt_call(cls.admin_client.aclose())
                         else:
                             cls.admin_client.close()
                 finally:
@@ -597,6 +595,7 @@ def gen_lock_key():
     return os.getpid() * 1000 + _lock_cnt
 
 
-if os.environ.get('USE_UVLOOP'):
+if os.environ.get("USE_UVLOOP"):
     import uvloop
+
     uvloop.install()

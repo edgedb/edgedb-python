@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import enum
 import random
@@ -6,28 +8,30 @@ from collections import namedtuple
 
 from . import errors
 
-
 _RetryRule = namedtuple("_RetryRule", ["attempts", "backoff"])
 
 
 def default_backoff(attempt):
-    return (2 ** attempt) * 0.1 + random.randrange(100) * 0.001
+    return (2**attempt) * 0.1 + random.randrange(100) * 0.001
 
 
 class RetryCondition:
-    """Specific condition to retry on for fine-grained control"""
+    """Specific condition to retry on for fine-grained control."""
+
     TransactionConflict = enum.auto()
     NetworkError = enum.auto()
 
 
 class IsolationLevel:
-    """Isolation level for transaction"""
+    """Isolation level for transaction."""
+
     Serializable = "SERIALIZABLE"
 
 
 class RetryOptions:
-    """An immutable class that contains rules for `transaction()`"""
-    __slots__ = ['_default', '_overrides']
+    """An immutable class that contains rules for `transaction()`."""
+
+    __slots__ = ["_default", "_overrides"]
 
     def __init__(self, attempts: int, backoff=default_backoff):
         self._default = _RetryRule(attempts, backoff)
@@ -69,12 +73,13 @@ class RetryOptions:
 
 
 class TransactionOptions:
-    """Options for `transaction()`"""
-    __slots__ = ['_isolation', '_readonly', '_deferrable']
+    """Options for `transaction()`."""
+
+    __slots__ = ["_isolation", "_readonly", "_deferrable"]
 
     def __init__(
         self,
-        isolation: IsolationLevel=IsolationLevel.Serializable,
+        isolation: IsolationLevel = IsolationLevel.Serializable,
         readonly: bool = False,
         deferrable: bool = False,
     ):
@@ -89,35 +94,35 @@ class TransactionOptions:
     def start_transaction_query(self):
         isolation = str(self._isolation)
         if self._readonly:
-            mode = 'READ ONLY'
+            mode = "READ ONLY"
         else:
-            mode = 'READ WRITE'
+            mode = "READ WRITE"
 
         if self._deferrable:
-            defer = 'DEFERRABLE'
+            defer = "DEFERRABLE"
         else:
-            defer = 'NOT DEFERRABLE'
+            defer = "NOT DEFERRABLE"
 
-        return f'START TRANSACTION ISOLATION {isolation}, {mode}, {defer};'
+        return f"START TRANSACTION ISOLATION {isolation}, {mode}, {defer};"
 
     def __repr__(self):
         return (
-            f'<{self.__class__.__name__} '
-            f'isolation:{self._isolation}, '
-            f'readonly:{self._readonly}, '
-            f'deferrable:{self._deferrable}>'
+            f"<{self.__class__.__name__} "
+            f"isolation:{self._isolation}, "
+            f"readonly:{self._readonly}, "
+            f"deferrable:{self._deferrable}>"
         )
 
 
 class State:
-    __slots__ = ['_module', '_aliases', '_config', '_globals']
+    __slots__ = ["_module", "_aliases", "_config", "_globals"]
 
     def __init__(
         self,
-        default_module: typing.Optional[str] = None,
-        module_aliases: typing.Mapping[str, str] = None,
-        config: typing.Mapping[str, typing.Any] = None,
-        globals_: typing.Mapping[str, typing.Any] = None,
+        default_module: str | None = None,
+        module_aliases: typing.Mapping[str, str] | None = None,
+        config: typing.Mapping[str, typing.Any] | None = None,
+        globals_: typing.Mapping[str, typing.Any] | None = None,
     ):
         self._module = default_module
         self._aliases = {} if module_aliases is None else dict(module_aliases)
@@ -139,7 +144,7 @@ class State:
     def defaults(cls):
         return cls()
 
-    def with_default_module(self, module: typing.Optional[str] = None):
+    def with_default_module(self, module: str | None = None):
         return self._new(
             default_module=module,
             module_aliases=self._aliases,
@@ -151,7 +156,7 @@ class State:
         if len(args) > 1:
             raise errors.InvalidArgumentError(
                 "with_module_aliases() takes from 0 to 1 positional arguments "
-                "but {} were given".format(len(args))
+                f"but {len(args)} were given"
             )
         aliases_dict = args[0] if args else {}
         aliases_dict.update(aliases)
@@ -168,7 +173,7 @@ class State:
         if len(args) > 1:
             raise errors.InvalidArgumentError(
                 "with_config() takes from 0 to 1 positional arguments "
-                "but {} were given".format(len(args))
+                f"but {len(args)} were given"
             )
         config_dict = args[0] if args else {}
         config_dict.update(config)
@@ -196,7 +201,7 @@ class State:
         if len(args) > 1:
             raise errors.InvalidArgumentError(
                 "with_globals() takes from 0 to 1 positional arguments "
-                "but {} were given".format(len(args))
+                f"but {len(args)} were given"
             )
         new_globals = self._globals.copy()
         if args:
@@ -293,7 +298,7 @@ class _OptionsMixin:
         result._options = self._options.with_transaction_options(options)
         return result
 
-    def with_retry_options(self, options: RetryOptions=None):
+    def with_retry_options(self, options: RetryOptions = None):
         """Returns object with adjusted options for future retrying
         transactions.
 
@@ -306,7 +311,6 @@ class _OptionsMixin:
         Both ``self`` and returned object can be used after, but when using
         them retry options applied will be different.
         """
-
         result = self._shallow_clone()
         result._options = self._options.with_retry_options(options)
         return result
@@ -316,7 +320,7 @@ class _OptionsMixin:
         result._options = self._options.with_state(state)
         return result
 
-    def with_default_module(self, module: typing.Optional[str] = None):
+    def with_default_module(self, module: str | None = None):
         result = self._shallow_clone()
         result._options = self._options.with_state(
             self._options.state.with_default_module(module)
@@ -367,9 +371,9 @@ class _OptionsMixin:
 
 
 class _Options:
-    """Internal class for storing connection options"""
+    """Internal class for storing connection options."""
 
-    __slots__ = ['_retry_options', '_transaction_options', '_state']
+    __slots__ = ["_retry_options", "_transaction_options", "_state"]
 
     def __init__(
         self,

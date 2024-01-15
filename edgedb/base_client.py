@@ -15,31 +15,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import annotations
 
 import abc
 import random
 import time
 import typing
 
-from . import abstract
-from . import con_utils
-from . import enums
-from . import errors
+from . import abstract, con_utils, enums, errors
 from . import options as _options
 from .protocol import protocol
 
-
-BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
+BaseConnection_T = typing.TypeVar("BaseConnection_T", bound="BaseConnection")
 
 
 class BaseConnection(metaclass=abc.ABCMeta):
     _protocol: typing.Any
-    _addr: typing.Optional[typing.Union[str, typing.Tuple[str, int]]]
-    _addrs: typing.Iterable[typing.Union[str, typing.Tuple[str, int]]]
+    _addr: str | tuple[str, int] | None
+    _addrs: typing.Iterable[str | tuple[str, int]]
     _config: con_utils.ClientConfiguration
     _params: con_utils.ResolvedConnectConfig
-    _log_listeners: typing.Set[
+    _log_listeners: set[
         typing.Callable[[BaseConnection_T, errors.EdgeDBMessage], None]
     ]
     __slots__ = (
@@ -55,7 +51,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
 
     def __init__(
         self,
-        addrs: typing.Iterable[typing.Union[str, typing.Tuple[str, int]]],
+        addrs: typing.Iterable[str | tuple[str, int]],
         config: con_utils.ClientConfiguration,
         params: con_utils.ResolvedConnectConfig,
     ):
@@ -78,7 +74,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
     def connected_addr(self):
         return self._addr
 
-    def _get_last_status(self) -> typing.Optional[str]:
+    def _get_last_status(self) -> str | None:
         if self._protocol is None:
             return None
         status = self._protocol.last_status
@@ -94,8 +90,9 @@ class BaseConnection(metaclass=abc.ABCMeta):
 
     def add_log_listener(
         self: BaseConnection_T,
-        callback: typing.Callable[[BaseConnection_T, errors.EdgeDBMessage],
-                                  None]
+        callback: typing.Callable[
+            [BaseConnection_T, errors.EdgeDBMessage], None
+        ],
     ) -> None:
         """Add a listener for EdgeDB log messages.
 
@@ -108,8 +105,9 @@ class BaseConnection(metaclass=abc.ABCMeta):
 
     def remove_log_listener(
         self: BaseConnection_T,
-        callback: typing.Callable[[BaseConnection_T, errors.EdgeDBMessage],
-                                  None]
+        callback: typing.Callable[
+            [BaseConnection_T, errors.EdgeDBMessage], None
+        ],
     ) -> None:
         """Remove a listening callback for log messages."""
         self._log_listeners.discard(callback)
@@ -151,9 +149,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
                             f" {self._config.connect_timeout} sec"
                         ) from e
                 except errors.ClientConnectionError as e:
-                    if (
-                        e.has_tag(errors.SHOULD_RECONNECT) and
-                        (iteration == 1 or time.monotonic() < max_time)
+                    if e.has_tag(errors.SHOULD_RECONNECT) and (
+                        iteration == 1 or time.monotonic() < max_time
                     ):
                         continue
                     nice_err = e.__class__(
@@ -162,7 +159,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
                             addr,
                             attempts=iteration,
                             duration=time.monotonic() - start,
-                        ))
+                        )
+                    )
                     raise nice_err from e.__cause__
                 else:
                     return
@@ -188,7 +186,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 allow_capabilities=enums.Capability.ALL,
                 state=(
                     execute_context.state.as_dict()
-                    if execute_context.state else None
+                    if execute_context.state
+                    else None
                 ),
             )
 
@@ -199,7 +198,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
         """
         return self._protocol.is_in_transaction()
 
-    def get_settings(self) -> typing.Dict[str, typing.Any]:
+    def get_settings(self) -> dict[str, typing.Any]:
         return self._protocol.get_settings()
 
     async def raw_query(self, query_context: abstract.QueryContext):
@@ -255,9 +254,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 # A query is read-only if it has no capabilities i.e.
                 # capabilities == 0. Read-only queries are safe to retry.
                 # Explicit transaction conflicts as well.
-                if (
-                    capabilities != 0
-                    and not isinstance(e, errors.TransactionConflictError)
+                if capabilities != 0 and not isinstance(
+                    e, errors.TransactionConflictError
                 ):
                     raise e
                 rule = query_context.retry_options.get_rule_for_exception(e)
@@ -286,7 +284,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 allow_capabilities=enums.Capability.EXECUTE,
                 state=(
                     execute_context.state.as_dict()
-                    if execute_context.state else None
+                    if execute_context.state
+                    else None
                 ),
             )
 
@@ -302,7 +301,8 @@ class BaseConnection(metaclass=abc.ABCMeta):
             allow_capabilities=enums.Capability.EXECUTE,
             state=(
                 describe_context.state.as_dict()
-                if describe_context.state else None
+                if describe_context.state
+                else None
             ),
         )
         return abstract.DescribeResult(
@@ -321,13 +321,13 @@ class BaseConnection(metaclass=abc.ABCMeta):
 
     def __repr__(self):
         if self.is_closed():
-            return '<{classname} [closed] {id:#x}>'.format(
-                classname=self.__class__.__name__, id=id(self))
+            return f"<{self.__class__.__name__} [closed] {id(self):#x}>"
         else:
-            return '<{classname} [connected to {addr}] {id:#x}>'.format(
+            return "<{classname} [connected to {addr}] {id:#x}>".format(
                 classname=self.__class__.__name__,
                 addr=self.connected_addr(),
-                id=id(self))
+                id=id(self),
+            )
 
 
 class PoolConnectionHolder(abc.ABC):
@@ -341,7 +341,6 @@ class PoolConnectionHolder(abc.ABC):
     _event_class = NotImplemented
 
     def __init__(self, pool):
-
         self._pool = pool
         self._con = None
 
@@ -362,8 +361,9 @@ class PoolConnectionHolder(abc.ABC):
     async def connect(self):
         if self._con is not None:
             raise errors.InternalClientError(
-                'PoolConnectionHolder.connect() called while another '
-                'connection already exists')
+                "PoolConnectionHolder.connect() called while another "
+                "connection already exists"
+            )
 
         self._con = await self._pool._get_new_connection()
         assert self._con._holder is None
@@ -389,8 +389,9 @@ class PoolConnectionHolder(abc.ABC):
     async def release(self, timeout):
         if self._release_event.is_set():
             raise errors.InternalClientError(
-                'PoolConnectionHolder.release() called on '
-                'a free connection holder')
+                "PoolConnectionHolder.release() called on "
+                "a free connection holder"
+            )
 
         if self._con.is_closed():
             # This is usually the case when the connection is broken rather
@@ -464,7 +465,7 @@ class BasePoolImpl(abc.ABC):
         connect_args,
         connection_factory,
         *,
-        max_concurrency: typing.Optional[int],
+        max_concurrency: int | None,
     ):
         self._connection_factory = connection_factory
         self._connect_args = connect_args
@@ -473,7 +474,7 @@ class BasePoolImpl(abc.ABC):
 
         if max_concurrency is not None and max_concurrency <= 0:
             raise ValueError(
-                'max_concurrency is expected to be greater than zero'
+                "max_concurrency is expected to be greater than zero"
             )
 
         self._user_max_concurrency = max_concurrency
@@ -522,7 +523,7 @@ class BasePoolImpl(abc.ABC):
     def _resize_holder_pool(self):
         resize_diff = self._max_concurrency - len(self._holders)
 
-        if (resize_diff > 0):
+        if resize_diff > 0:
             if self._queue.maxsize != self._max_concurrency:
                 self._set_queue_maxsize(self._max_concurrency)
 
@@ -562,7 +563,6 @@ class BasePoolImpl(abc.ABC):
             Keyword arguments for the
             :func:`~edgedb.asyncio_client.create_async_client` function.
         """
-
         connect_kwargs["dsn"] = dsn
         self._connect_args = connect_kwargs
         self._codecs_registry = protocol.CodecsRegistry()
@@ -589,7 +589,8 @@ class BasePoolImpl(abc.ABC):
 
         if self._user_max_concurrency is None:
             suggested_concurrency = con.get_settings().get(
-                'suggested_pool_concurrency')
+                "suggested_pool_concurrency"
+            )
             if suggested_concurrency:
                 self._max_concurrency = suggested_concurrency
                 self._resize_holder_pool()
@@ -613,11 +614,10 @@ class BasePoolImpl(abc.ABC):
         return con
 
     async def release(self, connection):
-
         if not isinstance(connection, BaseConnection):
             raise errors.InterfaceError(
-                f'BasePoolImpl.release() received invalid connection: '
-                f'{connection!r} does not belong to any connection pool'
+                f"BasePoolImpl.release() received invalid connection: "
+                f"{connection!r} does not belong to any connection pool"
             )
 
         ch = connection._holder
@@ -627,8 +627,8 @@ class BasePoolImpl(abc.ABC):
 
         if ch._pool is not self:
             raise errors.InterfaceError(
-                f'BasePoolImpl.release() received invalid connection: '
-                f'{connection!r} is not a member of this pool'
+                f"BasePoolImpl.release() received invalid connection: "
+                f"{connection!r} is not a member of this pool"
             )
 
         return await self._release(ch)
@@ -669,19 +669,19 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         self,
         *,
         connection_class,
-        max_concurrency: typing.Optional[int],
+        max_concurrency: int | None,
         dsn=None,
-        host: str = None,
-        port: int = None,
-        credentials: str = None,
-        credentials_file: str = None,
-        user: str = None,
-        password: str = None,
-        secret_key: str = None,
-        database: str = None,
-        tls_ca: str = None,
-        tls_ca_file: str = None,
-        tls_security: str = None,
+        host: str | None = None,
+        port: int | None = None,
+        credentials: str | None = None,
+        credentials_file: str | None = None,
+        user: str | None = None,
+        password: str | None = None,
+        secret_key: str | None = None,
+        database: str | None = None,
+        tls_ca: str | None = None,
+        tls_ca_file: str | None = None,
+        tls_security: str | None = None,
         wait_until_available: int = 30,
         timeout: int = 10,
         **kwargs,
@@ -722,7 +722,7 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
             query_cache=self._impl.query_cache,
         )
 
-    def _get_retry_options(self) -> typing.Optional[_options.RetryOptions]:
+    def _get_retry_options(self) -> _options.RetryOptions | None:
         return self._options.retry_options
 
     def _get_state(self) -> _options.State:
@@ -731,13 +731,11 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
     @property
     def max_concurrency(self) -> int:
         """Max number of connections in the pool."""
-
         return self._impl.get_max_concurrency()
 
     @property
     def free_size(self) -> int:
         """Number of available connections in the pool."""
-
         return self._impl.get_free_size()
 
     async def _query(self, query_context: abstract.QueryContext):

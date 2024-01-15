@@ -1,33 +1,37 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
-import alabaster
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath('..'))
+import alabaster
 
-version_file = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                            'edgedb', '_version.py')
+sys.path.insert(0, os.path.abspath(".."))
 
-with open(version_file, 'r') as f:
+version_file = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "edgedb", "_version.py"
+)
+
+with open(version_file) as f:
     for line in f:
-        if line.startswith('__version__ ='):
-            _, _, version = line.partition('=')
+        if line.startswith("__version__ ="):
+            _, _, version = line.partition("=")
             version = version.strip(" \n'\"")
             break
     else:
         raise RuntimeError(
-            'unable to read the version from edgedb/_version.py')
+            "unable to read the version from edgedb/_version.py"
+        )
 
 # -- General configuration ------------------------------------------------
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages',
-    'sphinx.ext.intersphinx',
-    'sphinxcontrib.asyncio',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.doctest",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.githubpages",
+    "sphinx.ext.intersphinx",
+    "sphinxcontrib.asyncio",
 ]
 
 # This is done on purpose: multiple different documentations with
@@ -38,41 +42,41 @@ primary_domain = None
 
 add_module_names = False
 
-templates_path = ['_templates']
-source_suffix = '.rst'
-master_doc = 'index'
-project = 'edgedb'
-copyright = '2018-present MagicStack Inc. and the EdgeDB authors.'
-author = 'MagicStack Inc. and the EdgeDB authors'
+templates_path = ["_templates"]
+source_suffix = ".rst"
+master_doc = "index"
+project = "edgedb"
+copyright = "2018-present MagicStack Inc. and the EdgeDB authors."
+author = "MagicStack Inc. and the EdgeDB authors"
 release = version
 language = None
-exclude_patterns = ['_build']
-pygments_style = 'sphinx'
+exclude_patterns = ["_build"]
+pygments_style = "sphinx"
 todo_include_todos = False
-suppress_warnings = ['image.nonlocal_uri']
+suppress_warnings = ["image.nonlocal_uri"]
 
 # -- Options for HTML output ----------------------------------------------
 
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 html_theme_path = [alabaster.get_path()]
-html_title = 'EdgeDB Python Driver Documentation'
-html_short_title = 'edgedb'
-html_static_path = ['_static']
+html_title = "EdgeDB Python Driver Documentation"
+html_short_title = "edgedb"
+html_static_path = ["_static"]
 html_sidebars = {
-    '**': [
-        'about.html',
-        'navigation.html',
+    "**": [
+        "about.html",
+        "navigation.html",
     ]
 }
 html_show_sourcelink = False
 html_show_sphinx = False
 html_show_copyright = True
 html_context = {
-    'css_files': [
-        '_static/theme_overrides.css',
+    "css_files": [
+        "_static/theme_overrides.css",
     ],
 }
-htmlhelp_basename = 'edgedbdoc'
+htmlhelp_basename = "edgedbdoc"
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -80,28 +84,37 @@ htmlhelp_basename = 'edgedbdoc'
 latex_elements = {}
 
 latex_documents = [
-    (master_doc, 'edgedb.tex', 'EdgeDB Python Driver Documentation',
-     author, 'manual'),
+    (
+        master_doc,
+        "edgedb.tex",
+        "EdgeDB Python Driver Documentation",
+        author,
+        "manual",
+    ),
 ]
 
 
 # -- Options for manual page output ---------------------------------------
 
 man_pages = [
-    (master_doc, 'edgedb', 'EdgeDB Python Driver Documentation',
-     [author], 1)
+    (master_doc, "edgedb", "EdgeDB Python Driver Documentation", [author], 1)
 ]
 
 
 # -- Options for Texinfo output -------------------------------------------
 
 texinfo_documents = [
-    (master_doc, 'edgedb', 'EdgeDB Python Driver Documentation',
-     author, 'edgedb',
-     'Official EdgeDB Python Driver',
-     'Miscellaneous'),
+    (
+        master_doc,
+        "edgedb",
+        "EdgeDB Python Driver Documentation",
+        author,
+        "edgedb",
+        "Official EdgeDB Python Driver",
+        "Miscellaneous",
+    ),
 ]
 
 # -- Options for intersphinx ----------------------------------------------
 
-intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
+intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}

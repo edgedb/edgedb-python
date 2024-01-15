@@ -15,27 +15,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import annotations
 
 import asyncio
 import contextlib
 import logging
 import socket
 import ssl
-import typing
 
-from . import abstract
-from . import base_client
-from . import con_utils
-from . import errors
-from . import transaction
+from . import abstract, base_client, con_utils, errors, transaction
 from .protocol import asyncio_proto
 from .protocol.protocol import OutputFormat
 
-
-__all__ = (
-    'create_async_client', 'AsyncIOClient'
-)
+__all__ = ("create_async_client", "AsyncIOClient")
 
 
 logger = logging.getLogger(__name__)
@@ -96,7 +88,7 @@ class AsyncIOConnection(base_client.BaseConnection):
                     raise con_utils.wrap_error(e) from e
                 else:
                     con_utils.check_alpn_protocol(
-                        tr.get_extra_info('ssl_object')
+                        tr.get_extra_info("ssl_object")
                     )
         except socket.gaierror as e:
             # All name resolution errors are considered temporary
@@ -146,21 +138,22 @@ class _PoolConnectionHolder(base_client.PoolConnectionHolder):
 
 
 class _AsyncIOPoolImpl(base_client.BasePoolImpl):
-    __slots__ = ('_loop',)
+    __slots__ = ("_loop",)
     _holder_class = _PoolConnectionHolder
 
     def __init__(
         self,
         connect_args,
         *,
-        max_concurrency: typing.Optional[int],
+        max_concurrency: int | None,
         connection_class,
     ):
         if not issubclass(connection_class, AsyncIOConnection):
             raise TypeError(
-                f'connection_class is expected to be a subclass of '
-                f'edgedb.asyncio_client.AsyncIOConnection, '
-                f'got {connection_class}')
+                f"connection_class is expected to be a subclass of "
+                f"edgedb.asyncio_client.AsyncIOConnection, "
+                f"got {connection_class}"
+            )
         self._loop = None
         super().__init__(
             connect_args,
@@ -200,20 +193,18 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
                 return proxy
 
         if self._closing:
-            raise errors.InterfaceError('pool is closing')
+            raise errors.InterfaceError("pool is closing")
 
         if timeout is None:
             return await _acquire_impl()
         else:
-            return await asyncio.wait_for(
-                _acquire_impl(), timeout=timeout)
+            return await asyncio.wait_for(_acquire_impl(), timeout=timeout)
 
     async def _release(self, holder):
-
         if not isinstance(holder._con, AsyncIOConnection):
             raise errors.InterfaceError(
-                f'release() received invalid connection: '
-                f'{holder._con!r} does not belong to any connection pool'
+                f"release() received invalid connection: "
+                f"{holder._con!r} does not belong to any connection pool"
             )
 
         timeout = None
@@ -245,14 +236,13 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
 
         try:
             warning_callback = self._loop.call_later(
-                60, self._warn_on_long_close)
+                60, self._warn_on_long_close
+            )
 
-            release_coros = [
-                ch.wait_until_released() for ch in self._holders]
+            release_coros = [ch.wait_until_released() for ch in self._holders]
             await asyncio.gather(*release_coros)
 
-            close_coros = [
-                ch.close() for ch in self._holders]
+            close_coros = [ch.close() for ch in self._holders]
             await asyncio.gather(*close_coros)
 
         except (Exception, asyncio.CancelledError):
@@ -266,14 +256,14 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
 
     def _warn_on_long_close(self):
         logger.warning(
-            'AsyncIOClient.aclose() is taking over 60 seconds to complete. '
-            'Check if you have any unreleased connections left. '
-            'Use asyncio.wait_for() to set a timeout for '
-            'AsyncIOClient.aclose().')
+            "AsyncIOClient.aclose() is taking over 60 seconds to complete. "
+            "Check if you have any unreleased connections left. "
+            "Use asyncio.wait_for() to set a timeout for "
+            "AsyncIOClient.aclose()."
+        )
 
 
 class AsyncIOIteration(transaction.BaseTransaction, abstract.AsyncIOExecutor):
-
     __slots__ = ("_managed", "_locked")
 
     def __init__(self, retry, client, iteration):
@@ -284,7 +274,8 @@ class AsyncIOIteration(transaction.BaseTransaction, abstract.AsyncIOExecutor):
     async def __aenter__(self):
         if self._managed:
             raise errors.InterfaceError(
-                'cannot enter context: already in an `async with` block')
+                "cannot enter context: already in an `async with` block"
+            )
         self._managed = True
         return self
 
@@ -324,7 +315,6 @@ class AsyncIOIteration(transaction.BaseTransaction, abstract.AsyncIOExecutor):
 
 
 class AsyncIORetry(transaction.BaseRetry):
-
     def __aiter__(self):
         return self
 
@@ -390,37 +380,38 @@ class AsyncIOClient(base_client.BaseClient, abstract.AsyncIOExecutor):
         output_format: OutputFormat = OutputFormat.BINARY,
         expect_one: bool = False,
     ) -> abstract.DescribeResult:
-        return await self._describe(abstract.DescribeContext(
-            query=query,
-            state=self._get_state(),
-            inject_type_names=inject_type_names,
-            output_format=output_format,
-            expect_one=expect_one,
-        ))
+        return await self._describe(
+            abstract.DescribeContext(
+                query=query,
+                state=self._get_state(),
+                inject_type_names=inject_type_names,
+                output_format=output_format,
+                expect_one=expect_one,
+            )
+        )
 
 
 def create_async_client(
     dsn=None,
     *,
     max_concurrency=None,
-    host: str = None,
-    port: int = None,
-    credentials: str = None,
-    credentials_file: str = None,
-    user: str = None,
-    password: str = None,
-    secret_key: str = None,
-    database: str = None,
-    tls_ca: str = None,
-    tls_ca_file: str = None,
-    tls_security: str = None,
+    host: str | None = None,
+    port: int | None = None,
+    credentials: str | None = None,
+    credentials_file: str | None = None,
+    user: str | None = None,
+    password: str | None = None,
+    secret_key: str | None = None,
+    database: str | None = None,
+    tls_ca: str | None = None,
+    tls_ca_file: str | None = None,
+    tls_security: str | None = None,
     wait_until_available: int = 30,
     timeout: int = 10,
 ):
     return AsyncIOClient(
         connection_class=AsyncIOConnection,
         max_concurrency=max_concurrency,
-
         # connect arguments
         dsn=dsn,
         host=host,

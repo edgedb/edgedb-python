@@ -32,9 +32,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         conargs["database"] = self.get_database_name()
         conargs["timeout"] = 120
         conargs.update(kwargs)
-        conargs.setdefault(
-            "connection_class", asyncio_client.AsyncIOConnection
-        )
+        conargs.setdefault("connection_class", asyncio_client.AsyncIOConnection)
         conargs.setdefault("max_concurrency", None)
 
         return tb.TestAsyncIOClient(**conargs)
@@ -57,9 +55,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
                 async with self.create_client(max_concurrency=5) as client:
 
                     async def worker():
-                        self.assertEqual(
-                            await client.query_single("SELECT 1"), 1
-                        )
+                        self.assertEqual(await client.query_single("SELECT 1"), 1)
 
                     tasks = [worker() for _ in range(n)]
                     await asyncio.gather(*tasks)
@@ -70,12 +66,10 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
                 client = self.create_client(max_concurrency=10)
 
                 async def worker():
-                    self.assertEqual(await client.query('SELECT 1'), [1])
-                    self.assertEqual(await client.query_single('SELECT 1'), 1)
-                    self.assertEqual(
-                        await client.query_json('SELECT 1'), '[1]')
-                    self.assertEqual(
-                        await client.query_single_json('SELECT 1'), '1')
+                    self.assertEqual(await client.query("SELECT 1"), [1])
+                    self.assertEqual(await client.query_single("SELECT 1"), 1)
+                    self.assertEqual(await client.query_json("SELECT 1"), "[1]")
+                    self.assertEqual(await client.query_single_json("SELECT 1"), "1")
 
                 tasks = [worker() for _ in range(n)]
                 await asyncio.gather(*tasks)
@@ -93,10 +87,10 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
     async def test_client_options(self):
         client = self.create_client(max_concurrency=1)
 
-        client.with_transaction_options(
-            edgedb.TransactionOptions(readonly=True))
+        client.with_transaction_options(edgedb.TransactionOptions(readonly=True))
         client.with_retry_options(
-            edgedb.RetryOptions(attempts=1, backoff=edgedb.default_backoff))
+            edgedb.RetryOptions(attempts=1, backoff=edgedb.default_backoff)
+        )
         async for tx in client.transaction():
             async with tx:
                 self.assertEqual(await tx.query_single("SELECT 7*8"), 56)
@@ -112,12 +106,13 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         async with self.create_client(
             max_concurrency=1,
         ) as client:
-
-            has_sleep = await client.query_single("""
+            has_sleep = await client.query_single(
+                """
                 SELECT EXISTS(
                     SELECT schema::Function FILTER .name = 'sys::_sleep'
                 )
-            """)
+            """
+            )
             if not has_sleep:
                 self.skipTest("No sys::_sleep function")
 
@@ -146,7 +141,6 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
             max_concurrency=10,
             connection_class=MyConnection,
         ) as client:
-
             await asyncio.gather(*[test(client) for _ in range(N)])
 
             self.assertEqual(
@@ -180,7 +174,6 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
 
         async def run(N, meth):
             async with self.create_client(max_concurrency=10) as client:
-
                 coros = [meth(client) for _ in range(N)]
                 res = await asyncio.gather(*coros)
                 self.assertEqual(res, [1] * N)
@@ -414,9 +407,7 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
                     w.write(data)
 
         async def cb(r: asyncio.StreamReader, w: asyncio.StreamWriter):
-            ur, uw = await asyncio.open_connection(
-                con_args['host'], con_args['port']
-            )
+            ur, uw = await asyncio.open_connection(con_args["host"], con_args["port"])
             done.clear()
             task = self.loop.create_task(proxy(r, uw))
             try:
@@ -429,12 +420,10 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
                     w.close()
                     uw.close()
 
-        server = await asyncio.start_server(
-            cb, '127.0.0.1', 0
-        )
+        server = await asyncio.start_server(cb, "127.0.0.1", 0)
         port = server.sockets[0].getsockname()[1]
         client = self.create_client(
-            host='127.0.0.1',
+            host="127.0.0.1",
             port=port,
             max_concurrency=1,
             wait_until_available=5,

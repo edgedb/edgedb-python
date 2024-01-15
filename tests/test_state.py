@@ -46,9 +46,7 @@ class TestState(tb.TestCase):
 
         self.assertEqual(s1.as_dict(), {"module": "m"})
         self.assertEqual(s2.as_dict()["module"], "m")
-        self.assertListEqual(
-            s2.as_dict()["aliases"], [("x", "a"), ("m2", "i")]
-        )
+        self.assertListEqual(s2.as_dict()["aliases"], [("x", "a"), ("m2", "i")])
         self.assertEqual(s3.as_dict()["module"], "m")
         self.assertListEqual(
             s3.as_dict()["aliases"],
@@ -78,11 +76,7 @@ class TestState(tb.TestCase):
         self.assertEqual(s5.as_dict(), {"module": "m"})
 
     def test_state_globals(self):
-        s1 = (
-            State.defaults()
-            .with_default_module("m")
-            .with_module_aliases(a="x", b="y")
-        )
+        s1 = State.defaults().with_default_module("m").with_module_aliases(a="x", b="y")
         s2 = s1.with_globals({"a::g2": "22"}, i=2)
         s3 = s2.with_globals({"i": 3, "b::g3": "33"})
         s4 = s3.without_globals("i", "y::g3")
@@ -93,9 +87,7 @@ class TestState(tb.TestCase):
         )
         self.assertEqual(s2.as_dict()["module"], "m")
         self.assertListEqual(s2.as_dict()["aliases"], [("a", "x"), ("b", "y")])
-        self.assertDictEqual(
-            s2.as_dict()["globals"], {"m::i": 2, "x::g2": "22"}
-        )
+        self.assertDictEqual(s2.as_dict()["globals"], {"m::i": 2, "x::g2": "22"})
         self.assertEqual(s3.as_dict()["module"], "m")
         self.assertListEqual(s3.as_dict()["aliases"], [("a", "x"), ("b", "y")])
         self.assertDictEqual(
@@ -109,9 +101,7 @@ class TestState(tb.TestCase):
         )
 
         self.assertDictEqual(
-            s3.with_default_module("x")
-            .with_globals(g2="2222")
-            .as_dict()["globals"],
+            s3.with_default_module("x").with_globals(g2="2222").as_dict()["globals"],
             {"m::i": 3, "x::g2": "2222", "y::g3": "33"},
         )
         self.assertDictEqual(

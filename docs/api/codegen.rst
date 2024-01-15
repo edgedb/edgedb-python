@@ -93,4 +93,3 @@ The ``edgedb-py`` command supports the same set of :ref:`connection options
     --password-from-stdin
     --tls-ca-file <path/to/certificate>
     --tls-security <insecure | no_host_verification | strict | default>
-

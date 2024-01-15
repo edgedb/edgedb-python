@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import annotations
 
 import argparse
 import getpass
@@ -26,11 +27,9 @@ import textwrap
 import typing
 
 import edgedb
-from edgedb import abstract
-from edgedb import describe
-from edgedb.con_utils import find_edgedb_project_dir
+from edgedb import abstract, describe
 from edgedb.color import get_color
-
+from edgedb.con_utils import find_edgedb_project_dir
 
 C = get_color()
 SYS_VERSION_INFO = os.getenv("EDGEDB_PYTHON_CODEGEN_PY_VER")
@@ -285,9 +284,7 @@ class Generator:
             with target.open("w") as f:
                 f.write(buf.getvalue())
 
-    def _write_comments(
-        self, f: io.TextIOBase, src: typing.List[pathlib.Path]
-    ):
+    def _write_comments(self, f: io.TextIOBase, src: list[pathlib.Path]):
         src_str = map(
             lambda p: repr(p.relative_to(self._project_dir).as_posix()), src
         )
@@ -370,7 +367,7 @@ class Generator:
                         el_name,
                         el.cardinality,
                         keyword_argument=True,
-                        is_input=True
+                        is_input=True,
                     )
 
         if self._async:
@@ -420,7 +417,7 @@ class Generator:
 
     def _generate_code(
         self,
-        type_: typing.Optional[describe.AnyType],
+        type_: describe.AnyType | None,
         name_hint: str,
         is_input: bool = False,
     ) -> str:
@@ -496,9 +493,9 @@ class Generator:
                 for el_name, el_code in link_props:
                     print(f"{INDENT}@typing.overload", file=buf)
                     print(
-                        f'{INDENT}def __getitem__'
+                        f"{INDENT}def __getitem__"
                         f'(self, key: {typing_literal}["{el_name}"]) '
-                        f'-> {el_code}:',
+                        f"-> {el_code}:",
                         file=buf,
                     )
                     print(f"{INDENT}{INDENT}...", file=buf)
@@ -507,9 +504,7 @@ class Generator:
                     f"{INDENT}def __getitem__(self, key: str) -> typing.Any:",
                     file=buf,
                 )
-                print(
-                    f"{INDENT}{INDENT}raise NotImplementedError", file=buf
-                )
+                print(f"{INDENT}{INDENT}raise NotImplementedError", file=buf)
 
             self._defs[rv] = buf.getvalue().strip()
 
@@ -546,7 +541,7 @@ class Generator:
 
     def _generate_code_with_cardinality(
         self,
-        type_: typing.Optional[describe.AnyType],
+        type_: describe.AnyType | None,
         name_hint: str,
         cardinality: edgedb.Cardinality,
         keyword_argument: bool = False,
@@ -590,7 +585,7 @@ class Generator:
             return name
 
     def _to_unique_idents(
-        self, names: typing.Iterable[typing.Tuple[str, str]]
+        self, names: typing.Iterable[tuple[str, str]]
     ) -> typing.Iterator[str]:
         dedup = set()
         for name in names:

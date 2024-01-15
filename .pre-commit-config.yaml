@@ -1,0 +1,48 @@
+---
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: "v0.1.13"
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+      - id: check-byte-order-marker
+      - id: check-executables-have-shebangs
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-vcs-permalinks
+      - id: debug-statements
+      - id: check-yaml
+        files: .*\.(yaml|yml)$
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.6
+    hooks:
+      - id: codespell
+        name: codespell
+        description: Checks for common misspellings in text files.
+        entry: codespell
+        language: python
+        types: [text]
+        args: [-L, "commitish,"]
+        require_serial: false
+        additional_dependencies: []
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.33.0
+    hooks:
+      - id: yamllint
+        files: \.(yaml|yml)$
+#   - repo: https://github.com/pre-commit/mirrors-mypy
+#     rev: v1.3.0
+#     hooks:
+#       - id: mypy
+#         additional_dependencies:
+#           - types-requests
+#           - types-pkg_resources
+#         args:
+#           [--no-strict-optional, --ignore-missing-imports, --show-error-codes]

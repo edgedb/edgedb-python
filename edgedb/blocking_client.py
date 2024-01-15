@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import annotations
 
 import contextlib
 import datetime
@@ -24,16 +24,10 @@ import socket
 import ssl
 import threading
 import time
-import typing
 
-from . import abstract
-from . import base_client
-from . import con_utils
-from . import errors
-from . import transaction
+from . import abstract, base_client, con_utils, errors, transaction
 from .protocol import blocking_proto
 from .protocol.protocol import OutputFormat
-
 
 DEFAULT_PING_BEFORE_IDLE_TIMEOUT = datetime.timedelta(seconds=5)
 MINIMUM_PING_WAIT_TIME = datetime.timedelta(seconds=1)
@@ -120,8 +114,12 @@ class BlockingIOConnection(base_client.BaseConnection):
 
     def is_closed(self):
         proto = self._protocol
-        return not (proto and proto.sock is not None and
-                    proto.sock.fileno() >= 0 and proto.connected)
+        return not (
+            proto
+            and proto.sock is not None
+            and proto.sock.fileno() >= 0
+            and proto.connected
+        )
 
     async def close(self, timeout=None):
         """Send graceful termination message wait for connection to drop."""
@@ -177,14 +175,15 @@ class _PoolImpl(base_client.BasePoolImpl):
         self,
         connect_args,
         *,
-        max_concurrency: typing.Optional[int],
+        max_concurrency: int | None,
         connection_class,
     ):
         if not issubclass(connection_class, BlockingIOConnection):
             raise TypeError(
-                f'connection_class is expected to be a subclass of '
-                f'edgedb.blocking_client.BlockingIOConnection, '
-                f'got {connection_class}')
+                f"connection_class is expected to be a subclass of "
+                f"edgedb.blocking_client.BlockingIOConnection, "
+                f"got {connection_class}"
+            )
         super().__init__(
             connect_args,
             connection_class,
@@ -210,7 +209,7 @@ class _PoolImpl(base_client.BasePoolImpl):
         self._ensure_initialized()
 
         if self._closing:
-            raise errors.InterfaceError('pool is closing')
+            raise errors.InterfaceError("pool is closing")
 
         ch = self._queue.get(timeout=timeout)
         try:
@@ -227,8 +226,8 @@ class _PoolImpl(base_client.BasePoolImpl):
     async def _release(self, holder):
         if not isinstance(holder._con, BlockingIOConnection):
             raise errors.InterfaceError(
-                f'release() received invalid connection: '
-                f'{holder._con!r} does not belong to any connection pool'
+                f"release() received invalid connection: "
+                f"{holder._con!r} does not belong to any connection pool"
             )
 
         timeout = None
@@ -260,8 +259,8 @@ class _PoolImpl(base_client.BasePoolImpl):
         except TimeoutError as e:
             self.terminate()
             raise errors.InterfaceError(
-                "client is not fully closed in {} seconds; "
-                "terminating now.".format(timeout)
+                f"client is not fully closed in {timeout} seconds; "
+                "terminating now."
             ) from e
         except Exception:
             self.terminate()
@@ -272,7 +271,6 @@ class _PoolImpl(base_client.BasePoolImpl):
 
 
 class Iteration(transaction.BaseTransaction, abstract.Executor):
-
     __slots__ = ("_managed", "_lock")
 
     def __init__(self, retry, client, iteration):
@@ -284,7 +282,8 @@ class Iteration(transaction.BaseTransaction, abstract.Executor):
         with self._exclusive():
             if self._managed:
                 raise errors.InterfaceError(
-                    'cannot enter context: already in a `with` block')
+                    "cannot enter context: already in a `with` block"
+                )
             self._managed = True
             return self
 
@@ -323,7 +322,6 @@ class Iteration(transaction.BaseTransaction, abstract.Executor):
 
 
 class Retry(transaction.BaseRetry):
-
     def __iter__(self):
         return self
 
@@ -404,37 +402,40 @@ class Client(base_client.BaseClient, abstract.Executor):
         output_format: OutputFormat = OutputFormat.BINARY,
         expect_one: bool = False,
     ) -> abstract.DescribeResult:
-        return self._iter_coroutine(self._describe(abstract.DescribeContext(
-            query=query,
-            state=self._get_state(),
-            inject_type_names=inject_type_names,
-            output_format=output_format,
-            expect_one=expect_one,
-        )))
+        return self._iter_coroutine(
+            self._describe(
+                abstract.DescribeContext(
+                    query=query,
+                    state=self._get_state(),
+                    inject_type_names=inject_type_names,
+                    output_format=output_format,
+                    expect_one=expect_one,
+                )
+            )
+        )
 
 
 def create_client(
     dsn=None,
     *,
     max_concurrency=None,
-    host: str = None,
-    port: int = None,
-    credentials: str = None,
-    credentials_file: str = None,
-    user: str = None,
-    password: str = None,
-    secret_key: str = None,
-    database: str = None,
-    tls_ca: str = None,
-    tls_ca_file: str = None,
-    tls_security: str = None,
+    host: str | None = None,
+    port: int | None = None,
+    credentials: str | None = None,
+    credentials_file: str | None = None,
+    user: str | None = None,
+    password: str | None = None,
+    secret_key: str | None = None,
+    database: str | None = None,
+    tls_ca: str | None = None,
+    tls_ca_file: str | None = None,
+    tls_security: str | None = None,
     wait_until_available: int = 30,
     timeout: int = 10,
 ):
     return Client(
         connection_class=BlockingIOConnection,
         max_concurrency=max_concurrency,
-
         # connect arguments
         dsn=dsn,
         host=host,
