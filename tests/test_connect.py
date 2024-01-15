@@ -25,7 +25,6 @@ from edgedb import _testbase as tb
 
 
 class TestConnect(tb.AsyncQueryTestCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -35,7 +34,7 @@ class TestConnect(tb.AsyncQueryTestCase):
     def _get_free_port(cls):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.bind(('127.0.0.1', 0))
+            sock.bind(("127.0.0.1", 0))
             return sock.getsockname()[1]
         except Exception:
             return None
@@ -45,35 +44,39 @@ class TestConnect(tb.AsyncQueryTestCase):
     async def test_connect_async_01(self):
         orig_conn_args = self.get_connect_args()
         conn_args = orig_conn_args.copy()
-        conn_args['port'] = self.port
-        conn_args['wait_until_available'] = 0
+        conn_args["port"] = self.port
+        conn_args["wait_until_available"] = 0
 
         with self.assertRaisesRegex(
-                edgedb.ClientConnectionError,
-                f'(?s).*Is the server running.*port {self.port}.*'):
-            conn_args['host'] = '127.0.0.1'
+            edgedb.ClientConnectionError,
+            f"(?s).*Is the server running.*port {self.port}.*",
+        ):
+            conn_args["host"] = "127.0.0.1"
             await edgedb.create_async_client(**conn_args).ensure_connected()
 
         with self.assertRaisesRegex(
-                edgedb.ClientConnectionError,
-                f'(?s).*Is the server running.*port {self.port}.*'):
-            conn_args['host'] = orig_conn_args['host']
+            edgedb.ClientConnectionError,
+            f"(?s).*Is the server running.*port {self.port}.*",
+        ):
+            conn_args["host"] = orig_conn_args["host"]
             await edgedb.create_async_client(**conn_args).ensure_connected()
 
     def test_connect_sync_01(self):
         orig_conn_args = self.get_connect_args()
         conn_args = orig_conn_args.copy()
-        conn_args['port'] = self.port
-        conn_args['wait_until_available'] = 0
+        conn_args["port"] = self.port
+        conn_args["wait_until_available"] = 0
 
         with self.assertRaisesRegex(
-                edgedb.ClientConnectionError,
-                f'(?s).*Is the server running.*port {self.port}.*'):
-            conn_args['host'] = '127.0.0.1'
+            edgedb.ClientConnectionError,
+            f"(?s).*Is the server running.*port {self.port}.*",
+        ):
+            conn_args["host"] = "127.0.0.1"
             edgedb.create_client(**conn_args).ensure_connected()
 
         with self.assertRaisesRegex(
-                edgedb.ClientConnectionError,
-                f'(?s).*Is the server running.*port {self.port}.*'):
-            conn_args['host'] = orig_conn_args['host']
+            edgedb.ClientConnectionError,
+            f"(?s).*Is the server running.*port {self.port}.*",
+        ):
+            conn_args["host"] = orig_conn_args["host"]
             edgedb.create_client(**conn_args).ensure_connected()

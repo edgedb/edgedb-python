@@ -18,7 +18,7 @@
 
 
 # IMPORTANT: this private API is subject to change.
-
+from __future__ import annotations
 
 import functools
 import typing
@@ -28,18 +28,16 @@ from edgedb.enums import ElementKind
 
 
 class PointerDescription(typing.NamedTuple):
-
     name: str
     kind: ElementKind
     implicit: bool
 
 
 class ObjectDescription(typing.NamedTuple):
+    pointers: tuple[PointerDescription, ...]
 
-    pointers: typing.Tuple[PointerDescription, ...]
 
-
-@functools.lru_cache()
+@functools.lru_cache
 def _introspect_object_desc(desc) -> ObjectDescription:
     pointers = []
     # Call __dir__ directly as dir() scrambles the order.
@@ -53,14 +51,12 @@ def _introspect_object_desc(desc) -> ObjectDescription:
 
         pointers.append(
             PointerDescription(
-                name=name,
-                kind=kind,
-                implicit=desc.is_implicit(name)))
+                name=name, kind=kind, implicit=desc.is_implicit(name)
+            )
+        )
 
-    return ObjectDescription(
-        pointers=tuple(pointers))
+    return ObjectDescription(pointers=tuple(pointers))
 
 
 def introspect_object(obj) -> ObjectDescription:
-    return _introspect_object_desc(
-        dt.get_object_descriptor(obj))
+    return _introspect_object_desc(dt.get_object_descriptor(obj))

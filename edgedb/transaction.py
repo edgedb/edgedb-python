@@ -15,13 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import annotations
 
 import enum
 
-from . import abstract
-from . import errors
-from . import options
+from . import abstract, errors, options
 
 
 class TransactionState(enum.Enum):
@@ -33,15 +31,14 @@ class TransactionState(enum.Enum):
 
 
 class BaseTransaction:
-
     __slots__ = (
-        '_client',
-        '_connection',
-        '_options',
-        '_state',
-        '__retry',
-        '__iteration',
-        '__started',
+        "_client",
+        "_connection",
+        "_options",
+        "_state",
+        "__retry",
+        "__iteration",
+        "__started",
     )
 
     def __init__(self, retry, client, iteration):
@@ -59,53 +56,55 @@ class BaseTransaction:
     def __check_state_base(self, opname):
         if self._state is TransactionState.COMMITTED:
             raise errors.InterfaceError(
-                'cannot {}; the transaction is already committed'.format(
-                    opname))
+                f"cannot {opname}; the transaction is already committed"
+            )
         if self._state is TransactionState.ROLLEDBACK:
             raise errors.InterfaceError(
-                'cannot {}; the transaction is already rolled back'.format(
-                    opname))
+                f"cannot {opname}; the transaction is already rolled back"
+            )
         if self._state is TransactionState.FAILED:
             raise errors.InterfaceError(
-                'cannot {}; the transaction is in error state'.format(
-                    opname))
+                f"cannot {opname}; the transaction is in error state"
+            )
 
     def __check_state(self, opname):
         if self._state is not TransactionState.STARTED:
             if self._state is TransactionState.NEW:
                 raise errors.InterfaceError(
-                    'cannot {}; the transaction is not yet started'.format(
-                        opname))
+                    f"cannot {opname}; the transaction is not yet started"
+                )
             self.__check_state_base(opname)
 
     def _make_start_query(self):
-        self.__check_state_base('start')
+        self.__check_state_base("start")
         if self._state is TransactionState.STARTED:
             raise errors.InterfaceError(
-                'cannot start; the transaction is already started')
+                "cannot start; the transaction is already started"
+            )
 
         return self._options.start_transaction_query()
 
     def _make_commit_query(self):
-        self.__check_state('commit')
-        return 'COMMIT;'
+        self.__check_state("commit")
+        return "COMMIT;"
 
     def _make_rollback_query(self):
-        self.__check_state('rollback')
-        return 'ROLLBACK;'
+        self.__check_state("rollback")
+        return "ROLLBACK;"
 
     def __repr__(self):
         attrs = []
-        attrs.append('state:{}'.format(self._state.name.lower()))
+        attrs.append(f"state:{self._state.name.lower()}")
         attrs.append(repr(self._options))
 
-        if self.__class__.__module__.startswith('edgedb.'):
-            mod = 'edgedb'
+        if self.__class__.__module__.startswith("edgedb."):
+            mod = "edgedb"
         else:
             mod = self.__class__.__module__
 
-        return '<{}.{} {} {:#x}>'.format(
-            mod, self.__class__.__name__, ' '.join(attrs), id(self))
+        return "<{}.{} {} {:#x}>".format(
+            mod, self.__class__.__name__, " ".join(attrs), id(self)
+        )
 
     async def _ensure_transaction(self):
         if not self.__started:
@@ -173,9 +172,9 @@ class BaseTransaction:
             await self._client._impl.release(self._connection)
 
         if (
-            extype is not None and
-            issubclass(extype, errors.EdgeDBError) and
-            ex.has_tag(errors.SHOULD_RETRY)
+            extype is not None
+            and issubclass(extype, errors.EdgeDBError)
+            and ex.has_tag(errors.SHOULD_RETRY)
         ):
             return self.__retry._retry(ex)
 
@@ -194,15 +193,16 @@ class BaseTransaction:
         await self._connection._execute(execute_context)
 
     async def _privileged_execute(self, query: str) -> None:
-        await self._connection.privileged_execute(abstract.ExecuteContext(
-            query=abstract.QueryWithArgs(query, (), {}),
-            cache=self._get_query_cache(),
-            state=self._get_state(),
-        ))
+        await self._connection.privileged_execute(
+            abstract.ExecuteContext(
+                query=abstract.QueryWithArgs(query, (), {}),
+                cache=self._get_query_cache(),
+                state=self._get_state(),
+            )
+        )
 
 
 class BaseRetry:
-
     def __init__(self, owner):
         self._owner = owner
         self._iteration = 0

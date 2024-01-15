@@ -47,8 +47,7 @@ class Barrier:
 
 
 class TestAsyncRetry(tb.AsyncQueryTestCase):
-
-    SETUP = '''
+    SETUP = """
         CREATE TYPE test::Counter EXTENDING std::Object {
             CREATE PROPERTY name -> std::str {
                 CREATE CONSTRAINT std::exclusive;
@@ -57,36 +56,42 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                 SET default := 0;
             };
         };
-    '''
+    """
 
-    TEARDOWN = '''
+    TEARDOWN = """
         DROP TYPE test::Counter;
-    '''
+    """
 
     async def test_async_retry_01(self):
         async for tx in self.client.transaction():
             async with tx:
-                await tx.execute('''
+                await tx.execute(
+                    """
                     INSERT test::Counter {
                         name := 'counter1'
                     };
-                ''')
+                """
+                )
 
     async def test_async_retry_02(self):
         with self.assertRaises(ZeroDivisionError):
             async for tx in self.client.transaction():
                 async with tx:
-                    await tx.execute('''
+                    await tx.execute(
+                        """
                         INSERT test::Counter {
                             name := 'counter_retry_02'
                         };
-                    ''')
+                    """
+                    )
                     1 / 0
         with self.assertRaises(edgedb.NoDataError):
-            await self.client.query_required_single('''
+            await self.client.query_required_single(
+                """
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
-            ''')
+            """
+            )
 
     async def test_async_retry_begin(self):
         patcher = unittest.mock.patch(
@@ -107,16 +112,20 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
         with self.assertRaises(errors.BackendUnavailableError):
             async for tx in self.client.transaction():
                 async with tx:
-                    await tx.execute('''
+                    await tx.execute(
+                        """
                         INSERT test::Counter {
                             name := 'counter_retry_begin'
                         };
-                    ''')
+                    """
+                    )
         with self.assertRaises(edgedb.NoDataError):
-            await self.client.query_required_single('''
+            await self.client.query_required_single(
+                """
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_begin'
-            ''')
+            """
+            )
 
         async def recover_after_first_error(*_, **__):
             patcher.stop()
@@ -127,28 +136,31 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
 
         async for tx in self.client.transaction():
             async with tx:
-                await tx.execute('''
+                await tx.execute(
+                    """
                     INSERT test::Counter {
                         name := 'counter_retry_begin'
                     };
-                ''')
+                """
+                )
         self.assertEqual(_start.call_count, call_count + 1)
-        await self.client.query_single('''
+        await self.client.query_single(
+            """
             SELECT test::Counter
             FILTER .name = 'counter_retry_begin'
-        ''')
+        """
+        )
 
     async def test_async_retry_conflict(self):
-        await self.execute_conflict('counter2')
+        await self.execute_conflict("counter2")
 
     async def test_async_conflict_no_retry(self):
         with self.assertRaises(edgedb.TransactionSerializationError):
             await self.execute_conflict(
-                'counter3',
-                RetryOptions(attempts=1, backoff=edgedb.default_backoff)
+                "counter3", RetryOptions(attempts=1, backoff=edgedb.default_backoff)
             )
 
-    async def execute_conflict(self, name='counter2', options=None):
+    async def execute_conflict(self, name="counter2", options=None):
         client2 = self.make_test_client(database=self.get_database_name())
         self.addCleanup(client2.aclose)
 
@@ -174,7 +186,8 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                     await barrier.ready()
 
                     await lock.acquire()
-                    res = await tx.query_single('''
+                    res = await tx.query_single(
+                        """
                         SELECT (
                             INSERT test::Counter {
                                 name := <str>$name,
@@ -185,7 +198,9 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
                                 SET { value := .value + 1 }
                             )
                         ).value
-                    ''', name=name)
+                    """,
+                        name=name,
+                    )
                 lock.release()
             return res
 
@@ -194,11 +209,14 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
             client = client.with_retry_options(options)
             client2 = client2.with_retry_options(options)
 
-        results = await asyncio.wait_for(asyncio.gather(
-            transaction1(client),
-            transaction1(client2),
-            return_exceptions=True,
-        ), 10)
+        results = await asyncio.wait_for(
+            asyncio.gather(
+                transaction1(client),
+                transaction1(client2),
+                return_exceptions=True,
+            ),
+            10,
+        )
         for e in results:
             if isinstance(e, BaseException):
                 raise e
@@ -230,8 +248,9 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
             async for tx in self.client.transaction():
                 await tx.start()
 
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*Use `async with transaction:`'):
+        with self.assertRaisesRegex(
+            edgedb.InterfaceError, r".*Use `async with transaction:`"
+        ):
             async for tx in self.client.transaction():
                 await tx.execute("SELECT 123")
 

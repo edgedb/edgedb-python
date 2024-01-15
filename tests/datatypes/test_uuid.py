@@ -26,24 +26,22 @@ from uuid import UUID as std_UUID
 from edgedb.protocol.protocol import UUID as c_UUID
 
 
-special_uuids = frozenset({
-    std_UUID('00000000-0000-0000-0000-000000000000'),
-    std_UUID('00000000-0000-0000-0000-000000000001'),
-    std_UUID('10000000-0000-0000-0000-000000000000'),
-    std_UUID('10000000-0000-0000-0000-000000000001'),
-    std_UUID('FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF'),
-    std_UUID('0F0F0F0F-0F0F-0F0F-0F0F-0F0F0F0F0F0F'),
-    std_UUID('F0F0F0F0-F0F0-F0F0-F0F0-F0F0F0F0F0F0'),
-})
-
-test_uuids = tuple(
-    special_uuids |
-    frozenset({uuid.uuid4() for _ in range(1000)})
+special_uuids = frozenset(
+    {
+        std_UUID("00000000-0000-0000-0000-000000000000"),
+        std_UUID("00000000-0000-0000-0000-000000000001"),
+        std_UUID("10000000-0000-0000-0000-000000000000"),
+        std_UUID("10000000-0000-0000-0000-000000000001"),
+        std_UUID("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"),
+        std_UUID("0F0F0F0F-0F0F-0F0F-0F0F-0F0F0F0F0F0F"),
+        std_UUID("F0F0F0F0-F0F0-F0F0-F0F0-F0F0F0F0F0F0"),
+    }
 )
+
+test_uuids = tuple(special_uuids | frozenset({uuid.uuid4() for _ in range(1000)}))
 
 
 class TestUuid(unittest.TestCase):
-
     def ensure_equal(self, uuid1, uuid2):
         self.assertEqual(uuid1.bytes_le, uuid2.bytes_le)
         self.assertEqual(uuid1.clock_seq, uuid2.clock_seq)
@@ -65,33 +63,30 @@ class TestUuid(unittest.TestCase):
         self.assertLessEqual(uuid2, uuid1)
 
     def test_uuid_ctr_01(self):
-        with self.assertRaisesRegex(ValueError, r'invalid UUID.*got 4'):
-            c_UUID('test')
+        with self.assertRaisesRegex(ValueError, r"invalid UUID.*got 4"):
+            c_UUID("test")
 
-        with self.assertRaisesRegex(ValueError,
-                                    r'invalid UUID.*decodes to less'):
-            c_UUID('49e3b4e4-4761-11e9-9160-2f38d067497')
+        with self.assertRaisesRegex(ValueError, r"invalid UUID.*decodes to less"):
+            c_UUID("49e3b4e4-4761-11e9-9160-2f38d067497")
 
-        for v in {'49e3b4e4476111e991602f38d067497aaaaa',
-                  '49e3b4e4476111e991602f38d067497aaaa',
-                  '49e3b4e4476111e991602f38d067497aaa',
-                  '49e3b4e4476111e991602f38d067497aa',
-                  '49e3b4e4476111e-991602f-38d067497aa'}:
-            with self.assertRaisesRegex(ValueError,
-                                        r'invalid UUID.*decodes to more'):
+        for v in {
+            "49e3b4e4476111e991602f38d067497aaaaa",
+            "49e3b4e4476111e991602f38d067497aaaa",
+            "49e3b4e4476111e991602f38d067497aaa",
+            "49e3b4e4476111e991602f38d067497aa",
+            "49e3b4e4476111e-991602f-38d067497aa",
+        }:
+            with self.assertRaisesRegex(ValueError, r"invalid UUID.*decodes to more"):
                 print(c_UUID(v))
 
-        with self.assertRaisesRegex(ValueError,
-                                    r"invalid UUID.*unexpected.*'x'"):
-            c_UUID('49e3b4e4-4761-11e9-9160-2f38dx67497a')
+        with self.assertRaisesRegex(ValueError, r"invalid UUID.*unexpected.*'x'"):
+            c_UUID("49e3b4e4-4761-11e9-9160-2f38dx67497a")
 
-        with self.assertRaisesRegex(ValueError,
-                                    r"invalid UUID.*unexpected"):
-            c_UUID('49e3b4e4-4761-11160-2f😱3867497a')
+        with self.assertRaisesRegex(ValueError, r"invalid UUID.*unexpected"):
+            c_UUID("49e3b4e4-4761-11160-2f😱3867497a")
 
-        with self.assertRaisesRegex(ValueError,
-                                    r"invalid UUID.*unexpected"):
-            c_UUID('49e3b4e4-4761-11eE-\xAA60-2f38dx67497a')
+        with self.assertRaisesRegex(ValueError, r"invalid UUID.*unexpected"):
+            c_UUID("49e3b4e4-4761-11eE-\xAA60-2f38dx67497a")
 
     def test_uuid_ctr_02(self):
         for py_u in test_uuids:
@@ -103,7 +98,7 @@ class TestUuid(unittest.TestCase):
             self.ensure_equal(py_u, c_u)
 
     def test_uuid_pickle(self):
-        u = c_UUID('de197476-4763-11e9-91bf-7311c6dc588e')
+        u = c_UUID("de197476-4763-11e9-91bf-7311c6dc588e")
         d = pickle.dumps(u)
         u2 = pickle.loads(d)
         self.assertEqual(u, u2)
@@ -111,12 +106,12 @@ class TestUuid(unittest.TestCase):
         self.assertEqual(u.bytes, u2.bytes)
 
     def test_uuid_instance(self):
-        u = c_UUID('de197476-4763-11e9-91bf-7311c6dc588e')
+        u = c_UUID("de197476-4763-11e9-91bf-7311c6dc588e")
         self.assertTrue(isinstance(u, uuid.UUID))
         self.assertTrue(issubclass(c_UUID, uuid.UUID))
 
     def test_uuid_compare(self):
-        u = c_UUID('de197476-4763-11e9-91bf-7311c6dc588e')
+        u = c_UUID("de197476-4763-11e9-91bf-7311c6dc588e")
         us = uuid.UUID(bytes=u.bytes)
 
         for us2 in test_uuids:
@@ -129,14 +124,14 @@ class TestUuid(unittest.TestCase):
                 self.assertGreater(u, u2)
                 self.assertLess(u2, u)
 
-        u3 = c_UUID('de197476-4763-11e9-91bf-7311c6dc588e')
+        u3 = c_UUID("de197476-4763-11e9-91bf-7311c6dc588e")
         self.assertTrue(u == u3)
         self.assertFalse(u != u3)
         self.assertTrue(u >= u3)
         self.assertTrue(u <= u3)
 
-        a = c_UUID('10000000-0000-0000-0000-000000000001')
-        b = c_UUID('10000000-0000-0000-0000-000000000000')
+        a = c_UUID("10000000-0000-0000-0000-000000000001")
+        b = c_UUID("10000000-0000-0000-0000-000000000000")
         self.assertGreater(a, b)
         self.assertLess(b, a)
 

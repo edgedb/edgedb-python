@@ -45,8 +45,7 @@ class Barrier:
 
 
 class TestSyncRetry(tb.SyncQueryTestCase):
-
-    SETUP = '''
+    SETUP = """
         CREATE TYPE test::Counter EXTENDING std::Object {
             CREATE PROPERTY name -> std::str {
                 CREATE CONSTRAINT std::exclusive;
@@ -55,42 +54,50 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                 SET default := 0;
             };
         };
-    '''
+    """
 
-    TEARDOWN = '''
+    TEARDOWN = """
         DROP TYPE test::Counter;
-    '''
+    """
 
     def test_sync_retry_01(self):
         for tx in self.client.transaction():
             with tx:
-                tx.execute('''
+                tx.execute(
+                    """
                     INSERT test::Counter {
                         name := 'counter1'
                     };
-                ''')
+                """
+                )
 
     def test_sync_retry_02(self):
         with self.assertRaises(ZeroDivisionError):
             for tx in self.client.transaction():
                 with tx:
-                    tx.execute('''
+                    tx.execute(
+                        """
                         INSERT test::Counter {
                             name := 'counter_retry_02'
                         };
-                    ''')
+                    """
+                    )
                     1 / 0
         with self.assertRaises(edgedb.NoDataError):
-            self.client.query_required_single('''
+            self.client.query_required_single(
+                """
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
-            ''')
+            """
+            )
         self.assertEqual(
-            self.client.query_single('''
+            self.client.query_single(
+                """
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
-            '''),
-            None
+            """
+            ),
+            None,
         )
 
     def test_sync_retry_begin(self):
@@ -112,22 +119,28 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         with self.assertRaises(errors.BackendUnavailableError):
             for tx in self.client.transaction():
                 with tx:
-                    tx.execute('''
+                    tx.execute(
+                        """
                         INSERT test::Counter {
                             name := 'counter_retry_begin'
                         };
-                    ''')
+                    """
+                    )
         with self.assertRaises(edgedb.NoDataError):
-            self.client.query_required_single('''
+            self.client.query_required_single(
+                """
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_begin'
-            ''')
+            """
+            )
         self.assertEqual(
-            self.client.query_single('''
+            self.client.query_single(
+                """
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_begin'
-            '''),
-            None
+            """
+            ),
+            None,
         )
 
         def recover_after_first_error(*_, **__):
@@ -139,28 +152,31 @@ class TestSyncRetry(tb.SyncQueryTestCase):
 
         for tx in self.client.transaction():
             with tx:
-                tx.execute('''
+                tx.execute(
+                    """
                     INSERT test::Counter {
                         name := 'counter_retry_begin'
                     };
-                ''')
+                """
+                )
         self.assertEqual(_start.call_count, call_count + 1)
-        self.client.query_single('''
+        self.client.query_single(
+            """
             SELECT test::Counter
             FILTER .name = 'counter_retry_begin'
-        ''')
+        """
+        )
 
     def test_sync_retry_conflict(self):
-        self.execute_conflict('counter2')
+        self.execute_conflict("counter2")
 
     def test_sync_conflict_no_retry(self):
         with self.assertRaises(edgedb.TransactionSerializationError):
             self.execute_conflict(
-                'counter3',
-                RetryOptions(attempts=1, backoff=edgedb.default_backoff)
+                "counter3", RetryOptions(attempts=1, backoff=edgedb.default_backoff)
             )
 
-    def execute_conflict(self, name='counter2', options=None):
+    def execute_conflict(self, name="counter2", options=None):
         con_args = self.get_connect_args().copy()
         con_args.update(database=self.get_database_name())
         client2 = edgedb.create_client(**con_args)
@@ -189,7 +205,8 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                     barrier.ready()
 
                     lock.acquire()
-                    res = tx.query_single('''
+                    res = tx.query_single(
+                        """
                         SELECT (
                             INSERT test::Counter {
                                 name := <str>$name,
@@ -200,7 +217,9 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                                 SET { value := .value + 1 }
                             )
                         ).value
-                    ''', name=name)
+                    """,
+                        name=name,
+                    )
                 lock.release()
             return res
 
@@ -241,8 +260,9 @@ class TestSyncRetry(tb.SyncQueryTestCase):
             for tx in self.client.transaction():
                 tx.start()
 
-        with self.assertRaisesRegex(edgedb.InterfaceError,
-                                    r'.*Use `with transaction:`'):
+        with self.assertRaisesRegex(
+            edgedb.InterfaceError, r".*Use `with transaction:`"
+        ):
             for tx in self.client.transaction():
                 tx.execute("SELECT 123")
 

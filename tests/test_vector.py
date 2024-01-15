@@ -34,65 +34,73 @@ class TestVector(tb.SyncQueryTestCase):
     def setUp(self):
         super().setUp()
 
-        if not self.client.query_required_single('''
+        if not self.client.query_required_single(
+            """
             select exists (
               select sys::ExtensionPackage filter .name = 'pgvector'
             )
-        '''):
+        """
+        ):
             self.skipTest("feature not implemented")
 
-        self.client.execute('''
+        self.client.execute(
+            """
             create extension pgvector;
-        ''')
+        """
+        )
 
     def tearDown(self):
         try:
-            self.client.execute('''
+            self.client.execute(
+                """
                 drop extension pgvector;
-            ''')
+            """
+            )
         finally:
             super().tearDown()
 
     async def test_vector_01(self):
-        val = self.client.query_single('''
+        val = self.client.query_single(
+            """
             select <ext::pgvector::vector>[1.5,2.0,3.8]
-        ''')
+        """
+        )
         self.assertTrue(isinstance(val, array.array))
-        self.assertEqual(val, array.array('f', [1.5, 2.0, 3.8]))
+        self.assertEqual(val, array.array("f", [1.5, 2.0, 3.8]))
 
         val = self.client.query_single(
-            '''
+            """
                 select <json><ext::pgvector::vector>$0
-            ''',
+            """,
             [3.0, 9.0, -42.5],
         )
-        self.assertEqual(val, '[3, 9, -42.5]')
+        self.assertEqual(val, "[3, 9, -42.5]")
 
         val = self.client.query_single(
-            '''
+            """
                 select <json><ext::pgvector::vector>$0
-            ''',
-            array.array('f', [3.0, 9.0, -42.5])
+            """,
+            array.array("f", [3.0, 9.0, -42.5]),
         )
-        self.assertEqual(val, '[3, 9, -42.5]')
+        self.assertEqual(val, "[3, 9, -42.5]")
 
         val = self.client.query_single(
-            '''
+            """
                 select <json><ext::pgvector::vector>$0
-            ''',
-            array.array('i', [1, 2, 3]),
+            """,
+            array.array("i", [1, 2, 3]),
         )
-        self.assertEqual(val, '[1, 2, 3]')
+        self.assertEqual(val, "[1, 2, 3]")
 
         # Test that the fast-path works: if the encoder tries to
         # call __getitem__ on this brokenarray, it will fail.
         val = self.client.query_single(
-            '''
+            """
                 select <json><ext::pgvector::vector>$0
-            ''',
-            brokenarray('f', [3.0, 9.0, -42.5])
+            """,
+            brokenarray("f", [3.0, 9.0, -42.5]),
         )
-        self.assertEqual(val, '[3, 9, -42.5]')
+        self.assertEqual(val, "[3, 9, -42.5]")
 
         # I don't think it's worth adding a dependency to test this,
         # but this works too:
@@ -108,24 +116,24 @@ class TestVector(tb.SyncQueryTestCase):
         # Some sad path tests
         with self.assertRaises(edgedb.InvalidArgumentError):
             self.client.query_single(
-                '''
+                """
                     select <ext::pgvector::vector>$0
-                ''',
+                """,
                 [3.0, None, -42.5],
             )
 
         with self.assertRaises(edgedb.InvalidArgumentError):
             self.client.query_single(
-                '''
+                """
                     select <ext::pgvector::vector>$0
-                ''',
-                [3.0, 'x', -42.5],
+                """,
+                [3.0, "x", -42.5],
             )
 
         with self.assertRaises(edgedb.InvalidArgumentError):
             self.client.query_single(
-                '''
+                """
                     select <ext::pgvector::vector>$0
-                ''',
-                'foo',
+                """,
+                "foo",
             )

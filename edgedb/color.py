@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import sys
 import warnings
@@ -30,15 +32,15 @@ def get_color() -> Color:
             except Exception:
                 use_color = False
         if use_color:
-            COLOR.HEADER = '\033[95m'
-            COLOR.BLUE = '\033[94m'
-            COLOR.CYAN = '\033[96m'
-            COLOR.GREEN = '\033[92m'
-            COLOR.WARNING = '\033[93m'
-            COLOR.FAIL = '\033[91m'
-            COLOR.ENDC = '\033[0m'
-            COLOR.BOLD = '\033[1m'
-            COLOR.UNDERLINE = '\033[4m'
+            COLOR.HEADER = "\033[95m"
+            COLOR.BLUE = "\033[94m"
+            COLOR.CYAN = "\033[96m"
+            COLOR.GREEN = "\033[92m"
+            COLOR.WARNING = "\033[93m"
+            COLOR.FAIL = "\033[91m"
+            COLOR.ENDC = "\033[0m"
+            COLOR.BOLD = "\033[1m"
+            COLOR.UNDERLINE = "\033[4m"
 
     return COLOR
 
@@ -49,9 +51,7 @@ try:
         "auto": lambda: sys.stderr.isatty(),
         "enabled": True,
         "disabled": False,
-    }[
-        os.getenv("EDGEDB_COLOR_OUTPUT", "default")
-    ]
+    }[os.getenv("EDGEDB_COLOR_OUTPUT", "default")]
 except KeyError:
     warnings.warn(
         "EDGEDB_COLOR_OUTPUT can only be one of: "

@@ -32,23 +32,20 @@ ASSERT_SUFFIX = os.environ.get("EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX", ".assert4")
 
 
 class TestCodegen(tb.AsyncQueryTestCase):
-    SETUP = '''
+    SETUP = """
         create extension pgvector;
         create scalar type v3 extending ext::pgvector::vector<3>;
-    '''
+    """
 
-    TEARDOWN = '''
+    TEARDOWN = """
         drop scalar type v3;
         drop extension pgvector;
-    '''
+    """
 
     async def test_codegen(self):
         env = os.environ.copy()
         env.update(
-            {
-                f"EDGEDB_{k.upper()}": str(v)
-                for k, v in self.get_connect_args().items()
-            }
+            {f"EDGEDB_{k.upper()}": str(v) for k, v in self.get_connect_args().items()}
         )
         env["EDGEDB_DATABASE"] = self.get_database_name()
         container = pathlib.Path(__file__).absolute().parent / "codegen"
@@ -89,13 +86,13 @@ class TestCodegen(tb.AsyncQueryTestCase):
             else:
                 if p.returncode:
                     raise subprocess.CalledProcessError(
-                        p.returncode, args, output=await p.stdout.read(),
+                        p.returncode,
+                        args,
+                        output=await p.stdout.read(),
                     )
 
         cmd = env.get("EDGEDB_PYTHON_TEST_CODEGEN_CMD", "edgedb-py")
-        await run(
-            cmd, extra_env={"EDGEDB_PYTHON_CODEGEN_PY_VER": "3.8.5"}
-        )
+        await run(cmd, extra_env={"EDGEDB_PYTHON_CODEGEN_PY_VER": "3.8.5"})
         await run(
             cmd,
             "--target",

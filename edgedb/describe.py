@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import annotations
 
 import dataclasses
 import typing
@@ -50,7 +50,7 @@ class SetType(SequenceType):
 
 @dataclasses.dataclass(frozen=True)
 class ObjectType(AnyType):
-    elements: typing.Dict[str, Element]
+    elements: dict[str, Element]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -65,12 +65,12 @@ class ScalarType(AnyType):
 
 @dataclasses.dataclass(frozen=True)
 class TupleType(AnyType):
-    element_types: typing.Tuple[AnyType]
+    element_types: tuple[AnyType]
 
 
 @dataclasses.dataclass(frozen=True)
 class NamedTupleType(AnyType):
-    element_types: typing.Dict[str, AnyType]
+    element_types: dict[str, AnyType]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -80,7 +80,7 @@ class ArrayType(SequenceType):
 
 @dataclasses.dataclass(frozen=True)
 class EnumType(AnyType):
-    members: typing.Tuple[str]
+    members: tuple[str]
 
 
 @dataclasses.dataclass(frozen=True)

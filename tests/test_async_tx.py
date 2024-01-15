@@ -27,38 +27,40 @@ from edgedb.options import RetryOptions
 
 
 class TestAsyncTx(tb.AsyncQueryTestCase):
-
-    SETUP = '''
+    SETUP = """
         CREATE TYPE test::TransactionTest EXTENDING std::Object {
             CREATE PROPERTY name -> std::str;
         };
-    '''
+    """
 
-    TEARDOWN = '''
+    TEARDOWN = """
         DROP TYPE test::TransactionTest;
-    '''
+    """
 
     async def test_async_transaction_regular_01(self):
-        tr = self.client.with_retry_options(
-            RetryOptions(attempts=1)).transaction()
+        tr = self.client.with_retry_options(RetryOptions(attempts=1)).transaction()
 
         with self.assertRaises(ZeroDivisionError):
             async for with_tr in tr:
                 async with with_tr:
-                    await with_tr.execute('''
+                    await with_tr.execute(
+                        """
                         INSERT test::TransactionTest {
                             name := 'Test Transaction'
                         };
-                    ''')
+                    """
+                    )
 
                     1 / 0
 
-        result = await self.client.query('''
+        result = await self.client.query(
+            """
             SELECT
                 test::TransactionTest
             FILTER
                 test::TransactionTest.name = 'Test Transaction';
-        ''')
+        """
+        )
 
         self.assertEqual(result, [])
 
@@ -77,9 +79,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
             )
             # skip None
             opt = {k: v for k, v in opt.items() if v is not None}
-            client = self.client.with_transaction_options(
-                TransactionOptions(**opt)
-            )
+            client = self.client.with_transaction_options(TransactionOptions(**opt))
             async for tx in client.transaction():
                 async with tx:
                     pass
@@ -99,8 +99,7 @@ class TestAsyncTx(tb.AsyncQueryTestCase):
                 f2 = self.loop.create_task(tx.execute(query))
                 with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    "concurrent queries within the same transaction "
-                    "are not allowed"
+                    "concurrent queries within the same transaction " "are not allowed",
                 ):
                     await asyncio.wait_for(f1, timeout=5)
                     await asyncio.wait_for(f2, timeout=5)

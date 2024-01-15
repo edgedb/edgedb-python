@@ -15,46 +15,45 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import annotations
 
 import pathlib
 import re
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     this = pathlib.Path(__file__)
 
-    errors_fn = this.parent.parent / 'edgedb' / 'errors' / '__init__.py'
-    init_fn = this.parent.parent / 'edgedb' / '__init__.py'
+    errors_fn = this.parent.parent / "edgedb" / "errors" / "__init__.py"
+    init_fn = this.parent.parent / "edgedb" / "__init__.py"
 
-    with open(errors_fn, 'rt') as f:
+    with open(errors_fn) as f:
         errors_txt = f.read()
 
-    names = re.findall(r'^class\s+(?P<name>\w+)', errors_txt, re.M)
-    names_list = '\n'.join(f'    {name},' for name in names)
-    all_list = '\n'.join(f'    "{name}",' for name in names)
+    names = re.findall(r"^class\s+(?P<name>\w+)", errors_txt, re.M)
+    names_list = "\n".join(f"    {name}," for name in names)
+    all_list = "\n".join(f'    "{name}",' for name in names)
     code = (
-        f'''from .errors import (\n{names_list}\n)\n'''
-        f'''\n__all__.extend([\n{all_list}\n])\n'''
+        f"""from .errors import (\n{names_list}\n)\n"""
+        f"""\n__all__.extend([\n{all_list}\n])\n"""
     ).splitlines()
 
-    with open(init_fn, 'rt') as f:
+    with open(init_fn) as f:
         lines = f.read().splitlines()
         start = end = -1
         for no, line in enumerate(lines):
-            if line.startswith('# <ERRORS-AUTOGEN>'):
+            if line.startswith("# <ERRORS-AUTOGEN>"):
                 start = no
-            elif line.startswith('# </ERRORS-AUTOGEN>'):
+            elif line.startswith("# </ERRORS-AUTOGEN>"):
                 end = no
 
     if start == -1:
-        raise RuntimeError('could not find the <ERRORS-AUTOGEN> tag')
+        raise RuntimeError("could not find the <ERRORS-AUTOGEN> tag")
 
     if end == -1:
-        raise RuntimeError('could not find the </ERRORS-AUTOGEN> tag')
+        raise RuntimeError("could not find the </ERRORS-AUTOGEN> tag")
 
-    lines[start + 1:end] = code
+    lines[start + 1 : end] = code
 
-    with open(init_fn, 'w') as f:
-        f.write('\n'.join(lines))
-        f.write('\n')
+    with open(init_fn, "w") as f:
+        f.write("\n".join(lines))
+        f.write("\n")

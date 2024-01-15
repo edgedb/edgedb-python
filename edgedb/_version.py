@@ -27,5 +27,6 @@
 # The release automation will: build and test the packages for the
 # supported platforms, publish the packages on PyPI, merge the PR
 # to the target branch, create a Git tag pointing to the commit.
+from __future__ import annotations
 
-__version__ = '2.0.0a1'
+__version__ = "2.0.0a1"

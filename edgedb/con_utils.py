@@ -15,11 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import annotations
 
 import base64
 import binascii
 import errno
+import hashlib
 import json
 import os
 import re
@@ -27,12 +28,9 @@ import ssl
 import typing
 import urllib.parse
 import warnings
-import hashlib
 
-from . import errors
 from . import credentials as cred_utils
-from . import platform
-
+from . import errors, platform
 
 EDGEDB_PORT = 5656
 ERRNO_RE = re.compile(r"\[Errno (\d+)\]")
@@ -42,54 +40,55 @@ TEMPORARY_ERRORS = (
     ConnectionResetError,
     FileNotFoundError,
 )
-TEMPORARY_ERROR_CODES = frozenset({
-    errno.ECONNREFUSED,
-    errno.ECONNABORTED,
-    errno.ECONNRESET,
-    errno.ENOENT,
-})
+TEMPORARY_ERROR_CODES = frozenset(
+    {
+        errno.ECONNREFUSED,
+        errno.ECONNABORTED,
+        errno.ECONNRESET,
+        errno.ENOENT,
+    }
+)
 
-ISO_SECONDS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)S')
-ISO_MINUTES_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)M')
-ISO_HOURS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)H')
-ISO_UNITLESS_HOURS_RE = re.compile(r'^(-?\d+|-?\d+\.\d*|-?\d*\.\d+)$')
-ISO_DAYS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)D')
-ISO_WEEKS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)W')
-ISO_MONTHS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)M')
-ISO_YEARS_RE = re.compile(r'(-?\d+|-?\d+\.\d*|-?\d*\.\d+)Y')
+ISO_SECONDS_RE = re.compile(r"(-?\d+|-?\d+\.\d*|-?\d*\.\d+)S")
+ISO_MINUTES_RE = re.compile(r"(-?\d+|-?\d+\.\d*|-?\d*\.\d+)M")
+ISO_HOURS_RE = re.compile(r"(-?\d+|-?\d+\.\d*|-?\d*\.\d+)H")
+ISO_UNITLESS_HOURS_RE = re.compile(r"^(-?\d+|-?\d+\.\d*|-?\d*\.\d+)$")
+ISO_DAYS_RE = re.compile(r"(-?\d+|-?\d+\.\d*|-?\d*\.\d+)D")
+ISO_WEEKS_RE = re.compile(r"(-?\d+|-?\d+\.\d*|-?\d*\.\d+)W")
+ISO_MONTHS_RE = re.compile(r"(-?\d+|-?\d+\.\d*|-?\d*\.\d+)M")
+ISO_YEARS_RE = re.compile(r"(-?\d+|-?\d+\.\d*|-?\d*\.\d+)Y")
 
 HUMAN_HOURS_RE = re.compile(
-    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:h(\s|\d|\.|$)|hours?(\s|$))',
+    r"((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:h(\s|\d|\.|$)|hours?(\s|$))",
 )
 HUMAN_MINUTES_RE = re.compile(
-    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:m(\s|\d|\.|$)|minutes?(\s|$))',
+    r"((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:m(\s|\d|\.|$)|minutes?(\s|$))",
 )
 HUMAN_SECONDS_RE = re.compile(
-    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:s(\s|\d|\.|$)|seconds?(\s|$))',
+    r"((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:s(\s|\d|\.|$)|seconds?(\s|$))",
 )
 HUMAN_MS_RE = re.compile(
-    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:ms(\s|\d|\.|$)|milliseconds?(\s|$))',
+    r"((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:ms(\s|\d|\.|$)|milliseconds?(\s|$))",
 )
 HUMAN_US_RE = re.compile(
-    r'((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:us(\s|\d|\.|$)|microseconds?(\s|$))',
+    r"((?:(?:\s|^)-\s*)?\d*\.?\d*)\s*(?i:us(\s|\d|\.|$)|microseconds?(\s|$))",
 )
 INSTANCE_NAME_RE = re.compile(
-    r'^(\w(?:-?\w)*)$',
+    r"^(\w(?:-?\w)*)$",
     re.ASCII,
 )
 CLOUD_INSTANCE_NAME_RE = re.compile(
-    r'^([A-Za-z0-9](?:-?[A-Za-z0-9])*)/([A-Za-z0-9](?:-?[A-Za-z0-9])*)$',
+    r"^([A-Za-z0-9](?:-?[A-Za-z0-9])*)/([A-Za-z0-9](?:-?[A-Za-z0-9])*)$",
     re.ASCII,
 )
 DSN_RE = re.compile(
-    r'^[a-z]+://',
+    r"^[a-z]+://",
     re.IGNORECASE,
 )
 DOMAIN_LABEL_MAX_LENGTH = 63
 
 
 class ClientConfiguration(typing.NamedTuple):
-
     connect_timeout: float
     command_timeout: float
     wait_until_available: float
@@ -101,8 +100,10 @@ def _validate_port_spec(hosts, port):
         # match that of the host list.
         if len(port) != len(hosts):
             raise errors.InterfaceError(
-                'could not match {} port numbers to {} hosts'.format(
-                    len(port), len(hosts)))
+                "could not match {} port numbers to {} hosts".format(
+                    len(port), len(hosts)
+                )
+            )
     else:
         port = [port for _ in range(len(hosts))]
 
@@ -110,9 +111,9 @@ def _validate_port_spec(hosts, port):
 
 
 def _parse_hostlist(hostlist, port):
-    if ',' in hostlist:
+    if "," in hostlist:
         # A comma-separated list of host addresses.
-        hostspecs = hostlist.split(',')
+        hostspecs = hostlist.split(",")
     else:
         hostspecs = [hostlist]
 
@@ -120,10 +121,10 @@ def _parse_hostlist(hostlist, port):
     hostlist_ports = []
 
     if not port:
-        portspec = os.environ.get('EDGEDB_PORT')
+        portspec = os.environ.get("EDGEDB_PORT")
         if portspec:
-            if ',' in portspec:
-                default_port = [int(p) for p in portspec.split(',')]
+            if "," in portspec:
+                default_port = [int(p) for p in portspec.split(",")]
             else:
                 default_port = int(portspec)
         else:
@@ -135,7 +136,7 @@ def _parse_hostlist(hostlist, port):
         port = _validate_port_spec(hostspecs, port)
 
     for i, hostspec in enumerate(hostspecs):
-        addr, _, hostspec_port = hostspec.partition(':')
+        addr, _, hostspec_port = hostspec.partition(":")
         hosts.append(addr)
 
         if not port:
@@ -152,15 +153,15 @@ def _parse_hostlist(hostlist, port):
 
 def _hash_path(path):
     path = os.path.realpath(path)
-    if platform.IS_WINDOWS and not path.startswith('\\\\'):
-        path = '\\\\?\\' + path
-    return hashlib.sha1(str(path).encode('utf-8')).hexdigest()
+    if platform.IS_WINDOWS and not path.startswith("\\\\"):
+        path = "\\\\?\\" + path
+    return hashlib.sha1(str(path).encode("utf-8")).hexdigest()
 
 
 def _stash_path(path):
     base_name = os.path.basename(path)
-    dir_name = base_name + '-' + _hash_path(path)
-    return platform.search_config_dir('projects', dir_name)
+    dir_name = base_name + "-" + _hash_path(path)
+    return platform.search_config_dir("projects", dir_name)
 
 
 def _validate_tls_security(val: str) -> str:
@@ -207,51 +208,50 @@ class ResolvedConnectConfig:
     server_settings = {}
 
     def _set_param(self, param, value, source, validator=None):
-        param_name = '_' + param
+        param_name = "_" + param
         if getattr(self, param_name) is None:
-            setattr(self, param_name + '_source', source)
+            setattr(self, param_name + "_source", source)
             if value is not None:
                 setattr(
-                    self,
-                    param_name,
-                    validator(value) if validator else value
+                    self, param_name, validator(value) if validator else value
                 )
 
     def set_host(self, host, source):
-        self._set_param('host', host, source, _validate_host)
+        self._set_param("host", host, source, _validate_host)
 
     def set_port(self, port, source):
-        self._set_param('port', port, source, _validate_port)
+        self._set_param("port", port, source, _validate_port)
 
     def set_database(self, database, source):
-        self._set_param('database', database, source, _validate_database)
+        self._set_param("database", database, source, _validate_database)
 
     def set_user(self, user, source):
-        self._set_param('user', user, source, _validate_user)
+        self._set_param("user", user, source, _validate_user)
 
     def set_password(self, password, source):
-        self._set_param('password', password, source)
+        self._set_param("password", password, source)
 
     def set_secret_key(self, secret_key, source):
-        self._set_param('secret_key', secret_key, source)
+        self._set_param("secret_key", secret_key, source)
 
     def set_tls_ca_data(self, ca_data, source):
-        self._set_param('tls_ca_data', ca_data, source)
+        self._set_param("tls_ca_data", ca_data, source)
 
     def set_tls_ca_file(self, ca_file, source):
         def read_ca_file(file_path):
             with open(file_path) as f:
                 return f.read()
 
-        self._set_param('tls_ca_data', ca_file, source, read_ca_file)
+        self._set_param("tls_ca_data", ca_file, source, read_ca_file)
 
     def set_tls_security(self, security, source):
-        self._set_param('tls_security', security, source,
-                        _validate_tls_security)
+        self._set_param(
+            "tls_security", security, source, _validate_tls_security
+        )
 
     def set_wait_until_available(self, wait_until_available, source):
         self._set_param(
-            'wait_until_available',
+            "wait_until_available",
             wait_until_available,
             source,
             _validate_wait_until_available,
@@ -264,17 +264,17 @@ class ResolvedConnectConfig:
     @property
     def address(self):
         return (
-            self._host if self._host else 'localhost',
-            self._port if self._port else 5656
+            self._host if self._host else "localhost",
+            self._port if self._port else 5656,
         )
 
     @property
     def database(self):
-        return self._database if self._database else 'edgedb'
+        return self._database if self._database else "edgedb"
 
     @property
     def user(self):
-        return self._user if self._user else 'edgedb'
+        return self._user if self._user else "edgedb"
 
     @property
     def password(self):
@@ -286,29 +286,31 @@ class ResolvedConnectConfig:
 
     @property
     def tls_security(self):
-        tls_security = self._tls_security or 'default'
-        security = os.environ.get('EDGEDB_CLIENT_SECURITY') or 'default'
-        if security not in {'default', 'insecure_dev_mode', 'strict'}:
+        tls_security = self._tls_security or "default"
+        security = os.environ.get("EDGEDB_CLIENT_SECURITY") or "default"
+        if security not in {"default", "insecure_dev_mode", "strict"}:
             raise ValueError(
-                f'environment variable EDGEDB_CLIENT_SECURITY should be '
-                f'one of strict, insecure_dev_mode or default, '
-                f'got: {security!r}')
+                f"environment variable EDGEDB_CLIENT_SECURITY should be "
+                f"one of strict, insecure_dev_mode or default, "
+                f"got: {security!r}"
+            )
 
-        if security == 'default':
+        if security == "default":
             pass
-        elif security == 'insecure_dev_mode':
-            if tls_security == 'default':
-                tls_security = 'insecure'
-        elif security == 'strict':
-            if tls_security == 'default':
-                tls_security = 'strict'
-            elif tls_security in {'no_host_verification', 'insecure'}:
+        elif security == "insecure_dev_mode":
+            if tls_security == "default":
+                tls_security = "insecure"
+        elif security == "strict":
+            if tls_security == "default":
+                tls_security = "strict"
+            elif tls_security in {"no_host_verification", "insecure"}:
                 raise ValueError(
-                    f'EDGEDB_CLIENT_SECURITY=strict but '
-                    f'tls_security={tls_security}, tls_security must be '
-                    f'set to strict when EDGEDB_CLIENT_SECURITY is strict')
+                    f"EDGEDB_CLIENT_SECURITY=strict but "
+                    f"tls_security={tls_security}, tls_security must be "
+                    f"set to strict when EDGEDB_CLIENT_SECURITY is strict"
+                )
 
-        if tls_security != 'default':
+        if tls_security != "default":
             return tls_security
 
         if self._tls_ca_data is not None:
@@ -320,19 +322,18 @@ class ResolvedConnectConfig:
 
     @property
     def ssl_ctx(self):
-        if (self._ssl_ctx):
+        if self._ssl_ctx:
             return self._ssl_ctx
 
         self._ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
         if self._tls_ca_data:
-            self._ssl_ctx.load_verify_locations(
-                cadata=self._tls_ca_data
-            )
+            self._ssl_ctx.load_verify_locations(cadata=self._tls_ca_data)
         else:
             self._ssl_ctx.load_default_certs(ssl.Purpose.SERVER_AUTH)
             if platform.IS_WINDOWS:
                 import certifi
+
                 self._ssl_ctx.load_verify_locations(cafile=certifi.where())
 
         tls_security = self.tls_security
@@ -343,7 +344,7 @@ class ResolvedConnectConfig:
         else:
             self._ssl_ctx.verify_mode = ssl.CERT_NONE
 
-        self._ssl_ctx.set_alpn_protocols(['edgedb-binary'])
+        self._ssl_ctx.set_alpn_protocols(["edgedb-binary"])
 
         return self._ssl_ctx
 
@@ -357,18 +358,18 @@ class ResolvedConnectConfig:
 
 
 def _validate_host(host):
-    if '/' in host:
-        raise ValueError('unix socket paths not supported')
-    if host == '' or ',' in host:
+    if "/" in host:
+        raise ValueError("unix socket paths not supported")
+    if host == "" or "," in host:
         raise ValueError(f'invalid host: "{host}"')
     return host
 
 
 def _prepare_host_for_dsn(host):
     host = _validate_host(host)
-    if ':' in host:
+    if ":" in host:
         # IPv6
-        host = f'[{host}]'
+        host = f"[{host}]"
     return host
 
 
@@ -379,25 +380,25 @@ def _validate_port(port):
         if not isinstance(port, int):
             raise ValueError()
     except Exception:
-        raise ValueError(f'invalid port: {port}, not an integer')
+        raise ValueError(f"invalid port: {port}, not an integer")
     if port < 1 or port > 65535:
-        raise ValueError(f'invalid port: {port}, must be between 1 and 65535')
+        raise ValueError(f"invalid port: {port}, must be between 1 and 65535")
     return port
 
 
 def _validate_database(database):
-    if database == '':
-        raise ValueError(f'invalid database name: {database}')
+    if database == "":
+        raise ValueError(f"invalid database name: {database}")
     return database
 
 
 def _validate_user(user):
-    if user == '':
-        raise ValueError(f'invalid user name: {user}')
+    if user == "":
+        raise ValueError(f"invalid user name: {user}")
     return user
 
 
-def _pop_iso_unit(rgex: re.Pattern, string: str) -> typing.Tuple[float, str]:
+def _pop_iso_unit(rgex: re.Pattern, string: str) -> tuple[float, str]:
     s = string
     total = 0
     match = rgex.search(string)
@@ -423,19 +424,19 @@ def _parse_iso_duration(string: str) -> typing.Union[float, int]:
     seconds, time = _pop_iso_unit(ISO_SECONDS_RE, time)
 
     if time:
-        raise ValueError(f'invalid duration {string!r}')
+        raise ValueError(f"invalid duration {string!r}")
 
     return 3600 * hours + 60 * minutes + seconds
 
 
 def _remove_white_space(s: str) -> str:
-    return ''.join(c for c in s if not c.isspace())
+    return "".join(c for c in s if not c.isspace())
 
 
 def _pop_human_duration_unit(
     rgex: re.Pattern,
     string: str,
-) -> typing.Tuple[float, bool, str]:
+) -> tuple[float, bool, str]:
     match = rgex.search(string)
     if not match:
         return 0, False, string
@@ -443,10 +444,10 @@ def _pop_human_duration_unit(
     number = 0
     if match.group(1):
         literal = _remove_white_space(match.group(1))
-        if literal.endswith('.'):
+        if literal.endswith("."):
             return 0, False, string
 
-        if literal.startswith('-.'):
+        if literal.startswith("-."):
             return 0, False, string
 
         number = float(literal)
@@ -478,13 +479,13 @@ def _parse_human_duration(string: str) -> float:
     found |= f
 
     if s.strip() or not found:
-        raise ValueError(f'invalid duration {string!r}')
+        raise ValueError(f"invalid duration {string!r}")
 
     return 3600 * hour + 60 * minute + second + 0.001 * ms + 0.000001 * us
 
 
 def _parse_duration_str(string: str) -> float:
-    if string.startswith('PT'):
+    if string.startswith("PT"):
         return _parse_iso_duration(string)
     return _parse_human_duration(string)
 
@@ -501,13 +502,13 @@ def _validate_wait_until_available(wait_until_available):
 
 def _validate_server_settings(server_settings):
     if (
-        not isinstance(server_settings, dict) or
-        not all(isinstance(k, str) for k in server_settings) or
-        not all(isinstance(v, str) for v in server_settings.values())
+        not isinstance(server_settings, dict)
+        or not all(isinstance(k, str) for k in server_settings)
+        or not all(isinstance(v, str) for v in server_settings.values())
     ):
         raise ValueError(
-            'server_settings is expected to be None or '
-            'a Dict[str, str]')
+            "server_settings is expected to be None or " "a Dict[str, str]"
+        )
 
 
 def _parse_connect_dsn_and_args(
@@ -536,148 +537,172 @@ def _parse_connect_dsn_and_args(
 
     has_compound_options = _resolve_config_options(
         resolved_config,
-        'Cannot have more than one of the following connection options: '
+        "Cannot have more than one of the following connection options: "
         + '"dsn", "credentials", "credentials_file" or "host"/"port"',
         dsn=(dsn, '"dsn" option') if dsn is not None else None,
         instance_name=(
             (instance_name, '"dsn" option (parsed as instance name)')
-            if instance_name is not None else None
+            if instance_name is not None
+            else None
         ),
         credentials=(
             (credentials, '"credentials" option')
-            if credentials is not None else None
+            if credentials is not None
+            else None
         ),
         credentials_file=(
             (credentials_file, '"credentials_file" option')
-            if credentials_file is not None else None
+            if credentials_file is not None
+            else None
         ),
         host=(host, '"host" option') if host is not None else None,
         port=(port, '"port" option') if port is not None else None,
         database=(
-            (database, '"database" option')
-            if database is not None else None
+            (database, '"database" option') if database is not None else None
         ),
         user=(user, '"user" option') if user is not None else None,
         password=(
-            (password, '"password" option')
-            if password is not None else None
+            (password, '"password" option') if password is not None else None
         ),
         secret_key=(
             (secret_key, '"secret_key" option')
-            if secret_key is not None else None
+            if secret_key is not None
+            else None
         ),
-        tls_ca=(
-            (tls_ca, '"tls_ca" option')
-            if tls_ca is not None else None
-        ),
+        tls_ca=((tls_ca, '"tls_ca" option') if tls_ca is not None else None),
         tls_ca_file=(
             (tls_ca_file, '"tls_ca_file" option')
-            if tls_ca_file is not None else None
+            if tls_ca_file is not None
+            else None
         ),
         tls_security=(
             (tls_security, '"tls_security" option')
-            if tls_security is not None else None
+            if tls_security is not None
+            else None
         ),
         server_settings=(
             (server_settings, '"server_settings" option')
-            if server_settings is not None else None
+            if server_settings is not None
+            else None
         ),
         wait_until_available=(
             (wait_until_available, '"wait_until_available" option')
-            if wait_until_available is not None else None
+            if wait_until_available is not None
+            else None
         ),
     )
 
     if has_compound_options is False:
         env_port = os.getenv("EDGEDB_PORT")
         if (
-            resolved_config._port is None and
-            env_port and env_port.startswith('tcp://')
+            resolved_config._port is None
+            and env_port
+            and env_port.startswith("tcp://")
         ):
             # EDGEDB_PORT is set by 'docker --link' so ignore and warn
-            warnings.warn('EDGEDB_PORT in "tcp://host:port" format, ' +
-                          'so will be ignored')
+            warnings.warn(
+                'EDGEDB_PORT in "tcp://host:port" format, '
+                + "so will be ignored"
+            )
             env_port = None
 
-        env_dsn = os.getenv('EDGEDB_DSN')
-        env_instance = os.getenv('EDGEDB_INSTANCE')
-        env_credentials_file = os.getenv('EDGEDB_CREDENTIALS_FILE')
-        env_host = os.getenv('EDGEDB_HOST')
-        env_database = os.getenv('EDGEDB_DATABASE')
-        env_user = os.getenv('EDGEDB_USER')
-        env_password = os.getenv('EDGEDB_PASSWORD')
-        env_secret_key = os.getenv('EDGEDB_SECRET_KEY')
-        env_tls_ca = os.getenv('EDGEDB_TLS_CA')
-        env_tls_ca_file = os.getenv('EDGEDB_TLS_CA_FILE')
-        env_tls_security = os.getenv('EDGEDB_CLIENT_TLS_SECURITY')
-        env_wait_until_available = os.getenv('EDGEDB_WAIT_UNTIL_AVAILABLE')
-        cloud_profile = os.getenv('EDGEDB_CLOUD_PROFILE')
+        env_dsn = os.getenv("EDGEDB_DSN")
+        env_instance = os.getenv("EDGEDB_INSTANCE")
+        env_credentials_file = os.getenv("EDGEDB_CREDENTIALS_FILE")
+        env_host = os.getenv("EDGEDB_HOST")
+        env_database = os.getenv("EDGEDB_DATABASE")
+        env_user = os.getenv("EDGEDB_USER")
+        env_password = os.getenv("EDGEDB_PASSWORD")
+        env_secret_key = os.getenv("EDGEDB_SECRET_KEY")
+        env_tls_ca = os.getenv("EDGEDB_TLS_CA")
+        env_tls_ca_file = os.getenv("EDGEDB_TLS_CA_FILE")
+        env_tls_security = os.getenv("EDGEDB_CLIENT_TLS_SECURITY")
+        env_wait_until_available = os.getenv("EDGEDB_WAIT_UNTIL_AVAILABLE")
+        cloud_profile = os.getenv("EDGEDB_CLOUD_PROFILE")
 
         has_compound_options = _resolve_config_options(
             resolved_config,
-            'Cannot have more than one of the following connection '
+            "Cannot have more than one of the following connection "
             + 'environment variables: "EDGEDB_DSN", "EDGEDB_INSTANCE", '
             + '"EDGEDB_CREDENTIALS_FILE" or "EDGEDB_HOST"/"EDGEDB_PORT"',
             dsn=(
                 (env_dsn, '"EDGEDB_DSN" environment variable')
-                if env_dsn is not None else None
+                if env_dsn is not None
+                else None
             ),
             instance_name=(
                 (env_instance, '"EDGEDB_INSTANCE" environment variable')
-                if env_instance is not None else None
+                if env_instance is not None
+                else None
             ),
             credentials_file=(
-                (env_credentials_file,
-                 '"EDGEDB_CREDENTIALS_FILE" environment variable')
-                if env_credentials_file is not None else None
+                (
+                    env_credentials_file,
+                    '"EDGEDB_CREDENTIALS_FILE" environment variable',
+                )
+                if env_credentials_file is not None
+                else None
             ),
             host=(
                 (env_host, '"EDGEDB_HOST" environment variable')
-                if env_host is not None else None
+                if env_host is not None
+                else None
             ),
             port=(
                 (env_port, '"EDGEDB_PORT" environment variable')
-                if env_port is not None else None
+                if env_port is not None
+                else None
             ),
             database=(
                 (env_database, '"EDGEDB_DATABASE" environment variable')
-                if env_database is not None else None
+                if env_database is not None
+                else None
             ),
             user=(
                 (env_user, '"EDGEDB_USER" environment variable')
-                if env_user is not None else None
+                if env_user is not None
+                else None
             ),
             password=(
                 (env_password, '"EDGEDB_PASSWORD" environment variable')
-                if env_password is not None else None
+                if env_password is not None
+                else None
             ),
             secret_key=(
                 (env_secret_key, '"EDGEDB_SECRET_KEY" environment variable')
-                if env_secret_key is not None else None
+                if env_secret_key is not None
+                else None
             ),
             tls_ca=(
                 (env_tls_ca, '"EDGEDB_TLS_CA" environment variable')
-                if env_tls_ca is not None else None
+                if env_tls_ca is not None
+                else None
             ),
             tls_ca_file=(
                 (env_tls_ca_file, '"EDGEDB_TLS_CA_FILE" environment variable')
-                if env_tls_ca_file is not None else None
+                if env_tls_ca_file is not None
+                else None
             ),
             tls_security=(
-                (env_tls_security,
-                 '"EDGEDB_CLIENT_TLS_SECURITY" environment variable')
-                if env_tls_security is not None else None
+                (
+                    env_tls_security,
+                    '"EDGEDB_CLIENT_TLS_SECURITY" environment variable',
+                )
+                if env_tls_security is not None
+                else None
             ),
             wait_until_available=(
                 (
                     env_wait_until_available,
-                    '"EDGEDB_WAIT_UNTIL_AVAILABLE" environment variable'
-                ) if env_wait_until_available is not None else None
+                    '"EDGEDB_WAIT_UNTIL_AVAILABLE" environment variable',
+                )
+                if env_wait_until_available is not None
+                else None
             ),
             cloud_profile=(
-                (cloud_profile,
-                 '"EDGEDB_CLOUD_PROFILE" environment variable')
-                if cloud_profile is not None else None
+                (cloud_profile, '"EDGEDB_CLOUD_PROFILE" environment variable')
+                if cloud_profile is not None
+                else None
             ),
         )
 
@@ -685,45 +710,44 @@ def _parse_connect_dsn_and_args(
         dir = find_edgedb_project_dir()
         stash_dir = _stash_path(dir)
         if os.path.exists(stash_dir):
-            with open(os.path.join(stash_dir, 'instance-name'), 'rt') as f:
+            with open(os.path.join(stash_dir, "instance-name")) as f:
                 instance_name = f.read().strip()
-            cloud_profile_file = os.path.join(stash_dir, 'cloud-profile')
+            cloud_profile_file = os.path.join(stash_dir, "cloud-profile")
             if os.path.exists(cloud_profile_file):
-                with open(cloud_profile_file, 'rt') as f:
+                with open(cloud_profile_file) as f:
                     cloud_profile = f.read().strip()
             else:
                 cloud_profile = None
 
             _resolve_config_options(
                 resolved_config,
-                '',
+                "",
                 instance_name=(
                     instance_name,
-                    f'project linked instance ("{instance_name}")'
+                    f'project linked instance ("{instance_name}")',
                 ),
                 cloud_profile=(
                     cloud_profile,
-                    f'project defined cloud profile ("{cloud_profile}")'
+                    f'project defined cloud profile ("{cloud_profile}")',
                 ),
             )
 
-            opt_database_file = os.path.join(stash_dir, 'database')
+            opt_database_file = os.path.join(stash_dir, "database")
             if os.path.exists(opt_database_file):
-                with open(opt_database_file, 'rt') as f:
+                with open(opt_database_file) as f:
                     database = f.read().strip()
                 resolved_config.set_database(database, "project")
         else:
             raise errors.ClientConnectionError(
-                f'Found `edgedb.toml` but the project is not initialized. '
-                f'Run `edgedb project init`.'
+                "Found `edgedb.toml` but the project is not initialized. "
+                "Run `edgedb project init`."
             )
 
     return resolved_config
 
 
 def _parse_dsn_into_config(
-    resolved_config: ResolvedConnectConfig,
-    dsn: typing.Tuple[str, str]
+    resolved_config: ResolvedConnectConfig, dsn: tuple[str, str]
 ):
     dsn_str, source = dsn
 
@@ -737,66 +761,69 @@ def _parse_dsn_into_config(
         user = parsed.username
         password = parsed.password
     except Exception as e:
-        raise ValueError(f'invalid DSN or instance name: {str(e)}')
+        raise ValueError(f"invalid DSN or instance name: {e!s}")
 
-    if parsed.scheme != 'edgedb':
+    if parsed.scheme != "edgedb":
         raise ValueError(
-            f'invalid DSN: scheme is expected to be '
-            f'"edgedb", got {parsed.scheme!r}')
+            f"invalid DSN: scheme is expected to be "
+            f'"edgedb", got {parsed.scheme!r}'
+        )
 
     query = (
         urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
-        if parsed.query != ''
+        if parsed.query != ""
         else {}
     )
     for key, val in query.items():
         if isinstance(val, list):
             if len(val) > 1:
                 raise ValueError(
-                    f'invalid DSN: duplicate query parameter {key}')
+                    f"invalid DSN: duplicate query parameter {key}"
+                )
             query[key] = val[-1]
 
     def handle_dsn_part(
-        paramName, value, currentValue, setter,
-        formatter=lambda val: val
+        paramName, value, currentValue, setter, formatter=lambda val: val
     ):
         param_values = [
-            (value if value != '' else None),
+            (value if value != "" else None),
             query.get(paramName),
-            query.get(paramName + '_env'),
-            query.get(paramName + '_file')
+            query.get(paramName + "_env"),
+            query.get(paramName + "_file"),
         ]
         if len([p for p in param_values if p is not None]) > 1:
             raise ValueError(
-                f'invalid DSN: more than one of ' +
-                f'{(paramName + ", ") if value else ""}' +
-                f'?{paramName}=, ?{paramName}_env=, ?{paramName}_file= ' +
-                f'was specified'
+                "invalid DSN: more than one of "
+                + f'{(paramName + ", ") if value else ""}'
+                + f"?{paramName}=, ?{paramName}_env=, ?{paramName}_file= "
+                + "was specified"
             )
 
         if currentValue is None:
             param = (
-                value if (value is not None and value != '')
+                value
+                if (value is not None and value != "")
                 else query.get(paramName)
             )
             paramSource = source
 
             if param is None:
-                env = query.get(paramName + '_env')
+                env = query.get(paramName + "_env")
                 if env is not None:
                     param = os.getenv(env)
                     if param is None:
                         raise ValueError(
-                            f'{paramName}_env environment variable "{env}" ' +
-                            f'doesn\'t exist')
-                    paramSource = paramSource + f' ({paramName}_env: {env})'
+                            f'{paramName}_env environment variable "{env}" '
+                            + "doesn't exist"
+                        )
+                    paramSource = paramSource + f" ({paramName}_env: {env})"
             if param is None:
-                filename = query.get(paramName + '_file')
+                filename = query.get(paramName + "_file")
                 if filename is not None:
                     with open(filename) as f:
                         param = f.read()
                     paramSource = (
-                        paramSource + f' ({paramName}_file: {filename})'
+                        paramSource + f" ({paramName}_file: {filename})"
                     )
 
             param = formatter(param) if param is not None else None
@@ -804,55 +831,65 @@ def _parse_dsn_into_config(
             setter(param, paramSource)
 
         query.pop(paramName, None)
-        query.pop(paramName + '_env', None)
-        query.pop(paramName + '_file', None)
+        query.pop(paramName + "_env", None)
+        query.pop(paramName + "_file", None)
 
     handle_dsn_part(
-        'host', host, resolved_config._host, resolved_config.set_host
+        "host", host, resolved_config._host, resolved_config.set_host
     )
 
     handle_dsn_part(
-        'port', port, resolved_config._port, resolved_config.set_port
+        "port", port, resolved_config._port, resolved_config.set_port
     )
 
     def strip_leading_slash(str):
-        return str[1:] if str.startswith('/') else str
+        return str[1:] if str.startswith("/") else str
 
     handle_dsn_part(
-        'database', strip_leading_slash(database),
-        resolved_config._database, resolved_config.set_database,
-        strip_leading_slash
+        "database",
+        strip_leading_slash(database),
+        resolved_config._database,
+        resolved_config.set_database,
+        strip_leading_slash,
     )
 
     handle_dsn_part(
-        'user', user, resolved_config._user, resolved_config.set_user
+        "user", user, resolved_config._user, resolved_config.set_user
     )
 
     handle_dsn_part(
-        'password', password,
-        resolved_config._password, resolved_config.set_password
+        "password",
+        password,
+        resolved_config._password,
+        resolved_config.set_password,
     )
 
     handle_dsn_part(
-        'secret_key', None,
-        resolved_config._secret_key, resolved_config.set_secret_key
+        "secret_key",
+        None,
+        resolved_config._secret_key,
+        resolved_config.set_secret_key,
     )
 
     handle_dsn_part(
-        'tls_ca_file', None,
-        resolved_config._tls_ca_data, resolved_config.set_tls_ca_file
+        "tls_ca_file",
+        None,
+        resolved_config._tls_ca_data,
+        resolved_config.set_tls_ca_file,
     )
 
     handle_dsn_part(
-        'tls_security', None,
+        "tls_security",
+        None,
         resolved_config._tls_security,
-        resolved_config.set_tls_security
+        resolved_config.set_tls_security,
     )
 
     handle_dsn_part(
-        'wait_until_available', None,
+        "wait_until_available",
+        None,
         resolved_config._wait_until_available,
-        resolved_config.set_wait_until_available
+        resolved_config.set_wait_until_available,
     )
 
     resolved_config.add_server_settings(query)
@@ -861,9 +898,9 @@ def _parse_dsn_into_config(
 def _jwt_base64_decode(payload):
     remainder = len(payload) % 4
     if remainder == 2:
-        payload += '=='
+        payload += "=="
     elif remainder == 3:
-        payload += '='
+        payload += "="
     elif remainder != 0:
         raise errors.ClientConnectionError("Invalid secret key")
     payload = base64.urlsafe_b64decode(payload.encode("utf-8"))
@@ -896,7 +933,7 @@ def _parse_cloud_instance_name_into_config(
                 profile = resolved_config._cloud_profile
                 profile_src = resolved_config._cloud_profile_source
             path = config_dir / "cloud-credentials" / f"{profile}.json"
-            with open(path, "rt") as f:
+            with open(path) as f:
                 secret_key = json.load(f)["secret_key"]
         except Exception:
             raise errors.ClientConnectionError(
@@ -912,7 +949,7 @@ def _parse_cloud_instance_name_into_config(
         raise
     except Exception:
         raise errors.ClientConnectionError("Invalid secret key")
-    payload = f"{org_slug}/{instance_name}".encode("utf-8")
+    payload = f"{org_slug}/{instance_name}".encode()
     dns_bucket = binascii.crc_hqx(payload, 0) % 100
     host = f"{label}.c-{dns_bucket:02d}.i.{dns_zone}"
     resolved_config.set_host(host, source)
@@ -950,7 +987,8 @@ def _resolve_config_options(
     if tls_ca_file is not None:
         if tls_ca is not None:
             raise errors.ClientConnectionError(
-                f"{tls_ca[1]} and {tls_ca_file[1]} are mutually exclusive")
+                f"{tls_ca[1]} and {tls_ca_file[1]} are mutually exclusive"
+            )
         resolved_config.set_tls_ca_file(*tls_ca_file)
     if tls_ca is not None:
         resolved_config.set_tls_ca_data(*tls_ca)
@@ -961,7 +999,7 @@ def _resolve_config_options(
     if wait_until_available is not None:
         resolved_config.set_wait_until_available(*wait_until_available)
     if cloud_profile is not None:
-        resolved_config._set_param('cloud_profile', *cloud_profile)
+        resolved_config._set_param("cloud_profile", *cloud_profile)
 
     compound_params = [
         dsn,
@@ -981,9 +1019,9 @@ def _resolve_config_options(
                 resolved_config.set_port(*port)
             if dsn is None:
                 dsn = (
-                    'edgedb://' +
-                    (_prepare_host_for_dsn(host[0]) if host else ''),
-                    host[1] if host is not None else port[1]
+                    "edgedb://"
+                    + (_prepare_host_for_dsn(host[0]) if host else ""),
+                    host[1] if host is not None else port[1],
                 )
             _parse_dsn_into_config(resolved_config, dsn)
         else:
@@ -994,7 +1032,7 @@ def _resolve_config_options(
                 try:
                     cred_data = json.loads(credentials[0])
                 except ValueError as e:
-                    raise RuntimeError(f"cannot read credentials") from e
+                    raise RuntimeError("cannot read credentials") from e
                 else:
                     creds = cred_utils.validate_credentials(cred_data)
                 source = "credentials"
@@ -1016,16 +1054,13 @@ def _resolve_config_options(
                 )
                 return True
 
-            resolved_config.set_host(creds.get('host'), source)
-            resolved_config.set_port(creds.get('port'), source)
-            resolved_config.set_database(creds.get('database'), source)
-            resolved_config.set_user(creds.get('user'), source)
-            resolved_config.set_password(creds.get('password'), source)
-            resolved_config.set_tls_ca_data(creds.get('tls_ca'), source)
-            resolved_config.set_tls_security(
-                creds.get('tls_security'),
-                source
-            )
+            resolved_config.set_host(creds.get("host"), source)
+            resolved_config.set_port(creds.get("port"), source)
+            resolved_config.set_database(creds.get("database"), source)
+            resolved_config.set_user(creds.get("user"), source)
+            resolved_config.set_password(creds.get("password"), source)
+            resolved_config.set_tls_ca_data(creds.get("tls_ca"), source)
+            resolved_config.set_tls_security(creds.get("tls_security"), source)
 
         return True
 
@@ -1038,21 +1073,21 @@ def find_edgedb_project_dir():
     dev = os.stat(dir).st_dev
 
     while True:
-        toml = os.path.join(dir, 'edgedb.toml')
+        toml = os.path.join(dir, "edgedb.toml")
         if not os.path.isfile(toml):
             parent = os.path.dirname(dir)
             if parent == dir:
                 raise errors.ClientConnectionError(
-                    f'no `edgedb.toml` found and '
-                    f'no connection options specified'
+                    "no `edgedb.toml` found and "
+                    "no connection options specified"
                 )
             parent_dev = os.stat(parent).st_dev
             if parent_dev != dev:
                 raise errors.ClientConnectionError(
-                    f'no `edgedb.toml` found and '
-                    f'no connection options specified'
-                    f'(stopped searching for `edgedb.toml` at file system'
-                    f'boundary {dir!r})'
+                    f"no `edgedb.toml` found and "
+                    f"no connection options specified"
+                    f"(stopped searching for `edgedb.toml` at file system"
+                    f"boundary {dir!r})"
                 )
             dir = parent
             dev = parent_dev
@@ -1078,8 +1113,7 @@ def parse_connect_arguments(
     command_timeout,
     wait_until_available,
     server_settings,
-) -> typing.Tuple[ResolvedConnectConfig, ClientConfiguration]:
-
+) -> tuple[ResolvedConnectConfig, ClientConfiguration]:
     if command_timeout is not None:
         try:
             if isinstance(command_timeout, bool):
@@ -1089,9 +1123,9 @@ def parse_connect_arguments(
                 raise ValueError
         except ValueError:
             raise ValueError(
-                'invalid command_timeout value: '
-                'expected greater than 0 float (got {!r})'.format(
-                    command_timeout)) from None
+                "invalid command_timeout value: "
+                f"expected greater than 0 float (got {command_timeout!r})"
+            ) from None
 
     connect_config = _parse_connect_dsn_and_args(
         dsn=dsn,
@@ -1120,7 +1154,7 @@ def parse_connect_arguments(
 
 
 def check_alpn_protocol(ssl_obj):
-    if ssl_obj.selected_alpn_protocol() != 'edgedb-binary':
+    if ssl_obj.selected_alpn_protocol() != "edgedb-binary":
         raise errors.ClientConnectionFailedError(
             "The server doesn't support the edgedb-binary protocol."
         )
@@ -1129,18 +1163,18 @@ def check_alpn_protocol(ssl_obj):
 def render_client_no_connection_error(prefix, addr, attempts, duration):
     if isinstance(addr, str):
         msg = (
-            f'{prefix}'
-            f'\n\tAfter {attempts} attempts in {duration:.1f} sec'
-            f'\n\tIs the server running locally and accepting '
-            f'\n\tconnections on Unix domain socket {addr!r}?'
+            f"{prefix}"
+            f"\n\tAfter {attempts} attempts in {duration:.1f} sec"
+            f"\n\tIs the server running locally and accepting "
+            f"\n\tconnections on Unix domain socket {addr!r}?"
         )
     else:
         msg = (
-            f'{prefix}'
-            f'\n\tAfter {attempts} attempts in {duration:.1f} sec'
-            f'\n\tIs the server running on host {addr[0]!r} '
-            f'and accepting '
-            f'\n\tTCP/IP connections on port {addr[1]}?'
+            f"{prefix}"
+            f"\n\tAfter {attempts} attempts in {duration:.1f} sec"
+            f"\n\tIs the server running on host {addr[0]!r} "
+            f"and accepting "
+            f"\n\tTCP/IP connections on port {addr[1]}?"
         )
     return msg
 
@@ -1168,7 +1202,7 @@ def wrap_error(e):
         errnos = [e.errno]
 
     if errnos:
-        is_temp = any((code in TEMPORARY_ERROR_CODES for code in errnos))
+        is_temp = any(code in TEMPORARY_ERROR_CODES for code in errnos)
     else:
         is_temp = isinstance(e, TEMPORARY_ERRORS)
 

@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import annotations
 
 import argparse
 import sys
@@ -66,7 +66,7 @@ parser.add_argument(
     choices=["blocking", "async"],
     nargs="*",
     default=["async"],
-    help="Choose one or more targets to generate code (default is async)."
+    help="Choose one or more targets to generate code (default is async).",
 )
 if sys.version_info[:2] >= (3, 9):
     parser.add_argument(
@@ -88,7 +88,7 @@ else:
         action="store_false",
         default=False,
         help="Add a mixin to generated dataclasses "
-             "to skip Pydantic validation (default is to add the mixin).",
+        "to skip Pydantic validation (default is to add the mixin).",
     )
 
 

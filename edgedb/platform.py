@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import functools
 import os
 import pathlib
 import sys
 
 if sys.platform == "darwin":
+
     def config_dir() -> pathlib.Path:
         return (
             pathlib.Path.home() / "Library" / "Application Support" / "edgedb"
@@ -24,6 +27,7 @@ elif sys.platform == "win32":
     IS_WINDOWS = True
 
 else:
+
     def config_dir() -> pathlib.Path:
         xdg_conf_dir = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", "."))
         if not xdg_conf_dir.is_absolute():

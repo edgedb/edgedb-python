@@ -20,13 +20,12 @@ from edgedb import _testbase as tb
 
 
 class TestConfigMemory(tb.SyncQueryTestCase):
-
     async def test_config_memory_01(self):
         if (
             self.client.query_required_single(
-                "select exists "
-                "(select schema::Type filter .name = 'cfg::memory')"
-            ) is False
+                "select exists " "(select schema::Type filter .name = 'cfg::memory')"
+            )
+            is False
         ):
             self.skipTest("feature not implemented")
 
@@ -44,29 +43,31 @@ class TestConfigMemory(tb.SyncQueryTestCase):
 
         # Test that ConfigMemory.__str__ formats the
         # same as <str><cfg::memory>
-        mem_tuples = self.client.query('''
+        mem_tuples = self.client.query(
+            """
             WITH args := array_unpack(<array<str>>$0)
             SELECT (
                 <cfg::memory>args,
                 <str><cfg::memory>args,
                 <int64><cfg::memory>args
             );
-        ''', mem_strs)
+        """,
+            mem_strs,
+        )
 
         mem_vals = [t[0] for t in mem_tuples]
 
         # Test encode/decode roundtrip
-        roundtrip = self.client.query('''
+        roundtrip = self.client.query(
+            """
             WITH args := array_unpack(<array<cfg::memory>>$0)
             SELECT args;
-        ''', mem_vals)
-
-        self.assertEqual(
-            [str(t[0]) for t in mem_tuples],
-            [t[1] for t in mem_tuples]
+        """,
+            mem_vals,
         )
+
+        self.assertEqual([str(t[0]) for t in mem_tuples], [t[1] for t in mem_tuples])
         self.assertEqual(
-            [t[0].as_bytes() for t in mem_tuples],
-            [t[2] for t in mem_tuples]
+            [t[0].as_bytes() for t in mem_tuples], [t[2] for t in mem_tuples]
         )
         self.assertEqual(list(roundtrip), mem_vals)

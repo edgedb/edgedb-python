@@ -45,48 +45,62 @@ class TestCredentials(unittest.TestCase):
 
     def test_credentials_read(self):
         creds = credentials.read_credentials(
-            pathlib.Path(__file__).parent / 'credentials1.json')
-        self.assertEqual(creds, {
-            'database': 'test3n',
-            'password': 'lZTBy1RVCfOpBAOwSCwIyBIR',
-            'port': 10702,
-            'user': 'test3n',
-        })
+            pathlib.Path(__file__).parent / "credentials1.json"
+        )
+        self.assertEqual(
+            creds,
+            {
+                "database": "test3n",
+                "password": "lZTBy1RVCfOpBAOwSCwIyBIR",
+                "port": 10702,
+                "user": "test3n",
+            },
+        )
 
     def test_credentials_empty(self):
-        with self.assertRaisesRegex(ValueError, '`user` key is required'):
+        with self.assertRaisesRegex(ValueError, "`user` key is required"):
             credentials.validate_credentials({})
 
     def test_credentials_port(self):
-        with self.assertRaisesRegex(ValueError, 'invalid `port` value'):
-            credentials.validate_credentials({
-                'user': 'u1',
-                'port': '1234',
-            })
+        with self.assertRaisesRegex(ValueError, "invalid `port` value"):
+            credentials.validate_credentials(
+                {
+                    "user": "u1",
+                    "port": "1234",
+                }
+            )
 
-        with self.assertRaisesRegex(ValueError, 'invalid `port` value'):
-            credentials.validate_credentials({
-                'user': 'u1',
-                'port': 0,
-            })
+        with self.assertRaisesRegex(ValueError, "invalid `port` value"):
+            credentials.validate_credentials(
+                {
+                    "user": "u1",
+                    "port": 0,
+                }
+            )
 
-        with self.assertRaisesRegex(ValueError, 'invalid `port` value'):
-            credentials.validate_credentials({
-                'user': 'u1',
-                'port': -1,
-            })
+        with self.assertRaisesRegex(ValueError, "invalid `port` value"):
+            credentials.validate_credentials(
+                {
+                    "user": "u1",
+                    "port": -1,
+                }
+            )
 
-        with self.assertRaisesRegex(ValueError, 'invalid `port` value'):
-            credentials.validate_credentials({
-                'user': 'u1',
-                'port': 65536,
-            })
+        with self.assertRaisesRegex(ValueError, "invalid `port` value"):
+            credentials.validate_credentials(
+                {
+                    "user": "u1",
+                    "port": 65536,
+                }
+            )
 
     def test_credentials_extra_key(self):
-        creds = credentials.validate_credentials(dict(
-            user='user1',
-            some_extra_data='test',
-        ))
+        creds = credentials.validate_credentials(
+            dict(
+                user="user1",
+                some_extra_data="test",
+            )
+        )
         # extra keys are ignored for forward compatibility
         # but aren't exported through validator
         self.assertEqual(creds, {"user": "user1", "port": 5656})
@@ -97,7 +111,9 @@ class TestCredentials(unittest.TestCase):
         importlib.reload(platform)
         home_method.return_value = pathlib.PurePosixPath("/Users/edgedb")
         with mock.patch(
-            "pathlib.PurePosixPath.exists", lambda x: True, create=True,
+            "pathlib.PurePosixPath.exists",
+            lambda x: True,
+            create=True,
         ):
             self.assertEqual(
                 str(credentials.get_credentials_path("test")),
@@ -105,7 +121,9 @@ class TestCredentials(unittest.TestCase):
                 "edgedb/credentials/test.json",
             )
         with mock.patch(
-            "pathlib.PurePosixPath.exists", _MockExists(), create=True,
+            "pathlib.PurePosixPath.exists",
+            _MockExists(),
+            create=True,
         ):
             self.assertEqual(
                 str(credentials.get_credentials_path("test")),
@@ -124,9 +142,7 @@ class TestCredentials(unittest.TestCase):
         windll.shell32 = mock.Mock()
         windll.shell32.SHGetFolderPathW = get_folder_path
 
-        with mock.patch(
-            "pathlib.PureWindowsPath.exists", lambda x: True, create=True
-        ):
+        with mock.patch("pathlib.PureWindowsPath.exists", lambda x: True, create=True):
             self.assertEqual(
                 str(credentials.get_credentials_path("test")),
                 r"c:\Users\edgedb\AppData\Local"
@@ -135,7 +151,7 @@ class TestCredentials(unittest.TestCase):
         with mock.patch(
             "pathlib.PureWindowsPath.exists", _MockExists(), create=True
         ), mock.patch(
-            'pathlib.PureWindowsPath.home',
+            "pathlib.PureWindowsPath.home",
             lambda: pathlib.PureWindowsPath(r"c:\Users\edgedb"),
             create=True,
         ):
@@ -152,16 +168,12 @@ class TestCredentials(unittest.TestCase):
     )
     def test_get_credentials_path_linux_xdg(self):
         importlib.reload(platform)
-        with mock.patch(
-            "pathlib.PurePosixPath.exists", lambda x: True, create=True
-        ):
+        with mock.patch("pathlib.PurePosixPath.exists", lambda x: True, create=True):
             self.assertEqual(
                 str(credentials.get_credentials_path("test")),
                 "/home/edgedb/.config/edgedb/credentials/test.json",
             )
-        with mock.patch(
-            "pathlib.PurePosixPath.exists", _MockExists(), create=True
-        ):
+        with mock.patch("pathlib.PurePosixPath.exists", _MockExists(), create=True):
             pathlib.PurePosixPath.home.return_value = pathlib.PurePosixPath(
                 "/home/edgedb"
             )
@@ -178,16 +190,12 @@ class TestCredentials(unittest.TestCase):
         importlib.reload(platform)
         home_method.return_value = pathlib.PurePosixPath("/home/edgedb")
 
-        with mock.patch(
-            "pathlib.PurePosixPath.exists", lambda x: True, create=True
-        ):
+        with mock.patch("pathlib.PurePosixPath.exists", lambda x: True, create=True):
             self.assertEqual(
                 str(credentials.get_credentials_path("test")),
                 "/home/edgedb/.config/edgedb/credentials/test.json",
             )
-        with mock.patch(
-            "pathlib.PurePosixPath.exists", _MockExists(), create=True
-        ):
+        with mock.patch("pathlib.PurePosixPath.exists", _MockExists(), create=True):
             self.assertEqual(
                 str(credentials.get_credentials_path("test")),
                 "/home/edgedb/.edgedb/credentials/test.json",

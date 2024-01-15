@@ -52,7 +52,3 @@ required-imports = ["from __future__ import annotations"]
 [tool.ruff.pydocstyle]
 # Use Google-style docstrings.
 convention = "google"
-
-[tool.ruff.format]
-# Prefer single quotes over double quotes.
-quote-style = "single"
