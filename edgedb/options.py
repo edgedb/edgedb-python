@@ -182,7 +182,7 @@ class State:
         )
 
     def resolve(self, name: str) -> str:
-        parts = name.split("::")
+        parts = name.split("::", 1)
         if len(parts) == 1:
             return f"{self._module or 'default'}::{name}"
         elif len(parts) == 2:
@@ -190,7 +190,7 @@ class State:
             mod = self._aliases.get(mod, mod)
             return f"{mod}::{name}"
         else:
-            raise errors.InvalidArgumentError(f"Illegal name: {name}")
+            raise AssertionError('broken split')
 
     def with_globals(self, *args, **globals_):
         if len(args) > 1:
