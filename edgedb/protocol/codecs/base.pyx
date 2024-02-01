@@ -271,10 +271,20 @@ cdef class BaseNamedRecordCodec(BaseRecordCodec):
         for i in range(objlen):
             if is_dict:
                 name = datatypes.record_desc_pointer_name(self.descriptor, i)
-                item = obj[name]
+                try:
+                    item = obj[name]
+                except KeyError:
+                    raise ValueError(
+                        f"named tuple dict is missing '{name}' key",
+                    ) from None
             elif is_namedtuple:
                 name = datatypes.record_desc_pointer_name(self.descriptor, i)
-                item = getattr(obj, name)
+                try:
+                    item = getattr(obj, name)
+                except AttributeError:
+                    raise ValueError(
+                        f"named tuple is missing '{name}' attribute",
+                    ) from None
             else:
                 item = obj[i]
 

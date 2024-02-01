@@ -19,6 +19,7 @@
 
 from collections import namedtuple, UserDict
 
+import edgedb
 from edgedb import _testbase as tb
 
 
@@ -36,3 +37,16 @@ class TestNamedTupleTypes(tb.SyncQueryTestCase):
             ''', val)
 
             self.assertEqual(res, (10, 'y'))
+
+    async def test_namedtuple_02(self):
+        NT1 = namedtuple('NT2', ['x', 'z'])
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError, 'is missing'):
+            self.client.query_single('''
+                select <tuple<x: int64, y: str>>$0
+            ''', dict(x=20, z='test'))
+
+        with self.assertRaisesRegex(edgedb.InvalidArgumentError, 'is missing'):
+            self.client.query_single('''
+                select <tuple<x: int64, y: str>>$0
+            ''', NT1(x=20, z='test'))
