@@ -36,6 +36,9 @@ class TestGlobals(tb.AsyncQueryTestCase):
             CREATE GLOBAL def_glob -> str {
                 SET default := '!';
             };
+            CREATE MODULE foo;
+            CREATE MODULE foo::bar;
+            CREATE GLOBAL foo::bar::baz -> str;
         ''')
 
         async with db.with_globals(glob='test') as gdb:
@@ -60,6 +63,10 @@ class TestGlobals(tb.AsyncQueryTestCase):
         async with db.with_globals(def_glob=None) as gdb:
             x = await gdb.query_single('select global def_glob')
             self.assertEqual(x, None)
+
+        async with db.with_globals({'foo::bar::baz': 'asdf'}) as gdb:
+            x = await gdb.query_single('select global foo::bar::baz')
+            self.assertEqual(x, 'asdf')
 
     async def test_client_state_mismatch(self):
         db = self.client
