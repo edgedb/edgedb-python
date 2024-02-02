@@ -19,6 +19,8 @@
 
 import codecs
 
+from collections.abc import Mapping as MappingABC
+
 
 cdef uint64_t RECORD_ENCODER_CHECKED = 1 << 0
 cdef uint64_t RECORD_ENCODER_INVALID = 1 << 1
@@ -225,6 +227,86 @@ cdef class BaseNamedRecordCodec(BaseRecordCodec):
                 (<BaseCodec>codec).dump(level + 1).strip()))
         return '\n'.join(buf)
 
+    cdef encode(self, WriteBuffer buf, object obj):
+        cdef:
+            WriteBuffer elem_data
+            Py_ssize_t objlen
+            Py_ssize_t i
+            BaseCodec sub_codec
+            Py_ssize_t is_dict
+            Py_ssize_t is_namedtuple
+
+        self._check_encoder()
+
+        # We check in this order (dict, _is_array_iterable,
+        # MappingABC) so that in the common case of dict or tuple, we
+        # never do an ABC check.
+        if cpython.PyDict_Check(obj):
+            is_dict = True
+        elif _is_array_iterable(obj):
+            is_dict = False
+        elif isinstance(obj, MappingABC):
+            is_dict = True
+        else:
+            raise TypeError(
+                'a sized iterable container or mapping '
+                'expected (got type {!r})'.format(
+                    type(obj).__name__))
+        is_namedtuple = not is_dict and hasattr(obj, '_fields')
+
+        objlen = len(obj)
+        if objlen == 0:
+            buf.write_bytes(EMPTY_RECORD_DATA)
+            return
+
+        if objlen > _MAXINT32:
+            raise ValueError('too many elements for a tuple')
+
+        if objlen != len(self.fields_codecs):
+            raise ValueError(
+                f'expected {len(self.fields_codecs)} elements in the tuple, '
+                f'got {objlen}')
+
+        elem_data = WriteBuffer.new()
+        for i in range(objlen):
+            if is_dict:
+                name = datatypes.record_desc_pointer_name(self.descriptor, i)
+                try:
+                    item = obj[name]
+                except KeyError:
+                    raise ValueError(
+                        f"named tuple dict is missing '{name}' key",
+                    ) from None
+            elif is_namedtuple:
+                name = datatypes.record_desc_pointer_name(self.descriptor, i)
+                try:
+                    item = getattr(obj, name)
+                except AttributeError:
+                    raise ValueError(
+                        f"named tuple is missing '{name}' attribute",
+                    ) from None
+            else:
+                item = obj[i]
+
+            elem_data.write_int32(0)  # reserved bytes
+            if item is None:
+                elem_data.write_int32(-1)
+            else:
+                sub_codec = <BaseCodec>(self.fields_codecs[i])
+                try:
+                    sub_codec.encode(elem_data, item)
+                except (TypeError, ValueError) as e:
+                    value_repr = repr(item)
+                    if len(value_repr) > 40:
+                        value_repr = value_repr[:40] + '...'
+                    raise errors.InvalidArgumentError(
+                        'invalid input for query argument'
+                        ' ${n}: {v} ({msg})'.format(
+                            n=i, v=value_repr, msg=e)) from e
+
+        buf.write_int32(4 + elem_data.len())  # buffer length
+        buf.write_int32(<int32_t><uint32_t>objlen)
+        buf.write_buffer(elem_data)
 
 @cython.final
 cdef class EdegDBCodecContext(pgproto.CodecContext):
