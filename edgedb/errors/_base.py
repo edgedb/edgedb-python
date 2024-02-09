@@ -125,6 +125,11 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         # not a stable API method
         return self._read_str_field(FIELD_HINT)
 
+    @property
+    def _details(self):
+        # not a stable API method
+        return self._read_str_field(FIELD_DETAILS)
+
     def _read_str_field(self, key, default=None):
         val = self._attrs.get(key)
         if val:
@@ -156,6 +161,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
                     self._line if self._line > 0 else "?",
                     self._col if self._col > 0 else "?",
                     self._hint or "error",
+                    self._details,
                 )
             except Exception:
                 return "".join(
@@ -226,7 +232,7 @@ def _severity_name(severity):
     return 'PANIC'
 
 
-def _format_error(msg, query, start, offset, line, col, hint):
+def _format_error(msg, query, start, offset, line, col, hint, details):
     c = get_color()
     rv = io.StringIO()
     rv.write(f"{c.BOLD}{msg}{c.ENDC}{LINESEP}")
@@ -278,6 +284,10 @@ def _format_error(msg, query, start, offset, line, col, hint):
                 rv.write(f"{c.BLUE}{'':>{num_len}} │ "
                          f"{c.FAIL}╰─{'─' * (size - 1)}^ {hint}{c.ENDC}")
             break
+
+    if details:
+        rv.write(f"{LINESEP}Details: {details}")
+
     return rv.getvalue()
 
 
