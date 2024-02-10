@@ -34,12 +34,16 @@ ASSERT_SUFFIX = os.environ.get("EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX", ".assert4")
 class TestCodegen(tb.AsyncQueryTestCase):
     SETUP = '''
         create extension pgvector;
+        create extension pgsparse;
         create scalar type v3 extending ext::pgvector::vector<3>;
+        create scalar type sv3 extending ext::pgsparse::vector<3>;
     '''
 
     TEARDOWN = '''
         drop scalar type v3;
+        drop scalar type sv3;
         drop extension pgvector;
+        drop extension pgsparse;
     '''
 
     async def test_codegen(self):

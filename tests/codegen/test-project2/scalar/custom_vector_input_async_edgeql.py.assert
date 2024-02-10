@@ -7,17 +7,22 @@ import edgedb
 import typing
 
 
-Input = typing.Sequence[float]
+Input0 = typing.Sequence[float]
+Input1 = typing.Sequence[float]
 
 
 async def custom_vector_input(
     executor: edgedb.AsyncIOExecutor,
     *,
-    input: typing.Optional[Input] = None,
+    input0: typing.Optional[Input0] = None,
+    input1: typing.Optional[Input1] = None,
 ) -> typing.Optional[int]:
     return await executor.query_single(
         """\
-        select 42 filter exists <optional v3>$input;\
+        select 42 filter
+            exists <optional v3>$input0
+            or exists <optional sv3>$input1;\
         """,
-        input=input,
+        input0=input0,
+        input1=input1,
     )

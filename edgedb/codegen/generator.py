@@ -68,6 +68,7 @@ TYPE_MAPPING = {
     "cal::date_duration": "edgedb.DateDuration",
     "cfg::memory": "edgedb.ConfigMemory",
     "ext::pgvector::vector": "array.array",
+    "ext::pgsparse::vector": "array.array",
 }
 
 TYPE_IMPORTS = {
@@ -79,12 +80,14 @@ TYPE_IMPORTS = {
     "cal::local_time": "datetime",
     "cal::local_datetime": "datetime",
     "ext::pgvector::vector": "array",
+    "ext::pgsparse::vector": "array",
 }
 
 INPUT_TYPE_MAPPING = TYPE_MAPPING.copy()
 INPUT_TYPE_MAPPING.update(
     {
         "ext::pgvector::vector": "typing.Sequence[float]",
+        "ext::pgsparse::vector": "typing.Sequence[float]",
     }
 )
 
@@ -92,6 +95,7 @@ INPUT_TYPE_IMPORTS = TYPE_IMPORTS.copy()
 INPUT_TYPE_IMPORTS.update(
     {
         "ext::pgvector::vector": "typing",
+        "ext::pgsparse::vector": "typing",
     }
 )
 

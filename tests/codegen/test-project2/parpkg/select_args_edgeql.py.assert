@@ -25,8 +25,8 @@ def select_args(
     return executor.query_single(
         """\
         select {
-        	Str := <str>$arg_str,
-        	DateTime := <datetime>$arg_datetime,
+            Str := <str>$arg_str,
+            DateTime := <datetime>$arg_datetime,
         }\
         """,
         arg_str=arg_str,
