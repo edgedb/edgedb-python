@@ -798,6 +798,113 @@ cdef pgvector_decode(pgproto.CodecContext settings, FRBuffer *buf):
     return val
 
 
+# The pg_sparse extension uses a signed int16 when reading dimesion in binary
+# format.
+DEF PGSPARSE_MAX_DIM = (1 << 15) - 1
+
+
+cdef pgsparse_encode(pgproto.CodecContext settings, WriteBuffer buf,
+                     object obj):
+    cdef:
+        int16_t n_elem = 0
+        int64_t dim
+        Py_ssize_t i
+        float[:] memview
+
+    # If we can take a typed memview of the object, we use that.
+    # That is good, because it means we can consume array.array and
+    # numpy.ndarray without needing to unbox.
+    # Otherwise we take the slow path, indexing into the array using
+    # the normal protocol.
+    try:
+        memview = obj
+    except (ValueError, TypeError) as e:
+        pass
+    else:
+        # The actual dimentionality of the vector is the size of the raw array
+        dim = len(memview)
+        if dim > PGSPARSE_MAX_DIM:
+            raise ValueError('too many elements in vector value')
+
+        # First pass to count the number of non-zero elements
+        for i in range(dim):
+            if memview[i] != 0:
+                n_elem += 1
+
+        buf.write_int32(6 + n_elem*8)
+        buf.write_int16(n_elem)
+        buf.write_int16(<int16_t>dim)
+        buf.write_int16(0)
+        # Second pass will write the actual non-zero elements
+        for i in range(dim):
+            if memview[i] != 0:
+                buf.write_int32(i)
+                buf.write_float(memview[i])
+        return
+
+    # Annoyingly, this is literally identical code to the fast path...
+    # but the types are different in critical ways.
+    if not _is_array_iterable(obj):
+        raise TypeError(
+            'a sized iterable container expected (got type {!r})'.format(
+                type(obj).__name__))
+
+    # The actual dimentionality of the vector is the size of the raw array
+    dim = len(obj)
+    if dim > PGSPARSE_MAX_DIM:
+        raise ValueError('too many elements in vector value')
+
+    # First pass to count the number of non-zero elements
+    for i in range(dim):
+        if obj[i] != 0:
+            n_elem += 1
+
+    buf.write_int32(6 + n_elem*8)
+    buf.write_int16(n_elem)
+    buf.write_int16(dim)
+    buf.write_int16(0)
+    # Second pass will write the actual non-zero elements
+    for i in range(dim):
+        if obj[i] != 0:
+            buf.write_int32(i)
+            buf.write_float(obj[i])
+
+
+cdef pgsparse_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        int16_t n_elem
+        int16_t dim
+        Py_ssize_t i
+        int32_t index
+        float[::1] array_view
+
+    n_elem = hton.unpack_int16(frb_read(buf, 2))
+    dim = hton.unpack_int16(frb_read(buf, 2))
+    frb_read(buf, 2)
+
+    # Create a float array with size dim
+    val = ONE_EL_ARRAY * dim
+    array_view = val
+
+    # The underlying sparse Vector representation supports int32 as the
+    # dimension and index, but when converting to binary format the dimensions
+    # are maxed out at int16. So indexes beyond the truncated dimension will
+    # cause an exception.
+    if dim < 0:
+        # This is actually an indicator of overflow when converting from int32
+        # down to int16.
+        raise ValueError('too many elements in vector value')
+    try:
+        # Fill the non-zero elements
+        for i in range(n_elem):
+            index = hton.unpack_int32(frb_read(buf, 4))
+            array_view[index] = hton.unpack_float(frb_read(buf, 4))
+    except IndexError:
+        raise ValueError('too many elements in vector value')
+
+    return val
+
+
 cdef checked_decimal_encode(
     pgproto.CodecContext settings, WriteBuffer buf, obj
 ):
@@ -1005,6 +1112,13 @@ cdef register_base_scalar_codecs():
         pgvector_encode,
         pgvector_decode,
         uuid.UUID('9565dd88-04f5-11ee-a691-0b6ebe179825'),
+    )
+
+    register_base_scalar_codec(
+        'ext::pgsparse::vector',
+        pgsparse_encode,
+        pgsparse_decode,
+        uuid.UUID('b646ace0-266d-47ce-8263-1224c38a4a12'),
     )
 
 
