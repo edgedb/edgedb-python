@@ -7,13 +7,13 @@ import edgedb
 import typing
 
 
-Input = typing.Sequence[float]
+V3 = typing.Sequence[float]
 
 
 async def custom_vector_input(
     executor: edgedb.AsyncIOExecutor,
     *,
-    input: typing.Optional[Input] = None,
+    input: typing.Optional[V3] = None,
 ) -> typing.Optional[int]:
     return await executor.query_single(
         """\
