@@ -133,7 +133,7 @@ jobs:
     - uses: pypa/cibuildwheel@v2.12.3
       with:
         only: ${{ matrix.only }}
-        config-file: ''
+        config-file: 'pyproject.toml'
       env:
         CIBW_BUILD_VERBOSITY: 1
         CIBW_BEFORE_ALL_LINUX: >
