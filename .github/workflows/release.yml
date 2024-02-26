@@ -132,7 +132,8 @@ jobs:
 
     - uses: pypa/cibuildwheel@v2.12.3
       with:
-          only: ${{ matrix.only }}
+        only: ${{ matrix.only }}
+        config-file: ''
       env:
         CIBW_BUILD_VERBOSITY: 1
         CIBW_BEFORE_ALL_LINUX: >
