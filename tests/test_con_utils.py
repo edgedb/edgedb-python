@@ -120,6 +120,7 @@ class TestConUtils(unittest.TestCase):
         host = opts.get('host')
         port = opts.get('port')
         database = opts.get('database')
+        branch = opts.get('branch')
         user = opts.get('user')
         password = opts.get('password')
         secret_key = opts.get('secretKey')
@@ -233,6 +234,7 @@ class TestConUtils(unittest.TestCase):
                 credentials=credentials,
                 credentials_file=credentials_file,
                 database=database,
+                branch=branch,
                 user=user,
                 password=password,
                 secret_key=secret_key,
@@ -250,6 +252,7 @@ class TestConUtils(unittest.TestCase):
                     connect_config.address[0], connect_config.address[1]
                 ],
                 'database': connect_config.database,
+                'branch': connect_config.branch,
                 'user': connect_config.user,
                 'password': connect_config.password,
                 'secretKey': connect_config.secret_key,
@@ -289,7 +292,7 @@ class TestConUtils(unittest.TestCase):
                 if key in os.environ:
                     del os.environ[key]
 
-    def test_test_connect_params_run_testcase(self):
+    def test_test_connect_params_run_testcase_01(self):
         with self.environ(EDGEDB_PORT='777'):
             self.run_testcase({
                 'env': {
@@ -301,6 +304,31 @@ class TestConUtils(unittest.TestCase):
                 'result': {
                     'address': ['abc', 5656],
                     'database': 'edgedb',
+                    'branch': '__default__',
+                    'user': '__test__',
+                    'password': None,
+                    'secretKey': None,
+                    'tlsCAData': None,
+                    'tlsSecurity': 'strict',
+                    'serverSettings': {},
+                    'waitUntilAvailable': 30,
+                },
+            })
+
+    def test_test_connect_params_run_testcase_02(self):
+        with self.environ(EDGEDB_PORT='777'):
+            self.run_testcase({
+                'env': {
+                    'EDGEDB_HOST': 'abc'
+                },
+                'opts': {
+                    'user': '__test__',
+                    'branch': 'new_branch',
+                },
+                'result': {
+                    'address': ['abc', 5656],
+                    'database': 'new_branch',
+                    'branch': 'new_branch',
                     'user': '__test__',
                     'password': None,
                     'secretKey': None,
@@ -399,6 +427,7 @@ class TestConUtils(unittest.TestCase):
                         password=None,
                         secret_key=None,
                         database=None,
+                        branch=None,
                         tls_ca=None,
                         tls_ca_file=None,
                         tls_security=None,

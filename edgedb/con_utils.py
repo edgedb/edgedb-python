@@ -181,8 +181,14 @@ class ResolvedConnectConfig:
     _port = None
     _port_source = None
 
+    # We keep track of database and branch separately, because we want to make
+    # sure that all the configuration is consistent and uses one or the other
+    # exclusively.
     _database = None
     _database_source = None
+
+    _branch = None
+    _branch_source = None
 
     _user = None
     _user_source = None
@@ -226,6 +232,9 @@ class ResolvedConnectConfig:
     def set_database(self, database, source):
         self._set_param('database', database, source, _validate_database)
 
+    def set_branch(self, branch, source):
+        self._set_param('branch', branch, source, _validate_branch)
+
     def set_user(self, user, source):
         self._set_param('user', user, source, _validate_user)
 
@@ -268,9 +277,24 @@ class ResolvedConnectConfig:
             self._port if self._port else 5656
         )
 
+    # The properties actually merge database and branch, but "default" is
+    # different. If you need to know the underlying config use the _database
+    # and _branch.
     @property
     def database(self):
-        return self._database if self._database else 'edgedb'
+        return (
+            self._database if self._database else
+            self._branch if self._branch else
+            'edgedb'
+        )
+
+    @property
+    def branch(self):
+        return (
+            self._database if self._database else
+            self._branch if self._branch else
+            '__default__'
+        )
 
     @property
     def user(self):
@@ -389,6 +413,12 @@ def _validate_database(database):
     if database == '':
         raise ValueError(f'invalid database name: {database}')
     return database
+
+
+def _validate_branch(branch):
+    if branch == '':
+        raise ValueError(f'invalid branch name: {branch}')
+    return branch
 
 
 def _validate_user(user):
@@ -521,6 +551,7 @@ def _parse_connect_dsn_and_args(
     password,
     secret_key,
     database,
+    branch,
     tls_ca,
     tls_ca_file,
     tls_security,
@@ -556,6 +587,10 @@ def _parse_connect_dsn_and_args(
         database=(
             (database, '"database" option')
             if database is not None else None
+        ),
+        branch=(
+            (branch, '"branch" option')
+            if branch is not None else None
         ),
         user=(user, '"user" option') if user is not None else None,
         password=(
@@ -604,6 +639,7 @@ def _parse_connect_dsn_and_args(
         env_credentials_file = os.getenv('EDGEDB_CREDENTIALS_FILE')
         env_host = os.getenv('EDGEDB_HOST')
         env_database = os.getenv('EDGEDB_DATABASE')
+        env_branch = os.getenv('EDGEDB_BRANCH')
         env_user = os.getenv('EDGEDB_USER')
         env_password = os.getenv('EDGEDB_PASSWORD')
         env_secret_key = os.getenv('EDGEDB_SECRET_KEY')
@@ -642,6 +678,10 @@ def _parse_connect_dsn_and_args(
             database=(
                 (env_database, '"EDGEDB_DATABASE" environment variable')
                 if env_database is not None else None
+            ),
+            branch=(
+                (env_branch, '"EDGEDB_BRANCH" environment variable')
+                if env_branch is not None else None
             ),
             user=(
                 (env_user, '"EDGEDB_USER" environment variable')
@@ -818,11 +858,52 @@ def _parse_dsn_into_config(
     def strip_leading_slash(str):
         return str[1:] if str.startswith('/') else str
 
-    handle_dsn_part(
-        'database', strip_leading_slash(database),
-        resolved_config._database, resolved_config.set_database,
-        strip_leading_slash
-    )
+    if (
+        'branch' in query or
+        'branch_env' in query or
+        'branch_file' in query
+    ):
+        if (
+            'database' in query or
+            'database_env' in query or
+            'database_file' in query
+        ):
+            raise ValueError(
+                f"invalid DSN: `database` and `branch` cannot be present "
+                f"at the same time"
+            )
+        if resolved_config._database is not None:
+            raise errors.ClientConnectionError(
+                f"`branch` in DSN and {resolved_config._database_source} "
+                f"are mutually exclusive"
+            )
+        handle_dsn_part(
+            'branch', strip_leading_slash(database),
+            resolved_config._branch, resolved_config.set_branch,
+            strip_leading_slash
+        )
+    else:
+        if resolved_config._branch is not None:
+            if (
+                'database' in query or
+                'database_env' in query or
+                'database_file' in query
+            ):
+                raise errors.ClientConnectionError(
+                    f"`database` in DSN and {resolved_config._branch_source} "
+                    f"are mutually exclusive"
+                )
+            handle_dsn_part(
+                'branch', strip_leading_slash(database),
+                resolved_config._branch, resolved_config.set_branch,
+                strip_leading_slash
+            )
+        else:
+            handle_dsn_part(
+                'database', strip_leading_slash(database),
+                resolved_config._database, resolved_config.set_database,
+                strip_leading_slash
+            )
 
     handle_dsn_part(
         'user', user, resolved_config._user, resolved_config.set_user
@@ -929,6 +1010,7 @@ def _resolve_config_options(
     host=None,
     port=None,
     database=None,
+    branch=None,
     user=None,
     password=None,
     secret_key=None,
@@ -940,7 +1022,23 @@ def _resolve_config_options(
     cloud_profile=None,
 ):
     if database is not None:
+        if branch is not None:
+            raise errors.ClientConnectionError(
+                f"{database[1]} and {branch[1]} are mutually exclusive"
+            )
+        if resolved_config._branch is not None:
+            raise errors.ClientConnectionError(
+                f"{database[1]} and {resolved_config._branch_source} are "
+                f"mutually exclusive"
+            )
         resolved_config.set_database(*database)
+    if branch is not None:
+        if resolved_config._database is not None:
+            raise errors.ClientConnectionError(
+                f"{resolved_config._database_source} and {branch[1]} are "
+                f"mutually exclusive"
+            )
+        resolved_config.set_branch(*branch)
     if user is not None:
         resolved_config.set_user(*user)
     if password is not None:
@@ -950,7 +1048,8 @@ def _resolve_config_options(
     if tls_ca_file is not None:
         if tls_ca is not None:
             raise errors.ClientConnectionError(
-                f"{tls_ca[1]} and {tls_ca_file[1]} are mutually exclusive")
+                f"{tls_ca[1]} and {tls_ca_file[1]} are mutually exclusive"
+            )
         resolved_config.set_tls_ca_file(*tls_ca_file)
     if tls_ca is not None:
         resolved_config.set_tls_ca_data(*tls_ca)
@@ -1018,7 +1117,23 @@ def _resolve_config_options(
 
             resolved_config.set_host(creds.get('host'), source)
             resolved_config.set_port(creds.get('port'), source)
-            resolved_config.set_database(creds.get('database'), source)
+            # We know that credentials have been validated, but they might be
+            # inconsistent with other resolved config settings.
+            if 'database' in creds:
+                if resolved_config._branch is not None:
+                    raise errors.ClientConnectionError(
+                        f"`branch` in configuration and `database` "
+                        f"in credentials are mutually exclusive"
+                    )
+                resolved_config.set_database(creds.get('database'), source)
+
+            elif 'branch' in creds:
+                if resolved_config._database is not None:
+                    raise errors.ClientConnectionError(
+                        f"`database` in configuration and `branch` "
+                        f"in credentials are mutually exclusive"
+                    )
+                resolved_config.set_branch(creds.get('branch'), source)
             resolved_config.set_user(creds.get('user'), source)
             resolved_config.set_password(creds.get('password'), source)
             resolved_config.set_tls_ca_data(creds.get('tls_ca'), source)
@@ -1068,6 +1183,7 @@ def parse_connect_arguments(
     credentials,
     credentials_file,
     database,
+    branch,
     user,
     password,
     secret_key,
@@ -1100,6 +1216,7 @@ def parse_connect_arguments(
         credentials=credentials,
         credentials_file=credentials_file,
         database=database,
+        branch=branch,
         user=user,
         password=password,
         secret_key=secret_key,

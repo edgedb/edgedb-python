@@ -14,7 +14,9 @@ class RequiredCredentials(typing.TypedDict, total=True):
 class Credentials(RequiredCredentials, total=False):
     host: typing.Optional[str]
     password: typing.Optional[str]
+    # Either database or branch may appear in credentials, but not both.
     database: typing.Optional[str]
+    branch: typing.Optional[str]
     tls_ca: typing.Optional[str]
     tls_security: typing.Optional[str]
 
@@ -63,6 +65,15 @@ def validate_credentials(data: dict) -> Credentials:
         if not isinstance(database, str):
             raise ValueError("`database` must be a string")
         result['database'] = database
+
+    branch = data.get('branch')
+    if branch is not None:
+        if not isinstance(branch, str):
+            raise ValueError("`branch` must be a string")
+        if database is not None:
+            raise ValueError(
+                f"`database` and `branch` cannot both be set")
+        result['branch'] = branch
 
     password = data.get('password')
     if password is not None:
