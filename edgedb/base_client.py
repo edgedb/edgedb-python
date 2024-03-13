@@ -118,6 +118,10 @@ class BaseConnection(metaclass=abc.ABCMeta):
     def dbname(self) -> str:
         return self._params.database
 
+    @property
+    def branch(self) -> str:
+        return self._params.branch
+
     @abc.abstractmethod
     def is_closed(self) -> bool:
         ...
@@ -679,6 +683,7 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         password: str = None,
         secret_key: str = None,
         database: str = None,
+        branch: str = None,
         tls_ca: str = None,
         tls_ca_file: str = None,
         tls_security: str = None,
@@ -697,6 +702,7 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
             "password": password,
             "secret_key": secret_key,
             "database": database,
+            "branch": branch,
             "timeout": timeout,
             "tls_ca": tls_ca,
             "tls_ca_file": tls_ca_file,
