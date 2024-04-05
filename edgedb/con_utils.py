@@ -182,8 +182,8 @@ class ResolvedConnectConfig:
     _port_source = None
 
     # We keep track of database and branch separately, because we want to make
-    # sure that all the configuration is consistent and uses one or the other
-    # exclusively.
+    # sure that we don't use both at the same time on the same configuration
+    # level.
     _database = None
     _database_source = None
 
@@ -872,38 +872,34 @@ def _parse_dsn_into_config(
                 f"invalid DSN: `database` and `branch` cannot be present "
                 f"at the same time"
             )
-        if resolved_config._database is not None:
-            raise errors.ClientConnectionError(
-                f"`branch` in DSN and {resolved_config._database_source} "
-                f"are mutually exclusive"
-            )
-        handle_dsn_part(
-            'branch', strip_leading_slash(database),
-            resolved_config._branch, resolved_config.set_branch,
-            strip_leading_slash
-        )
-    else:
-        if resolved_config._branch is not None:
-            if (
-                'database' in query or
-                'database_env' in query or
-                'database_file' in query
-            ):
-                raise errors.ClientConnectionError(
-                    f"`database` in DSN and {resolved_config._branch_source} "
-                    f"are mutually exclusive"
-                )
+        if resolved_config._database is None:
+            # Only update the config if 'database' has not been already
+            # resolved.
             handle_dsn_part(
                 'branch', strip_leading_slash(database),
                 resolved_config._branch, resolved_config.set_branch,
                 strip_leading_slash
             )
         else:
+            # Clean up the query, if config already has 'database'
+            query.pop('branch', None)
+            query.pop('branch_env', None)
+            query.pop('branch_file', None)
+
+    else:
+        if resolved_config._branch is None:
+            # Only update the config if 'branch' has not been already
+            # resolved.
             handle_dsn_part(
                 'database', strip_leading_slash(database),
                 resolved_config._database, resolved_config.set_database,
                 strip_leading_slash
             )
+        else:
+            # Clean up the query, if config already has 'branch'
+            query.pop('database', None)
+            query.pop('database_env', None)
+            query.pop('database_file', None)
 
     handle_dsn_part(
         'user', user, resolved_config._user, resolved_config.set_user
@@ -1026,19 +1022,15 @@ def _resolve_config_options(
             raise errors.ClientConnectionError(
                 f"{database[1]} and {branch[1]} are mutually exclusive"
             )
-        if resolved_config._branch is not None:
-            raise errors.ClientConnectionError(
-                f"{database[1]} and {resolved_config._branch_source} are "
-                f"mutually exclusive"
-            )
-        resolved_config.set_database(*database)
+        if resolved_config._branch is None:
+            # Only update the config if 'branch' has not been already
+            # resolved.
+            resolved_config.set_database(*database)
     if branch is not None:
-        if resolved_config._database is not None:
-            raise errors.ClientConnectionError(
-                f"{resolved_config._database_source} and {branch[1]} are "
-                f"mutually exclusive"
-            )
-        resolved_config.set_branch(*branch)
+        if resolved_config._database is None:
+            # Only update the config if 'database' has not been already
+            # resolved.
+            resolved_config.set_branch(*branch)
     if user is not None:
         resolved_config.set_user(*user)
     if password is not None:
@@ -1117,22 +1109,14 @@ def _resolve_config_options(
 
             resolved_config.set_host(creds.get('host'), source)
             resolved_config.set_port(creds.get('port'), source)
-            # We know that credentials have been validated, but they might be
-            # inconsistent with other resolved config settings.
-            if 'database' in creds:
-                if resolved_config._branch is not None:
-                    raise errors.ClientConnectionError(
-                        f"`branch` in configuration and `database` "
-                        f"in credentials are mutually exclusive"
-                    )
+            if 'database' in creds and resolved_config._branch is None:
+                # Only update the config if 'branch' has not been already
+                # resolved.
                 resolved_config.set_database(creds.get('database'), source)
 
-            elif 'branch' in creds:
-                if resolved_config._database is not None:
-                    raise errors.ClientConnectionError(
-                        f"`database` in configuration and `branch` "
-                        f"in credentials are mutually exclusive"
-                    )
+            elif 'branch' in creds and resolved_config._database is None:
+                # Only update the config if 'database' has not been already
+                # resolved.
                 resolved_config.set_branch(creds.get('branch'), source)
             resolved_config.set_user(creds.get('user'), source)
             resolved_config.set_password(creds.get('password'), source)
