@@ -56,11 +56,15 @@ class BaseEdgeDBAI:
         branch = params.branch
         self.options = options
         self.context = types.QueryContext(**kwargs)
-        self._init_client(
+        args = dict(
             base_url=f"{proto}://{host}:{port}/branch/{branch}/ext/ai",
-            auth=(params.user, params.password),
             verify=params.ssl_ctx,
         )
+        if params.password is not None:
+            args["auth"] = (params.user, params.password)
+        elif params.secret_key is not None:
+            args["headers"] = {"Authorization": f"Bearer {params.secret_key}"}
+        self._init_client(**args)
 
     def _init_client(self, **kwargs):
         raise NotImplementedError
