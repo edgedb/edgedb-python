@@ -59,7 +59,13 @@ DOC_DEPENDENCIES = [
     'sphinx_rtd_theme~=1.0.0',
 ]
 
+AI_DEPENDENCIES = [
+    'httpx~=0.27.0',
+    'httpx-sse~=0.4.0',
+]
+
 EXTRA_DEPENDENCIES = {
+    'ai': AI_DEPENDENCIES,
     'docs': DOC_DEPENDENCIES,
     'test': TEST_DEPENDENCIES,
     # Dependencies required to develop edgedb.
