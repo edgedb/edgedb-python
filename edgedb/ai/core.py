@@ -49,9 +49,9 @@ class BaseEdgeDBAI:
         options: types.AIOptions,
         **kwargs,
     ):
-        pool = getattr(client, "_impl")
-        host, port = getattr(pool, "_working_addr")
-        params = getattr(pool, "_working_params")
+        pool = client._impl
+        host, port = pool._working_addr
+        params = pool._working_params
         proto = "http" if params.tls_security == "insecure" else "https"
         branch = params.branch
         self.options = options

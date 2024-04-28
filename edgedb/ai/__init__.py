@@ -19,3 +19,14 @@
 from .types import AIOptions, ChatParticipantRole, Prompt, QueryContext
 from .core import create_AI, EdgeDBAI
 from .core import create_async_AI, AsyncEdgeDBAI
+
+__all__ = [
+    "AIOptions",
+    "ChatParticipantRole",
+    "Prompt",
+    "QueryContext",
+    "create_AI",
+    "EdgeDBAI",
+    "create_async_AI",
+    "AsyncEdgeDBAI",
+]
