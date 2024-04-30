@@ -26,12 +26,12 @@ import httpx_sse
 from . import types
 
 
-def create_AI(client: edgedb.Client, **kwargs) -> EdgeDBAI:
+def create_ai(client: edgedb.Client, **kwargs) -> EdgeDBAI:
     client.ensure_connected()
     return EdgeDBAI(client, types.AIOptions(**kwargs))
 
 
-async def create_async_AI(
+async def create_async_ai(
     client: edgedb.AsyncIOClient, **kwargs
 ) -> AsyncEdgeDBAI:
     await client.ensure_connected()

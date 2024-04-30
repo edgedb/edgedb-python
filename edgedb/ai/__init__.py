@@ -17,16 +17,16 @@
 #
 
 from .types import AIOptions, ChatParticipantRole, Prompt, QueryContext
-from .core import create_AI, EdgeDBAI
-from .core import create_async_AI, AsyncEdgeDBAI
+from .core import create_ai, EdgeDBAI
+from .core import create_async_ai, AsyncEdgeDBAI
 
 __all__ = [
     "AIOptions",
     "ChatParticipantRole",
     "Prompt",
     "QueryContext",
-    "create_AI",
+    "create_ai",
     "EdgeDBAI",
-    "create_async_AI",
+    "create_async_ai",
     "AsyncEdgeDBAI",
 ]
