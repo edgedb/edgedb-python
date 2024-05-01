@@ -138,7 +138,7 @@ class EdgeDBAI(BaseEdgeDBAI):
             for sse in event_source.iter_sse():
                 yield sse.data
 
-    def generate_custom_embeddings(self, *inputs: str, model: str):
+    def generate_embeddings(self, *inputs: str, model: str):
         resp = self.client.post(
             "/embeddings", json={"input": inputs, "model": model}
         )
@@ -181,7 +181,7 @@ class AsyncEdgeDBAI(BaseEdgeDBAI):
             async for sse in event_source.aiter_sse():
                 yield sse.data
 
-    async def generate_custom_embeddings(self, *inputs: str, model: str):
+    async def generate_embeddings(self, *inputs: str, model: str):
         resp = await self.client.post(
             "/embeddings", json={"input": inputs, "model": model}
         )
