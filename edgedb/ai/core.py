@@ -85,6 +85,23 @@ class BaseEdgeDBAI:
         rv.client = self.client
         return rv
 
+    def _make_rag_request(
+        self,
+        *,
+        message: str,
+        context: typing.Optional[types.QueryContext] = None,
+        stream: bool,
+    ) -> types.RAGRequest:
+        if context is None:
+            context = self.context
+        return types.RAGRequest(
+            model=self.options.model,
+            prompt=self.options.prompt,
+            context=context,
+            query=message,
+            stream=stream,
+        )
+
 
 class EdgeDBAI(BaseEdgeDBAI):
     client: httpx.Client
@@ -95,14 +112,10 @@ class EdgeDBAI(BaseEdgeDBAI):
     def query_rag(
         self, message: str, context: typing.Optional[types.QueryContext] = None
     ) -> str:
-        if context is None:
-            context = self.context
         resp = self.client.post(
-            **types.RAGRequest(
-                model=self.options.model,
-                prompt=self.options.prompt,
+            **self._make_rag_request(
                 context=context,
-                query=message,
+                message=message,
                 stream=False,
             ).to_httpx_request()
         )
@@ -112,16 +125,12 @@ class EdgeDBAI(BaseEdgeDBAI):
     def stream_rag(
         self, message: str, context: typing.Optional[types.QueryContext] = None
     ):
-        if context is None:
-            context = self.context
         with httpx_sse.connect_sse(
             self.client,
             "post",
-            **types.RAGRequest(
-                model=self.options.model,
-                prompt=self.options.prompt,
+            **self._make_rag_request(
                 context=context,
-                query=message,
+                message=message,
                 stream=True,
             ).to_httpx_request(),
         ) as event_source:
@@ -139,14 +148,10 @@ class AsyncEdgeDBAI(BaseEdgeDBAI):
     async def query_rag(
         self, message: str, context: typing.Optional[types.QueryContext] = None
     ) -> str:
-        if context is None:
-            context = self.context
         resp = await self.client.post(
-            **types.RAGRequest(
-                model=self.options.model,
-                prompt=self.options.prompt,
+            **self._make_rag_request(
                 context=context,
-                query=message,
+                message=message,
                 stream=False,
             ).to_httpx_request()
         )
@@ -156,16 +161,12 @@ class AsyncEdgeDBAI(BaseEdgeDBAI):
     async def stream_rag(
         self, message: str, context: typing.Optional[types.QueryContext] = None
     ):
-        if context is None:
-            context = self.context
         async with httpx_sse.aconnect_sse(
             self.client,
             "post",
-            **types.RAGRequest(
-                model=self.options.model,
-                prompt=self.options.prompt,
+            **self._make_rag_request(
                 context=context,
-                query=message,
+                message=message,
                 stream=True,
             ).to_httpx_request(),
         ) as event_source:
