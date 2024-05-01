@@ -124,7 +124,7 @@ class EdgeDBAI(BaseEdgeDBAI):
 
     def stream_rag(
         self, message: str, context: typing.Optional[types.QueryContext] = None
-    ):
+    ) -> typing.Iterator[str]:
         with httpx_sse.connect_sse(
             self.client,
             "post",
@@ -138,12 +138,14 @@ class EdgeDBAI(BaseEdgeDBAI):
             for sse in event_source.iter_sse():
                 yield sse.data
 
-    def generate_embeddings(self, *inputs: str, model: str):
+    def generate_embeddings(
+        self, *inputs: str, model: str
+    ) -> list[list[float]]:
         resp = self.client.post(
             "/embeddings", json={"input": inputs, "model": model}
         )
         resp.raise_for_status()
-        return resp.json()
+        return [data["embedding"] for data in resp.json()["data"]]
 
 
 class AsyncEdgeDBAI(BaseEdgeDBAI):
@@ -167,7 +169,7 @@ class AsyncEdgeDBAI(BaseEdgeDBAI):
 
     async def stream_rag(
         self, message: str, context: typing.Optional[types.QueryContext] = None
-    ):
+    ) -> typing.Iterator[str]:
         async with httpx_sse.aconnect_sse(
             self.client,
             "post",
@@ -181,9 +183,11 @@ class AsyncEdgeDBAI(BaseEdgeDBAI):
             async for sse in event_source.aiter_sse():
                 yield sse.data
 
-    async def generate_embeddings(self, *inputs: str, model: str):
+    async def generate_embeddings(
+        self, *inputs: str, model: str
+    ) -> list[list[float]]:
         resp = await self.client.post(
             "/embeddings", json={"input": inputs, "model": model}
         )
         resp.raise_for_status()
-        return resp.json()
+        return [data["embedding"] for data in resp.json()["data"]]
