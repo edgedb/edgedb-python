@@ -49,7 +49,9 @@ class BlockingIOConnection(base_client.BaseConnection):
             # UNIX socket
             sock = socket.socket(socket.AF_UNIX)
         else:
-            sock = socket.socket(socket.AF_INET)
+            addr_info = socket.getaddrinfo(addr[0], addr[1], type=socket.SOCK_STREAM)[0]
+            addr = addr_info[4]
+            sock = socket.socket(addr_info[0], addr_info[1])
 
         try:
             sock.settimeout(timeout)
