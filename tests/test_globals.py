@@ -36,6 +36,7 @@ class TestGlobals(tb.AsyncQueryTestCase):
             CREATE GLOBAL def_glob -> str {
                 SET default := '!';
             };
+            CREATE GLOBAL computed := '!';
             CREATE MODULE foo;
             CREATE MODULE foo::bar;
             CREATE GLOBAL foo::bar::baz -> str;
@@ -63,6 +64,11 @@ class TestGlobals(tb.AsyncQueryTestCase):
         async with db.with_globals(def_glob=None) as gdb:
             x = await gdb.query_single('select global def_glob')
             self.assertEqual(x, None)
+
+        # Setting computed global should produce error
+        async with db.with_globals(computed='test') as gdb:
+            with self.assertRaises(errors.QueryArgumentError):
+                await gdb.query_single('select global computed')
 
         async with db.with_globals({'foo::bar::baz': 'asdf'}) as gdb:
             x = await gdb.query_single('select global foo::bar::baz')
