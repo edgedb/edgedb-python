@@ -135,6 +135,9 @@ class BlockingIOConnection(base_client.BaseConnection):
                     await self._protocol.wait_for(
                         self._protocol.wait_for_disconnect(), timeout
                     )
+            except TimeoutError:
+                self.terminate()
+                raise errors.QueryTimeoutError()
             except Exception:
                 self.terminate()
                 raise
