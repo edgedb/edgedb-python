@@ -85,6 +85,23 @@ class BaseEdgeDBAI:
         rv.client = self.client
         return rv
 
+    def _make_rag_request(
+        self,
+        *,
+        message: str,
+        context: typing.Optional[types.QueryContext] = None,
+        stream: bool,
+    ) -> types.RAGRequest:
+        if context is None:
+            context = self.context
+        return types.RAGRequest(
+            model=self.options.model,
+            prompt=self.options.prompt,
+            context=context,
+            query=message,
+            stream=stream,
+        )
+
 
 class EdgeDBAI(BaseEdgeDBAI):
     client: httpx.Client
@@ -95,14 +112,10 @@ class EdgeDBAI(BaseEdgeDBAI):
     def query_rag(
         self, message: str, context: typing.Optional[types.QueryContext] = None
     ) -> str:
-        if context is None:
-            context = self.context
         resp = self.client.post(
-            **types.RAGRequest(
-                model=self.options.model,
-                prompt=self.options.prompt,
+            **self._make_rag_request(
                 context=context,
-                query=message,
+                message=message,
                 stream=False,
             ).to_httpx_request()
         )
@@ -111,23 +124,26 @@ class EdgeDBAI(BaseEdgeDBAI):
 
     def stream_rag(
         self, message: str, context: typing.Optional[types.QueryContext] = None
-    ):
-        if context is None:
-            context = self.context
+    ) -> typing.Iterator[str]:
         with httpx_sse.connect_sse(
             self.client,
             "post",
-            **types.RAGRequest(
-                model=self.options.model,
-                prompt=self.options.prompt,
+            **self._make_rag_request(
                 context=context,
-                query=message,
+                message=message,
                 stream=True,
             ).to_httpx_request(),
         ) as event_source:
             event_source.response.raise_for_status()
             for sse in event_source.iter_sse():
                 yield sse.data
+
+    def generate_embeddings(self, *inputs: str, model: str) -> list[float]:
+        resp = self.client.post(
+            "/embeddings", json={"input": inputs, "model": model}
+        )
+        resp.raise_for_status()
+        return resp.json()["data"][0]["embedding"]
 
 
 class AsyncEdgeDBAI(BaseEdgeDBAI):
@@ -139,14 +155,10 @@ class AsyncEdgeDBAI(BaseEdgeDBAI):
     async def query_rag(
         self, message: str, context: typing.Optional[types.QueryContext] = None
     ) -> str:
-        if context is None:
-            context = self.context
         resp = await self.client.post(
-            **types.RAGRequest(
-                model=self.options.model,
-                prompt=self.options.prompt,
+            **self._make_rag_request(
                 context=context,
-                query=message,
+                message=message,
                 stream=False,
             ).to_httpx_request()
         )
@@ -155,20 +167,25 @@ class AsyncEdgeDBAI(BaseEdgeDBAI):
 
     async def stream_rag(
         self, message: str, context: typing.Optional[types.QueryContext] = None
-    ):
-        if context is None:
-            context = self.context
+    ) -> typing.Iterator[str]:
         async with httpx_sse.aconnect_sse(
             self.client,
             "post",
-            **types.RAGRequest(
-                model=self.options.model,
-                prompt=self.options.prompt,
+            **self._make_rag_request(
                 context=context,
-                query=message,
+                message=message,
                 stream=True,
             ).to_httpx_request(),
         ) as event_source:
             event_source.response.raise_for_status()
             async for sse in event_source.aiter_sse():
                 yield sse.data
+
+    async def generate_embeddings(
+        self, *inputs: str, model: str
+    ) -> list[float]:
+        resp = await self.client.post(
+            "/embeddings", json={"input": inputs, "model": model}
+        )
+        resp.raise_for_status()
+        return resp.json()["data"][0]["embedding"]
