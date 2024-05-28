@@ -331,7 +331,8 @@ try:
     ]
 except KeyError:
     warnings.warn(
-        "EDGEDB_ERROR_HINT can only be one of: default, enabled or disabled"
+        "EDGEDB_ERROR_HINT can only be one of: default, enabled or disabled",
+        stacklevel=1,
     )
     SHOW_HINT = False
 

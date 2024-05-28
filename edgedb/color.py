@@ -55,6 +55,7 @@ try:
 except KeyError:
     warnings.warn(
         "EDGEDB_COLOR_OUTPUT can only be one of: "
-        "default, auto, enabled or disabled"
+        "default, auto, enabled or disabled",
+        stacklevel=1,
     )
     USE_COLOR = False

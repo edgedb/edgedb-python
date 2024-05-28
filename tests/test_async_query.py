@@ -87,7 +87,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 await self.client.execute('select syntax error')
 
             for _ in range(10):
-                await self.client.execute('select 1; select 2;'),
+                await self.client.execute('select 1; select 2;')
 
     async def test_async_exec_error_recover_01(self):
         for _ in range(2):

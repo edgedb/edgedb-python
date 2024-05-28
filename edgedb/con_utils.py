@@ -641,7 +641,7 @@ def _parse_connect_dsn_and_args(
         ):
             # EDGEDB_PORT is set by 'docker --link' so ignore and warn
             warnings.warn('EDGEDB_PORT in "tcp://host:port" format, ' +
-                          'so will be ignored')
+                          'so will be ignored', stacklevel=1)
             env_port = None
 
         env_dsn = os.getenv('EDGEDB_DSN')

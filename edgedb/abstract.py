@@ -131,6 +131,7 @@ class BaseReadOnlyExecutor(abc.ABC):
     def _get_retry_options(self) -> typing.Optional[options.RetryOptions]:
         return None
 
+    @abc.abstractmethod
     def _get_state(self) -> options.State:
         ...
 
