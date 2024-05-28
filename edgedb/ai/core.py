@@ -138,14 +138,12 @@ class EdgeDBAI(BaseEdgeDBAI):
             for sse in event_source.iter_sse():
                 yield sse.data
 
-    def generate_embeddings(
-        self, *inputs: str, model: str
-    ) -> list[list[float]]:
+    def generate_embeddings(self, *inputs: str, model: str) -> list[float]:
         resp = self.client.post(
             "/embeddings", json={"input": inputs, "model": model}
         )
         resp.raise_for_status()
-        return [data["embedding"] for data in resp.json()["data"]]
+        return resp.json()["data"][0]["embedding"]
 
 
 class AsyncEdgeDBAI(BaseEdgeDBAI):
@@ -185,9 +183,9 @@ class AsyncEdgeDBAI(BaseEdgeDBAI):
 
     async def generate_embeddings(
         self, *inputs: str, model: str
-    ) -> list[list[float]]:
+    ) -> list[float]:
         resp = await self.client.post(
             "/embeddings", json={"input": inputs, "model": model}
         )
         resp.raise_for_status()
-        return [data["embedding"] for data in resp.json()["data"]]
+        return resp.json()["data"][0]["embedding"]
