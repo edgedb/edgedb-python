@@ -75,7 +75,7 @@ class TestSyncQuery(tb.SyncQueryTestCase):
                 self.client.execute('select syntax error')
 
             for _ in range(10):
-                self.client.execute('select 1; select 2;'),
+                self.client.execute('select 1; select 2;')
 
     def test_sync_exec_error_recover_01(self):
         for _ in range(2):

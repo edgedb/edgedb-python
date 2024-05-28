@@ -442,9 +442,9 @@ class TestAsyncIOClient(tb.AsyncQueryTestCase):
         try:
             await self._test_connection_broken(client, broken)
         finally:
+            await asyncio.wait_for(client.aclose(), 5)
             server.close()
             await server.wait_closed()
-            await asyncio.wait_for(client.aclose(), 5)
             broken.set()
             await done.wait()
 

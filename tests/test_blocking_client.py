@@ -453,9 +453,9 @@ class TestBlockingClient(tb.SyncQueryTestCase):
                 None, self._test_connection_broken, client, broken
             )
         finally:
+            await self.loop.run_in_executor(None, client.close, 5)
             server.close()
             await server.wait_closed()
-            await self.loop.run_in_executor(None, client.close, 5)
             broken.set()
             await done.wait()
 

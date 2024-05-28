@@ -102,10 +102,9 @@ class BlockingIOConnection(base_client.BaseConnection):
             self._addr = addr
             self._ping_wait_time = max(
                 (
-                    getattr(
-                        self.get_settings().get("system_config"),
-                        "session_idle_timeout",
-                    )
+                    self.get_settings()
+                    .get("system_config")
+                    .session_idle_timeout
                     - DEFAULT_PING_BEFORE_IDLE_TIMEOUT
                 ),
                 MINIMUM_PING_WAIT_TIME,
