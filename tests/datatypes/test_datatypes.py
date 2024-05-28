@@ -60,7 +60,7 @@ class TestRecordDesc(unittest.TestCase):
 
         private._RecordDescriptor(('a', 'b'))
 
-        with self.assertRaisesRegex(ValueError, f'more than {0x4000-1}'):
+        with self.assertRaisesRegex(ValueError, f'more than {0x4000 - 1}'):
             private._RecordDescriptor(('a',) * 20000)
 
     def test_recorddesc_2(self):
