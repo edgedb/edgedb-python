@@ -78,6 +78,30 @@ cdef class QueryCodecsCache:
              BaseCodec in_type, BaseCodec out_type, int capabilities)
 
 
+cdef class ExecuteContext:
+    cdef:
+        # Input arguments
+        str query
+        object args
+        object kwargs
+        CodecsRegistry reg
+        QueryCodecsCache qc
+        OutputFormat output_format
+        bint expect_one
+        bint required_one
+        int implicit_limit
+        bint inline_typenames
+        bint inline_typeids
+        uint64_t allow_capabilities
+        object state
+
+        # Contextual variables
+        bytes cardinality
+        BaseCodec in_dc
+        BaseCodec out_dc
+        readonly uint64_t capabilities
+
+
 cdef class SansIOProtocol:
 
     cdef:

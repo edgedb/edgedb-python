@@ -225,24 +225,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
 
         return result
 
-    async def _legacy_optimistic_execute(
-        self,
-        *,
-        query: str,
-        args,
-        kwargs,
-        reg: CodecsRegistry,
-        qc: QueryCodecsCache,
-        output_format: object,
-        expect_one: bint,
-        required_one: bint,
-        implicit_limit: int,
-        inline_typenames: bint,
-        inline_typeids: bint,
-        allow_capabilities: typing.Optional[int] = None,
-        in_dc: BaseCodec,
-        out_dc: BaseCodec,
-    ):
+    async def _legacy_optimistic_execute(self, ctx: ExecuteContext):
         cdef:
             WriteBuffer packet
             WriteBuffer buf
@@ -250,6 +233,21 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             bint re_exec
             object result
             bytes new_cardinality = None
+
+            str query = ctx.query
+            object args = ctx.args
+            object kwargs = ctx.kwargs
+            CodecsRegistry reg = ctx.reg
+            QueryCodecsCache qc = ctx.qc
+            OutputFormat output_format = ctx.output_format
+            bint expect_one = ctx.expect_one
+            bint required_one = ctx.required_one
+            int implicit_limit = ctx.implicit_limit
+            bint inline_typenames = ctx.inline_typenames
+            bint inline_typeids = ctx.inline_typeids
+            uint64_t allow_capabilities = ctx.allow_capabilities
+            BaseCodec in_dc = ctx.in_dc
+            BaseCodec out_dc = ctx.out_dc
 
         buf = WriteBuffer.new_message(EXECUTE_MSG)
         self.legacy_write_execute_headers(
@@ -296,6 +294,11 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                         expect_one,
                         new_cardinality,
                         in_dc, out_dc, capabilities)
+                    ctx.cardinality = new_cardinality
+                    ctx.in_dc = in_dc
+                    ctx.out_dc = out_dc
+                    ctx.capabilities = capabilities
+
                     re_exec = True
 
                 elif mtype == DATA_MSG:
@@ -351,25 +354,23 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         else:
             return result
 
-    async def legacy_execute_anonymous(
-        self,
-        *,
-        query: str,
-        args,
-        kwargs,
-        reg: CodecsRegistry,
-        qc: QueryCodecsCache,
-        output_format: object,
-        expect_one: bint = False,
-        required_one: bool = False,
-        implicit_limit: int = 0,
-        inline_typenames: bool = False,
-        inline_typeids: bool = False,
-        allow_capabilities: enums.Capability = enums.Capability.ALL,
-    ):
+    async def legacy_execute_anonymous(self, ctx: ExecuteContext):
         cdef:
             BaseCodec in_dc
             BaseCodec out_dc
+
+            str query = ctx.query
+            object args = ctx.args
+            object kwargs = ctx.kwargs
+            CodecsRegistry reg = ctx.reg
+            QueryCodecsCache qc = ctx.qc
+            OutputFormat output_format = ctx.output_format
+            bint expect_one = ctx.expect_one
+            bint required_one = ctx.required_one
+            int implicit_limit = ctx.implicit_limit
+            bint inline_typenames = ctx.inline_typenames
+            bint inline_typeids = ctx.inline_typeids
+            uint64_t allow_capabilities = ctx.allow_capabilities
 
         self.ensure_connected()
         self.reset_status()
@@ -417,6 +418,10 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 out_dc,
                 capabilities,
                 )
+            ctx.cardinality = cardinality
+            ctx.in_dc = in_dc
+            ctx.out_dc = out_dc
+            ctx.capabilities = capabilities
 
             ret = await self._legacy_execute(in_dc, out_dc, args, kwargs)
 
@@ -424,6 +429,10 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             cardinality = codecs[0]
             in_dc = <BaseCodec>codecs[1]
             out_dc = <BaseCodec>codecs[2]
+            ctx.cardinality = cardinality
+            ctx.in_dc = in_dc
+            ctx.out_dc = out_dc
+            ctx.capabilities = codecs[3]
 
             if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
                 methname = _QUERY_SINGLE_METHOD[required_one][output_format]
@@ -431,22 +440,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                     f'query cannot be executed with {methname}() as it '
                     f'does not return any data')
 
-            ret = await self._legacy_optimistic_execute(
-                query=query,
-                args=args,
-                kwargs=kwargs,
-                reg=reg,
-                qc=qc,
-                output_format=output_format,
-                expect_one=expect_one,
-                required_one=required_one,
-                implicit_limit=implicit_limit,
-                inline_typenames=inline_typenames,
-                inline_typeids=inline_typeids,
-                allow_capabilities=allow_capabilities,
-                in_dc=in_dc,
-                out_dc=out_dc,
-            )
+            ret = await self._legacy_optimistic_execute(ctx)
 
         if expect_one:
             if ret or not required_one:
