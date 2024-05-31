@@ -306,8 +306,6 @@ cdef class SansIOProtocol:
         cdef:
             WriteBuffer buf, params
             char mtype
-            BaseCodec in_dc = None
-            BaseCodec out_dc = None
             int16_t type_size
             bytes in_type_id
             bytes out_type_id
@@ -334,9 +332,6 @@ cdef class SansIOProtocol:
             try:
                 if mtype == STMT_DATA_DESC_MSG:
                     self.parse_describe_type_message(ctx)
-                    capabilities = ctx.capabilities
-                    in_dc = ctx.in_dc
-                    out_dc = ctx.out_dc
 
                 elif mtype == STATE_DATA_DESC_MSG:
                     self.parse_describe_state_message()
@@ -370,8 +365,6 @@ cdef class SansIOProtocol:
                 f'query cannot be executed with {methname}() as it '
                 f'does not return any data')
 
-        return ctx.cardinality, in_dc, out_dc, capabilities
-
     async def _execute(self, ctx: ExecuteContext):
         cdef:
             WriteBuffer packet
@@ -380,22 +373,6 @@ cdef class SansIOProtocol:
             char mtype
             object result
 
-            str query = ctx.query
-            object args = ctx.args
-            object kwargs = ctx.kwargs
-            CodecsRegistry reg = ctx.reg
-            QueryCodecsCache qc = ctx.qc
-            OutputFormat output_format = ctx.output_format
-            bint expect_one = ctx.expect_one
-            bint required_one = ctx.required_one
-            int implicit_limit = ctx.implicit_limit
-            bint inline_typenames = ctx.inline_typenames
-            bint inline_typeids = ctx.inline_typeids
-            uint64_t allow_capabilities = ctx.allow_capabilities
-            BaseCodec in_dc = ctx.in_dc
-            BaseCodec out_dc = ctx.out_dc
-            object state = ctx.state
-
         params = self.encode_parse_params(ctx)
 
         buf = WriteBuffer.new_message(EXECUTE_MSG)
@@ -403,10 +380,10 @@ cdef class SansIOProtocol:
 
         buf.write_buffer(params)
 
-        buf.write_bytes(in_dc.get_tid())
-        buf.write_bytes(out_dc.get_tid())
+        buf.write_bytes(ctx.in_dc.get_tid())
+        buf.write_bytes(ctx.out_dc.get_tid())
 
-        self.encode_args(in_dc, buf, args, kwargs)
+        self.encode_args(ctx.in_dc, buf, ctx.args, ctx.kwargs)
 
         buf.end_message()
 
@@ -427,8 +404,6 @@ cdef class SansIOProtocol:
                     # our in/out type spec is out-dated
                     self.parse_describe_type_message(ctx)
                     ctx.store_to_cache()
-                    in_dc = ctx.in_dc
-                    out_dc = ctx.out_dc
 
                 elif mtype == STATE_DATA_DESC_MSG:
                     self.parse_describe_state_message()
@@ -436,7 +411,7 @@ cdef class SansIOProtocol:
                 elif mtype == DATA_MSG:
                     if exc is None:
                         try:
-                            self.parse_data_messages(out_dc, result)
+                            self.parse_data_messages(ctx.out_dc, result)
                         except Exception as ex:
                             # An error during data decoding.  We need to
                             # handle this as gracefully as possible:
@@ -458,19 +433,25 @@ cdef class SansIOProtocol:
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
-                    exc._query = query
+                    exc._query = ctx.query
                     if exc.get_code() == parameter_type_mismatch_code:
-                        if not isinstance(in_dc, NullCodec):
+                        if not isinstance(ctx.in_dc, NullCodec):
                             buf = WriteBuffer.new()
                             try:
-                                self.encode_args(in_dc, buf, args, kwargs)
+                                self.encode_args(
+                                    ctx.in_dc, buf, ctx.args, ctx.kwargs
+                                )
                             except errors.QueryArgumentError as ex:
                                 exc = ex
                             finally:
                                 buf = None
                     else:
                         exc = self._amend_parse_error(
-                            exc, output_format, expect_one, required_one)
+                            exc,
+                            ctx.output_format,
+                            ctx.expect_one,
+                            ctx.required_one,
+                        )
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -504,31 +485,12 @@ cdef class SansIOProtocol:
             return NULL_CODEC_ID, EMPTY_NULL_DATA
 
     async def execute(self, ctx: ExecuteContext):
-        cdef:
-            BaseCodec in_dc
-            BaseCodec out_dc
-            bytes cardinality
-
-            str query = ctx.query
-            object args = ctx.args
-            object kwargs = ctx.kwargs
-            CodecsRegistry reg = ctx.reg
-            QueryCodecsCache qc = ctx.qc
-            OutputFormat output_format = ctx.output_format
-            bint expect_one = ctx.expect_one
-            bint required_one = ctx.required_one
-            int implicit_limit = ctx.implicit_limit
-            bint inline_typenames = ctx.inline_typenames
-            bint inline_typeids = ctx.inline_typeids
-            uint64_t allow_capabilities = ctx.allow_capabilities
-            object state = ctx.state
-
         self.ensure_connected()
         self.reset_status()
 
         if ctx.load_from_cache():
             pass
-        elif not args and not kwargs and not required_one:
+        elif not ctx.args and not ctx.kwargs and not ctx.required_one:
             # We don't have knowledge about the in/out desc of the command, but
             # the caller didn't provide any arguments, so let's try using NULL
             # for both in (assumed) and out (the server will correct it) desc
@@ -537,17 +499,7 @@ cdef class SansIOProtocol:
             # command is already executed.
             ctx.in_dc = ctx.out_dc = NULL_CODEC
         else:
-            parsed = await self._parse(ctx)
-
-            cardinality = parsed[0]
-            in_dc = <BaseCodec>parsed[1]
-            out_dc = <BaseCodec>parsed[2]
-            capabilities = parsed[3]
-
-            ctx.cardinality = cardinality
-            ctx.capabilities = capabilities
-            ctx.in_dc = in_dc
-            ctx.out_dc = out_dc
+            await self._parse(ctx)
             ctx.store_to_cache()
 
         return await self._execute(ctx)
