@@ -285,19 +285,11 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                     if capabilities is not None:
                         capabilities = int.from_bytes(capabilities, 'big')
 
-                    qc.set(
-                        query,
-                        output_format,
-                        implicit_limit,
-                        inline_typenames,
-                        inline_typeids,
-                        expect_one,
-                        new_cardinality,
-                        in_dc, out_dc, capabilities)
                     ctx.cardinality = new_cardinality
                     ctx.in_dc = in_dc
                     ctx.out_dc = out_dc
                     ctx.capabilities = capabilities
+                    ctx.store_to_cache()
 
                     re_exec = True
 
@@ -399,22 +391,11 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 if capabilities is not None:
                     capabilities = int.from_bytes(capabilities, 'big')
 
-            qc.set(
-                query,
-                output_format,
-                implicit_limit,
-                inline_typenames,
-                inline_typeids,
-                expect_one,
-                cardinality,
-                in_dc,
-                out_dc,
-                capabilities,
-                )
             ctx.cardinality = cardinality
             ctx.in_dc = in_dc
             ctx.out_dc = out_dc
             ctx.capabilities = capabilities
+            ctx.store_to_cache()
 
             ret = await self._legacy_execute(in_dc, out_dc, args, kwargs)
 

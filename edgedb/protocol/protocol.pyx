@@ -186,6 +186,20 @@ cdef class ExecuteContext:
             self.cardinality, self.in_dc, self.out_dc, self.capabilities = rv
             return True
 
+    cdef inline store_to_cache(self):
+        self.qc.set(
+            self.query,
+            self.output_format,
+            self.implicit_limit,
+            self.inline_typenames,
+            self.inline_typeids,
+            self.expect_one,
+            self.cardinality,
+            self.in_dc,
+            self.out_dc,
+            self.capabilities,
+        )
+
 
 cdef class SansIOProtocol:
 
@@ -412,16 +426,7 @@ cdef class SansIOProtocol:
                 if mtype == STMT_DATA_DESC_MSG:
                     # our in/out type spec is out-dated
                     self.parse_describe_type_message(ctx)
-
-                    qc.set(
-                        query,
-                        output_format,
-                        implicit_limit,
-                        inline_typenames,
-                        inline_typeids,
-                        expect_one,
-                        ctx.has_na_cardinality(),
-                        ctx.in_dc, ctx.out_dc, ctx.capabilities)
+                    ctx.store_to_cache()
                     in_dc = ctx.in_dc
                     out_dc = ctx.out_dc
 
@@ -539,22 +544,11 @@ cdef class SansIOProtocol:
             out_dc = <BaseCodec>parsed[2]
             capabilities = parsed[3]
 
-            qc.set(
-                query,
-                output_format,
-                implicit_limit,
-                inline_typenames,
-                inline_typeids,
-                expect_one,
-                cardinality,
-                in_dc,
-                out_dc,
-                capabilities,
-            )
             ctx.cardinality = cardinality
             ctx.capabilities = capabilities
             ctx.in_dc = in_dc
             ctx.out_dc = out_dc
+            ctx.store_to_cache()
 
         return await self._execute(ctx)
 
