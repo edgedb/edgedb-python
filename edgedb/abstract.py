@@ -49,7 +49,7 @@ class QueryWithArgs(typing.NamedTuple):
 
 class QueryCache(typing.NamedTuple):
     codecs_registry: protocol.CodecsRegistry
-    query_cache: protocol.QueryCodecsCache
+    query_cache: protocol.LRUMapping
 
 
 class QueryOptions(typing.NamedTuple):

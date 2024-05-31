@@ -91,47 +91,6 @@ cdef dict OLD_ERROR_CODES = {
 }
 
 
-cdef class QueryCodecsCache:
-
-    def __init__(self, *, cache_size=1000):
-        self.queries = LRUMapping(maxsize=cache_size)
-
-    cdef get(
-        self, str query, OutputFormat output_format,
-        int implicit_limit, bint inline_typenames, bint inline_typeids,
-        bint expect_one
-    ):
-        key = (
-            query,
-            output_format,
-            implicit_limit,
-            inline_typenames,
-            inline_typeids,
-            expect_one,
-        )
-        return self.queries.get(key, None)
-
-    cdef set(
-        self, str query, OutputFormat output_format,
-        int implicit_limit, bint inline_typenames, bint inline_typeids,
-        bint expect_one, bytes cardinality,
-        BaseCodec in_type, BaseCodec out_type, int capabilities,
-    ):
-        key = (
-            query,
-            output_format,
-            implicit_limit,
-            inline_typenames,
-            inline_typeids,
-            expect_one,
-        )
-        assert in_type is not None
-        assert out_type is not None
-        self.queries[key] = (
-            cardinality, in_type, out_type, capabilities
-        )
-
-
 cdef class ExecuteContext:
     def __init__(
         self,
@@ -140,7 +99,7 @@ cdef class ExecuteContext:
         args,
         kwargs,
         reg: CodecsRegistry,
-        qc: QueryCodecsCache,
+        qc: LRUMapping,
         output_format: OutputFormat,
         expect_one: bool = False,
         required_one: bool = False,
@@ -172,7 +131,7 @@ cdef class ExecuteContext:
         return self.cardinality == CARDINALITY_NOT_APPLICABLE
 
     cdef bint load_from_cache(self):
-        rv = self.qc.get(
+        key = (
             self.query,
             self.output_format,
             self.implicit_limit,
@@ -180,6 +139,7 @@ cdef class ExecuteContext:
             self.inline_typeids,
             self.expect_one,
         )
+        rv = self.qc.get(key, None)
         if rv is None:
             return False
         else:
@@ -187,17 +147,18 @@ cdef class ExecuteContext:
             return True
 
     cdef inline store_to_cache(self):
-        self.qc.set(
+        assert self.in_dc is not None
+        assert self.out_dc is not None
+        key = (
             self.query,
             self.output_format,
             self.implicit_limit,
             self.inline_typenames,
             self.inline_typeids,
             self.expect_one,
-            self.cardinality,
-            self.in_dc,
-            self.out_dc,
-            self.capabilities,
+        )
+        self.qc[key] = (
+            self.cardinality, self.in_dc, self.out_dc, self.capabilities
         )
 
 

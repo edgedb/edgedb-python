@@ -67,21 +67,6 @@ cdef enum AuthenticationStatuses:
     AUTH_SASL_FINAL = 12
 
 
-cdef class QueryCodecsCache:
-
-    cdef:
-        LRUMapping queries
-
-    cdef get(
-        self, str query, OutputFormat output_format,
-        int implicit_limit, bint inline_typenames, bint inline_typeids,
-        bint expect_one)
-    cdef set(self, str query, OutputFormat output_format,
-             int implicit_limit, bint inline_typenames, bint inline_typeids,
-             bint expect_one, bytes cardinality,
-             BaseCodec in_type, BaseCodec out_type, int capabilities)
-
-
 cdef class ExecuteContext:
     cdef:
         # Input arguments
@@ -89,7 +74,7 @@ cdef class ExecuteContext:
         object args
         object kwargs
         CodecsRegistry reg
-        QueryCodecsCache qc
+        LRUMapping qc
         OutputFormat output_format
         bint expect_one
         bint required_one

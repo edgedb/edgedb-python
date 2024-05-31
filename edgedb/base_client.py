@@ -31,6 +31,7 @@ from .protocol import protocol
 
 
 BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
+QUERY_CACHE_SIZE = 1000
 
 
 class BaseConnection(metaclass=abc.ABCMeta):
@@ -430,7 +431,7 @@ class BasePoolImpl(abc.ABC):
         self._connection_factory = connection_factory
         self._connect_args = connect_args
         self._codecs_registry = protocol.CodecsRegistry()
-        self._query_cache = protocol.QueryCodecsCache()
+        self._query_cache = protocol.LRUMapping(maxsize=QUERY_CACHE_SIZE)
 
         if max_concurrency is not None and max_concurrency <= 0:
             raise ValueError(
@@ -527,7 +528,7 @@ class BasePoolImpl(abc.ABC):
         connect_kwargs["dsn"] = dsn
         self._connect_args = connect_kwargs
         self._codecs_registry = protocol.CodecsRegistry()
-        self._query_cache = protocol.QueryCodecsCache()
+        self._query_cache = protocol.LRUMapping(maxsize=QUERY_CACHE_SIZE)
         self._working_addr = None
         self._working_config = None
         self._working_params = None

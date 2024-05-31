@@ -238,7 +238,6 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             object args = ctx.args
             object kwargs = ctx.kwargs
             CodecsRegistry reg = ctx.reg
-            QueryCodecsCache qc = ctx.qc
             OutputFormat output_format = ctx.output_format
             bint expect_one = ctx.expect_one
             bint required_one = ctx.required_one
@@ -355,7 +354,6 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             object args = ctx.args
             object kwargs = ctx.kwargs
             CodecsRegistry reg = ctx.reg
-            QueryCodecsCache qc = ctx.qc
             OutputFormat output_format = ctx.output_format
             bint expect_one = ctx.expect_one
             bint required_one = ctx.required_one
