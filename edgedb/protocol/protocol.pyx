@@ -302,8 +302,11 @@ cdef class SansIOProtocol:
 
             try:
                 if mtype == STMT_DATA_DESC_MSG:
-                    capabilities, cardinality, in_dc, out_dc = \
-                        self.parse_describe_type_message(ctx.reg)
+                    self.parse_describe_type_message(ctx)
+                    cardinality = ctx.cardinality
+                    capabilities = ctx.capabilities
+                    in_dc = ctx.in_dc
+                    out_dc = ctx.out_dc
 
                 elif mtype == STATE_DATA_DESC_MSG:
                     self.parse_describe_state_message()
@@ -346,7 +349,6 @@ cdef class SansIOProtocol:
             WriteBuffer params
             char mtype
             object result
-            bytes new_cardinality = None
 
             str query = ctx.query
             object args = ctx.args
@@ -393,8 +395,7 @@ cdef class SansIOProtocol:
             try:
                 if mtype == STMT_DATA_DESC_MSG:
                     # our in/out type spec is out-dated
-                    capabilities, new_cardinality, in_dc, out_dc = \
-                        self.parse_describe_type_message(reg)
+                    self.parse_describe_type_message(ctx)
 
                     qc.set(
                         query,
@@ -403,12 +404,10 @@ cdef class SansIOProtocol:
                         inline_typenames,
                         inline_typeids,
                         expect_one,
-                        new_cardinality,
-                        in_dc, out_dc, capabilities)
-                    ctx.cardinality = new_cardinality
-                    ctx.in_dc = in_dc
-                    ctx.out_dc = out_dc
-                    ctx.capabilities = capabilities
+                        ctx.cardinality == CARDINALITY_NOT_APPLICABLE,
+                        ctx.in_dc, ctx.out_dc, ctx.capabilities)
+                    in_dc = ctx.in_dc
+                    out_dc = ctx.out_dc
 
                 elif mtype == STATE_DATA_DESC_MSG:
                     self.parse_describe_state_message()
@@ -1073,21 +1072,16 @@ cdef class SansIOProtocol:
 
         (<ObjectCodec>in_dc).encode_args(buf, kwargs)
 
-    cdef parse_describe_type_message(self, CodecsRegistry reg):
+    cdef parse_describe_type_message(self, ExecuteContext ctx):
         assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG
-
-        cdef:
-            bytes cardinality
 
         try:
             self.ignore_headers()
-            capabilities = self.buffer.read_int64()
-            cardinality = self.buffer.read_byte()
-            in_dc, out_dc = self.parse_type_data(reg)
+            ctx.capabilities = self.buffer.read_int64()
+            ctx.cardinality = self.buffer.read_byte()
+            ctx.in_dc, ctx.out_dc = self.parse_type_data(ctx.reg)
         finally:
             self.buffer.finish_message()
-
-        return capabilities, cardinality, in_dc, out_dc
 
     cdef parse_describe_state_message(self):
         assert self.buffer.get_message_type() == STATE_DATA_DESC_MSG
