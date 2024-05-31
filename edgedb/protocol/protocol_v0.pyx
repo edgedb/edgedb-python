@@ -375,14 +375,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         self.ensure_connected()
         self.reset_status()
 
-        codecs = qc.get(
-            query,
-            output_format,
-            implicit_limit,
-            inline_typenames,
-            inline_typeids,
-            expect_one)
-        if codecs is None:
+        if not ctx.load_from_cache():
             codecs = await self._legacy_parse(
                 query,
                 reg=reg,
@@ -426,14 +419,6 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             ret = await self._legacy_execute(in_dc, out_dc, args, kwargs)
 
         else:
-            cardinality = codecs[0]
-            in_dc = <BaseCodec>codecs[1]
-            out_dc = <BaseCodec>codecs[2]
-            ctx.cardinality = cardinality
-            ctx.in_dc = in_dc
-            ctx.out_dc = out_dc
-            ctx.capabilities = codecs[3]
-
             if required_one and ctx.has_na_cardinality():
                 methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.InterfaceError(

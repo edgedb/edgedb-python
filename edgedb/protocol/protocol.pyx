@@ -96,7 +96,7 @@ cdef class QueryCodecsCache:
     def __init__(self, *, cache_size=1000):
         self.queries = LRUMapping(maxsize=cache_size)
 
-    def get(
+    cdef get(
         self, str query, OutputFormat output_format,
         int implicit_limit, bint inline_typenames, bint inline_typeids,
         bint expect_one
@@ -170,6 +170,21 @@ cdef class ExecuteContext:
 
     cdef inline bint has_na_cardinality(self):
         return self.cardinality == CARDINALITY_NOT_APPLICABLE
+
+    cdef bint load_from_cache(self):
+        rv = self.qc.get(
+            self.query,
+            self.output_format,
+            self.implicit_limit,
+            self.inline_typenames,
+            self.inline_typeids,
+            self.expect_one,
+        )
+        if rv is None:
+            return False
+        else:
+            self.cardinality, self.in_dc, self.out_dc, self.capabilities = rv
+            return True
 
 
 cdef class SansIOProtocol:
@@ -506,19 +521,8 @@ cdef class SansIOProtocol:
         self.ensure_connected()
         self.reset_status()
 
-        codecs = qc.get(
-            query,
-            output_format,
-            implicit_limit,
-            inline_typenames,
-            inline_typeids,
-            expect_one)
-
-        if codecs is not None:
-            ctx.cardinality = codecs[0]
-            in_dc = <BaseCodec>codecs[1]
-            out_dc = <BaseCodec>codecs[2]
-            ctx.capabilities = codecs[3]
+        if ctx.load_from_cache():
+            pass
         elif not args and not kwargs and not required_one:
             # We don't have knowledge about the in/out desc of the command, but
             # the caller didn't provide any arguments, so let's try using NULL
@@ -526,7 +530,7 @@ cdef class SansIOProtocol:
             # without an additional Parse, unless required_one is set because
             # it'll be too late to find out the cardinality is wrong when the
             # command is already executed.
-            in_dc = out_dc = NULL_CODEC
+            ctx.in_dc = ctx.out_dc = NULL_CODEC
         else:
             parsed = await self._parse(ctx)
 
@@ -549,9 +553,8 @@ cdef class SansIOProtocol:
             )
             ctx.cardinality = cardinality
             ctx.capabilities = capabilities
-
-        ctx.in_dc = in_dc
-        ctx.out_dc = out_dc
+            ctx.in_dc = in_dc
+            ctx.out_dc = out_dc
 
         return await self._execute(ctx)
 

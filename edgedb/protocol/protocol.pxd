@@ -72,6 +72,10 @@ cdef class QueryCodecsCache:
     cdef:
         LRUMapping queries
 
+    cdef get(
+        self, str query, OutputFormat output_format,
+        int implicit_limit, bint inline_typenames, bint inline_typeids,
+        bint expect_one)
     cdef set(self, str query, OutputFormat output_format,
              int implicit_limit, bint inline_typenames, bint inline_typeids,
              bint expect_one, bytes cardinality,
@@ -102,6 +106,7 @@ cdef class ExecuteContext:
         readonly uint64_t capabilities
 
     cdef inline bint has_na_cardinality(self)
+    cdef bint load_from_cache(self)
 
 
 cdef class SansIOProtocol:
