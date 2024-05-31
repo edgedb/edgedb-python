@@ -294,7 +294,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                         inline_typenames,
                         inline_typeids,
                         expect_one,
-                        new_cardinality == CARDINALITY_NOT_APPLICABLE,
+                        new_cardinality,
                         in_dc, out_dc, capabilities)
                     re_exec = True
 
@@ -412,7 +412,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 inline_typenames,
                 inline_typeids,
                 expect_one,
-                cardinality == CARDINALITY_NOT_APPLICABLE,
+                cardinality,
                 in_dc,
                 out_dc,
                 capabilities,
@@ -421,11 +421,11 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             ret = await self._legacy_execute(in_dc, out_dc, args, kwargs)
 
         else:
-            has_na_cardinality = codecs[0]
+            cardinality = codecs[0]
             in_dc = <BaseCodec>codecs[1]
             out_dc = <BaseCodec>codecs[2]
 
-            if required_one and has_na_cardinality:
+            if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
                 methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '

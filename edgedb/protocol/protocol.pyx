@@ -114,7 +114,7 @@ cdef class QueryCodecsCache:
     cdef set(
         self, str query, OutputFormat output_format,
         int implicit_limit, bint inline_typenames, bint inline_typeids,
-        bint expect_one, bint has_na_cardinality,
+        bint expect_one, bytes cardinality,
         BaseCodec in_type, BaseCodec out_type, int capabilities,
     ):
         key = (
@@ -128,7 +128,7 @@ cdef class QueryCodecsCache:
         assert in_type is not None
         assert out_type is not None
         self.queries[key] = (
-            has_na_cardinality, in_type, out_type, capabilities
+            cardinality, in_type, out_type, capabilities
         )
 
 
@@ -405,7 +405,7 @@ cdef class SansIOProtocol:
                         inline_typenames,
                         inline_typeids,
                         expect_one,
-                        new_cardinality == CARDINALITY_NOT_APPLICABLE,
+                        new_cardinality,
                         in_dc, out_dc, capabilities)
 
                 elif mtype == STATE_DATA_DESC_MSG:
@@ -501,6 +501,7 @@ cdef class SansIOProtocol:
         cdef:
             BaseCodec in_dc
             BaseCodec out_dc
+            bytes cardinality
 
         self.ensure_connected()
         self.reset_status()
@@ -538,7 +539,7 @@ cdef class SansIOProtocol:
                 state=state,
             )
 
-            has_na_cardinality = parsed[0] == CARDINALITY_NOT_APPLICABLE
+            cardinality = parsed[0]
             in_dc = <BaseCodec>parsed[1]
             out_dc = <BaseCodec>parsed[2]
             capabilities = parsed[3]
@@ -550,7 +551,7 @@ cdef class SansIOProtocol:
                 inline_typenames,
                 inline_typeids,
                 expect_one,
-                has_na_cardinality,
+                cardinality,
                 in_dc,
                 out_dc,
                 capabilities,

@@ -74,7 +74,7 @@ cdef class QueryCodecsCache:
 
     cdef set(self, str query, OutputFormat output_format,
              int implicit_limit, bint inline_typenames, bint inline_typeids,
-             bint expect_one, bint has_na_cardinality,
+             bint expect_one, bytes cardinality,
              BaseCodec in_type, BaseCodec out_type, int capabilities)
 
 
