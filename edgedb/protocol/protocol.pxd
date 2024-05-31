@@ -101,6 +101,8 @@ cdef class ExecuteContext:
         BaseCodec out_dc
         readonly uint64_t capabilities
 
+    cdef inline bint has_na_cardinality(self)
+
 
 cdef class SansIOProtocol:
 

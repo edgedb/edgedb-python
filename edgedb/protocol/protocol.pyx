@@ -168,6 +168,9 @@ cdef class ExecuteContext:
         self.in_dc = self.out_dc = None
         self.capabilities = 0
 
+    cdef inline bint has_na_cardinality(self):
+        return self.cardinality == CARDINALITY_NOT_APPLICABLE
+
 
 cdef class SansIOProtocol:
 
@@ -279,7 +282,6 @@ cdef class SansIOProtocol:
             int16_t type_size
             bytes in_type_id
             bytes out_type_id
-            bytes cardinality
 
         if not self.connected:
             raise RuntimeError('not connected')
@@ -303,7 +305,6 @@ cdef class SansIOProtocol:
             try:
                 if mtype == STMT_DATA_DESC_MSG:
                     self.parse_describe_type_message(ctx)
-                    cardinality = ctx.cardinality
                     capabilities = ctx.capabilities
                     in_dc = ctx.in_dc
                     out_dc = ctx.out_dc
@@ -333,14 +334,14 @@ cdef class SansIOProtocol:
         if exc is not None:
             raise exc
 
-        if ctx.required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
+        if ctx.required_one and ctx.has_na_cardinality():
             assert ctx.output_format != OutputFormat.NONE
             methname = _QUERY_SINGLE_METHOD[ctx.required_one][ctx.output_format]
             raise errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
                 f'does not return any data')
 
-        return cardinality, in_dc, out_dc, capabilities
+        return ctx.cardinality, in_dc, out_dc, capabilities
 
     async def _execute(self, ctx: ExecuteContext):
         cdef:
@@ -404,7 +405,7 @@ cdef class SansIOProtocol:
                         inline_typenames,
                         inline_typeids,
                         expect_one,
-                        ctx.cardinality == CARDINALITY_NOT_APPLICABLE,
+                        ctx.has_na_cardinality(),
                         ctx.in_dc, ctx.out_dc, ctx.capabilities)
                     in_dc = ctx.in_dc
                     out_dc = ctx.out_dc

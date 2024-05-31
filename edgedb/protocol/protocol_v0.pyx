@@ -434,7 +434,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             ctx.out_dc = out_dc
             ctx.capabilities = codecs[3]
 
-            if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
+            if required_one and ctx.has_na_cardinality():
                 methname = _QUERY_SINGLE_METHOD[required_one][output_format]
                 raise errors.InterfaceError(
                     f'query cannot be executed with {methname}() as it '
