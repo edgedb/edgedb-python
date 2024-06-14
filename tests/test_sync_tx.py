@@ -33,6 +33,10 @@ class TestSyncTx(tb.SyncQueryTestCase):
         };
     '''
 
+    TEARDOWN_METHOD = '''
+        DELETE test::TransactionTest;
+    '''
+
     TEARDOWN = '''
         DROP TYPE test::TransactionTest;
     '''
@@ -113,3 +117,50 @@ class TestSyncTx(tb.SyncQueryTestCase):
                     ):
                         f1.result(timeout=5)
                         f2.result(timeout=5)
+
+    def test_sync_transaction_savepoint_1(self):
+        for tx in self.client.transaction():
+            with tx:
+                sp1 = tx.savepoint()
+                sp2 = tx.savepoint()
+                tx.execute('''
+                    INSERT test::TransactionTest { name := '1' };
+                ''')
+                sp2.release()
+                with self.assertRaisesRegex(
+                    edgedb.InterfaceError, "savepoint.*is no longer active"
+                ):
+                    sp2.release()
+                sp1.release()
+
+        result = self.client.query('SELECT test::TransactionTest.name')
+
+        self.assertEqual(result, ["1"])
+
+    def test_sync_transaction_savepoint_2(self):
+        for tx in self.client.transaction():
+            with tx:
+                tx.execute('''
+                    INSERT test::TransactionTest { name := '1' };
+                ''')
+                sp1 = tx.savepoint()
+                tx.execute('''
+                    INSERT test::TransactionTest { name := '2' };
+                ''')
+                sp2 = tx.savepoint()
+                tx.execute('''
+                    INSERT test::TransactionTest { name := '3' };
+                ''')
+                sp1.rollback()
+                with self.assertRaisesRegex(
+                    edgedb.InterfaceError, "savepoint.*is no longer active"
+                ):
+                    sp1.rollback()
+                with self.assertRaisesRegex(
+                    edgedb.InterfaceError, "savepoint.*is no longer active"
+                ):
+                    sp2.rollback()
+
+        result = self.client.query('SELECT test::TransactionTest.name')
+
+        self.assertEqual(result, ["1"])
