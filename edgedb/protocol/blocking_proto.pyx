@@ -63,18 +63,14 @@ cdef class BlockingIOProtocol(protocol.SansIOProtocolBackwardsCompatible):
     async def wait_for_message(self):
         cdef float timeout
         if self.deadline > 0:
-            timeout = self.deadline - time.monotonic()
-            if timeout <= 0:
-                self.abort()
-                raise errors.QueryTimeoutError()
             while not self.buffer.take_message():
+                timeout = self.deadline - time.monotonic()
+                if timeout <= 0:
+                    self.abort()
+                    raise TimeoutError
                 try:
                     self.sock.settimeout(timeout)
                     data = self.sock.recv(RECV_BUF)
-                    timeout = self.deadline - time.monotonic()
-                    if timeout <= 0:
-                        self.abort()
-                        raise TimeoutError
                 except OSError as e:
                     self._disconnect()
                     raise con_utils.wrap_error(e) from e
