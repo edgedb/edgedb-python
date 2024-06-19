@@ -67,15 +67,32 @@ cdef enum AuthenticationStatuses:
     AUTH_SASL_FINAL = 12
 
 
-cdef class QueryCodecsCache:
-
+cdef class ExecuteContext:
     cdef:
-        LRUMapping queries
+        # Input arguments
+        str query
+        object args
+        object kwargs
+        CodecsRegistry reg
+        LRUMapping qc
+        OutputFormat output_format
+        bint expect_one
+        bint required_one
+        int implicit_limit
+        bint inline_typenames
+        bint inline_typeids
+        uint64_t allow_capabilities
+        object state
 
-    cdef set(self, str query, OutputFormat output_format,
-             int implicit_limit, bint inline_typenames, bint inline_typeids,
-             bint expect_one, bint has_na_cardinality,
-             BaseCodec in_type, BaseCodec out_type, int capabilities)
+        # Contextual variables
+        bytes cardinality
+        BaseCodec in_dc
+        BaseCodec out_dc
+        readonly uint64_t capabilities
+
+    cdef inline bint has_na_cardinality(self)
+    cdef bint load_from_cache(self)
+    cdef inline store_to_cache(self)
 
 
 cdef class SansIOProtocol:
@@ -113,7 +130,7 @@ cdef class SansIOProtocol:
     cdef parse_data_messages(self, BaseCodec out_dc, result)
     cdef parse_sync_message(self)
     cdef parse_command_complete_message(self)
-    cdef parse_describe_type_message(self, CodecsRegistry reg)
+    cdef parse_describe_type_message(self, ExecuteContext ctx)
     cdef parse_describe_state_message(self)
     cdef parse_type_data(self, CodecsRegistry reg)
     cdef _amend_parse_error(
@@ -141,17 +158,7 @@ cdef class SansIOProtocol:
 
     cdef ensure_connected(self)
 
-    cdef WriteBuffer encode_parse_params(
-        self,
-        str query,
-        object output_format,
-        bint expect_one,
-        int implicit_limit,
-        bint inline_typenames,
-        bint inline_typeids,
-        uint64_t allow_capabilities,
-        object state,
-    )
+    cdef WriteBuffer encode_parse_params(self, ExecuteContext ctx)
 
 
 include "protocol_v0.pxd"

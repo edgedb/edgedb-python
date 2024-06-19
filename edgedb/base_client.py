@@ -31,6 +31,7 @@ from .protocol import protocol
 
 
 BaseConnection_T = typing.TypeVar('BaseConnection_T', bound='BaseConnection')
+QUERY_CACHE_SIZE = 1000
 
 
 class BaseConnection(metaclass=abc.ABCMeta):
@@ -183,17 +184,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
             )
         else:
             await self._protocol.execute(
-                query=execute_context.query.query,
-                args=execute_context.query.args,
-                kwargs=execute_context.query.kwargs,
-                reg=execute_context.cache.codecs_registry,
-                qc=execute_context.cache.query_cache,
-                output_format=protocol.OutputFormat.NONE,
-                allow_capabilities=enums.Capability.ALL,
-                state=(
-                    execute_context.state.as_dict()
-                    if execute_context.state else None
-                ),
+                execute_context.lower(allow_capabilities=enums.Capability.ALL)
             )
 
     def is_in_transaction(self) -> bool:
@@ -211,56 +202,31 @@ class BaseConnection(metaclass=abc.ABCMeta):
             await self.connect()
 
         reconnect = False
-        capabilities = None
         i = 0
-        args = dict(
-            query=query_context.query.query,
-            args=query_context.query.args,
-            kwargs=query_context.query.kwargs,
-            reg=query_context.cache.codecs_registry,
-            qc=query_context.cache.query_cache,
-            output_format=query_context.query_options.output_format,
-            expect_one=query_context.query_options.expect_one,
-            required_one=query_context.query_options.required_one,
-        )
         if self._protocol.is_legacy:
-            args["allow_capabilities"] = enums.Capability.LEGACY_EXECUTE
+            allow_capabilities = enums.Capability.LEGACY_EXECUTE
         else:
-            args["allow_capabilities"] = enums.Capability.EXECUTE
-            if query_context.state is not None:
-                args["state"] = query_context.state.as_dict()
+            allow_capabilities = enums.Capability.EXECUTE
+        ctx = query_context.lower(allow_capabilities=allow_capabilities)
         while True:
             i += 1
             try:
                 if reconnect:
                     await self.connect(single_attempt=True)
                 if self._protocol.is_legacy:
-                    return await self._protocol.legacy_execute_anonymous(
-                        **args
-                    )
+                    return await self._protocol.legacy_execute_anonymous(ctx)
                 else:
-                    return await self._protocol.query(**args)
+                    return await self._protocol.query(ctx)
             except errors.EdgeDBError as e:
                 if query_context.retry_options is None:
                     raise
                 if not e.has_tag(errors.SHOULD_RETRY):
                     raise e
-                if capabilities is None:
-                    cache_item = query_context.cache.query_cache.get(
-                        query_context.query.query,
-                        query_context.query_options.output_format,
-                        implicit_limit=0,
-                        inline_typenames=False,
-                        inline_typeids=False,
-                        expect_one=query_context.query_options.expect_one,
-                    )
-                    if cache_item is not None:
-                        _, _, _, capabilities = cache_item
                 # A query is read-only if it has no capabilities i.e.
                 # capabilities == 0. Read-only queries are safe to retry.
                 # Explicit transaction conflicts as well.
                 if (
-                    capabilities != 0
+                    ctx.capabilities != 0
                     and not isinstance(e, errors.TransactionConflictError)
                 ):
                     raise e
@@ -281,17 +247,9 @@ class BaseConnection(metaclass=abc.ABCMeta):
             )
         else:
             await self._protocol.execute(
-                query=execute_context.query.query,
-                args=execute_context.query.args,
-                kwargs=execute_context.query.kwargs,
-                reg=execute_context.cache.codecs_registry,
-                qc=execute_context.cache.query_cache,
-                output_format=protocol.OutputFormat.NONE,
-                allow_capabilities=enums.Capability.EXECUTE,
-                state=(
-                    execute_context.state.as_dict()
-                    if execute_context.state else None
-                ),
+                execute_context.lower(
+                    allow_capabilities=enums.Capability.EXECUTE
+                )
             )
 
     async def describe(
@@ -473,7 +431,7 @@ class BasePoolImpl(abc.ABC):
         self._connection_factory = connection_factory
         self._connect_args = connect_args
         self._codecs_registry = protocol.CodecsRegistry()
-        self._query_cache = protocol.QueryCodecsCache()
+        self._query_cache = protocol.LRUMapping(maxsize=QUERY_CACHE_SIZE)
 
         if max_concurrency is not None and max_concurrency <= 0:
             raise ValueError(
@@ -570,7 +528,7 @@ class BasePoolImpl(abc.ABC):
         connect_kwargs["dsn"] = dsn
         self._connect_args = connect_kwargs
         self._codecs_registry = protocol.CodecsRegistry()
-        self._query_cache = protocol.QueryCodecsCache()
+        self._query_cache = protocol.LRUMapping(maxsize=QUERY_CACHE_SIZE)
         self._working_addr = None
         self._working_config = None
         self._working_params = None

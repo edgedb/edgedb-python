@@ -49,7 +49,7 @@ class QueryWithArgs(typing.NamedTuple):
 
 class QueryCache(typing.NamedTuple):
     codecs_registry: protocol.CodecsRegistry
-    query_cache: protocol.QueryCodecsCache
+    query_cache: protocol.LRUMapping
 
 
 class QueryOptions(typing.NamedTuple):
@@ -65,11 +65,41 @@ class QueryContext(typing.NamedTuple):
     retry_options: typing.Optional[options.RetryOptions]
     state: typing.Optional[options.State]
 
+    def lower(
+        self, *, allow_capabilities: enums.Capability
+    ) -> protocol.ExecuteContext:
+        return protocol.ExecuteContext(
+            query=self.query.query,
+            args=self.query.args,
+            kwargs=self.query.kwargs,
+            reg=self.cache.codecs_registry,
+            qc=self.cache.query_cache,
+            output_format=self.query_options.output_format,
+            expect_one=self.query_options.expect_one,
+            required_one=self.query_options.required_one,
+            allow_capabilities=allow_capabilities,
+            state=self.state.as_dict() if self.state else None,
+        )
+
 
 class ExecuteContext(typing.NamedTuple):
     query: QueryWithArgs
     cache: QueryCache
     state: typing.Optional[options.State]
+
+    def lower(
+        self, *, allow_capabilities: enums.Capability
+    ) -> protocol.ExecuteContext:
+        return protocol.ExecuteContext(
+            query=self.query.query,
+            args=self.query.args,
+            kwargs=self.query.kwargs,
+            reg=self.cache.codecs_registry,
+            qc=self.cache.query_cache,
+            output_format=protocol.OutputFormat.NONE,
+            allow_capabilities=allow_capabilities,
+            state=self.state.as_dict() if self.state else None,
+        )
 
 
 @dataclasses.dataclass

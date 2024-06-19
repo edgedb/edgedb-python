@@ -372,10 +372,16 @@ class ConnectedTestCaseMixin:
         database='edgedb',
         user='edgedb',
         password='test',
+        host=...,
+        port=...,
         connection_class=...,
     ):
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
+        if host is not ...:
+            conargs['host'] = host
+        if port is not ...:
+            conargs['port'] = port
         if connection_class is ...:
             connection_class = (
                 asyncio_client.AsyncIOConnection

@@ -102,7 +102,7 @@ class TestSyncTx(tb.SyncQueryTestCase):
     def test_sync_transaction_exclusive(self):
         for tx in self.client.transaction():
             with tx:
-                query = "select sys::_sleep(0.01)"
+                query = "select sys::_sleep(0.5)"
                 with ThreadPoolExecutor(max_workers=2) as executor:
                     f1 = executor.submit(tx.execute, query)
                     f2 = executor.submit(tx.execute, query)

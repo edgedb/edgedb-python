@@ -91,44 +91,74 @@ cdef dict OLD_ERROR_CODES = {
 }
 
 
-cdef class QueryCodecsCache:
-
-    def __init__(self, *, cache_size=1000):
-        self.queries = LRUMapping(maxsize=cache_size)
-
-    def get(
-        self, str query, OutputFormat output_format,
-        int implicit_limit, bint inline_typenames, bint inline_typeids,
-        bint expect_one
+cdef class ExecuteContext:
+    def __init__(
+        self,
+        *,
+        query: str,
+        args,
+        kwargs,
+        reg: CodecsRegistry,
+        qc: LRUMapping,
+        output_format: OutputFormat,
+        expect_one: bool = False,
+        required_one: bool = False,
+        implicit_limit: int = 0,
+        inline_typenames: bool = False,
+        inline_typeids: bool = False,
+        allow_capabilities: enums.Capability = enums.Capability.ALL,
+        state: typing.Optional[dict] = None,
     ):
-        key = (
-            query,
-            output_format,
-            implicit_limit,
-            inline_typenames,
-            inline_typeids,
-            expect_one,
-        )
-        return self.queries.get(key, None)
+        self.query = query
+        self.args = args
+        self.kwargs = kwargs
+        self.reg = reg
+        self.qc = qc
+        self.output_format = output_format
+        self.expect_one = bool(expect_one)
+        self.required_one = bool(required_one)
+        self.implicit_limit = implicit_limit
+        self.inline_typenames = bool(inline_typenames)
+        self.inline_typeids = bool(inline_typeids)
+        self.allow_capabilities = allow_capabilities
+        self.state = state
 
-    cdef set(
-        self, str query, OutputFormat output_format,
-        int implicit_limit, bint inline_typenames, bint inline_typeids,
-        bint expect_one, bint has_na_cardinality,
-        BaseCodec in_type, BaseCodec out_type, int capabilities,
-    ):
+        self.cardinality = None
+        self.in_dc = self.out_dc = None
+        self.capabilities = 0
+
+    cdef inline bint has_na_cardinality(self):
+        return self.cardinality == CARDINALITY_NOT_APPLICABLE
+
+    cdef bint load_from_cache(self):
         key = (
-            query,
-            output_format,
-            implicit_limit,
-            inline_typenames,
-            inline_typeids,
-            expect_one,
+            self.query,
+            self.output_format,
+            self.implicit_limit,
+            self.inline_typenames,
+            self.inline_typeids,
+            self.expect_one,
         )
-        assert in_type is not None
-        assert out_type is not None
-        self.queries[key] = (
-            has_na_cardinality, in_type, out_type, capabilities
+        rv = self.qc.get(key, None)
+        if rv is None:
+            return False
+        else:
+            self.cardinality, self.in_dc, self.out_dc, self.capabilities = rv
+            return True
+
+    cdef inline store_to_cache(self):
+        assert self.in_dc is not None
+        assert self.out_dc is not None
+        key = (
+            self.query,
+            self.output_format,
+            self.implicit_limit,
+            self.inline_typenames,
+            self.inline_typeids,
+            self.expect_one,
+        )
+        self.qc[key] = (
+            self.cardinality, self.in_dc, self.out_dc, self.capabilities
         )
 
 
@@ -209,63 +239,37 @@ cdef class SansIOProtocol:
             raise errors.ClientConnectionClosedError(
                 'the connection has been closed')
 
-    cdef WriteBuffer encode_parse_params(
-        self,
-        str query,
-        object output_format,
-        bint expect_one,
-        int implicit_limit,
-        bint inline_typenames,
-        bint inline_typeids,
-        uint64_t allow_capabilities,
-        object state,
-    ):
+    cdef WriteBuffer encode_parse_params(self, ExecuteContext ctx):
         cdef:
             WriteBuffer buf
 
         compilation_flags = enums.CompilationFlag.INJECT_OUTPUT_OBJECT_IDS
-        if inline_typenames:
+        if ctx.inline_typenames:
             compilation_flags |= enums.CompilationFlag.INJECT_OUTPUT_TYPE_NAMES
-        if inline_typeids:
+        if ctx.inline_typeids:
             compilation_flags |= enums.CompilationFlag.INJECT_OUTPUT_TYPE_IDS
 
         buf = WriteBuffer.new()
-        buf.write_int64(<int64_t>allow_capabilities)
+        buf.write_int64(<int64_t>ctx.allow_capabilities)
         buf.write_int64(<int64_t><uint64_t>compilation_flags)
-        buf.write_int64(<int64_t>implicit_limit)
-        buf.write_byte(output_format)
-        buf.write_byte(CARDINALITY_ONE if expect_one else CARDINALITY_MANY)
-        buf.write_len_prefixed_utf8(query)
+        buf.write_int64(<int64_t>ctx.implicit_limit)
+        buf.write_byte(ctx.output_format)
+        buf.write_byte(CARDINALITY_ONE if ctx.expect_one else CARDINALITY_MANY)
+        buf.write_len_prefixed_utf8(ctx.query)
 
-        state_type_id, state_data = self.encode_state(state)
+        state_type_id, state_data = self.encode_state(ctx.state)
         buf.write_bytes(state_type_id)
         buf.write_bytes(state_data)
 
         return buf
 
-    async def _parse(
-        self,
-        query: str,
-        *,
-        reg: CodecsRegistry,
-        output_format: OutputFormat=OutputFormat.BINARY,
-        expect_one: bint=False,
-        required_one: bool=False,
-        implicit_limit: int=0,
-        inline_typenames: bool=False,
-        inline_typeids: bool=False,
-        allow_capabilities: enums.Capability = enums.Capability.ALL,
-        state: typing.Optional[dict] = None,
-    ):
+    async def _parse(self, ctx: ExecuteContext):
         cdef:
             WriteBuffer buf, params
             char mtype
-            BaseCodec in_dc = None
-            BaseCodec out_dc = None
             int16_t type_size
             bytes in_type_id
             bytes out_type_id
-            bytes cardinality
 
         if not self.connected:
             raise RuntimeError('not connected')
@@ -273,16 +277,7 @@ cdef class SansIOProtocol:
         buf = WriteBuffer.new_message(PREPARE_MSG)
         buf.write_int16(0)  # no headers
 
-        params = self.encode_parse_params(
-            query=query,
-            output_format=output_format,
-            expect_one=expect_one,
-            implicit_limit=implicit_limit,
-            inline_typenames=inline_typenames,
-            inline_typeids=inline_typeids,
-            allow_capabilities=allow_capabilities,
-            state=state,
-        )
+        params = self.encode_parse_params(ctx)
 
         buf.write_buffer(params)
         buf.end_message()
@@ -297,17 +292,20 @@ cdef class SansIOProtocol:
 
             try:
                 if mtype == STMT_DATA_DESC_MSG:
-                    capabilities, cardinality, in_dc, out_dc = \
-                        self.parse_describe_type_message(reg)
+                    self.parse_describe_type_message(ctx)
 
                 elif mtype == STATE_DATA_DESC_MSG:
                     self.parse_describe_state_message()
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
-                    exc._query = query
+                    exc._query = ctx.query
                     exc = self._amend_parse_error(
-                        exc, output_format, expect_one, required_one)
+                        exc,
+                        ctx.output_format,
+                        ctx.expect_one,
+                        ctx.required_one,
+                    )
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -321,62 +319,32 @@ cdef class SansIOProtocol:
         if exc is not None:
             raise exc
 
-        if required_one and cardinality == CARDINALITY_NOT_APPLICABLE:
-            assert output_format != OutputFormat.NONE
-            methname = _QUERY_SINGLE_METHOD[required_one][output_format]
+        if ctx.required_one and ctx.has_na_cardinality():
+            assert ctx.output_format != OutputFormat.NONE
+            methname = _QUERY_SINGLE_METHOD[ctx.required_one][ctx.output_format]
             raise errors.InterfaceError(
                 f'query cannot be executed with {methname}() as it '
                 f'does not return any data')
 
-        return cardinality, in_dc, out_dc, capabilities
-
-    async def _execute(
-        self,
-        *,
-        query: str,
-        args,
-        kwargs,
-        reg: CodecsRegistry,
-        qc: QueryCodecsCache,
-        output_format: object,
-        expect_one: bint,
-        required_one: bint,
-        implicit_limit: int,
-        inline_typenames: bint,
-        inline_typeids: bint,
-        allow_capabilities: enums.Capability = enums.Capability.ALL,
-        in_dc: BaseCodec,
-        out_dc: BaseCodec,
-        state: typing.Optional[dict] = None,
-    ):
+    async def _execute(self, ctx: ExecuteContext):
         cdef:
             WriteBuffer packet
             WriteBuffer buf
             WriteBuffer params
             char mtype
             object result
-            bytes new_cardinality = None
 
-        params = self.encode_parse_params(
-            query=query,
-            output_format=output_format,
-            expect_one=expect_one,
-            implicit_limit=implicit_limit,
-            inline_typenames=inline_typenames,
-            inline_typeids=inline_typeids,
-            allow_capabilities=allow_capabilities,
-            state=state,
-        )
+        params = self.encode_parse_params(ctx)
 
         buf = WriteBuffer.new_message(EXECUTE_MSG)
         buf.write_int16(0)  # no headers
 
         buf.write_buffer(params)
 
-        buf.write_bytes(in_dc.get_tid())
-        buf.write_bytes(out_dc.get_tid())
+        buf.write_bytes(ctx.in_dc.get_tid())
+        buf.write_bytes(ctx.out_dc.get_tid())
 
-        self.encode_args(in_dc, buf, args, kwargs)
+        self.encode_args(ctx.in_dc, buf, ctx.args, ctx.kwargs)
 
         buf.end_message()
 
@@ -395,18 +363,8 @@ cdef class SansIOProtocol:
             try:
                 if mtype == STMT_DATA_DESC_MSG:
                     # our in/out type spec is out-dated
-                    capabilities, new_cardinality, in_dc, out_dc = \
-                        self.parse_describe_type_message(reg)
-
-                    qc.set(
-                        query,
-                        output_format,
-                        implicit_limit,
-                        inline_typenames,
-                        inline_typeids,
-                        expect_one,
-                        new_cardinality == CARDINALITY_NOT_APPLICABLE,
-                        in_dc, out_dc, capabilities)
+                    self.parse_describe_type_message(ctx)
+                    ctx.store_to_cache()
 
                 elif mtype == STATE_DATA_DESC_MSG:
                     self.parse_describe_state_message()
@@ -414,7 +372,7 @@ cdef class SansIOProtocol:
                 elif mtype == DATA_MSG:
                     if exc is None:
                         try:
-                            self.parse_data_messages(out_dc, result)
+                            self.parse_data_messages(ctx.out_dc, result)
                         except Exception as ex:
                             # An error during data decoding.  We need to
                             # handle this as gracefully as possible:
@@ -436,19 +394,25 @@ cdef class SansIOProtocol:
 
                 elif mtype == ERROR_RESPONSE_MSG:
                     exc = self.parse_error_message()
-                    exc._query = query
+                    exc._query = ctx.query
                     if exc.get_code() == parameter_type_mismatch_code:
-                        if not isinstance(in_dc, NullCodec):
+                        if not isinstance(ctx.in_dc, NullCodec):
                             buf = WriteBuffer.new()
                             try:
-                                self.encode_args(in_dc, buf, args, kwargs)
+                                self.encode_args(
+                                    ctx.in_dc, buf, ctx.args, ctx.kwargs
+                                )
                             except errors.QueryArgumentError as ex:
                                 exc = ex
                             finally:
                                 buf = None
                     else:
                         exc = self._amend_parse_error(
-                            exc, output_format, expect_one, required_one)
+                            exc,
+                            ctx.output_format,
+                            ctx.expect_one,
+                            ctx.required_one,
+                        )
 
                 elif mtype == READY_FOR_COMMAND_MSG:
                     self.parse_sync_message()
@@ -481,153 +445,51 @@ cdef class SansIOProtocol:
         else:
             return NULL_CODEC_ID, EMPTY_NULL_DATA
 
-    async def execute(
-        self,
-        *,
-        query: str,
-        args,
-        kwargs,
-        reg: CodecsRegistry,
-        qc: QueryCodecsCache,
-        output_format: object,
-        expect_one: bint = False,
-        required_one: bool = False,
-        implicit_limit: int = 0,
-        inline_typenames: bool = False,
-        inline_typeids: bool = False,
-        allow_capabilities: enums.Capability = enums.Capability.ALL,
-        state: typing.Optional[dict] = None,
-    ):
-        cdef:
-            BaseCodec in_dc
-            BaseCodec out_dc
-
+    async def execute(self, ctx: ExecuteContext):
         self.ensure_connected()
         self.reset_status()
 
-        codecs = qc.get(
-            query,
-            output_format,
-            implicit_limit,
-            inline_typenames,
-            inline_typeids,
-            expect_one)
-
-        if codecs is not None:
-            in_dc = <BaseCodec>codecs[1]
-            out_dc = <BaseCodec>codecs[2]
-        elif not args and not kwargs and not required_one:
+        if ctx.load_from_cache():
+            pass
+        elif not ctx.args and not ctx.kwargs and not ctx.required_one:
             # We don't have knowledge about the in/out desc of the command, but
             # the caller didn't provide any arguments, so let's try using NULL
             # for both in (assumed) and out (the server will correct it) desc
             # without an additional Parse, unless required_one is set because
             # it'll be too late to find out the cardinality is wrong when the
             # command is already executed.
-            in_dc = out_dc = NULL_CODEC
+            ctx.in_dc = ctx.out_dc = NULL_CODEC
         else:
-            parsed = await self._parse(
-                query,
-                reg=reg,
-                output_format=output_format,
-                expect_one=expect_one,
-                required_one=required_one,
-                implicit_limit=implicit_limit,
-                inline_typenames=inline_typenames,
-                inline_typeids=inline_typeids,
-                allow_capabilities=allow_capabilities,
-                state=state,
-            )
+            await self._parse(ctx)
+            ctx.store_to_cache()
 
-            has_na_cardinality = parsed[0] == CARDINALITY_NOT_APPLICABLE
-            in_dc = <BaseCodec>parsed[1]
-            out_dc = <BaseCodec>parsed[2]
-            capabilities = parsed[3]
+        return await self._execute(ctx)
 
-            qc.set(
-                query,
-                output_format,
-                implicit_limit,
-                inline_typenames,
-                inline_typeids,
-                expect_one,
-                has_na_cardinality,
-                in_dc,
-                out_dc,
-                capabilities,
-            )
-
-        return await self._execute(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=reg,
-            qc=qc,
-            output_format=output_format,
-            expect_one=expect_one,
-            required_one=required_one,
-            implicit_limit=implicit_limit,
-            inline_typenames=inline_typenames,
-            inline_typeids=inline_typeids,
-            allow_capabilities=allow_capabilities,
-            in_dc=in_dc,
-            out_dc=out_dc,
-            state=state,
-        )
-
-    async def query(
-        self,
-        *,
-        query: str,
-        args,
-        kwargs,
-        reg: CodecsRegistry,
-        qc: QueryCodecsCache,
-        output_format: object,
-        expect_one: bint = False,
-        required_one: bool = False,
-        implicit_limit: int = 0,
-        inline_typenames: bool = False,
-        inline_typeids: bool = False,
-        allow_capabilities: enums.Capability = enums.Capability.ALL,
-        state: typing.Optional[dict] = None,
-    ):
-        ret = await self.execute(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=reg,
-            qc=qc,
-            output_format=output_format,
-            expect_one=expect_one,
-            required_one=required_one,
-            implicit_limit=implicit_limit,
-            inline_typenames=inline_typenames,
-            inline_typeids=inline_typeids,
-            allow_capabilities=allow_capabilities,
-            state=state,
-        )
-
-        if expect_one:
-            if ret or not required_one:
+    async def query(self, ctx: ExecuteContext):
+        ret = await self.execute(ctx)
+        if ctx.expect_one:
+            if ret or not ctx.required_one:
                 if ret:
                     return ret[0]
                 else:
-                    if output_format == OutputFormat.JSON:
+                    if ctx.output_format == OutputFormat.JSON:
                         return 'null'
                     else:
                         return None
             else:
-                methname = _QUERY_SINGLE_METHOD[required_one][output_format]
+                methname = (
+                    _QUERY_SINGLE_METHOD[ctx.required_one][ctx.output_format]
+                )
                 raise errors.NoDataError(
                     f'query executed via {methname}() returned no data')
         else:
             if ret:
-                if output_format == OutputFormat.JSON:
+                if ctx.output_format == OutputFormat.JSON:
                     return ret[0]
                 else:
                     return ret
             else:
-                if output_format == OutputFormat.JSON:
+                if ctx.output_format == OutputFormat.JSON:
                     return '[]'
                 else:
                     return ret
@@ -1121,21 +983,16 @@ cdef class SansIOProtocol:
 
         (<ObjectCodec>in_dc).encode_args(buf, kwargs)
 
-    cdef parse_describe_type_message(self, CodecsRegistry reg):
+    cdef parse_describe_type_message(self, ExecuteContext ctx):
         assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG
-
-        cdef:
-            bytes cardinality
 
         try:
             self.ignore_headers()
-            capabilities = self.buffer.read_int64()
-            cardinality = self.buffer.read_byte()
-            in_dc, out_dc = self.parse_type_data(reg)
+            ctx.capabilities = self.buffer.read_int64()
+            ctx.cardinality = self.buffer.read_byte()
+            ctx.in_dc, ctx.out_dc = self.parse_type_data(ctx.reg)
         finally:
             self.buffer.finish_message()
-
-        return capabilities, cardinality, in_dc, out_dc
 
     cdef parse_describe_state_message(self):
         assert self.buffer.get_message_type() == STATE_DATA_DESC_MSG
