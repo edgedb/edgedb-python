@@ -156,6 +156,8 @@ jobs:
   publish:
     needs: [build-sdist, build-wheels]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v3
