@@ -47,21 +47,57 @@ class BlockingIOConnection(base_client.BaseConnection):
 
         if isinstance(addr, str):
             # UNIX socket
-            sock = socket.socket(socket.AF_UNIX)
+            res_list = [(socket.AF_UNIX, socket.SOCK_STREAM, -1, None, addr)]
         else:
-            sock = socket.socket(socket.AF_INET)
-
-        try:
-            sock.settimeout(timeout)
-
+            host, port = addr
             try:
-                sock.connect(addr)
+                # getaddrinfo() doesn't take timeout!!
+                res_list = socket.getaddrinfo(
+                    host, port, socket.AF_UNSPEC, socket.SOCK_STREAM
+                )
+            except socket.gaierror as e:
+                # All name resolution errors are considered temporary
+                err = errors.ClientConnectionFailedTemporarilyError(str(e))
+                raise err from e
 
-                if not isinstance(addr, str):
-                    time_left = deadline - time.monotonic()
-                    if time_left <= 0:
-                        raise TimeoutError
+        for i, res in enumerate(res_list):
+            af, socktype, proto, _, sa = res
+            try:
+                sock = socket.socket(af, socktype, proto)
+            except OSError as e:
+                sock.close()
+                if i < len(res_list) - 1:
+                    continue
+                else:
+                    raise con_utils.wrap_error(e) from e
+            try:
+                await self._connect_addr(sock, addr, sa, deadline)
+            except TimeoutError:
+                raise
+            except Exception:
+                if i < len(res_list) - 1:
+                    continue
+                else:
+                    raise
+            else:
+                break
 
+    async def _connect_addr(self, sock, addr, sa, deadline):
+        try:
+            time_left = deadline - time.monotonic()
+            if time_left <= 0:
+                raise TimeoutError
+            try:
+                sock.settimeout(time_left)
+                sock.connect(sa)
+            except OSError as e:
+                raise con_utils.wrap_error(e) from e
+
+            if not isinstance(addr, str):
+                time_left = deadline - time.monotonic()
+                if time_left <= 0:
+                    raise TimeoutError
+                try:
                     # Upgrade to TLS
                     sock.settimeout(time_left)
                     try:
@@ -74,12 +110,8 @@ class BlockingIOConnection(base_client.BaseConnection):
                         raise con_utils.wrap_error(e) from e
                     else:
                         con_utils.check_alpn_protocol(sock)
-            except socket.gaierror as e:
-                # All name resolution errors are considered temporary
-                err = errors.ClientConnectionFailedTemporarilyError(str(e))
-                raise err from e
-            except OSError as e:
-                raise con_utils.wrap_error(e) from e
+                except OSError as e:
+                    raise con_utils.wrap_error(e) from e
 
             time_left = deadline - time.monotonic()
             if time_left <= 0:
@@ -92,9 +124,9 @@ class BlockingIOConnection(base_client.BaseConnection):
             proto.set_connection(self)
 
             try:
-                sock.settimeout(time_left)
-                await proto.connect()
-                sock.settimeout(None)
+                await proto.wait_for(proto.connect(), time_left)
+            except TimeoutError:
+                raise
             except OSError as e:
                 raise con_utils.wrap_error(e) from e
 
@@ -133,6 +165,9 @@ class BlockingIOConnection(base_client.BaseConnection):
                     await self._protocol.wait_for(
                         self._protocol.wait_for_disconnect(), timeout
                     )
+            except TimeoutError:
+                self.terminate()
+                raise errors.QueryTimeoutError()
             except Exception:
                 self.terminate()
                 raise
