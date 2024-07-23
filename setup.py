@@ -82,7 +82,10 @@ SYSTEM = sys.platform
 
 if SYSTEM != 'win32':
     CFLAGS.extend(['-std=gnu99', '-fsigned-char', '-Wall',
-                   '-Wsign-compare', '-Wconversion'])
+                   '-Wsign-compare', '-Wconversion',
+                   # See also: https://github.com/cython/cython/issues/5240
+                   '-Wno-error=incompatible-pointer-types',
+                   ])
 
 if SYSTEM == 'darwin':
     # Lots of warnings from the standard library on macOS 10.14
