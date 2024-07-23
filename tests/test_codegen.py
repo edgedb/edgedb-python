@@ -27,8 +27,7 @@ import tempfile
 from edgedb import _testbase as tb
 
 
-# Use ".assert" for EdgeDB 3.x and lower
-ASSERT_SUFFIX = os.environ.get("EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX", ".assert4")
+ASSERT_SUFFIX = os.environ.get("EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX", ".assert")
 
 
 class TestCodegen(tb.AsyncQueryTestCase):

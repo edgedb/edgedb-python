@@ -26,7 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        edgedb-version: [stable , nightly]
+        edgedb-version: [5, nightly]
         os: [ubuntu-latest, macos-latest, windows-2019]
         loop: [asyncio, uvloop]
         exclude:
@@ -88,6 +88,11 @@ jobs:
         LOOP_IMPL: ${{ matrix.loop }}
         SERVER_VERSION: ${{ matrix.edgedb-version }}
       run: |
+        if [ "${SERVER_VERSION}" = "nightly" ]; then
+          export EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX=.assert
+        else
+          export EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX=.assert${SERVER_VERSION}
+        fi
         if [ "${LOOP_IMPL}" = "uvloop" ]; then
             env USE_UVLOOP=1 python -m unittest -v tests.suite
         else
