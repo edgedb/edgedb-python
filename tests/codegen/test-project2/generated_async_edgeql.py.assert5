@@ -61,6 +61,7 @@ class MyEnum(enum.Enum):
 
 @dataclasses.dataclass
 class MyQueryResult:
+    id: uuid.UUID
     a: uuid.UUID
     b: uuid.UUID | None
     c: str
@@ -121,6 +122,7 @@ class MyQueryResult:
 
 @dataclasses.dataclass
 class SelectArgsResult:
+    id: uuid.UUID
     Str: str
     DateTime: datetime.datetime
 

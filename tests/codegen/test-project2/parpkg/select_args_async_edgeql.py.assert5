@@ -6,6 +6,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import edgedb
+import uuid
 
 
 class NoPydanticValidation:
@@ -26,6 +27,7 @@ class NoPydanticValidation:
 
 @dataclasses.dataclass
 class SelectArgsResult(NoPydanticValidation):
+    id: uuid.UUID
     Str: str
     DateTime: datetime.datetime
 
