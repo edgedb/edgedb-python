@@ -13,42 +13,7 @@ on:
       - "edgedb/_version.py"
 
 jobs:
-  validate-release-request:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.checkver.outputs.version }}
-    steps:
-    - name: Validate release PR
-      uses: edgedb/action-release/validate-pr@master
-      id: checkver
-      with:
-        github_token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
-        require_team: Release Managers
-        require_approval: no
-        version_file: edgedb/_version.py
-        version_line_pattern: |
-          __version__\s*=\s*(?:['"])([[:PEP440:]])(?:['"])
-
-    - name: Stop if not approved
-      if: steps.checkver.outputs.approved != 'true'
-      run: |
-        echo ::error::PR is not approved yet.
-        exit 1
-
-    - name: Store release version for later use
-      env:
-        VERSION: ${{ steps.checkver.outputs.version }}
-      run: |
-        mkdir -p dist/
-        echo "${VERSION}" > dist/VERSION
-
-    - uses: actions/upload-artifact@v3
-      with:
-        name: dist
-        path: dist/
-
   build-sdist:
-    needs: validate-release-request
     runs-on: ubuntu-latest
 
     env:
@@ -74,7 +39,6 @@ jobs:
         path: dist/*.tar.*
 
   build-wheels-matrix:
-    needs: validate-release-request
     runs-on: ubuntu-latest
     outputs:
       include: ${{ steps.set-matrix.outputs.include }}
@@ -159,58 +123,3 @@ jobs:
       with:
         name: dist
         path: wheelhouse/*.whl
-
-  publish:
-    needs: [build-sdist, build-wheels]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 5
-        submodules: false
-
-    - uses: actions/download-artifact@v3
-      with:
-        name: dist
-        path: dist/
-
-    - name: Extract Release Version
-      id: relver
-      run: |
-        set -e
-        echo ::set-output name=version::$(cat dist/VERSION)
-        rm dist/VERSION
-
-    - name: Merge and tag the PR
-      uses: edgedb/action-release/merge@master
-      with:
-        github_token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
-        ssh_key: ${{ secrets.RELEASE_BOT_SSH_KEY }}
-        gpg_key: ${{ secrets.RELEASE_BOT_GPG_KEY }}
-        gpg_key_id: "5C468778062D87BF!"
-        tag_name: v${{ steps.relver.outputs.version }}
-
-    - name: Publish Github Release
-      uses: elprans/gh-action-create-release@master
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ steps.relver.outputs.version }}
-        release_name: v${{ steps.relver.outputs.version }}
-        target: ${{ github.event.pull_request.base.ref }}
-        body: ${{ github.event.pull_request.body }}
-        draft: true
-
-    - run: |
-        ls -al dist/
-
-    - name: Upload to PyPI
-      uses: pypa/gh-action-pypi-publish@master
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_TOKEN }}
-        # password: ${{ secrets.TEST_PYPI_TOKEN }}
-        # repository_url: https://test.pypi.org/legacy/
