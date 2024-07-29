@@ -110,6 +110,7 @@ jobs:
 
     env:
       PIP_DISABLE_PIP_VERSION_CHECK: 1
+      EDGEDB_SERVER_VERSION: 5
 
     steps:
     - uses: actions/checkout@v3
@@ -132,11 +133,14 @@ jobs:
 
     - name: Install EdgeDB
       uses: edgedb/setup-edgedb@v1
+      with:
+        server-version: ${{ env.EDGEDB_SERVER_VERSION }}
 
     - uses: pypa/cibuildwheel@v2.19.1
       with:
-          only: ${{ matrix.only }}
+        only: ${{ matrix.only }}
       env:
+        EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX: .assert${{ env.EDGEDB_SERVER_VERSION }}
         CIBW_BUILD_VERBOSITY: 1
         CIBW_BEFORE_ALL_LINUX: >
           .github/workflows/install-edgedb.sh
