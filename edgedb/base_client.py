@@ -255,23 +255,15 @@ class BaseConnection(metaclass=abc.ABCMeta):
     async def describe(
         self, describe_context: abstract.DescribeContext
     ) -> abstract.DescribeResult:
-        cardinality, in_dc, out_dc, capabilities = await self._protocol._parse(
-            describe_context.query,
-            reg=protocol.CodecsRegistry(),
-            inline_typenames=describe_context.inject_type_names,
-            output_format=describe_context.output_format,
-            expect_one=describe_context.expect_one,
-            allow_capabilities=enums.Capability.EXECUTE,
-            state=(
-                describe_context.state.as_dict()
-                if describe_context.state else None
-            ),
+        ctx = describe_context.lower(
+            allow_capabilities=enums.Capability.EXECUTE
         )
+        await self._protocol._parse(ctx)
         return abstract.DescribeResult(
-            input_type=in_dc.make_type(describe_context),
-            output_type=out_dc.make_type(describe_context),
-            output_cardinality=enums.Cardinality(cardinality[0]),
-            capabilities=capabilities,
+            input_type=ctx.in_dc.make_type(describe_context),
+            output_type=ctx.out_dc.make_type(describe_context),
+            output_cardinality=enums.Cardinality(ctx.cardinality[0]),
+            capabilities=ctx.capabilities,
         )
 
     def terminate(self):

@@ -110,6 +110,22 @@ class DescribeContext:
     output_format: protocol.OutputFormat
     expect_one: bool
 
+    def lower(
+        self, *, allow_capabilities: enums.Capability
+    ) -> protocol.ExecuteContext:
+        return protocol.ExecuteContext(
+            query=self.query,
+            args=None,
+            kwargs=None,
+            reg=protocol.CodecsRegistry(),
+            qc=protocol.LRUMapping(maxsize=1),
+            output_format=self.output_format,
+            expect_one=self.expect_one,
+            inline_typenames=self.inject_type_names,
+            allow_capabilities=allow_capabilities,
+            state=self.state.as_dict() if self.state else None,
+        )
+
 
 @dataclasses.dataclass
 class DescribeResult:

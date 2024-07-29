@@ -25,7 +25,6 @@ class MyEnum(enum.Enum):
 
 @dataclasses.dataclass
 class MyQueryResult:
-    id: uuid.UUID
     a: uuid.UUID
     b: typing.Optional[uuid.UUID]
     c: str

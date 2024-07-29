@@ -25,11 +25,9 @@ import os
 import tempfile
 
 from edgedb import _testbase as tb
-import unittest
 
 
-# Use ".assert" for EdgeDB 3.x and lower
-ASSERT_SUFFIX = os.environ.get("EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX", ".assert4")
+ASSERT_SUFFIX = os.environ.get("EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX", ".assert")
 
 
 class TestCodegen(tb.AsyncQueryTestCase):
@@ -43,11 +41,6 @@ class TestCodegen(tb.AsyncQueryTestCase):
         drop extension pgvector;
     '''
 
-    @unittest.skip('''
-        The codegen seems to be broken w.r.t. expectations on whether `id` is
-        supposed to appear in `MyQueryResult` in the
-        `generated_async_edgeql.py.assert4`.
-    ''')
     async def test_codegen(self):
         env = os.environ.copy()
         env.update(
