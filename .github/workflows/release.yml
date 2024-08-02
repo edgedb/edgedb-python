@@ -8,7 +8,7 @@ on:
     branches:
       - "master"
       - "ci"
-      - "[0-9]+.[0-9x]+*"
+      - "v?[0-9]+(.[0-9x]+)*"
     paths:
       - "edgedb/_version.py"
 
