@@ -336,7 +336,6 @@ setuptools.setup(
             include_dirs=INCLUDE_DIRS),
     ],
     cmdclass={'build_ext': build_ext},
-    test_suite='tests.suite',
     python_requires=">=3.7",
     install_requires=[
         'typing-extensions>=3.10.0; python_version < "3.8.0"',
