@@ -26,7 +26,7 @@ from edgedb import enums
 from edgedb.datatypes import datatypes
 
 from libc.string cimport memcpy
-
+from cpython.bytes cimport PyBytes_FromStringAndSize
 
 include "./edb_types.pxi"
 
@@ -894,6 +894,27 @@ cdef bigint_decode(pgproto.CodecContext settings, FRBuffer *buf):
     return int(result)
 
 
+cdef geometry_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
+    buf.write_int32(len(obj.wkb))
+    buf.write_bytes(obj.wkb)
+
+
+cdef geometry_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        object result
+    # Just wrap the bytes into a named tuple with a single field `wkb`
+    descriptor = datatypes.record_desc_new(
+        ('wkb',), <object>NULL, <object>NULL)
+    result = datatypes.namedtuple_new(
+        datatypes.namedtuple_type_new(descriptor))
+
+    elem = PyBytes_FromStringAndSize(frb_read_all(buf), buf.len)
+    cpython.Py_INCREF(elem)
+    cpython.PyTuple_SET_ITEM(result, 0, elem)
+
+    return result
+
+
 cdef register_base_scalar_codecs():
     register_base_scalar_codec(
         'std::uuid',
@@ -1005,6 +1026,34 @@ cdef register_base_scalar_codecs():
         pgvector_encode,
         pgvector_decode,
         uuid.UUID('9565dd88-04f5-11ee-a691-0b6ebe179825'),
+    )
+
+    register_base_scalar_codec(
+        'ext::postgis::geometry',
+        geometry_encode,
+        geometry_decode,
+        uuid.UUID('44c901c0-d922-4894-83c8-061bd05e4840'),
+    )
+
+    register_base_scalar_codec(
+        'ext::postgis::geography',
+        geometry_encode,
+        geometry_decode,
+        uuid.UUID('4d738878-3a5f-4821-ab76-9d8e7d6b32c4'),
+    )
+
+    register_base_scalar_codec(
+        'ext::postgis::box2d',
+        geometry_encode,
+        geometry_decode,
+        uuid.UUID('7fae5536-6311-4f60-8eb9-096a5d972f48'),
+    )
+
+    register_base_scalar_codec(
+        'ext::postgis::box3d',
+        geometry_encode,
+        geometry_decode,
+        uuid.UUID('c1a50ff8-fded-48b0-85c2-4905a8481433'),
     )
 
 
