@@ -5,7 +5,8 @@ on:
     branches:
       - "master"
       - "ci"
-      - "[0-9]+.[0-9x]+*"
+      - "release/[0-9]+.x"
+      - "release/[0-9]+.[0-9]+.x"
     paths:
       - "edgedb/_version.py"
 
@@ -80,9 +81,11 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
-      - run: pip install cibuildwheel==2.12.3
+      - run: pip install cibuildwheel==2.19.2
       - id: set-matrix
         # Cannot test on Musl distros yet.
+        env:
+          CIBW_SKIP: "cp312-*"
         run: |
           MATRIX_INCLUDE=$(
             {
@@ -130,7 +133,7 @@ jobs:
     - name: Install EdgeDB
       uses: edgedb/setup-edgedb@v1
 
-    - uses: pypa/cibuildwheel@v2.12.3
+    - uses: pypa/cibuildwheel@v2.19.2
       with:
           only: ${{ matrix.only }}
       env:
