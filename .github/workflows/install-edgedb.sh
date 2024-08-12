@@ -17,7 +17,7 @@ else
     adduser -s /bin/bash -D edgedb
 fi
 
-su -l edgedb -c "edgedb server install"
+su -l edgedb -c "edgedb server install --version ${EDGEDB_SERVER_VERSION}"
 ln -s $(su -l edgedb -c "edgedb server info --latest --bin-path") \
     "/usr/bin/edgedb-server"
 
