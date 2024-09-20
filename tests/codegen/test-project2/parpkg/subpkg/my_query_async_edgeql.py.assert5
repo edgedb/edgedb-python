@@ -41,6 +41,7 @@ class MyEnum(enum.Enum):
 
 @dataclasses.dataclass
 class MyQueryResult(NoPydanticValidation):
+    id: uuid.UUID
     a: uuid.UUID
     b: typing.Optional[uuid.UUID]
     c: str

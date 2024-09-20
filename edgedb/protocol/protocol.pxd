@@ -85,9 +85,9 @@ cdef class ExecuteContext:
         object state
 
         # Contextual variables
-        bytes cardinality
-        BaseCodec in_dc
-        BaseCodec out_dc
+        readonly bytes cardinality
+        readonly BaseCodec in_dc
+        readonly BaseCodec out_dc
         readonly uint64_t capabilities
 
     cdef inline bint has_na_cardinality(self)

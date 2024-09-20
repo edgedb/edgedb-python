@@ -8,7 +8,8 @@ on:
     branches:
       - "master"
       - "ci"
-      - "[0-9]+.[0-9x]+*"
+      - "release/[0-9]+.x"
+      - "release/[0-9]+.[0-9]+.x"
     paths:
       - "edgedb/_version.py"
 
@@ -110,6 +111,7 @@ jobs:
 
     env:
       PIP_DISABLE_PIP_VERSION_CHECK: 1
+      EDGEDB_SERVER_VERSION: 5
 
     steps:
     - uses: actions/checkout@v3
@@ -139,17 +141,17 @@ jobs:
       env:
         CIBW_BUILD_VERBOSITY: 1
         CIBW_BEFORE_ALL_LINUX: >
-          .github/workflows/install-edgedb.sh
+          EDGEDB_SERVER_VERSION=${{ env.EDGEDB_SERVER_VERSION }} .github/workflows/install-edgedb.sh
         CIBW_TEST_EXTRAS: "test"
         CIBW_TEST_COMMAND: >
-          python {project}/tests/__init__.py
+          EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX=.assert${{ env.EDGEDB_SERVER_VERSION }} python {project}/tests/__init__.py
         CIBW_TEST_COMMAND_WINDOWS: >
-          python {project}\tests\__init__.py
+          set EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX=.assert${{ env.EDGEDB_SERVER_VERSION }} && python {project}\tests\__init__.py
         CIBW_TEST_COMMAND_LINUX: >
           PY=`which python`
           && CODEGEN=`which edgedb-py`
           && chmod -R go+rX "$(dirname $(dirname $(dirname $PY)))"
-          && su -l edgedb -c "EDGEDB_PYTHON_TEST_CODEGEN_CMD=$CODEGEN $PY {project}/tests/__init__.py"
+          && su -l edgedb -c "EDGEDB_PYTHON_TEST_CODEGEN_CMD=$CODEGEN EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX=.assert${{ env.EDGEDB_SERVER_VERSION }} $PY {project}/tests/__init__.py"
 
     - uses: actions/upload-artifact@v3
       with:

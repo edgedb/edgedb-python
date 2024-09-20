@@ -22,8 +22,8 @@ import typing
 import uuid
 
 
+Input = typing.Sequence[float]
 MyScalar = int
-V3 = typing.Sequence[float]
 
 
 @dataclasses.dataclass
@@ -61,6 +61,7 @@ class MyEnum(enum.Enum):
 
 @dataclasses.dataclass
 class MyQueryResult:
+    id: uuid.UUID
     a: uuid.UUID
     b: uuid.UUID | None
     c: str
@@ -121,6 +122,7 @@ class MyQueryResult:
 
 @dataclasses.dataclass
 class SelectArgsResult:
+    id: uuid.UUID
     Str: str
     DateTime: datetime.datetime
 
@@ -143,7 +145,7 @@ class SelectObjectResultParamsItem:
 async def custom_vector_input(
     executor: edgedb.AsyncIOExecutor,
     *,
-    input: V3 | None = None,
+    input: Input | None = None,
 ) -> int | None:
     return await executor.query_single(
         """\
