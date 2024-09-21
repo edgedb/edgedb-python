@@ -393,13 +393,9 @@ class Client(base_client.BaseClient, abstract.Executor):
         try:
             coro.send(None)
         except StopIteration as ex:
-            if ex.args:
-                result = ex.args[0]
-            else:
-                result = None
+            return ex.value
         finally:
             coro.close()
-        return result
 
     def _query(self, query_context: abstract.QueryContext):
         return self._iter_coroutine(super()._query(query_context))
