@@ -67,6 +67,12 @@ cdef BaseCodec NULL_CODEC = NullCodec.__new__(NullCodec)
 cdef BaseCodec EMPTY_TUPLE_CODEC = EmptyTupleCodec.__new__(EmptyTupleCodec)
 
 
+# Needed to perform bit manipulations to convert from float16 to float32
+cdef union IntFloatSwap:
+    uint32_t i
+    float f
+
+
 cdef class CodecsRegistry:
 
     def __init__(self, *, cache_size=1000):
@@ -716,7 +722,6 @@ DEF PGVECTOR_MAX_DIM = (1 << 16) - 1
 cdef pgvector_encode_memview(pgproto.CodecContext settings, WriteBuffer buf,
                              float[:] obj):
     cdef:
-        float item
         Py_ssize_t objlen
         Py_ssize_t i
 
@@ -734,7 +739,6 @@ cdef pgvector_encode_memview(pgproto.CodecContext settings, WriteBuffer buf,
 cdef pgvector_encode(pgproto.CodecContext settings, WriteBuffer buf,
                      object obj):
     cdef:
-        float item
         Py_ssize_t objlen
         float[:] memview
         Py_ssize_t i
@@ -770,7 +774,7 @@ cdef pgvector_encode(pgproto.CodecContext settings, WriteBuffer buf,
         buf.write_float(obj[i])
 
 
-cdef object ONE_EL_ARRAY = array.array('f', [0.0])
+cdef object ONE_EL_F32_ARRAY = array.array('f', [0.0])
 
 
 cdef pgvector_decode(pgproto.CodecContext settings, FRBuffer *buf):
@@ -788,7 +792,7 @@ cdef pgvector_decode(pgproto.CodecContext settings, FRBuffer *buf):
     p = frb_read(buf, size)
 
     # Create a float array with size dim
-    val = ONE_EL_ARRAY * dim
+    val = ONE_EL_F32_ARRAY * dim
 
     # And fill it with the buffer contents
     array_view = val
@@ -796,6 +800,159 @@ cdef pgvector_decode(pgproto.CodecContext settings, FRBuffer *buf):
     val.byteswap()
 
     return val
+
+
+cdef pgvector_hv_encode(pgproto.CodecContext settings, WriteBuffer buf,
+                        object obj):
+    cdef:
+        Py_ssize_t objlen
+        float[:] memview
+        Py_ssize_t i
+        IntFloatSwap swap
+
+    if not _is_array_iterable(obj):
+        raise TypeError(
+            'a sized iterable container expected (got type {!r})'.format(
+                type(obj).__name__))
+
+    objlen = len(obj)
+    if objlen > PGVECTOR_MAX_DIM:
+        raise ValueError('too many elements in vector value')
+
+    buf.write_int32(4 + objlen * 2)
+    buf.write_int16(objlen)
+    buf.write_int16(0)
+    for i in range(objlen):
+        swap.f = obj[i]
+        swap.i = (
+            ((swap.i >> 16) & 0x8000) |
+            ((((swap.i & 0x7f800000) - 0x38000000) >> 13) & 0x7c00) |
+            ((swap.i >> 13) & 0x03ff)
+        )
+        buf.write_int16(swap.i)
+
+
+cdef object ONE_EL16_ARRAY = array.array('H', [0])
+
+
+cdef pgvector_hv_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        int32_t dim
+        Py_ssize_t size
+        Py_buffer view
+        char *p
+        unsigned short[:] tmp_array_view
+        float[:] array_view
+        Py_ssize_t i
+        IntFloatSwap swap
+
+    dim = hton.unpack_uint16(frb_read(buf, 2))
+    frb_read(buf, 2)
+
+    # We'll read float16 values as an array of uint16 and then convert since
+    # plain vanilla Python doesn't have half-floats.
+    #
+    # TODO: Potentially we might handle it differently if numpy is present since
+    # numpy has half floats since 1.60.
+    size = dim * 2
+    p = frb_read(buf, size)
+    tmp = ONE_EL16_ARRAY * dim
+
+    # And fill it with the buffer contents
+    tmp_array_view = tmp
+    memcpy(&tmp_array_view[0], p, size)
+    tmp.byteswap()
+
+    # Create a float array with size dim
+    val = ONE_EL_F32_ARRAY * dim
+    for i in range(dim):
+        swap.i = tmp[i]
+        swap.i = (
+            ((swap.i & 0x8000) << 16) |
+            (((swap.i & 0x7c00) + 0x1C000) << 13) |
+            ((swap.i & 0x03FF) << 13)
+        )
+        val[i] = swap.f
+
+    return val
+
+
+cdef pgvector_sv_encode(pgproto.CodecContext settings, WriteBuffer buf,
+                        object obj):
+    cdef:
+        int32_t dim
+        Py_ssize_t nnz
+        # int32_t key
+        # float val
+
+    if not (cpython.PyDict_Check(obj) or isinstance(obj, MappingABC)):
+        raise TypeError(
+            'a dict or Mapping expected (got type {!r})'.format(
+                type(obj).__name__))
+
+    if 'dim' not in obj:
+        raise TypeError('"dim" key is missing')
+
+    dim = obj['dim']
+
+    # One of the keys is 'dim' so nnz is one less than the length
+    nnz = len(obj) - 1
+    if nnz > PGVECTOR_MAX_DIM or nnz > dim:
+        raise ValueError('too many elements in vector value')
+
+    buf.write_int32(4 * (3 + 2 * nnz))
+    buf.write_int32(dim)
+    buf.write_int32(nnz)
+    buf.write_int32(0)
+
+    for key in obj.keys():
+        if key != 'dim':
+            ensure_is_int(key)
+            buf.write_int32(key)
+
+    for key, val in obj.items():
+        if key != 'dim':
+            if val == 0:
+                raise ValueError('elements in a sparse vector cannot be 0')
+            buf.write_float(<float>val)
+
+
+cdef object ONE_EL_I32_ARRAY = array.array('l', [0])
+
+
+cdef pgvector_sv_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        int32_t dim
+        int32_t nnz
+        Py_ssize_t size
+        char *p
+        float[:] array_view
+        Py_ssize_t i
+
+    dim = hton.unpack_int32(frb_read(buf, 4))
+    nnz = hton.unpack_int32(frb_read(buf, 4))
+    frb_read(buf, 4)
+
+    # Create an int array with size nnz (for indexes)
+    keys = ONE_EL_I32_ARRAY * nnz
+    for i in range(nnz):
+        keys[i] = hton.unpack_int32(frb_read(buf, 4))
+
+    size = nnz * 4
+    p = frb_read(buf, size)
+
+    # Create a float array with size nnz (for values)
+    vals = ONE_EL_F32_ARRAY * nnz
+
+    # And fill it with the buffer contents
+    array_view = vals
+    memcpy(&array_view[0], p, size)
+    vals.byteswap()
+
+    res = {'dim': dim}
+    res.update(zip(keys, vals))
+
+    return res
 
 
 cdef checked_decimal_encode(
@@ -1026,6 +1183,20 @@ cdef register_base_scalar_codecs():
         pgvector_encode,
         pgvector_decode,
         uuid.UUID('9565dd88-04f5-11ee-a691-0b6ebe179825'),
+    )
+
+    register_base_scalar_codec(
+        'ext::pgvector::halfvec',
+        pgvector_hv_encode,
+        pgvector_hv_decode,
+        uuid.UUID('4ba84534-188e-43b4-a7ce-cea2af0f405b'),
+    )
+
+    register_base_scalar_codec(
+        'ext::pgvector::sparsevec',
+        pgvector_sv_encode,
+        pgvector_sv_decode,
+        uuid.UUID('003e434d-cac2-430a-b238-fb39d73447d2'),
     )
 
     register_base_scalar_codec(
