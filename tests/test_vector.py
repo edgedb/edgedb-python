@@ -20,6 +20,7 @@ from edgedb import _testbase as tb
 import edgedb
 
 import array
+import math
 
 
 # An array.array subtype where indexing doesn't work.
@@ -129,3 +130,92 @@ class TestVector(tb.SyncQueryTestCase):
                 ''',
                 'foo',
             )
+
+    async def test_vector_02(self):
+        val = self.client.query_single(
+            '''
+            select <ext::pgvector::sparsevec>
+                <ext::pgvector::vector>[0, 1.5, 2.0, 3.8, 0, 0]
+            ''',
+        )
+        self.assertEqual(val['dim'], 6)
+        self.assertEqual(val[1], 1.5)
+        self.assertEqual(val[2], 2)
+        self.assertTrue(math.isclose(val[3], 3.8, abs_tol=1e-6))
+
+        val = self.client.query_single(
+            '''
+            select <array<float32>><ext::pgvector::vector>
+                <ext::pgvector::sparsevec>$0
+            ''',
+            {'dim': 6, 1: 1.5, 2: 2, 3: 3.8},
+        )
+        self.assertEqual(len(val), 6)
+        self.assertEqual(val[0], 0)
+        self.assertEqual(val[1], 1.5)
+        self.assertEqual(val[2], 2)
+        self.assertTrue(math.isclose(val[3], 3.8, abs_tol=1e-6))
+        self.assertEqual(val[4], 0)
+        self.assertEqual(val[5], 0)
+
+        with self.assertRaises(edgedb.InvalidArgumentError):
+            self.client.query_single(
+                '''
+                    select <ext::pgvector::sparsevec>$0
+                ''',
+                {'dim': 1, 1: 1.5, 2: 2, 3: 3.8},
+            )
+
+        with self.assertRaises(edgedb.InvalidArgumentError):
+            self.client.query_single(
+                '''
+                    select <ext::pgvector::sparsevec>$0
+                ''',
+                {'dims': 1, 1: 1.5, 2: 2, 3: 3.8},
+            )
+
+        with self.assertRaises(edgedb.InvalidArgumentError):
+            self.client.query_single(
+                '''
+                    select <ext::pgvector::sparsevec>$0
+                ''',
+                {'dim': 6, 1: 1.5, 2: 2, 3: '3.8'},
+            )
+
+        with self.assertRaises(edgedb.InvalidArgumentError):
+            self.client.query_single(
+                '''
+                    select <ext::pgvector::sparsevec>$0
+                ''',
+                {'dim': 6, 1: 1.5, 2: 2, '3': 3.8},
+            )
+
+        with self.assertRaises(edgedb.InvalidArgumentError):
+            self.client.query_single(
+                '''
+                    select <ext::pgvector::sparsevec>$0
+                ''',
+                {'dim': 6, 1: 1.5, 2: 2, 3: 0},
+            )
+
+    async def test_vector_03(self):
+        val = self.client.query_single(
+            '''
+            select <ext::pgvector::halfvec>[1.5, 2.0, 3.8]
+            ''',
+        )
+        self.assertTrue(isinstance(val, array.array))
+        self.assertEqual(val[0], 1.5)
+        self.assertEqual(val[1], 2)
+        print(val)
+        self.assertTrue(math.isclose(val[2], 3.8, abs_tol=1e-2))
+
+        val = self.client.query_single(
+            '''
+            select <array<float32>><ext::pgvector::halfvec>$0
+            ''',
+            [1.5, 2.0, 3.8],
+        )
+        self.assertEqual(val[0], 1.5)
+        self.assertEqual(val[1], 2)
+        self.assertTrue(math.isclose(val[2], 3.8, abs_tol=1e-2))
