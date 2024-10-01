@@ -67,12 +67,6 @@ cdef BaseCodec NULL_CODEC = NullCodec.__new__(NullCodec)
 cdef BaseCodec EMPTY_TUPLE_CODEC = EmptyTupleCodec.__new__(EmptyTupleCodec)
 
 
-# Needed to perform bit manipulations to convert from float16 to float32
-cdef union IntFloatSwap:
-    uint32_t i
-    float f
-
-
 cdef class CodecsRegistry:
 
     def __init__(self, *, cache_size=1000):
@@ -802,6 +796,117 @@ cdef pgvector_decode(pgproto.CodecContext settings, FRBuffer *buf):
     return val
 
 
+# Half-floats or float16 types often don't have a native implementation, so in
+# order to cast to and from it we need to implement the cast ourselves. The
+# algorithm to do so is taken from here:
+# http://www.fox-toolkit.org/ftp/fasthalffloatconversion.pdf
+#
+# It is a paper titled "Fast Half Float Conversions" by Jeroen van der Zijp,
+# referenced by wiki as well as many articles on float conversion.
+
+# Needed to perform bit manipulations to convert from float16 to float32
+cdef union IntFloatSwap:
+    uint32_t i
+    float f
+
+
+# Optimization to convert f16 to f32
+cdef:
+    uint32_t[2048] MANTISSA_TABLE
+    uint32_t[64] EXP_TABLE
+    uint32_t[64] OFFSET_TABLE
+    uint32_t[512] BASE_TABLE
+    uint32_t[512] SHIFT_TABLE
+
+
+cdef convertmantissa(uint32_t n):
+    cdef:
+        uint32_t m
+        uint32_t e
+
+    m = n << 13                 # Zero pad mantissa bits
+    e = 0                       # Zero exponent
+    # While not normalized
+    while (m & 0x00800000) == 0:
+        e -= 0x00800000         # Decrement exponent (1<<23)
+        m <<= 1                 # Shift mantissa
+
+    m &= ~0x00800000            # Clear leading 1 bit
+    e += 0x38800000             # Adjust bias ((127-14)<<23)
+
+    return m | e
+
+
+cdef generate_tables():
+    cdef:
+        uint32_t i
+        int32_t e
+
+    # Generate the f16 to f32 conversion tables
+    MANTISSA_TABLE[0] = 0
+    for i in range(1, 1024):
+        MANTISSA_TABLE[i] = convertmantissa(i)
+    for i in range(1024, 2048):
+        MANTISSA_TABLE[i] = 0x38000000 + ((i - 1024) << 13)
+
+    EXP_TABLE[0] = 0
+    EXP_TABLE[31]= 0x47800000
+    EXP_TABLE[32]= 0x80000000
+    EXP_TABLE[63]= 0xC7800000
+    for i in range(1, 31):
+        EXP_TABLE[i] = i << 23
+    for i in range(33, 63):
+        EXP_TABLE[i] = 0x80000000 + ((i - 32) << 23)
+
+    for i in range(64):
+        if i == 0 or i == 32:
+            OFFSET_TABLE[i] = 0
+        else:
+            OFFSET_TABLE[i] = 1024
+
+    # Generate the f32 to f16 conversion tables
+    for i in range(256):
+        e = i - 127
+
+        # Very small numbers map to zero
+        if e < -24:
+            BASE_TABLE[i] = 0
+            BASE_TABLE[i + 256] = 0x8000
+            SHIFT_TABLE[i] = 24
+            SHIFT_TABLE[i + 256] = 24
+
+        # Small numbers map to denorms
+        elif e < -14:
+            BASE_TABLE[i] = 0x0400 >> (-e - 14)
+            BASE_TABLE[i + 256] = (0x0400 >> (-e - 14)) | 0x8000
+            SHIFT_TABLE[i] = -e - 1
+            SHIFT_TABLE[i + 256] = -e - 1
+
+        # Normal numbers just lose precision
+        elif e <= 15:
+            BASE_TABLE[i] = (e + 15) << 10
+            BASE_TABLE[i + 256] = ((e + 15) << 10) | 0x8000
+            SHIFT_TABLE[i] = 13
+            SHIFT_TABLE[i + 256] = 13
+
+        # Large numbers map to Infinity
+        elif e < 128:
+            BASE_TABLE[i] = 0x7C00
+            BASE_TABLE[i + 256] = 0xFC00
+            SHIFT_TABLE[i] = 24
+            SHIFT_TABLE[i + 256] = 24
+
+        # Infinity and NaN's stay Infinity and NaN's
+        else:
+            BASE_TABLE[i] = 0x7C00
+            BASE_TABLE[i + 256] = 0xFC00
+            SHIFT_TABLE[i] = 13
+            SHIFT_TABLE[i + 256] = 13
+
+
+generate_tables()
+
+
 cdef pgvector_hv_encode(pgproto.CodecContext settings, WriteBuffer buf,
                         object obj):
     cdef:
@@ -825,10 +930,14 @@ cdef pgvector_hv_encode(pgproto.CodecContext settings, WriteBuffer buf,
     for i in range(objlen):
         swap.f = obj[i]
         swap.i = (
-            ((swap.i >> 16) & 0x8000) |
-            ((((swap.i & 0x7f800000) - 0x38000000) >> 13) & 0x7c00) |
-            ((swap.i >> 13) & 0x03ff)
+            BASE_TABLE[(swap.i >> 23) & 0x1ff]
+            + ((swap.i & 0x007fffff) >> SHIFT_TABLE[(swap.i >> 23) & 0x1ff])
         )
+
+        if swap.i == BASE_TABLE[255] or swap.i == BASE_TABLE[511]:
+            raise ValueError(
+                '{!r} is out of range for type halfvec'.format(obj[i]))
+
         buf.write_int16(swap.i)
 
 
@@ -867,11 +976,9 @@ cdef pgvector_hv_decode(pgproto.CodecContext settings, FRBuffer *buf):
     val = ONE_EL_F32_ARRAY * dim
     for i in range(dim):
         swap.i = tmp[i]
-        swap.i = (
-            ((swap.i & 0x8000) << 16) |
-            (((swap.i & 0x7c00) + 0x1C000) << 13) |
-            ((swap.i & 0x03FF) << 13)
-        )
+        swap.i = MANTISSA_TABLE[
+            OFFSET_TABLE[swap.i >> 10] + (swap.i & 0x000003ff)
+        ] + EXP_TABLE[swap.i >> 10]
         val[i] = swap.f
 
     return val
@@ -882,8 +989,6 @@ cdef pgvector_sv_encode(pgproto.CodecContext settings, WriteBuffer buf,
     cdef:
         int32_t dim
         Py_ssize_t nnz
-        # int32_t key
-        # float val
 
     if not (cpython.PyDict_Check(obj) or isinstance(obj, MappingABC)):
         raise TypeError(
