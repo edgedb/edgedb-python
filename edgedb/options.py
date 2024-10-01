@@ -1,10 +1,15 @@
 import abc
 import enum
+import logging
 import random
 import typing
+import sys
 from collections import namedtuple
 
 from . import errors
+
+
+logger = logging.getLogger('edgedb')
 
 
 _RetryRule = namedtuple("_RetryRule", ["attempts", "backoff"])
@@ -12,6 +17,29 @@ _RetryRule = namedtuple("_RetryRule", ["attempts", "backoff"])
 
 def default_backoff(attempt):
     return (2 ** attempt) * 0.1 + random.randrange(100) * 0.001
+
+
+WarningHandler = typing.Callable[
+    [typing.Tuple[errors.EdgeDBError, ...], typing.Any],
+    typing.Any,
+]
+
+def raise_warnings(warnings, res):
+    if (
+        len(warnings) > 1
+        and sys.version_info >= (3, 11)
+    ):
+        raise ExceptionGroup(
+            "Query produced warnings", warnings
+        )
+    else:
+        raise warnings[0]
+
+
+def log_warnings(warnings, res):
+    for w in warnings:
+        logger.warning("EdgeDB warning: %s", str(w))
+    return res
 
 
 class RetryCondition:
@@ -311,6 +339,25 @@ class _OptionsMixin:
         result._options = self._options.with_retry_options(options)
         return result
 
+    def with_warning_handler(self, warning_handler: WarningHandler=None):
+        """Returns object with adjusted options for handling warnings.
+
+        :param warning_handler WarningHandler:
+            Function for handling warnings. It is passed a tuple of warnings
+            and the query result and returns a potentially updated query
+            result.
+
+        This method returns a "shallow copy" of the current object
+        with modified retry options.
+
+        Both ``self`` and returned object can be used after, but when using
+        them retry options applied will be different.
+        """
+
+        result = self._shallow_clone()
+        result._options = self._options.with_warning_handler(warning_handler)
+        return result
+
     def with_state(self, state: State):
         result = self._shallow_clone()
         result._options = self._options.with_state(state)
@@ -369,17 +416,22 @@ class _OptionsMixin:
 class _Options:
     """Internal class for storing connection options"""
 
-    __slots__ = ['_retry_options', '_transaction_options', '_state']
+    __slots__ = [
+        '_retry_options', '_transaction_options', '_state',
+        '_warning_handler'
+    ]
 
     def __init__(
         self,
         retry_options: RetryOptions,
         transaction_options: TransactionOptions,
         state: State,
+        warning_handler: WarningHandler,
     ):
         self._retry_options = retry_options
         self._transaction_options = transaction_options
         self._state = state
+        self._warning_handler = warning_handler
 
     @property
     def retry_options(self):
@@ -393,11 +445,16 @@ class _Options:
     def state(self):
         return self._state
 
+    @property
+    def warning_handler(self):
+        return self._warning_handler
+
     def with_retry_options(self, options: RetryOptions):
         return _Options(
             options,
             self._transaction_options,
             self._state,
+            self._warning_handler,
         )
 
     def with_transaction_options(self, options: TransactionOptions):
@@ -405,6 +462,7 @@ class _Options:
             self._retry_options,
             options,
             self._state,
+            self._warning_handler,
         )
 
     def with_state(self, state: State):
@@ -412,6 +470,15 @@ class _Options:
             self._retry_options,
             self._transaction_options,
             state,
+            self._warning_handler,
+        )
+
+    def with_warning_handler(self, warning_handler: WarningHandler):
+        return _Options(
+            self._retry_options,
+            self._transaction_options,
+            self._state,
+            warning_handler,
         )
 
     @classmethod
@@ -420,4 +487,5 @@ class _Options:
             RetryOptions.defaults(),
             TransactionOptions.defaults(),
             State.defaults(),
+            log_warnings,
         )

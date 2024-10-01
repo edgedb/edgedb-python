@@ -216,7 +216,11 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 if self._protocol.is_legacy:
                     return await self._protocol.legacy_execute_anonymous(ctx)
                 else:
-                    return await self._protocol.query(ctx)
+                    res = await self._protocol.query(ctx)
+                    if ctx.warnings:
+                        res = query_context.warning_handler(ctx.warnings, res)
+                    return res
+
             except errors.EdgeDBError as e:
                 if query_context.retry_options is None:
                     raise
@@ -246,11 +250,12 @@ class BaseConnection(metaclass=abc.ABCMeta):
                 execute_context.query.query, enums.Capability.LEGACY_EXECUTE
             )
         else:
-            await self._protocol.execute(
-                execute_context.lower(
-                    allow_capabilities=enums.Capability.EXECUTE
-                )
+            ctx = execute_context.lower(
+                allow_capabilities=enums.Capability.EXECUTE
             )
+            res = await self._protocol.execute(ctx)
+            if ctx.warnings:
+                res = execute_context.warning_handler(ctx.warnings, res)
 
     async def describe(
         self, describe_context: abstract.DescribeContext
@@ -683,6 +688,9 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
 
     def _get_state(self) -> _options.State:
         return self._options.state
+
+    def _get_warning_handler(self) -> _options.WarningHandler:
+        return self._options.warning_handler
 
     @property
     def max_concurrency(self) -> int:

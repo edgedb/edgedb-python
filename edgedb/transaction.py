@@ -185,6 +185,9 @@ class BaseTransaction:
     def _get_state(self) -> options.State:
         return self._client._get_state()
 
+    def _get_warning_handler(self) -> options.WarningHandler:
+        return self._client._get_warning_handler()
+
     async def _query(self, query_context: abstract.QueryContext):
         await self._ensure_transaction()
         return await self._connection.raw_query(query_context)
