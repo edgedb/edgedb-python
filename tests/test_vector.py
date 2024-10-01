@@ -201,21 +201,71 @@ class TestVector(tb.SyncQueryTestCase):
     async def test_vector_03(self):
         val = self.client.query_single(
             '''
-            select <ext::pgvector::halfvec>[1.5, 2.0, 3.8]
+            select <ext::pgvector::halfvec>
+                [1.5, 2.0, 3.8, 0, 3.4575e-3, 65000,
+                 6.0975e-5, 2.2345e-7, -5.96e-8]
             ''',
         )
+
         self.assertTrue(isinstance(val, array.array))
         self.assertEqual(val[0], 1.5)
         self.assertEqual(val[1], 2)
-        print(val)
-        self.assertTrue(math.isclose(val[2], 3.8, abs_tol=1e-2))
+        self.assertTrue(math.isclose(val[2], 3.80, rel_tol=1e-3))
+        self.assertEqual(val[3], 0)
+        self.assertTrue(math.isclose(val[4], 3.457e-3, rel_tol=1e-3))
+        self.assertTrue(math.isclose(val[5], 65000, rel_tol=1e-3))
+        # These values are sub-normal so they don't map perfectly onto f32
+        self.assertTrue(math.isclose(val[6], 6.0975e-5, rel_tol=1e-2))
+        self.assertTrue(math.isclose(val[7], 2.38e-7, rel_tol=1e-2))
+        self.assertTrue(math.isclose(val[8], -5.96e-8, rel_tol=1e-2))
 
         val = self.client.query_single(
             '''
             select <array<float32>><ext::pgvector::halfvec>$0
             ''',
-            [1.5, 2.0, 3.8],
+            [1.5, 2.0, 3.8, 0, 3.4575e-3, 65000,
+             6.0975e-5, 2.385e-7, -5.97e-8],
         )
+
         self.assertEqual(val[0], 1.5)
         self.assertEqual(val[1], 2)
-        self.assertTrue(math.isclose(val[2], 3.8, abs_tol=1e-2))
+        self.assertTrue(math.isclose(val[2], 3.80, rel_tol=1e-3))
+        self.assertEqual(val[3], 0)
+        self.assertTrue(math.isclose(val[4], 3.457e-3, rel_tol=1e-3))
+        self.assertTrue(math.isclose(val[5], 65000, rel_tol=1e-3))
+        # These values are sub-normal so they don't map perfectly onto f32
+        self.assertTrue(math.isclose(val[6], 6.0975e-5, rel_tol=1e-2))
+        self.assertTrue(math.isclose(val[7], 2.38e-7, rel_tol=1e-2))
+        self.assertTrue(math.isclose(val[8], -5.96e-8, rel_tol=1e-2))
+
+        with self.assertRaises(edgedb.InvalidArgumentError):
+            self.client.query_single(
+                '''
+                    select <ext::pgvector::halfvec>$0
+                ''',
+                [3.0, None, -42.5],
+            )
+
+        with self.assertRaises(edgedb.InvalidArgumentError):
+            self.client.query_single(
+                '''
+                    select <ext::pgvector::halfvec>$0
+                ''',
+                [3.0, 'x', -42.5],
+            )
+
+        with self.assertRaises(edgedb.InvalidArgumentError):
+            self.client.query_single(
+                '''
+                    select <ext::pgvector::halfvec>$0
+                ''',
+                'foo',
+            )
+
+        with self.assertRaises(edgedb.InvalidArgumentError):
+            self.client.query_single(
+                '''
+                    select <ext::pgvector::halfvec>$0
+                ''',
+                [1_000_000],
+            )
