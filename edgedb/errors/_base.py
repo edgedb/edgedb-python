@@ -132,8 +132,10 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     def _read_str_field(self, key, default=None):
         val = self._attrs.get(key)
-        if val:
+        if isinstance(val, bytes):
             return val.decode('utf-8')
+        elif val is not None:
+            return val
         return default
 
     def get_code(self):
@@ -147,6 +149,16 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         cls = _lookup_error_cls(code)
         exc = cls(*args, **kwargs)
         exc._code = code
+        return exc
+
+    @staticmethod
+    def _from_json(data):
+        exc = EdgeDBError._from_code(data['code'], data['message'])
+        exc._attrs = {
+            field: data[name]
+            for name, field in _JSON_FIELDS.items()
+            if name in data
+        }
         return exc
 
     def __str__(self):
@@ -321,6 +333,17 @@ EDGE_SEVERITY_WARNING = 80
 EDGE_SEVERITY_ERROR = 120
 EDGE_SEVERITY_FATAL = 200
 EDGE_SEVERITY_PANIC = 255
+
+
+# Fields to include in the json dump of the type
+_JSON_FIELDS = {
+    'hint': FIELD_HINT,
+    'details': FIELD_DETAILS,
+    'start': FIELD_CHARACTER_START,
+    'end': FIELD_CHARACTER_END,
+    'line': FIELD_LINE_START,
+    'col': FIELD_COLUMN_START,
+}
 
 
 LINESEP = os.linesep

@@ -89,6 +89,7 @@ cdef class ExecuteContext:
         readonly BaseCodec in_dc
         readonly BaseCodec out_dc
         readonly uint64_t capabilities
+        readonly tuple warnings
 
     cdef inline bint has_na_cardinality(self)
     cdef bint load_from_cache(self)
@@ -142,6 +143,7 @@ cdef class SansIOProtocol:
     )
 
     cdef inline ignore_headers(self)
+    cdef inline dict read_headers(self)
     cdef dict parse_error_headers(self)
 
     cdef parse_error_message(self)

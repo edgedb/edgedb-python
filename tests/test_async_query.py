@@ -1035,6 +1035,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 ),
                 retry_options=None,
                 state=None,
+                warning_handler=lambda _ex, _: None,
             )
         )
         self.assertEqual(

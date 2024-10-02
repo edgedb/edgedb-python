@@ -126,6 +126,7 @@ cdef class ExecuteContext:
         self.cardinality = None
         self.in_dc = self.out_dc = None
         self.capabilities = 0
+        self.warnings = ()
 
     cdef inline bint has_na_cardinality(self):
         return self.cardinality == CARDINALITY_NOT_APPLICABLE
@@ -229,6 +230,23 @@ cdef class SansIOProtocol:
                 self.buffer.read_len_prefixed_bytes()  # key
                 self.buffer.read_len_prefixed_bytes()  # value
                 num_fields -= 1
+
+    cdef inline dict read_headers(self):
+        cdef uint16_t num_fields = <uint16_t>self.buffer.read_int16()
+        headers = {}
+        if self.is_legacy:
+            while num_fields:
+                self.buffer.read_int16()  # key
+                self.buffer.read_len_prefixed_bytes()  # value
+                num_fields -= 1
+        else:
+            while num_fields:
+                key = self.buffer.read_len_prefixed_utf8()
+                value = self.buffer.read_len_prefixed_utf8()
+                headers[key] = value
+                num_fields -= 1
+
+        return headers
 
     cdef ensure_connected(self):
         if self.cancelled:
@@ -987,7 +1005,16 @@ cdef class SansIOProtocol:
         assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG
 
         try:
-            self.ignore_headers()
+            headers = self.read_headers()
+            if headers and 'warnings' in headers:
+                warnings = tuple([
+                    errors.EdgeDBError._from_json(w)
+                    for w in json.loads(headers['warnings'])
+                ])
+                for w in warnings:
+                    w._query = ctx.query
+                ctx.warnings = warnings
+
             ctx.capabilities = self.buffer.read_int64()
             ctx.cardinality = self.buffer.read_byte()
             ctx.in_dc, ctx.out_dc = self.parse_type_data(ctx.reg)
