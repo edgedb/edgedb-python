@@ -24,6 +24,7 @@ WarningHandler = typing.Callable[
     typing.Any,
 ]
 
+
 def raise_warnings(warnings, res):
     if (
         len(warnings) > 1
