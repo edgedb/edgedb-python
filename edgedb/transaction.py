@@ -201,6 +201,7 @@ class BaseTransaction:
             query=abstract.QueryWithArgs(query, (), {}),
             cache=self._get_query_cache(),
             state=self._get_state(),
+            warning_handler=self._get_warning_handler(),
         ))
 
 

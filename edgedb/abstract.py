@@ -204,7 +204,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
             state=self._get_state(),
-            warning_handlerr=self._get_warning_handler(),
+            warning_handler=self._get_warning_handler(),
         ))
 
     def query_single(
