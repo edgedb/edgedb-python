@@ -30,7 +30,7 @@ def raise_warnings(warnings, res):
         len(warnings) > 1
         and sys.version_info >= (3, 11)
     ):
-        raise ExceptionGroup(
+        raise ExceptionGroup(  # noqa
             "Query produced warnings", warnings
         )
     else:
