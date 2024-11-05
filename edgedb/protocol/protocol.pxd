@@ -41,10 +41,10 @@ ctypedef object (*decode_row_method)(BaseCodec, FRBuffer *buf)
 
 
 cpdef enum OutputFormat:
-    BINARY = b'b'
-    JSON = b'j'
-    JSON_ELEMENTS = b'J'
-    NONE = b'n'
+    BINARY = 98  # b'b'
+    JSON = 106  # b'j'
+    JSON_ELEMENTS = 74  # b'J'
+    NONE = 110  # b'n'
 
 
 cdef enum TransactionStatus:

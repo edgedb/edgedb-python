@@ -152,9 +152,9 @@ object_dealloc(EdgeObject *o)
     }
     Py_CLEAR(o->desc);
     o->cached_hash = -1;
-    Py_TRASHCAN_SAFE_BEGIN(o)
+    Py_TRASHCAN_BEGIN(o, object_dealloc);
     EDGE_DEALLOC_WITH_FREELIST(EDGE_OBJECT, EdgeObject, o);
-    Py_TRASHCAN_SAFE_END(o)
+    Py_TRASHCAN_END(o);
 }
 
 
