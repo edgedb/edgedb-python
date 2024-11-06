@@ -32,14 +32,19 @@ class brokenarray(array.array):
 
 
 class TestVector(tb.SyncQueryTestCase):
+
+    PGVECTOR_VER = None
+
     def setUp(self):
         super().setUp()
 
-        if not self.client.query_required_single('''
-            select exists (
+        self.PGVECTOR_VER = self.client.query_single('''
+            select assert_single((
               select sys::ExtensionPackage filter .name = 'pgvector'
-            )
-        '''):
+            )).version
+        ''')
+
+        if self.PGVECTOR_VER is None:
             self.skipTest("feature not implemented")
 
         self.client.execute('''
@@ -132,6 +137,9 @@ class TestVector(tb.SyncQueryTestCase):
             )
 
     async def test_vector_02(self):
+        if self.PGVECTOR_VER < (0, 7):
+            self.skipTest("need at least pgvector 0.7.4 for sparsevec")
+
         val = self.client.query_single(
             '''
             select <ext::pgvector::sparsevec>
@@ -199,6 +207,9 @@ class TestVector(tb.SyncQueryTestCase):
             )
 
     async def test_vector_03(self):
+        if self.PGVECTOR_VER < (0, 7):
+            self.skipTest("need at least pgvector 0.7.4 for halfvec")
+
         val = self.client.query_single(
             '''
             select <ext::pgvector::halfvec>
