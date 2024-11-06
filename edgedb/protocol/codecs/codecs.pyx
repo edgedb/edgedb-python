@@ -716,7 +716,6 @@ DEF PGVECTOR_MAX_DIM = (1 << 16) - 1
 cdef pgvector_encode_memview(pgproto.CodecContext settings, WriteBuffer buf,
                              float[:] obj):
     cdef:
-        float item
         Py_ssize_t objlen
         Py_ssize_t i
 
@@ -734,7 +733,6 @@ cdef pgvector_encode_memview(pgproto.CodecContext settings, WriteBuffer buf,
 cdef pgvector_encode(pgproto.CodecContext settings, WriteBuffer buf,
                      object obj):
     cdef:
-        float item
         Py_ssize_t objlen
         float[:] memview
         Py_ssize_t i
@@ -770,7 +768,7 @@ cdef pgvector_encode(pgproto.CodecContext settings, WriteBuffer buf,
         buf.write_float(obj[i])
 
 
-cdef object ONE_EL_ARRAY = array.array('f', [0.0])
+cdef object ONE_EL_F32_ARRAY = array.array('f', [0.0])
 
 
 cdef pgvector_decode(pgproto.CodecContext settings, FRBuffer *buf):
@@ -788,7 +786,7 @@ cdef pgvector_decode(pgproto.CodecContext settings, FRBuffer *buf):
     p = frb_read(buf, size)
 
     # Create a float array with size dim
-    val = ONE_EL_ARRAY * dim
+    val = ONE_EL_F32_ARRAY * dim
 
     # And fill it with the buffer contents
     array_view = val
@@ -796,6 +794,270 @@ cdef pgvector_decode(pgproto.CodecContext settings, FRBuffer *buf):
     val.byteswap()
 
     return val
+
+
+# Half-floats or float16 types often don't have a native implementation, so in
+# order to cast to and from it we need to implement the cast ourselves. The
+# algorithm to do so is taken from here:
+# http://www.fox-toolkit.org/ftp/fasthalffloatconversion.pdf
+#
+# It is a paper titled "Fast Half Float Conversions" by Jeroen van der Zijp,
+# referenced by wiki as well as many articles on float conversion.
+
+# Needed to perform bit manipulations to convert from float16 to float32
+cdef union IntFloatSwap:
+    uint32_t i
+    float f
+
+
+# Optimization to convert f16 to f32
+cdef:
+    uint32_t[2048] MANTISSA_TABLE
+    uint32_t[64] EXP_TABLE
+    uint32_t[64] OFFSET_TABLE
+    uint32_t[512] BASE_TABLE
+    uint32_t[512] SHIFT_TABLE
+
+
+cdef convertmantissa(uint32_t n):
+    cdef:
+        uint32_t m
+        uint32_t e
+
+    m = n << 13                 # Zero pad mantissa bits
+    e = 0                       # Zero exponent
+    # While not normalized
+    while (m & 0x00800000) == 0:
+        e -= 0x00800000         # Decrement exponent (1<<23)
+        m <<= 1                 # Shift mantissa
+
+    m &= ~0x00800000            # Clear leading 1 bit
+    e += 0x38800000             # Adjust bias ((127-14)<<23)
+
+    return m | e
+
+
+cdef generate_tables():
+    cdef:
+        uint32_t i
+        int32_t e
+
+    # Generate the f16 to f32 conversion tables
+    MANTISSA_TABLE[0] = 0
+    for i in range(1, 1024):
+        MANTISSA_TABLE[i] = convertmantissa(i)
+    for i in range(1024, 2048):
+        MANTISSA_TABLE[i] = 0x38000000 + ((i - 1024) << 13)
+
+    EXP_TABLE[0] = 0
+    EXP_TABLE[31]= 0x47800000
+    EXP_TABLE[32]= 0x80000000
+    EXP_TABLE[63]= 0xC7800000
+    for i in range(1, 31):
+        EXP_TABLE[i] = i << 23
+    for i in range(33, 63):
+        EXP_TABLE[i] = 0x80000000 + ((i - 32) << 23)
+
+    for i in range(64):
+        if i == 0 or i == 32:
+            OFFSET_TABLE[i] = 0
+        else:
+            OFFSET_TABLE[i] = 1024
+
+    # Generate the f32 to f16 conversion tables
+    for i in range(256):
+        e = i - 127
+
+        # Very small numbers map to zero
+        if e < -24:
+            BASE_TABLE[i] = 0
+            BASE_TABLE[i + 256] = 0x8000
+            SHIFT_TABLE[i] = 24
+            SHIFT_TABLE[i + 256] = 24
+
+        # Small numbers map to denorms
+        elif e < -14:
+            BASE_TABLE[i] = 0x0400 >> (-e - 14)
+            BASE_TABLE[i + 256] = (0x0400 >> (-e - 14)) | 0x8000
+            SHIFT_TABLE[i] = -e - 1
+            SHIFT_TABLE[i + 256] = -e - 1
+
+        # Normal numbers just lose precision
+        elif e <= 15:
+            BASE_TABLE[i] = (e + 15) << 10
+            BASE_TABLE[i + 256] = ((e + 15) << 10) | 0x8000
+            SHIFT_TABLE[i] = 13
+            SHIFT_TABLE[i + 256] = 13
+
+        # Large numbers map to Infinity
+        elif e < 128:
+            BASE_TABLE[i] = 0x7C00
+            BASE_TABLE[i + 256] = 0xFC00
+            SHIFT_TABLE[i] = 24
+            SHIFT_TABLE[i + 256] = 24
+
+        # Infinity and NaN's stay Infinity and NaN's
+        else:
+            BASE_TABLE[i] = 0x7C00
+            BASE_TABLE[i + 256] = 0xFC00
+            SHIFT_TABLE[i] = 13
+            SHIFT_TABLE[i + 256] = 13
+
+
+generate_tables()
+
+
+cdef pgvector_hv_encode(pgproto.CodecContext settings, WriteBuffer buf,
+                        object obj):
+    cdef:
+        Py_ssize_t objlen
+        float[:] memview
+        Py_ssize_t i
+        IntFloatSwap swap
+
+    if not _is_array_iterable(obj):
+        raise TypeError(
+            'a sized iterable container expected (got type {!r})'.format(
+                type(obj).__name__))
+
+    objlen = len(obj)
+    if objlen > PGVECTOR_MAX_DIM:
+        raise ValueError('too many elements in vector value')
+
+    buf.write_int32(4 + objlen * 2)
+    buf.write_int16(objlen)
+    buf.write_int16(0)
+    for i in range(objlen):
+        swap.f = obj[i]
+        swap.i = (
+            BASE_TABLE[(swap.i >> 23) & 0x1ff]
+            + ((swap.i & 0x007fffff) >> SHIFT_TABLE[(swap.i >> 23) & 0x1ff])
+        )
+
+        if swap.i == BASE_TABLE[255] or swap.i == BASE_TABLE[511]:
+            raise ValueError(
+                '{!r} is out of range for type halfvec'.format(obj[i]))
+
+        buf.write_int16(swap.i)
+
+
+cdef object ONE_EL16_ARRAY = array.array('H', [0])
+
+
+cdef pgvector_hv_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        int32_t dim
+        Py_ssize_t size
+        Py_buffer view
+        char *p
+        unsigned short[:] tmp_array_view
+        float[:] array_view
+        Py_ssize_t i
+        IntFloatSwap swap
+
+    dim = hton.unpack_uint16(frb_read(buf, 2))
+    frb_read(buf, 2)
+
+    # We'll read float16 values as an array of uint16 and then convert since
+    # plain vanilla Python doesn't have half-floats.
+    #
+    # TODO: Potentially we might handle it differently if numpy is present since
+    # numpy has half floats since 1.60.
+    size = dim * 2
+    p = frb_read(buf, size)
+    tmp = ONE_EL16_ARRAY * dim
+
+    # And fill it with the buffer contents
+    tmp_array_view = tmp
+    memcpy(&tmp_array_view[0], p, size)
+    tmp.byteswap()
+
+    # Create a float array with size dim
+    val = ONE_EL_F32_ARRAY * dim
+    for i in range(dim):
+        swap.i = tmp[i]
+        swap.i = MANTISSA_TABLE[
+            OFFSET_TABLE[swap.i >> 10] + (swap.i & 0x000003ff)
+        ] + EXP_TABLE[swap.i >> 10]
+        val[i] = swap.f
+
+    return val
+
+
+cdef pgvector_sv_encode(pgproto.CodecContext settings, WriteBuffer buf,
+                        object obj):
+    cdef:
+        int32_t dim
+        Py_ssize_t nnz
+
+    if not (cpython.PyDict_Check(obj) or isinstance(obj, MappingABC)):
+        raise TypeError(
+            'a dict or Mapping expected (got type {!r})'.format(
+                type(obj).__name__))
+
+    if 'dim' not in obj:
+        raise TypeError('"dim" key is missing')
+
+    dim = obj['dim']
+
+    # One of the keys is 'dim' so nnz is one less than the length
+    nnz = len(obj) - 1
+    if nnz > PGVECTOR_MAX_DIM or nnz > dim:
+        raise ValueError('too many elements in vector value')
+
+    buf.write_int32(4 * (3 + 2 * nnz))
+    buf.write_int32(dim)
+    buf.write_int32(nnz)
+    buf.write_int32(0)
+
+    for key in obj.keys():
+        if key != 'dim':
+            ensure_is_int(key)
+            buf.write_int32(key)
+
+    for key, val in obj.items():
+        if key != 'dim':
+            if val == 0:
+                raise ValueError('elements in a sparse vector cannot be 0')
+            buf.write_float(<float>val)
+
+
+cdef object ONE_EL_I32_ARRAY = array.array('l', [0])
+
+
+cdef pgvector_sv_decode(pgproto.CodecContext settings, FRBuffer *buf):
+    cdef:
+        int32_t dim
+        int32_t nnz
+        Py_ssize_t size
+        char *p
+        float[:] array_view
+        Py_ssize_t i
+
+    dim = hton.unpack_int32(frb_read(buf, 4))
+    nnz = hton.unpack_int32(frb_read(buf, 4))
+    frb_read(buf, 4)
+
+    # Create an int array with size nnz (for indexes)
+    keys = ONE_EL_I32_ARRAY * nnz
+    for i in range(nnz):
+        keys[i] = hton.unpack_int32(frb_read(buf, 4))
+
+    size = nnz * 4
+    p = frb_read(buf, size)
+
+    # Create a float array with size nnz (for values)
+    vals = ONE_EL_F32_ARRAY * nnz
+
+    # And fill it with the buffer contents
+    array_view = vals
+    memcpy(&array_view[0], p, size)
+    vals.byteswap()
+
+    res = {'dim': dim}
+    res.update(zip(keys, vals))
+
+    return res
 
 
 cdef checked_decimal_encode(
@@ -1026,6 +1288,20 @@ cdef register_base_scalar_codecs():
         pgvector_encode,
         pgvector_decode,
         uuid.UUID('9565dd88-04f5-11ee-a691-0b6ebe179825'),
+    )
+
+    register_base_scalar_codec(
+        'ext::pgvector::halfvec',
+        pgvector_hv_encode,
+        pgvector_hv_decode,
+        uuid.UUID('4ba84534-188e-43b4-a7ce-cea2af0f405b'),
+    )
+
+    register_base_scalar_codec(
+        'ext::pgvector::sparsevec',
+        pgvector_sv_encode,
+        pgvector_sv_decode,
+        uuid.UUID('003e434d-cac2-430a-b238-fb39d73447d2'),
     )
 
     register_base_scalar_codec(
