@@ -78,7 +78,7 @@ INSTANCE_NAME_RE = re.compile(
     re.ASCII,
 )
 CLOUD_INSTANCE_NAME_RE = re.compile(
-    r'^([A-Za-z0-9](?:-?[A-Za-z0-9])*)/([A-Za-z0-9](?:-?[A-Za-z0-9])*)$',
+    r'^([A-Za-z0-9_-](?:-?[A-Za-z0-9_])*)/([A-Za-z0-9](?:-?[A-Za-z0-9])*)$',
     re.ASCII,
 )
 DSN_RE = re.compile(
