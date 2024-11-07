@@ -642,6 +642,7 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
         tls_ca: str = None,
         tls_ca_file: str = None,
         tls_security: str = None,
+        tls_server_name: str = None,
         wait_until_available: int = 30,
         timeout: int = 10,
         **kwargs,
@@ -662,6 +663,7 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
             "tls_ca": tls_ca,
             "tls_ca_file": tls_ca_file,
             "tls_security": tls_security,
+            "tls_server_name": tls_server_name,
             "wait_until_available": wait_until_available,
         }
 
