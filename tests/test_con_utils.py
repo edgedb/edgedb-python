@@ -127,6 +127,7 @@ class TestConUtils(unittest.TestCase):
         tls_ca = opts.get('tlsCA')
         tls_ca_file = opts.get('tlsCAFile')
         tls_security = opts.get('tlsSecurity')
+        tls_server_name = opts.get('tlsServerName')
         server_settings = opts.get('serverSettings')
         wait_until_available = opts.get('waitUntilAvailable')
 
@@ -241,6 +242,7 @@ class TestConUtils(unittest.TestCase):
                 tls_ca=tls_ca,
                 tls_ca_file=tls_ca_file,
                 tls_security=tls_security,
+                tls_server_name=tls_server_name,
                 timeout=timeout,
                 command_timeout=command_timeout,
                 server_settings=server_settings,
@@ -259,7 +261,10 @@ class TestConUtils(unittest.TestCase):
                 'tlsCAData': connect_config._tls_ca_data,
                 'tlsSecurity': connect_config.tls_security,
                 'serverSettings': connect_config.server_settings,
-                'waitUntilAvailable': client_config.wait_until_available,
+                'waitUntilAvailable': float(
+                    client_config.wait_until_available
+                ),
+                'tlsServerName': connect_config.tls_server_name,
             }
 
         if expected is not None:
@@ -312,6 +317,7 @@ class TestConUtils(unittest.TestCase):
                     'tlsSecurity': 'strict',
                     'serverSettings': {},
                     'waitUntilAvailable': 30,
+                    'tlsServerName': None,
                 },
             })
 
@@ -336,6 +342,7 @@ class TestConUtils(unittest.TestCase):
                     'tlsSecurity': 'strict',
                     'serverSettings': {},
                     'waitUntilAvailable': 30,
+                    'tlsServerName': None,
                 },
             })
 
@@ -431,6 +438,7 @@ class TestConUtils(unittest.TestCase):
                         tls_ca=None,
                         tls_ca_file=None,
                         tls_security=None,
+                        tls_server_name=None,
                         timeout=10,
                         command_timeout=None,
                         server_settings=None,

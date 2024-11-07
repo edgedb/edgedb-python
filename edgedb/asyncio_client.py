@@ -88,7 +88,12 @@ class AsyncIOConnection(base_client.BaseConnection):
             else:
                 try:
                     tr, pr = await self._loop.create_connection(
-                        self._protocol_factory, *addr, ssl=self._params.ssl_ctx
+                        self._protocol_factory,
+                        *addr,
+                        ssl=self._params.ssl_ctx,
+                        server_hostname=(
+                            self._params.tls_server_name or addr[0]
+                        ),
                     )
                 except ssl.CertificateError as e:
                     raise con_utils.wrap_error(e) from e

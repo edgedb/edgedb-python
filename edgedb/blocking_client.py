@@ -102,7 +102,10 @@ class BlockingIOConnection(base_client.BaseConnection):
                     sock.settimeout(time_left)
                     try:
                         sock = self._params.ssl_ctx.wrap_socket(
-                            sock, server_hostname=addr[0]
+                            sock,
+                            server_hostname=(
+                                self._params.tls_server_name or addr[0]
+                            ),
                         )
                     except ssl.CertificateError as e:
                         raise con_utils.wrap_error(e) from e

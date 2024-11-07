@@ -202,6 +202,7 @@ class ResolvedConnectConfig:
     _tls_ca_data = None
     _tls_ca_data_source = None
 
+    _tls_server_name = None
     _tls_security = None
     _tls_security_source = None
 
@@ -253,6 +254,9 @@ class ResolvedConnectConfig:
                 return f.read()
 
         self._set_param('tls_ca_data', ca_file, source, read_ca_file)
+
+    def set_tls_server_name(self, ca_data, source):
+        self._set_param('tls_server_name', ca_data, source)
 
     def set_tls_security(self, security, source):
         self._set_param('tls_security', security, source,
@@ -307,6 +311,10 @@ class ResolvedConnectConfig:
     @property
     def secret_key(self):
         return self._secret_key
+
+    @property
+    def tls_server_name(self):
+        return self._tls_server_name
 
     @property
     def tls_security(self):
@@ -555,6 +563,7 @@ def _parse_connect_dsn_and_args(
     tls_ca,
     tls_ca_file,
     tls_security,
+    tls_server_name,
     server_settings,
     wait_until_available,
 ):
@@ -618,6 +627,10 @@ def _parse_connect_dsn_and_args(
             (tls_security, '"tls_security" option')
             if tls_security is not None else None
         ),
+        tls_server_name=(
+            (tls_server_name, '"tls_server_name" option')
+            if tls_server_name is not None else None
+        ),
         server_settings=(
             (server_settings, '"server_settings" option')
             if server_settings is not None else None
@@ -655,6 +668,7 @@ def _parse_connect_dsn_and_args(
         env_secret_key = os.getenv('EDGEDB_SECRET_KEY')
         env_tls_ca = os.getenv('EDGEDB_TLS_CA')
         env_tls_ca_file = os.getenv('EDGEDB_TLS_CA_FILE')
+        env_tls_server_name = os.getenv('EDGEDB_TLS_SERVER_NAME')
         env_tls_security = os.getenv('EDGEDB_CLIENT_TLS_SECURITY')
         env_wait_until_available = os.getenv('EDGEDB_WAIT_UNTIL_AVAILABLE')
 
@@ -716,6 +730,11 @@ def _parse_connect_dsn_and_args(
                 (env_tls_security,
                  '"EDGEDB_CLIENT_TLS_SECURITY" environment variable')
                 if env_tls_security is not None else None
+            ),
+            tls_server_name=(
+                (env_tls_server_name,
+                 '"EDGEDB_TLS_SERVER_NAME" environment variable')
+                if env_tls_server_name is not None else None
             ),
             wait_until_available=(
                 (
@@ -925,6 +944,12 @@ def _parse_dsn_into_config(
     )
 
     handle_dsn_part(
+        'tls_server_name', None,
+        resolved_config._tls_server_name,
+        resolved_config.set_tls_server_name
+    )
+
+    handle_dsn_part(
         'tls_security', None,
         resolved_config._tls_security,
         resolved_config.set_tls_security
@@ -1017,6 +1042,7 @@ def _resolve_config_options(
     tls_ca=None,
     tls_ca_file=None,
     tls_security=None,
+    tls_server_name=None,
     server_settings=None,
     wait_until_available=None,
     cloud_profile=None,
@@ -1051,6 +1077,8 @@ def _resolve_config_options(
         resolved_config.set_tls_ca_data(*tls_ca)
     if tls_security is not None:
         resolved_config.set_tls_security(*tls_security)
+    if tls_server_name is not None:
+        resolved_config.set_tls_server_name(*tls_server_name)
     if server_settings is not None:
         resolved_config.add_server_settings(server_settings[0])
     if wait_until_available is not None:
@@ -1178,6 +1206,7 @@ def parse_connect_arguments(
     tls_ca,
     tls_ca_file,
     tls_security,
+    tls_server_name,
     timeout,
     command_timeout,
     wait_until_available,
@@ -1211,6 +1240,7 @@ def parse_connect_arguments(
         tls_ca=tls_ca,
         tls_ca_file=tls_ca_file,
         tls_security=tls_security,
+        tls_server_name=tls_server_name,
         server_settings=server_settings,
         wait_until_available=wait_until_available,
     )
