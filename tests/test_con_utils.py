@@ -41,10 +41,10 @@ class TestConUtils(unittest.TestCase):
             RuntimeError, 'cannot read credentials'),
         'project_not_initialised': (
             errors.ClientConnectionError,
-            'Found `edgedb.toml` but the project is not initialized'),
+            r'Found `\w+.toml` but the project is not initialized'),
         'no_options_or_toml': (
             errors.ClientConnectionError,
-            'no `edgedb.toml` found and no connection options specified'),
+            'no `gel.toml` found and no connection options specified'),
         'invalid_credentials_file': (
             RuntimeError, 'cannot read credentials'),
         'invalid_dsn_or_instance_name': (
@@ -81,7 +81,10 @@ class TestConUtils(unittest.TestCase):
             "Cannot connect to cloud instances without secret key"),
         'docker_tcp_port': (
             'EDGEDB_PORT in "tcp://host:port" format, so will be ignored'
-        )
+        ),
+        'gel_and_edgedb': (
+            r'Both GEL_\w+ and EDGEDB_\w+ are set; EDGEDB_\w+ will be ignored'
+        ),
     }
 
     @contextlib.contextmanager

@@ -120,7 +120,7 @@ def _parse_hostlist(hostlist, port):
     hostlist_ports = []
 
     if not port:
-        portspec = os.environ.get('EDGEDB_PORT')
+        portspec = _getenv('PORT')
         if portspec:
             if ',' in portspec:
                 default_port = [int(p) for p in portspec.split(',')]
@@ -172,6 +172,28 @@ def _validate_tls_security(val: str) -> str:
         )
 
     return val
+
+
+def _getenv_and_key(key: str) -> typing.Tuple[typing.Optional[str], str]:
+    edgedb_key = f'EDGEDB_{key}'
+    edgedb_val = os.getenv(edgedb_key)
+    gel_key = f'GEL_{key}'
+    gel_val = os.getenv(gel_key)
+    if edgedb_val is not None and gel_val is not None:
+        warnings.warn(
+            f'Both {gel_key} and {edgedb_key} are set; '
+            f'{edgedb_key} will be ignored',
+            stacklevel=1,
+        )
+
+    if gel_val is None and edgedb_val is not None:
+        return edgedb_val, edgedb_key
+    else:
+        return gel_val, gel_key
+
+
+def _getenv(key: str) -> typing.Optional[str]:
+    return _getenv_and_key(key)[0]
 
 
 class ResolvedConnectConfig:
@@ -319,10 +341,11 @@ class ResolvedConnectConfig:
     @property
     def tls_security(self):
         tls_security = self._tls_security or 'default'
-        security = os.environ.get('EDGEDB_CLIENT_SECURITY') or 'default'
+        security, security_key = _getenv_and_key('CLIENT_SECURITY')
+        security = security or 'default'
         if security not in {'default', 'insecure_dev_mode', 'strict'}:
             raise ValueError(
-                f'environment variable EDGEDB_CLIENT_SECURITY should be '
+                f'environment variable {security_key} should be '
                 f'one of strict, insecure_dev_mode or default, '
                 f'got: {security!r}')
 
@@ -336,9 +359,9 @@ class ResolvedConnectConfig:
                 tls_security = 'strict'
             elif tls_security in {'no_host_verification', 'insecure'}:
                 raise ValueError(
-                    f'EDGEDB_CLIENT_SECURITY=strict but '
+                    f'{security_key}=strict but '
                     f'tls_security={tls_security}, tls_security must be '
-                    f'set to strict when EDGEDB_CLIENT_SECURITY is strict')
+                    f'set to strict when {security_key} is strict')
 
         if tls_security != 'default':
             return tls_security
@@ -574,10 +597,18 @@ def _parse_connect_dsn_and_args(
     else:
         instance_name, dsn = dsn, None
 
+    def _get(key: str) -> typing.Optional[typing.Tuple[str, str]]:
+        val, env = _getenv_and_key(key)
+        return (
+            (val, f'"{env}" environment variable')
+            if val is not None else None
+        )
+
     # The cloud profile is potentially relevant to resolving credentials at
     # any stage, including the config stage when other environment variables
     # are not yet read.
-    cloud_profile = os.getenv('EDGEDB_CLOUD_PROFILE')
+    cloud_profile_tuple = _get('CLOUD_PROFILE')
+    cloud_profile = cloud_profile_tuple[0] if cloud_profile_tuple else None
 
     has_compound_options = _resolve_config_options(
         resolved_config,
@@ -639,109 +670,42 @@ def _parse_connect_dsn_and_args(
             (wait_until_available, '"wait_until_available" option')
             if wait_until_available is not None else None
         ),
-        cloud_profile=(
-            (cloud_profile,
-             '"EDGEDB_CLOUD_PROFILE" environment variable')
-            if cloud_profile is not None else None
-        ),
+        cloud_profile=cloud_profile_tuple,
     )
 
     if has_compound_options is False:
-        env_port = os.getenv("EDGEDB_PORT")
+        env_port_tuple = _get("PORT")
         if (
-            resolved_config._port is None and
-            env_port and env_port.startswith('tcp://')
+            resolved_config._port is None
+            and env_port_tuple
+            and env_port_tuple[0].startswith('tcp://')
         ):
             # EDGEDB_PORT is set by 'docker --link' so ignore and warn
             warnings.warn('EDGEDB_PORT in "tcp://host:port" format, ' +
                           'so will be ignored', stacklevel=1)
-            env_port = None
-
-        env_dsn = os.getenv('EDGEDB_DSN')
-        env_instance = os.getenv('EDGEDB_INSTANCE')
-        env_credentials_file = os.getenv('EDGEDB_CREDENTIALS_FILE')
-        env_host = os.getenv('EDGEDB_HOST')
-        env_database = os.getenv('EDGEDB_DATABASE')
-        env_branch = os.getenv('EDGEDB_BRANCH')
-        env_user = os.getenv('EDGEDB_USER')
-        env_password = os.getenv('EDGEDB_PASSWORD')
-        env_secret_key = os.getenv('EDGEDB_SECRET_KEY')
-        env_tls_ca = os.getenv('EDGEDB_TLS_CA')
-        env_tls_ca_file = os.getenv('EDGEDB_TLS_CA_FILE')
-        env_tls_server_name = os.getenv('EDGEDB_TLS_SERVER_NAME')
-        env_tls_security = os.getenv('EDGEDB_CLIENT_TLS_SECURITY')
-        env_wait_until_available = os.getenv('EDGEDB_WAIT_UNTIL_AVAILABLE')
+            env_port_tuple = None
 
         has_compound_options = _resolve_config_options(
             resolved_config,
+            # XXX
             'Cannot have more than one of the following connection '
             + 'environment variables: "EDGEDB_DSN", "EDGEDB_INSTANCE", '
             + '"EDGEDB_CREDENTIALS_FILE" or "EDGEDB_HOST"/"EDGEDB_PORT"',
-            dsn=(
-                (env_dsn, '"EDGEDB_DSN" environment variable')
-                if env_dsn is not None else None
-            ),
-            instance_name=(
-                (env_instance, '"EDGEDB_INSTANCE" environment variable')
-                if env_instance is not None else None
-            ),
-            credentials_file=(
-                (env_credentials_file,
-                 '"EDGEDB_CREDENTIALS_FILE" environment variable')
-                if env_credentials_file is not None else None
-            ),
-            host=(
-                (env_host, '"EDGEDB_HOST" environment variable')
-                if env_host is not None else None
-            ),
-            port=(
-                (env_port, '"EDGEDB_PORT" environment variable')
-                if env_port is not None else None
-            ),
-            database=(
-                (env_database, '"EDGEDB_DATABASE" environment variable')
-                if env_database is not None else None
-            ),
-            branch=(
-                (env_branch, '"EDGEDB_BRANCH" environment variable')
-                if env_branch is not None else None
-            ),
-            user=(
-                (env_user, '"EDGEDB_USER" environment variable')
-                if env_user is not None else None
-            ),
-            password=(
-                (env_password, '"EDGEDB_PASSWORD" environment variable')
-                if env_password is not None else None
-            ),
-            secret_key=(
-                (env_secret_key, '"EDGEDB_SECRET_KEY" environment variable')
-                if env_secret_key is not None else None
-            ),
-            tls_ca=(
-                (env_tls_ca, '"EDGEDB_TLS_CA" environment variable')
-                if env_tls_ca is not None else None
-            ),
-            tls_ca_file=(
-                (env_tls_ca_file, '"EDGEDB_TLS_CA_FILE" environment variable')
-                if env_tls_ca_file is not None else None
-            ),
-            tls_security=(
-                (env_tls_security,
-                 '"EDGEDB_CLIENT_TLS_SECURITY" environment variable')
-                if env_tls_security is not None else None
-            ),
-            tls_server_name=(
-                (env_tls_server_name,
-                 '"EDGEDB_TLS_SERVER_NAME" environment variable')
-                if env_tls_server_name is not None else None
-            ),
-            wait_until_available=(
-                (
-                    env_wait_until_available,
-                    '"EDGEDB_WAIT_UNTIL_AVAILABLE" environment variable'
-                ) if env_wait_until_available is not None else None
-            ),
+            dsn=_get('DSN'),
+            instance_name=_get('INSTANCE'),
+            credentials_file=_get('CREDENTIALS_FILE'),
+            host=_get('HOST'),
+            port=env_port_tuple,
+            database=_get('DATABASE'),
+            branch=_get('BRANCH'),
+            user=_get('USER'),
+            password=_get('PASSWORD'),
+            secret_key=_get('SECRET_KEY'),
+            tls_ca=_get('TLS_CA'),
+            tls_ca_file=_get('TLS_CA_FILE'),
+            tls_security=_get('CLIENT_TLS_SECURITY'),
+            tls_server_name=_get('TLS_SERVER_NAME'),
+            wait_until_available=_get('WAIT_UNTIL_AVAILABLE'),
         )
 
     if not has_compound_options:
@@ -1169,18 +1133,19 @@ def find_edgedb_project_dir():
     dev = os.stat(dir).st_dev
 
     while True:
-        toml = os.path.join(dir, 'edgedb.toml')
-        if not os.path.isfile(toml):
+        gel_toml = os.path.join(dir, 'gel.toml')
+        edgedb_toml = os.path.join(dir, 'edgedb.toml')
+        if not os.path.isfile(gel_toml) and not os.path.isfile(edgedb_toml):
             parent = os.path.dirname(dir)
             if parent == dir:
                 raise errors.ClientConnectionError(
-                    f'no `edgedb.toml` found and '
+                    f'no `gel.toml` found and '
                     f'no connection options specified'
                 )
             parent_dev = os.stat(parent).st_dev
             if parent_dev != dev:
                 raise errors.ClientConnectionError(
-                    f'no `edgedb.toml` found and '
+                    f'no `gel.toml` found and '
                     f'no connection options specified'
                     f'(stopped searching for `edgedb.toml` at file system'
                     f'boundary {dir!r})'
