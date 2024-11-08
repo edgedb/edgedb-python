@@ -23,6 +23,7 @@ import logging
 import socket
 import ssl
 import typing
+import uuid
 
 from . import abstract
 from . import base_client
@@ -326,6 +327,10 @@ class AsyncIOIteration(transaction.BaseTransaction, abstract.AsyncIOExecutor):
             yield
         finally:
             self._locked = False
+
+    async def savepoint(self) -> transaction.Savepoint:
+        name = "s" + uuid.uuid4().hex
+        return await self._declare_savepoint(name)
 
 
 class AsyncIORetry(transaction.BaseRetry):

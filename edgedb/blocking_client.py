@@ -25,6 +25,7 @@ import ssl
 import threading
 import time
 import typing
+import uuid
 
 from . import abstract
 from . import base_client
@@ -308,6 +309,14 @@ class _PoolImpl(base_client.BasePoolImpl):
             self._closing = False
 
 
+class Savepoint(transaction.Savepoint):
+    def release(self):
+        self._tx._client._iter_coroutine(super().release())
+
+    def rollback(self):
+        self._tx._client._iter_coroutine(super().rollback())
+
+
 class Iteration(transaction.BaseTransaction, abstract.Executor):
 
     __slots__ = ("_managed", "_lock")
@@ -357,6 +366,12 @@ class Iteration(transaction.BaseTransaction, abstract.Executor):
             yield
         finally:
             self._lock.release()
+
+    def savepoint(self) -> Savepoint:
+        name = "s" + uuid.uuid4().hex
+        return self._client._iter_coroutine(
+            self._declare_savepoint(name, cls=Savepoint)
+        )
 
 
 class Retry(transaction.BaseRetry):
