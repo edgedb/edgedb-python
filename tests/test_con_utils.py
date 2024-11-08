@@ -20,10 +20,12 @@
 import contextlib
 import json
 import os
-import sys
 import pathlib
+import re
+import sys
 import tempfile
 import unittest
+import warnings
 from unittest import mock
 
 
@@ -77,6 +79,9 @@ class TestConUtils(unittest.TestCase):
         'secret_key_not_found': (
             errors.ClientConnectionError,
             "Cannot connect to cloud instances without secret key"),
+        'docker_tcp_port': (
+            'EDGEDB_PORT in "tcp://host:port" format, so will be ignored'
+        )
     }
 
     @contextlib.contextmanager
@@ -228,6 +233,10 @@ class TestConUtils(unittest.TestCase):
             if expected_error:
                 es.enter_context(self.assertRaisesRegex(*expected_error))
 
+            warning_list = es.enter_context(
+                warnings.catch_warnings(record=True)
+            )
+
             connect_config, client_config = con_utils.parse_connect_arguments(
                 dsn=dsn,
                 host=host,
@@ -269,6 +278,20 @@ class TestConUtils(unittest.TestCase):
 
         if expected is not None:
             self.assertEqual(expected, result)
+
+        expected_warnings = testcase.get('warnings', [])
+        self.assertEqual(len(expected_warnings), len(warning_list))
+        for expected_key, warning in zip(expected_warnings, warning_list):
+            expected_warning = self.error_mapping.get(expected_key)
+            if not expected_warning:
+                raise RuntimeError(
+                    f"unknown error type: {expected_key}"
+                )
+            if not re.match(expected_warning, str(warning.message)):
+                raise AssertionError(
+                    f'Warning "{warning.message}" does not match '
+                    f'"{expected_warning}"'
+                )
 
     def test_test_connect_params_environ(self):
         self.assertNotIn('AAAAAAAAAA123', os.environ)
