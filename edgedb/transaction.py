@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import enum
 
 from . import abstract
@@ -32,12 +34,47 @@ class TransactionState(enum.Enum):
     FAILED = 4
 
 
+class Savepoint:
+    __slots__ = ('_name', '_tx', '_active')
+
+    def __init__(self, name: str, transaction: BaseTransaction):
+        self._name = name
+        self._tx = transaction
+        self._active = True
+
+    @property
+    def active(self):
+        return self._active
+
+    def _ensure_active(self):
+        if not self._active:
+            raise errors.InterfaceError(
+                f"savepoint {self._name!r} is no longer active"
+            )
+
+    async def release(self):
+        self._ensure_active()
+        await self._tx._privileged_execute(f"release savepoint {self._name}")
+        del self._tx._savepoints[self._name]
+        self._active = False
+
+    async def rollback(self):
+        self._ensure_active()
+        await self._tx._privileged_execute(
+            f"rollback to savepoint {self._name}"
+        )
+        names = list(self._tx._savepoints)
+        for name in names[names.index(self._name):]:
+            self._tx._savepoints.pop(name)._active = False
+
+
 class BaseTransaction:
 
     __slots__ = (
         '_client',
         '_connection',
         '_options',
+        '_savepoints',
         '_state',
         '__retry',
         '__iteration',
@@ -48,6 +85,7 @@ class BaseTransaction:
         self._client = client
         self._connection = None
         self._options = retry._options.transaction_options
+        self._savepoints = {}
         self._state = TransactionState.NEW
         self.__retry = retry
         self.__iteration = iteration
@@ -128,6 +166,9 @@ class BaseTransaction:
         if not self.__started:
             return False
 
+        for sp in self._savepoints.values():
+            sp._active = False
+
         try:
             if extype is None:
                 query = self._make_commit_query()
@@ -203,6 +244,16 @@ class BaseTransaction:
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
         ))
+
+    async def _declare_savepoint(self, savepoint: str, cls=Savepoint):
+        if savepoint in self._savepoints:
+            raise errors.InterfaceError(
+                f"savepoint {savepoint!r} already exists"
+            )
+        await self._ensure_transaction()
+        await self._privileged_execute(f"declare savepoint {savepoint}")
+        self._savepoints[savepoint] = rv = cls(savepoint, self)
+        return rv
 
 
 class BaseRetry:
