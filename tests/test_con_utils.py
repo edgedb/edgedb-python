@@ -41,10 +41,10 @@ class TestConUtils(unittest.TestCase):
             RuntimeError, 'cannot read credentials'),
         'project_not_initialised': (
             errors.ClientConnectionError,
-            'Found `edgedb.toml` but the project is not initialized'),
+            r'Found `\w+.toml` but the project is not initialized'),
         'no_options_or_toml': (
             errors.ClientConnectionError,
-            'no `edgedb.toml` found and no connection options specified'),
+            'no `gel.toml` found and no connection options specified'),
         'invalid_credentials_file': (
             RuntimeError, 'cannot read credentials'),
         'invalid_dsn_or_instance_name': (
@@ -81,40 +81,27 @@ class TestConUtils(unittest.TestCase):
             "Cannot connect to cloud instances without secret key"),
         'docker_tcp_port': (
             'EDGEDB_PORT in "tcp://host:port" format, so will be ignored'
-        )
+        ),
+        'gel_and_edgedb': (
+            r'Both GEL_\w+ and EDGEDB_\w+ are set; EDGEDB_\w+ will be ignored'
+        ),
     }
 
     @contextlib.contextmanager
     def environ(self, **kwargs):
-        old_vals = {}
-        for key in kwargs:
-            if key in os.environ:
-                old_vals[key] = os.environ[key]
-
-        for key, val in kwargs.items():
-            if val is None:
-                if key in os.environ:
-                    del os.environ[key]
-            else:
-                os.environ[key] = val
-
+        old_environ = os.environ.copy()
         try:
+            # Apparently assigning to os.environ behaves weirdly, so
+            # we clear and update.
+            os.environ.clear()
+            os.environ.update(kwargs)
             yield
         finally:
-            for key in kwargs:
-                if key in os.environ:
-                    del os.environ[key]
-            for key, val in old_vals.items():
-                os.environ[key] = val
+            os.environ.clear()
+            os.environ.update(old_environ)
 
     def run_testcase(self, testcase):
-        env = testcase.get('env', {})
-        test_env = {'EDGEDB_HOST': None, 'EDGEDB_PORT': None,
-                    'EDGEDB_USER': None, 'EDGEDB_PASSWORD': None,
-                    'EDGEDB_SECRET_KEY': None,
-                    'EDGEDB_DATABASE': None, 'PGSSLMODE': None,
-                    'XDG_CONFIG_HOME': None}
-        test_env.update(env)
+        test_env = testcase.get('env', {})
 
         fs = testcase.get('fs')
 
@@ -159,7 +146,7 @@ class TestConUtils(unittest.TestCase):
 
         result = None
         with contextlib.ExitStack() as es:
-            es.enter_context(self.subTest(dsn=dsn, env=env, opts=opts))
+            es.enter_context(self.subTest(dsn=dsn, env=test_env, opts=opts))
             es.enter_context(self.environ(**test_env))
 
             stat_result = os.stat(os.getcwd())
@@ -304,8 +291,7 @@ class TestConUtils(unittest.TestCase):
             os.environ['AAAAAAAAAA789'] = '123'
 
             with self.environ(AAAAAAAAAA123='1',
-                              AAAAAAAAAA456='2',
-                              AAAAAAAAAA789=None):
+                              AAAAAAAAAA456='2'):
 
                 self.assertEqual(os.environ['AAAAAAAAAA123'], '1')
                 self.assertEqual(os.environ['AAAAAAAAAA456'], '2')
