@@ -30,7 +30,7 @@ from . import con_utils
 from . import errors
 from . import transaction
 from .protocol import asyncio_proto
-from .protocol.protocol import OutputFormat
+from .protocol.protocol import InputLanguage, OutputFormat
 
 
 __all__ = (
@@ -392,6 +392,7 @@ class AsyncIOClient(base_client.BaseClient, abstract.AsyncIOExecutor):
         query: str,
         *,
         inject_type_names: bool = False,
+        input_language: InputLanguage = InputLanguage.EDGEQL,
         output_format: OutputFormat = OutputFormat.BINARY,
         expect_one: bool = False,
     ) -> abstract.DescribeResult:
@@ -399,6 +400,7 @@ class AsyncIOClient(base_client.BaseClient, abstract.AsyncIOExecutor):
             query=query,
             state=self._get_state(),
             inject_type_names=inject_type_names,
+            input_language=input_language,
             output_format=output_format,
             expect_one=expect_one,
         ))

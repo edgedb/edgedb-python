@@ -32,7 +32,7 @@ from . import con_utils
 from . import errors
 from . import transaction
 from .protocol import blocking_proto
-from .protocol.protocol import OutputFormat
+from .protocol.protocol import InputLanguage, OutputFormat
 
 
 DEFAULT_PING_BEFORE_IDLE_TIMEOUT = datetime.timedelta(seconds=5)
@@ -434,6 +434,7 @@ class Client(base_client.BaseClient, abstract.Executor):
         query: str,
         *,
         inject_type_names: bool = False,
+        input_language: InputLanguage = InputLanguage.EDGEQL,
         output_format: OutputFormat = OutputFormat.BINARY,
         expect_one: bool = False,
     ) -> abstract.DescribeResult:
@@ -441,6 +442,7 @@ class Client(base_client.BaseClient, abstract.Executor):
             query=query,
             state=self._get_state(),
             inject_type_names=inject_type_names,
+            input_language=input_language,
             output_format=output_format,
             expect_one=expect_one,
         )))
