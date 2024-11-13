@@ -264,6 +264,21 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             warning_handler=self._get_warning_handler(),
         ))
 
+    def query_sql(self, query: str, *args, **kwargs) -> typing.Any:
+        return self._query(QueryContext(
+            query=QueryWithArgs(
+                query,
+                args,
+                kwargs,
+                input_language=protocol.InputLanguage.SQL,
+            ),
+            cache=self._get_query_cache(),
+            query_options=_query_opts,
+            retry_options=self._get_retry_options(),
+            state=self._get_state(),
+            warning_handler=self._get_warning_handler(),
+        ))
+
     @abc.abstractmethod
     def _execute(self, execute_context: ExecuteContext):
         ...
@@ -271,6 +286,19 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
     def execute(self, commands: str, *args, **kwargs) -> None:
         self._execute(ExecuteContext(
             query=QueryWithArgs(commands, args, kwargs),
+            cache=self._get_query_cache(),
+            state=self._get_state(),
+            warning_handler=self._get_warning_handler(),
+        ))
+
+    def execute_sql(self, commands: str, *args, **kwargs) -> None:
+        self._execute(ExecuteContext(
+            query=QueryWithArgs(
+                commands,
+                args,
+                kwargs,
+                input_language=protocol.InputLanguage.SQL,
+            ),
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
@@ -362,6 +390,21 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             warning_handler=self._get_warning_handler(),
         ))
 
+    async def query_sql(self, query: str, *args, **kwargs) -> typing.Any:
+        return await self._query(QueryContext(
+            query=QueryWithArgs(
+                query,
+                args,
+                kwargs,
+                input_language=protocol.InputLanguage.SQL,
+            ),
+            cache=self._get_query_cache(),
+            query_options=_query_opts,
+            retry_options=self._get_retry_options(),
+            state=self._get_state(),
+            warning_handler=self._get_warning_handler(),
+        ))
+
     @abc.abstractmethod
     async def _execute(self, execute_context: ExecuteContext) -> None:
         ...
@@ -369,6 +412,19 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
     async def execute(self, commands: str, *args, **kwargs) -> None:
         await self._execute(ExecuteContext(
             query=QueryWithArgs(commands, args, kwargs),
+            cache=self._get_query_cache(),
+            state=self._get_state(),
+            warning_handler=self._get_warning_handler(),
+        ))
+
+    async def execute_sql(self, commands: str, *args, **kwargs) -> None:
+        await self._execute(ExecuteContext(
+            query=QueryWithArgs(
+                commands,
+                args,
+                kwargs,
+                input_language=protocol.InputLanguage.SQL,
+            ),
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
