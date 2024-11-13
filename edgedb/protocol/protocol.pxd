@@ -40,6 +40,11 @@ include "./codecs/codecs.pxd"
 ctypedef object (*decode_row_method)(BaseCodec, FRBuffer *buf)
 
 
+cpdef enum InputLanguage:
+    EDGEQL = 0x45  # b'E'
+    SQL = 0x53  # b'S'
+
+
 cpdef enum OutputFormat:
     BINARY = 98  # b'b'
     JSON = 106  # b'j'
@@ -75,6 +80,7 @@ cdef class ExecuteContext:
         object kwargs
         CodecsRegistry reg
         LRUMapping qc
+        InputLanguage input_language
         OutputFormat output_format
         bint expect_one
         bint required_one

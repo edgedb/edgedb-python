@@ -45,6 +45,7 @@ class QueryWithArgs(typing.NamedTuple):
     query: str
     args: typing.Tuple
     kwargs: typing.Dict[str, typing.Any]
+    input_language: protocol.InputLanguage = protocol.InputLanguage.EDGEQL
 
 
 class QueryCache(typing.NamedTuple):
@@ -75,6 +76,7 @@ class QueryContext(typing.NamedTuple):
             kwargs=self.query.kwargs,
             reg=self.cache.codecs_registry,
             qc=self.cache.query_cache,
+            input_language=self.query.input_language,
             output_format=self.query_options.output_format,
             expect_one=self.query_options.expect_one,
             required_one=self.query_options.required_one,
@@ -98,6 +100,7 @@ class ExecuteContext(typing.NamedTuple):
             kwargs=self.query.kwargs,
             reg=self.cache.codecs_registry,
             qc=self.cache.query_cache,
+            input_language=self.query.input_language,
             output_format=protocol.OutputFormat.NONE,
             allow_capabilities=allow_capabilities,
             state=self.state.as_dict() if self.state else None,
@@ -109,6 +112,7 @@ class DescribeContext:
     query: str
     state: typing.Optional[options.State]
     inject_type_names: bool
+    input_language: protocol.InputLanguage
     output_format: protocol.OutputFormat
     expect_one: bool
 
@@ -121,6 +125,7 @@ class DescribeContext:
             kwargs=None,
             reg=protocol.CodecsRegistry(),
             qc=protocol.LRUMapping(maxsize=1),
+            input_language=self.input_language,
             output_format=self.output_format,
             expect_one=self.expect_one,
             inline_typenames=self.inject_type_names,
@@ -259,6 +264,21 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             warning_handler=self._get_warning_handler(),
         ))
 
+    def query_sql(self, query: str, *args, **kwargs) -> typing.Any:
+        return self._query(QueryContext(
+            query=QueryWithArgs(
+                query,
+                args,
+                kwargs,
+                input_language=protocol.InputLanguage.SQL,
+            ),
+            cache=self._get_query_cache(),
+            query_options=_query_opts,
+            retry_options=self._get_retry_options(),
+            state=self._get_state(),
+            warning_handler=self._get_warning_handler(),
+        ))
+
     @abc.abstractmethod
     def _execute(self, execute_context: ExecuteContext):
         ...
@@ -266,6 +286,19 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
     def execute(self, commands: str, *args, **kwargs) -> None:
         self._execute(ExecuteContext(
             query=QueryWithArgs(commands, args, kwargs),
+            cache=self._get_query_cache(),
+            state=self._get_state(),
+            warning_handler=self._get_warning_handler(),
+        ))
+
+    def execute_sql(self, commands: str, *args, **kwargs) -> None:
+        self._execute(ExecuteContext(
+            query=QueryWithArgs(
+                commands,
+                args,
+                kwargs,
+                input_language=protocol.InputLanguage.SQL,
+            ),
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
@@ -357,6 +390,21 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             warning_handler=self._get_warning_handler(),
         ))
 
+    async def query_sql(self, query: str, *args, **kwargs) -> typing.Any:
+        return await self._query(QueryContext(
+            query=QueryWithArgs(
+                query,
+                args,
+                kwargs,
+                input_language=protocol.InputLanguage.SQL,
+            ),
+            cache=self._get_query_cache(),
+            query_options=_query_opts,
+            retry_options=self._get_retry_options(),
+            state=self._get_state(),
+            warning_handler=self._get_warning_handler(),
+        ))
+
     @abc.abstractmethod
     async def _execute(self, execute_context: ExecuteContext) -> None:
         ...
@@ -364,6 +412,19 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
     async def execute(self, commands: str, *args, **kwargs) -> None:
         await self._execute(ExecuteContext(
             query=QueryWithArgs(commands, args, kwargs),
+            cache=self._get_query_cache(),
+            state=self._get_state(),
+            warning_handler=self._get_warning_handler(),
+        ))
+
+    async def execute_sql(self, commands: str, *args, **kwargs) -> None:
+        await self._execute(ExecuteContext(
+            query=QueryWithArgs(
+                commands,
+                args,
+                kwargs,
+                input_language=protocol.InputLanguage.SQL,
+            ),
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),

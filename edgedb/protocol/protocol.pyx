@@ -100,6 +100,7 @@ cdef class ExecuteContext:
         kwargs,
         reg: CodecsRegistry,
         qc: LRUMapping,
+        input_language: InputLanguage,
         output_format: OutputFormat,
         expect_one: bool = False,
         required_one: bool = False,
@@ -114,6 +115,7 @@ cdef class ExecuteContext:
         self.kwargs = kwargs
         self.reg = reg
         self.qc = qc
+        self.input_language = input_language
         self.output_format = output_format
         self.expect_one = bool(expect_one)
         self.required_one = bool(required_one)
@@ -271,6 +273,8 @@ cdef class SansIOProtocol:
         buf.write_int64(<int64_t>ctx.allow_capabilities)
         buf.write_int64(<int64_t><uint64_t>compilation_flags)
         buf.write_int64(<int64_t>ctx.implicit_limit)
+        if self.protocol_version >= (3, 0):
+            buf.write_byte(ctx.input_language)
         buf.write_byte(ctx.output_format)
         buf.write_byte(CARDINALITY_ONE if ctx.expect_one else CARDINALITY_MANY)
         buf.write_len_prefixed_utf8(ctx.query)
