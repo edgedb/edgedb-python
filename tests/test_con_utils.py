@@ -372,7 +372,7 @@ class TestConUtils(unittest.TestCase):
             )
 
         for i, testcase in enumerate(testcases):
-            with self.subTest(i=i):
+            with self.subTest(i=i, name=testcase.get('name')):
                 wait_until_available = \
                     testcase.get('result', {}).get('waitUntilAvailable')
                 if wait_until_available:
