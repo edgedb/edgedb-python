@@ -444,6 +444,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     SETUP = None
     TEARDOWN = None
     SCHEMA = None
+    DEFAULT_MODULE = 'test'
 
     SETUP_METHOD = None
     TEARDOWN_METHOD = None
@@ -521,15 +522,18 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     @classmethod
     def get_setup_script(cls):
         script = ''
+        schema = []
 
         # Look at all SCHEMA entries and potentially create multiple
-        # modules, but always create the 'test' module.
-        schema = ['\nmodule test {}']
+        # modules, but always create the test module, if not `default`.
+        if cls.DEFAULT_MODULE != 'default':
+            schema.append(f'\nmodule {cls.DEFAULT_MODULE} {{}}')
         for name, val in cls.__dict__.items():
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
-                module_name = (m.group(1) or 'test').lower().replace(
-                    '__', '.')
+                module_name = (
+                    m.group(1) or cls.DEFAULT_MODULE
+                ).lower().replace('_', '::')
 
                 with open(val, 'r') as sf:
                     module = sf.read()
