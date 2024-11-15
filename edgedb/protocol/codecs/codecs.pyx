@@ -1239,12 +1239,27 @@ cdef register_base_scalar_codecs():
         pgproto.timestamptz_decode)
 
     register_base_scalar_codec(
+        'std::pg::timestamptz',
+        timestamptz_encode,
+        pgproto.timestamptz_decode)
+
+    register_base_scalar_codec(
         'cal::local_datetime',
         timestamp_encode,
         pgproto.timestamp_decode)
 
     register_base_scalar_codec(
+        'std::pg::timestamp',
+        timestamp_encode,
+        pgproto.timestamp_decode)
+
+    register_base_scalar_codec(
         'cal::local_date',
+        date_encode,
+        pgproto.date_decode)
+
+    register_base_scalar_codec(
+        'std::pg::date',
         date_encode,
         pgproto.date_decode)
 
@@ -1264,7 +1279,17 @@ cdef register_base_scalar_codecs():
         pgproto.jsonb_decode)
 
     register_base_scalar_codec(
+        'std::pg::json',
+        pgproto.json_encode,
+        pgproto.json_decode)
+
+    register_base_scalar_codec(
         'cal::relative_duration',
+        relative_duration_encode,
+        relative_duration_decode)
+
+    register_base_scalar_codec(
+        'std::pg::interval',
         relative_duration_encode,
         relative_duration_decode)
 
