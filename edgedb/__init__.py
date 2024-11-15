@@ -24,7 +24,7 @@ from ._version import __version__
 from edgedb.datatypes.datatypes import (
     Tuple, NamedTuple, EnumValue, RelativeDuration, DateDuration, ConfigMemory
 )
-from edgedb.datatypes.datatypes import Set, Object, Array, Link, LinkSet
+from edgedb.datatypes.datatypes import Set, Object, Array
 from edgedb.datatypes.range import Range, MultiRange
 
 from .abstract import (
@@ -59,8 +59,6 @@ __all__ = [
     "EnumValue",
     "Executor",
     "IsolationLevel",
-    "Link",
-    "LinkSet",
     "NamedTuple",
     "Object",
     "Range",

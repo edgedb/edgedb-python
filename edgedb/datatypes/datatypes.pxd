@@ -58,10 +58,6 @@ cdef extern from "datatypes.h":
     int EdgeObject_SetItem(object, Py_ssize_t, object) except -1
     object EdgeObject_GetRecordDesc(object)
 
-    object EdgeLink_InitType()
-
-    object EdgeLinkSet_InitType()
-
 
 cdef record_desc_new(object names, object flags, object cards)
 cdef record_desc_pointer_name(object desc, Py_ssize_t pos)

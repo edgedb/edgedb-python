@@ -313,8 +313,6 @@ setuptools.setup(
              "edgedb/datatypes/namedtuple.c",
              "edgedb/datatypes/object.c",
              "edgedb/datatypes/hash.c",
-             "edgedb/datatypes/link.c",
-             "edgedb/datatypes/linkset.c",
              "edgedb/datatypes/repr.c",
              "edgedb/datatypes/comp.c",
              "edgedb/datatypes/datatypes.pyx"],

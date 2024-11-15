@@ -124,40 +124,4 @@ PyObject * EdgeObject_GetItem(PyObject *, Py_ssize_t);
 
 PyObject * EdgeObject_GetID(PyObject *ob);
 
-
-/* === edgedb.Link ========================================== */
-
-extern PyTypeObject EdgeLink_Type;
-
-#define EdgeLink_Check(d) (Py_TYPE(d) == &EdgeLink_Type)
-
-typedef struct {
-    PyObject_VAR_HEAD
-    PyObject *weakreflist;
-    PyObject *name;
-    PyObject *source;
-    PyObject *target;
-} EdgeLinkObject;
-
-PyObject * EdgeLink_InitType(void);
-PyObject * EdgeLink_New(PyObject *, PyObject *, PyObject *);
-
-
-/* === edgedb.LinkSet ======================================= */
-
-extern PyTypeObject EdgeLinkSet_Type;
-
-#define EdgeLinkSet_Check(d) (Py_TYPE(d) == &EdgeLinkSet_Type)
-
-typedef struct {
-    PyObject_VAR_HEAD
-    PyObject *weakreflist;
-    PyObject *name;
-    PyObject *source;
-    PyObject *targets;
-} EdgeLinkSetObject;
-
-PyObject * EdgeLinkSet_InitType(void);
-PyObject * EdgeLinkSet_New(PyObject *, PyObject *, PyObject *);
-
 #endif
