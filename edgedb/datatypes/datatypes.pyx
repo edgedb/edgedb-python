@@ -32,8 +32,6 @@ NamedTuple = EdgeNamedTuple_InitType()
 Object = EdgeObject_InitType()
 Set = list
 Array = list
-Link = EdgeLink_InitType()
-LinkSet = EdgeLinkSet_InitType()
 
 cdef str at_sign = "@"
 at_sign_ptr = <cpython.PyObject*>at_sign

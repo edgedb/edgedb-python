@@ -23,20 +23,11 @@ import os
 import random
 import string
 import unittest
-import warnings
 import weakref
 
 import edgedb
 from edgedb.datatypes import datatypes as private
 from edgedb import introspect
-
-
-def test_deprecated(f):
-    def wrapper(*args, **kwargs):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            return f(*args, **kwargs)
-    return wrapper
 
 
 class TestRecordDesc(unittest.TestCase):
@@ -577,7 +568,6 @@ class TestObject(unittest.TestCase):
                                     "accessed via dot notation"):
             u['name']
 
-    @test_deprecated
     def test_object_links_1(self):
         O2 = private.create_object_factory(
             id='property',
@@ -594,96 +584,10 @@ class TestObject(unittest.TestCase):
         o2_2 = O2(4, 'linkprop o2 2', 6)
         o1 = O1(2, edgedb.Set((o2_1, o2_2)))
 
-        linkset = o1['o2s']
-        self.assertEqual(len(linkset), 2)
-        self.assertEqual(linkset, o1['o2s'])
-        self.assertEqual(
-            repr(linkset),
-            "LinkSet(name='o2s', source_id=2, target_ids={1, 4})")
-
-        link1 = linkset[0]
-        self.assertIs(link1.source, o1)
-        self.assertIs(link1.target, o2_1)
-        self.assertEqual(
-            repr(link1),
-            "Link(name='o2s', source_id=2, target_id=1)")
-        self.assertEqual(set(dir(link1)), {'target', 'source', 'lb'})
-
-        link2 = linkset[1]
-        self.assertIs(link2.source, o1)
-        self.assertIs(link2.target, o2_2)
-
-        self.assertNotEqual(link1, link2)
-
-        self.assertEqual(list(linkset), [link1, link2])
-        self.assertEqual([link for link in linkset], [link1, link2])
-
-        self.assertNotEqual(link1, link2)
-
-        self.assertEqual(link1.lb, 'linkprop o2 1')
-        self.assertEqual(link2.lb, 'linkprop o2 2')
-
-        with self.assertRaises(AttributeError):
-            link2.aaaa
-
-    @test_deprecated
-    def test_object_links_2(self):
-        User = private.create_object_factory(
-            id='property',
-            friends='link',
-            enemies='link',
-        )
-
-        u1 = User(1, edgedb.Set([]), edgedb.Set([]))
-        u2 = User(2, edgedb.Set([]), edgedb.Set([]))
-        u3 = User(3, edgedb.Set([]), edgedb.Set([]))
-        u4 = User(4, edgedb.Set([u1, u2]), edgedb.Set([u1, u2]))
-        u5 = User(5, edgedb.Set([u1, u3]), edgedb.Set([u1, u2]))
-
-        self.assertNotEqual(u4['friends'], u4['enemies'])
-        self.assertNotEqual(u4['enemies'], u5['enemies'])
-
-        self.assertEqual(set(dir(u1)), {'id', 'friends', 'enemies'})
-
-    @test_deprecated
-    def test_object_links_3(self):
-        User = private.create_object_factory(
-            id='property',
-            friend='link',
-        )
-
-        u1 = User(1, None)
-        u2 = User(2, u1)
-        u3 = User(3, edgedb.Set([]))
-
-        self.assertEqual(set(dir(u2['friend'])), {'source', 'target'})
-
-        self.assertIs(u2['friend'].target, u1)
-
-        self.assertIsNone(u1['friend'])
-
-        self.assertEqual(len(u3['friend']), 0)
-        self.assertEqual(
-            repr(u3['friend']),
-            "LinkSet(name='friend', source_id=3, target_ids={})")
-
-        self.assertEqual(
-            repr(u2['friend']),
-            "Link(name='friend', source_id=2, target_id=1)")
-
-    @test_deprecated
-    def test_object_links_4(self):
-        User = private.create_object_factory(
-            id='property',
-            friend='link',
-        )
-
-        u = User(1, None)
-
-        with self.assertRaisesRegex(
-            KeyError, "link property '@error_key' does not exist"
-        ):
-            u['@error_key']
+        with self.assertRaisesRegex(TypeError,
+                                    "link 'o2s' should be "
+                                    "accessed via dot notation"):
+            o1['o2s']
 
     def test_object_link_property_1(self):
         O2 = private.create_object_factory(

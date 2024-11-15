@@ -257,27 +257,11 @@ object_getitem(EdgeObject *o, PyObject *name)
         }
 
         case L_LINK: {
-            int res = PyErr_WarnEx(
-                PyExc_DeprecationWarning,
-                "getting link on object is deprecated since 1.0, "
-                "please use dot notation to access linked objects, "
-                "and a following ['@...'] for the link properties.",
-                1
-            );
-            if (res != 0) {
-                return NULL;
-            }
-            PyObject *val = EdgeObject_GET_ITEM(o, pos);
-
-            if (PyList_Check(val)) {
-                return EdgeLinkSet_New(name, (PyObject *)o, val);
-            }
-            else if (Py_IsNone(val)) {
-                Py_RETURN_NONE;
-            }
-            else {
-                return EdgeLink_New(name, (PyObject *)o, val);
-            }
+            PyErr_Format(
+                PyExc_TypeError,
+                "link %R should be accessed via dot notation",
+                name);
+            return NULL;
         }
 
         default:
