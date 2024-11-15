@@ -136,6 +136,10 @@ def _start_cluster(*, cleanup_atexit=True):
         )
 
         for _ in range(600):
+            if p.poll() is not None:
+                raise RuntimeError(
+                    'Database server crashed before signalling READY status.'
+                    ' Run with `env EDGEDB_DEBUG_SERVER=1` to debug.')
             try:
                 with open(status_file, 'rb') as f:
                     for line in f:
