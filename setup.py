@@ -295,10 +295,13 @@ setuptools.setup(
     url='https://github.com/edgedb/edgedb-python',
     license='Apache License, Version 2.0',
     packages=setuptools.find_packages(),
-    provides=['edgedb'],
+    provides=['edgedb', 'gel'],
     zip_safe=False,
     include_package_data=True,
-    package_data={'edgedb': ['py.typed']},
+    package_data={
+        'edgedb': ['py.typed'],
+        'gel': ['py.typed'],
+    },
     ext_modules=[
         distutils_extension.Extension(
             "edgedb.pgproto.pgproto",
