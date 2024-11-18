@@ -1,5 +1,5 @@
 [submodule "edgedb/pgproto"]
-	path = edgedb/pgproto
+	path = gel/pgproto
 	url = https://github.com/MagicStack/py-pgproto.git
 [submodule "tests/shared-client-testcases"]
 	path = tests/shared-client-testcases
