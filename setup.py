@@ -353,6 +353,7 @@ setuptools.setup(
     entry_points={
         "console_scripts": [
             "edgedb-py=gel.codegen.cli:main",
+            "gel-py=gel.codegen.cli:main",
         ]
     }
 )

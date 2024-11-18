@@ -9,15 +9,15 @@
 #     'scalar/select_scalar.edgeql'
 #     'scalar/select_scalars.edgeql'
 # WITH:
-#     $ edgedb-py --target async --file --no-skip-pydantic-validation
+#     $ gel-py --target async --file --no-skip-pydantic-validation
 
 
 from __future__ import annotations
 import array
 import dataclasses
 import datetime
-import edgedb
 import enum
+import gel
 import typing
 import uuid
 
@@ -92,26 +92,26 @@ class MyQueryResult:
     ab: datetime.timedelta | None
     ac: int
     ad: int | None
-    ae: edgedb.RelativeDuration
-    af: edgedb.RelativeDuration | None
-    ag: edgedb.DateDuration
-    ah: edgedb.DateDuration | None
-    ai: edgedb.ConfigMemory
-    aj: edgedb.ConfigMemory | None
-    ak: edgedb.Range[int]
-    al: edgedb.Range[int] | None
-    am: edgedb.Range[int]
-    an: edgedb.Range[int] | None
-    ao: edgedb.Range[float]
-    ap: edgedb.Range[float] | None
-    aq: edgedb.Range[float]
-    ar: edgedb.Range[float] | None
-    as_: edgedb.Range[datetime.datetime]
-    at: edgedb.Range[datetime.datetime] | None
-    au: edgedb.Range[datetime.datetime]
-    av: edgedb.Range[datetime.datetime] | None
-    aw: edgedb.Range[datetime.date]
-    ax: edgedb.Range[datetime.date] | None
+    ae: gel.RelativeDuration
+    af: gel.RelativeDuration | None
+    ag: gel.DateDuration
+    ah: gel.DateDuration | None
+    ai: gel.ConfigMemory
+    aj: gel.ConfigMemory | None
+    ak: gel.Range[int]
+    al: gel.Range[int] | None
+    am: gel.Range[int]
+    an: gel.Range[int] | None
+    ao: gel.Range[float]
+    ap: gel.Range[float] | None
+    aq: gel.Range[float]
+    ar: gel.Range[float] | None
+    as_: gel.Range[datetime.datetime]
+    at: gel.Range[datetime.datetime] | None
+    au: gel.Range[datetime.datetime]
+    av: gel.Range[datetime.datetime] | None
+    aw: gel.Range[datetime.date]
+    ax: gel.Range[datetime.date] | None
     ay: MyScalar
     az: MyScalar | None
     ba: MyEnum
@@ -143,7 +143,7 @@ class SelectObjectResultParamsItem:
 
 
 async def custom_vector_input(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
     *,
     input: V3 | None = None,
 ) -> int | None:
@@ -156,7 +156,7 @@ async def custom_vector_input(
 
 
 async def link_prop(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
 ) -> list[LinkPropResult]:
     return await executor.query(
         """\
@@ -183,7 +183,7 @@ async def link_prop(
 
 
 async def my_query(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
     *,
     a: uuid.UUID,
     b: uuid.UUID | None = None,
@@ -215,26 +215,26 @@ async def my_query(
     ab: datetime.timedelta | None = None,
     ac: int,
     ad: int | None = None,
-    ae: edgedb.RelativeDuration,
-    af: edgedb.RelativeDuration | None = None,
-    ag: edgedb.DateDuration,
-    ah: edgedb.DateDuration | None = None,
-    ai: edgedb.ConfigMemory,
-    aj: edgedb.ConfigMemory | None = None,
-    ak: edgedb.Range[int],
-    al: edgedb.Range[int] | None = None,
-    am: edgedb.Range[int],
-    an: edgedb.Range[int] | None = None,
-    ao: edgedb.Range[float],
-    ap: edgedb.Range[float] | None = None,
-    aq: edgedb.Range[float],
-    ar: edgedb.Range[float] | None = None,
-    as_: edgedb.Range[datetime.datetime],
-    at: edgedb.Range[datetime.datetime] | None = None,
-    au: edgedb.Range[datetime.datetime],
-    av: edgedb.Range[datetime.datetime] | None = None,
-    aw: edgedb.Range[datetime.date],
-    ax: edgedb.Range[datetime.date] | None = None,
+    ae: gel.RelativeDuration,
+    af: gel.RelativeDuration | None = None,
+    ag: gel.DateDuration,
+    ah: gel.DateDuration | None = None,
+    ai: gel.ConfigMemory,
+    aj: gel.ConfigMemory | None = None,
+    ak: gel.Range[int],
+    al: gel.Range[int] | None = None,
+    am: gel.Range[int],
+    an: gel.Range[int] | None = None,
+    ao: gel.Range[float],
+    ap: gel.Range[float] | None = None,
+    aq: gel.Range[float],
+    ar: gel.Range[float] | None = None,
+    as_: gel.Range[datetime.datetime],
+    at: gel.Range[datetime.datetime] | None = None,
+    au: gel.Range[datetime.datetime],
+    av: gel.Range[datetime.datetime] | None = None,
+    aw: gel.Range[datetime.date],
+    ax: gel.Range[datetime.date] | None = None,
     bc: typing.Sequence[float],
     bd: typing.Sequence[float] | None = None,
 ) -> MyQueryResult:
@@ -358,7 +358,7 @@ async def my_query(
 
 
 async def query_one(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
     *,
     arg_name_with_underscores: int,
 ) -> int:
@@ -371,7 +371,7 @@ async def query_one(
 
 
 async def select_args(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
     *,
     arg_str: str,
     arg_datetime: datetime.datetime,
@@ -389,7 +389,7 @@ async def select_args(
 
 
 async def select_object(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
 ) -> SelectObjectResult | None:
     return await executor.query_single(
         """\
@@ -407,7 +407,7 @@ async def select_object(
 
 
 async def select_objects(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
 ) -> list[SelectObjectResult]:
     return await executor.query(
         """\
@@ -424,7 +424,7 @@ async def select_objects(
 
 
 async def select_scalar(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
 ) -> int:
     return await executor.query_single(
         """\
@@ -434,8 +434,8 @@ async def select_scalar(
 
 
 async def select_scalars(
-    executor: edgedb.AsyncIOExecutor,
-) -> list[edgedb.ConfigMemory]:
+    executor: gel.AsyncIOExecutor,
+) -> list[gel.ConfigMemory]:
     return await executor.query(
         """\
         select <cfg::memory>{1, 2, 3};\
