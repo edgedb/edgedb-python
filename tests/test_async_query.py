@@ -988,7 +988,7 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                     await tx.query_single('SELECT <MyEnum>$0', 'Oups')
 
         with self.assertRaisesRegex(
-                edgedb.InvalidArgumentError, 'a str or edgedb.EnumValue'):
+                edgedb.InvalidArgumentError, 'a str or gel.EnumValue'):
             await self.client.query_single('SELECT <MyEnum>$0', 123)
 
     async def test_enum_argument_02(self):

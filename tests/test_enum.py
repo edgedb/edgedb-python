@@ -40,7 +40,7 @@ class TestEnum(tb.AsyncQueryTestCase):
         self.assertTrue(isinstance(ct_red, edgedb.EnumValue))
         self.assertTrue(isinstance(ct_red.__tid__, uuid.UUID))
 
-        self.assertEqual(repr(ct_red), "<edgedb.EnumValue 'red'>")
+        self.assertEqual(repr(ct_red), "<gel.EnumValue 'red'>")
 
         self.assertEqual(str(ct_red), 'red')
         with self.assertRaises(TypeError):

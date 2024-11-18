@@ -767,7 +767,7 @@ class TestSyncQuery(tb.SyncQueryTestCase):
                     tx.query_single('SELECT <MyEnum>$0', 'Oups')
 
         with self.assertRaisesRegex(
-            edgedb.InvalidArgumentError, 'a str or edgedb.EnumValue'
+            edgedb.InvalidArgumentError, 'a str or gel.EnumValue'
         ):
             self.client.query_single('SELECT <MyEnum>$0', 123)
 
