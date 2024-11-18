@@ -29,7 +29,7 @@ import warnings
 from unittest import mock
 
 
-from edgedb import con_utils
+from gel import con_utils
 from edgedb import errors
 
 

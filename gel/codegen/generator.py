@@ -25,11 +25,11 @@ import sys
 import textwrap
 import typing
 
-import edgedb
-from edgedb import abstract
-from edgedb import describe
-from edgedb.con_utils import find_edgedb_project_dir
-from edgedb.color import get_color
+import gel
+from gel import abstract
+from gel import describe
+from gel.con_utils import find_gel_project_dir
+from gel.color import get_color
 
 
 C = get_color()
@@ -64,9 +64,9 @@ TYPE_MAPPING = {
     "cal::local_date": "datetime.date",
     "cal::local_time": "datetime.time",
     "cal::local_datetime": "datetime.datetime",
-    "cal::relative_duration": "edgedb.RelativeDuration",
-    "cal::date_duration": "edgedb.DateDuration",
-    "cfg::memory": "edgedb.ConfigMemory",
+    "cal::relative_duration": "gel.RelativeDuration",
+    "cal::date_duration": "gel.DateDuration",
+    "cfg::memory": "gel.ConfigMemory",
     "ext::pgvector::vector": "array.array",
 }
 
@@ -158,15 +158,15 @@ class Generator:
         self._skip_pydantic_validation = args.skip_pydantic_validation
         self._async = False
         try:
-            self._project_dir = pathlib.Path(find_edgedb_project_dir())
-        except edgedb.ClientConnectionError:
+            self._project_dir = pathlib.Path(find_gel_project_dir())
+        except gel.ClientConnectionError:
             print(
-                "Cannot find edgedb.toml: "
+                "Cannot find gel.toml: "
                 "codegen must be run under an EdgeDB project dir"
             )
             sys.exit(2)
         print_msg(f"Found EdgeDB project: {C.BOLD}{self._project_dir}{C.ENDC}")
-        self._client = edgedb.create_client(**_get_conn_args(args))
+        self._client = gel.create_client(**_get_conn_args(args))
         self._single_mode_files = args.file
         self._search_dirs = []
         for search_dir in args.dir or []:
@@ -203,7 +203,7 @@ class Generator:
     def run(self):
         try:
             self._client.ensure_connected()
-        except edgedb.EdgeDBError as e:
+        except gel.EdgeDBError as e:
             print(f"Failed to connect to EdgeDB instance: {e}")
             sys.exit(61)
         with self._client:
@@ -301,7 +301,7 @@ class Generator:
         cmd = []
         if sys.argv[0].endswith("__main__.py"):
             cmd.append(pathlib.Path(sys.executable).name)
-            cmd.extend(["-m", "edgedb.codegen"])
+            cmd.extend(["-m", "gel.codegen"])
         else:
             cmd.append(pathlib.Path(sys.argv[0]).name)
         cmd.extend(sys.argv[1:])
@@ -346,7 +346,7 @@ class Generator:
             else:
                 self._imports.add("typing")
                 out_type = f"typing.List[{out_type}]"
-        elif dr.output_cardinality == edgedb.Cardinality.AT_MOST_ONE:
+        elif dr.output_cardinality == gel.Cardinality.AT_MOST_ONE:
             if SYS_VERSION_INFO >= (3, 10):
                 out_type = f"{out_type} | None"
             else:
@@ -377,11 +377,11 @@ class Generator:
             print(f"async def {name}(", file=buf)
         else:
             print(f"def {name}(", file=buf)
-        self._imports.add("edgedb")
+        self._imports.add("gel")
         if self._async:
-            print(f"{INDENT}executor: edgedb.AsyncIOExecutor,", file=buf)
+            print(f"{INDENT}executor: gel.AsyncIOExecutor,", file=buf)
         else:
-            print(f"{INDENT}executor: edgedb.Executor,", file=buf)
+            print(f"{INDENT}executor: gel.Executor,", file=buf)
         if kw_only:
             print(f"{INDENT}*,", file=buf)
         for name, arg in args.items():
@@ -390,7 +390,7 @@ class Generator:
         if dr.output_cardinality.is_multi():
             method = "query"
             rt = "return "
-        elif dr.output_cardinality == edgedb.Cardinality.NO_RESULT:
+        elif dr.output_cardinality == gel.Cardinality.NO_RESULT:
             method = "execute"
             rt = ""
         else:
@@ -485,7 +485,7 @@ class Generator:
                 el_code = self._generate_code_with_cardinality(
                     element.type, name_hint, element.cardinality
                 )
-                if element.kind == edgedb.ElementKind.LINK_PROPERTY:
+                if element.kind == gel.ElementKind.LINK_PROPERTY:
                     link_props.append((el_name, el_code))
                 else:
                     print(f"{INDENT}{el_name}: {el_code}", file=buf)
@@ -536,7 +536,7 @@ class Generator:
 
         elif isinstance(type_, describe.RangeType):
             value = self._generate_code(type_.value_type, name_hint, is_input)
-            rv = f"edgedb.Range[{value}]"
+            rv = f"gel.Range[{value}]"
 
         else:
             rv = "??"
@@ -548,12 +548,12 @@ class Generator:
         self,
         type_: typing.Optional[describe.AnyType],
         name_hint: str,
-        cardinality: edgedb.Cardinality,
+        cardinality: gel.Cardinality,
         keyword_argument: bool = False,
         is_input: bool = False,
     ):
         rv = self._generate_code(type_, name_hint, is_input)
-        if cardinality == edgedb.Cardinality.AT_MOST_ONE:
+        if cardinality == gel.Cardinality.AT_MOST_ONE:
             if SYS_VERSION_INFO >= (3, 10):
                 rv = f"{rv} | None"
             else:

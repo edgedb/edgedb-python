@@ -24,7 +24,7 @@ import subprocess
 import os
 import tempfile
 
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 
 
 ASSERT_SUFFIX = os.environ.get("EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX", ".assert")

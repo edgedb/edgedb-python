@@ -43,7 +43,7 @@ cdef class DateDuration:
         return hash((DateDuration, self.days, self.months))
 
     def __repr__(self):
-        return f'<edgedb.DateDuration "{self}">'
+        return f'<gel.DateDuration "{self}">'
 
     @cython.cdivision(True)
     def __str__(self):

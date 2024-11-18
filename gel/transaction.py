@@ -99,8 +99,8 @@ class BaseTransaction:
         attrs.append('state:{}'.format(self._state.name.lower()))
         attrs.append(repr(self._options))
 
-        if self.__class__.__module__.startswith('edgedb.'):
-            mod = 'edgedb'
+        if self.__class__.__module__.startswith('gel.'):
+            mod = 'gel'
         else:
             mod = self.__class__.__module__
 

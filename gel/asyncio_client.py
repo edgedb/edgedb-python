@@ -164,7 +164,7 @@ class _AsyncIOPoolImpl(base_client.BasePoolImpl):
         if not issubclass(connection_class, AsyncIOConnection):
             raise TypeError(
                 f'connection_class is expected to be a subclass of '
-                f'edgedb.asyncio_client.AsyncIOConnection, '
+                f'gel.asyncio_client.AsyncIOConnection, '
                 f'got {connection_class}')
         self._loop = None
         super().__init__(
@@ -355,7 +355,7 @@ class AsyncIOClient(base_client.BaseClient, abstract.AsyncIOExecutor):
     open cursors and other resources *except* prepared statements.
 
     Clients are created by calling
-    :func:`~edgedb.asyncio_client.create_async_client`.
+    :func:`~gel.asyncio_client.create_async_client`.
     """
 
     __slots__ = ()

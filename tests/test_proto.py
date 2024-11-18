@@ -20,7 +20,7 @@ import unittest
 
 import edgedb
 
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 
 
 class TestProto(tb.SyncQueryTestCase):

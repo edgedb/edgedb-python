@@ -43,7 +43,7 @@ cdef class ConfigMemory:
         return hash((ConfigMemory, self._bytes))
 
     def __repr__(self):
-        return f'<edgedb.ConfigMemory "{self}">'
+        return f'<gel.ConfigMemory "{self}">'
 
     @cython.cdivision(True)
     def __str__(self):

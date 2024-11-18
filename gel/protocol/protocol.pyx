@@ -30,7 +30,7 @@ import types
 import typing
 import weakref
 
-from edgedb.pgproto.pgproto cimport (
+from gel.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
 
@@ -44,22 +44,22 @@ from edgedb.pgproto.pgproto cimport (
     frb_get_len,
 )
 
-from edgedb.pgproto import pgproto
-from edgedb.pgproto cimport pgproto
-from edgedb.pgproto cimport hton
-from edgedb.pgproto.pgproto import UUID
+from gel.pgproto import pgproto
+from gel.pgproto cimport pgproto
+from gel.pgproto cimport hton
+from gel.pgproto.pgproto import UUID
 
 
 from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          int32_t, uint32_t, int64_t, uint64_t, \
                          UINT32_MAX
 
-from edgedb.datatypes cimport datatypes
+from gel.datatypes cimport datatypes
 from . cimport cpythonx
 
-from edgedb import enums
-from edgedb import errors
-from edgedb import scram
+from gel import enums
+from gel import errors
+from gel import scram
 
 
 include "./consts.pxi"

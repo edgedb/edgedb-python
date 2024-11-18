@@ -20,7 +20,7 @@
 import random
 from datetime import timedelta
 
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 from edgedb import errors
 from edgedb.datatypes.datatypes import RelativeDuration, DateDuration
 

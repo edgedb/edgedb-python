@@ -27,7 +27,7 @@ import uuid
 import edgedb
 
 from edgedb import abstract
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 from edgedb.protocol import protocol
 
 

@@ -23,8 +23,8 @@
 import functools
 import typing
 
-from edgedb.datatypes import datatypes as dt
-from edgedb.enums import ElementKind
+from gel.datatypes import datatypes as dt
+from gel.enums import ElementKind
 
 
 class PointerDescription(typing.NamedTuple):

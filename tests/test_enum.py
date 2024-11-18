@@ -22,7 +22,7 @@ import enum
 import uuid
 
 import edgedb
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 
 
 class TestEnum(tb.AsyncQueryTestCase):

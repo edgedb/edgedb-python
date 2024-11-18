@@ -17,7 +17,7 @@
 #
 
 
-from edgedb import enums
+from gel import enums
 
 
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01

@@ -360,4 +360,4 @@ except KeyError:
     SHOW_HINT = False
 
 
-from edgedb.color import get_color
+from gel.color import get_color

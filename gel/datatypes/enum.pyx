@@ -25,7 +25,7 @@ class EnumValue(enum.Enum):
         return self._value_
 
     def __repr__(self):
-        return f'<edgedb.EnumValue {self._value_!r}>'
+        return f'<gel.EnumValue {self._value_!r}>'
 
     @classmethod
     def _try_from(cls, value):

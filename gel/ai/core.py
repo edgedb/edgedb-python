@@ -19,20 +19,20 @@
 from __future__ import annotations
 import typing
 
-import edgedb
+import gel
 import httpx
 import httpx_sse
 
 from . import types
 
 
-def create_ai(client: edgedb.Client, **kwargs) -> EdgeDBAI:
+def create_ai(client: gel.Client, **kwargs) -> EdgeDBAI:
     client.ensure_connected()
     return EdgeDBAI(client, types.AIOptions(**kwargs))
 
 
 async def create_async_ai(
-    client: edgedb.AsyncIOClient, **kwargs
+    client: gel.AsyncIOClient, **kwargs
 ) -> AsyncEdgeDBAI:
     await client.ensure_connected()
     return AsyncEdgeDBAI(client, types.AIOptions(**kwargs))
@@ -45,7 +45,7 @@ class BaseEdgeDBAI:
 
     def __init__(
         self,
-        client: typing.Union[edgedb.Client, edgedb.AsyncIOClient],
+        client: typing.Union[gel.Client, gel.AsyncIOClient],
         options: types.AIOptions,
         **kwargs,
     ):

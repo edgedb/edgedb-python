@@ -32,9 +32,9 @@ import tempfile
 import time
 import unittest
 
-import edgedb
-from edgedb import asyncio_client
-from edgedb import blocking_client
+import gel
+from gel import asyncio_client
+from gel import blocking_client
 
 
 log = logging.getLogger(__name__)
@@ -89,9 +89,9 @@ def _start_cluster(*, cleanup_atexit=True):
         # not interfere with the server's.
         env.pop('PYTHONPATH', None)
 
-        edgedb_server = env.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
+        gel_server = env.get('EDGEDB_SERVER_BINARY', 'gel-server')
         args = [
-            edgedb_server,
+            gel_server,
             "--temp-dir",
             "--testmode",
             f"--emit-server-status={status_file_unix}",
@@ -100,7 +100,7 @@ def _start_cluster(*, cleanup_atexit=True):
             "--bootstrap-command=ALTER ROLE edgedb { SET password := 'test' }",
         ]
 
-        help_args = [edgedb_server, "--help"]
+        help_args = [gel_server, "--help"]
         if sys.platform == 'win32':
             help_args = ['wsl', '-u', 'edgedb'] + help_args
 
@@ -173,7 +173,7 @@ def _start_cluster(*, cleanup_atexit=True):
             else:
                 con_args['tls_ca_file'] = data['tls_cert_file']
 
-        client = edgedb.create_client(password='test', **con_args)
+        client = gel.create_client(password='test', **con_args)
         client.ensure_connected()
         client.execute("""
             # Set session_idle_transaction_timeout to 5 minutes.
@@ -237,7 +237,7 @@ class TestCaseMeta(type(unittest.TestCase)):
                     # retry the test.
                     self.loop.run_until_complete(
                         __meth__(self, *args, **kwargs))
-                except edgedb.TransactionSerializationError:
+                except gel.TransactionSerializationError:
                     if try_no == 3:
                         raise
                     else:
@@ -335,7 +335,7 @@ class ClusterTestCase(TestCase):
         cls.cluster = _start_cluster(cleanup_atexit=True)
 
 
-class TestAsyncIOClient(edgedb.AsyncIOClient):
+class TestAsyncIOClient(gel.AsyncIOClient):
     def _clear_codecs_cache(self):
         self._impl.codecs_registry.clear_cache()
 
@@ -352,7 +352,7 @@ class TestAsyncIOClient(edgedb.AsyncIOClient):
         return self.connection._protocol.is_legacy
 
 
-class TestClient(edgedb.Client):
+class TestClient(gel.Client):
     @property
     def connection(self):
         return self._impl._holders[0]._con
@@ -560,12 +560,12 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     try:
                         cls.adapt_call(
                             cls.admin_client.execute(script))
-                    except edgedb.errors.ExecutionError:
+                    except gel.errors.ExecutionError:
                         if i < retry - 1:
                             time.sleep(0.1)
                         else:
                             raise
-                    except edgedb.errors.UnknownDatabaseError:
+                    except gel.errors.UnknownDatabaseError:
                         break
 
             except Exception:

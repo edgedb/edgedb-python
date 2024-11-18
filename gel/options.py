@@ -9,7 +9,7 @@ from collections import namedtuple
 from . import errors
 
 
-logger = logging.getLogger('edgedb')
+logger = logging.getLogger('gel')
 
 
 _RetryRule = namedtuple("_RetryRule", ["attempts", "backoff"])

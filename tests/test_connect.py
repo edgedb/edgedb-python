@@ -21,7 +21,7 @@ import socket
 
 import edgedb
 
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 
 
 class TestConnect(tb.AsyncQueryTestCase):

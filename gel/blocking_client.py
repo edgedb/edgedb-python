@@ -220,7 +220,7 @@ class _PoolImpl(base_client.BasePoolImpl):
         if not issubclass(connection_class, BlockingIOConnection):
             raise TypeError(
                 f'connection_class is expected to be a subclass of '
-                f'edgedb.blocking_client.BlockingIOConnection, '
+                f'gel.blocking_client.BlockingIOConnection, '
                 f'got {connection_class}')
         super().__init__(
             connect_args,
@@ -386,7 +386,7 @@ class Client(base_client.BaseClient, abstract.Executor):
     open cursors and other resources *except* prepared statements.
 
     Clients are created by calling
-    :func:`~edgedb.blocking_client.create_client`.
+    :func:`~gel.blocking_client.create_client`.
     """
 
     __slots__ = ()

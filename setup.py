@@ -98,7 +98,7 @@ with open(str(_ROOT / 'README.rst')) as f:
     readme = f.read()
 
 
-with open(str(_ROOT / 'edgedb' / '_version.py')) as f:
+with open(str(_ROOT / 'gel' / '_version.py')) as f:
     for line in f:
         if line.startswith('__version__ ='):
             _, _, version = line.partition('=')
@@ -106,7 +106,7 @@ with open(str(_ROOT / 'edgedb' / '_version.py')) as f:
             break
     else:
         raise RuntimeError(
-            'unable to read the version from edgedb/_version.py')
+            'unable to read the version from gel/_version.py')
 
 
 if (_ROOT / '.git').is_dir() and 'dev' in VERSION:
@@ -267,8 +267,8 @@ class build_ext(distutils_build_ext.build_ext):
 
 
 INCLUDE_DIRS = [
-    'edgedb/pgproto/',
-    'edgedb/datatypes',
+    'gel/pgproto/',
+    'gel/datatypes',
 ]
 
 
@@ -304,41 +304,41 @@ setuptools.setup(
     },
     ext_modules=[
         distutils_extension.Extension(
-            "edgedb.pgproto.pgproto",
-            ["edgedb/pgproto/pgproto.pyx"],
+            "gel.pgproto.pgproto",
+            ["gel/pgproto/pgproto.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS),
 
         distutils_extension.Extension(
-            "edgedb.datatypes.datatypes",
-            ["edgedb/datatypes/args.c",
-             "edgedb/datatypes/record_desc.c",
-             "edgedb/datatypes/namedtuple.c",
-             "edgedb/datatypes/object.c",
-             "edgedb/datatypes/hash.c",
-             "edgedb/datatypes/repr.c",
-             "edgedb/datatypes/comp.c",
-             "edgedb/datatypes/datatypes.pyx"],
+            "gel.datatypes.datatypes",
+            ["gel/datatypes/args.c",
+             "gel/datatypes/record_desc.c",
+             "gel/datatypes/namedtuple.c",
+             "gel/datatypes/object.c",
+             "gel/datatypes/hash.c",
+             "gel/datatypes/repr.c",
+             "gel/datatypes/comp.c",
+             "gel/datatypes/datatypes.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS),
 
         distutils_extension.Extension(
-            "edgedb.protocol.protocol",
-            ["edgedb/protocol/protocol.pyx"],
+            "gel.protocol.protocol",
+            ["gel/protocol/protocol.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
             include_dirs=INCLUDE_DIRS),
 
         distutils_extension.Extension(
-            "edgedb.protocol.asyncio_proto",
-            ["edgedb/protocol/asyncio_proto.pyx"],
+            "gel.protocol.asyncio_proto",
+            ["gel/protocol/asyncio_proto.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
             include_dirs=INCLUDE_DIRS),
 
         distutils_extension.Extension(
-            "edgedb.protocol.blocking_proto",
-            ["edgedb/protocol/blocking_proto.pyx"],
+            "gel.protocol.blocking_proto",
+            ["gel/protocol/blocking_proto.pyx"],
             extra_compile_args=CFLAGS,
             extra_link_args=LDFLAGS,
             include_dirs=INCLUDE_DIRS),
@@ -352,7 +352,7 @@ setuptools.setup(
     setup_requires=setup_requires,
     entry_points={
         "console_scripts": [
-            "edgedb-py=edgedb.codegen.cli:main",
+            "edgedb-py=gel.codegen.cli:main",
         ]
     }
 )

@@ -21,7 +21,7 @@ import itertools
 
 import edgedb
 
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 from edgedb import TransactionOptions
 from edgedb.options import RetryOptions
 

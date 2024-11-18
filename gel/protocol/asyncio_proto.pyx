@@ -19,8 +19,8 @@
 
 import asyncio
 
-from edgedb import errors
-from edgedb.pgproto.pgproto cimport (
+from gel import errors
+from gel.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
 )

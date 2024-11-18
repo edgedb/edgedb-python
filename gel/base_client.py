@@ -103,7 +103,7 @@ class BaseConnection(metaclass=abc.ABCMeta):
         :param callable callback:
             A callable receiving the following arguments:
             **connection**: a Connection the callback is registered with;
-            **message**: the `edgedb.EdgeDBMessage` message.
+            **message**: the `gel.EdgeDBMessage` message.
         """
         self._log_listeners.add(callback)
 
@@ -515,11 +515,11 @@ class BasePoolImpl(abc.ABC):
         :param str dsn:
             Connection arguments specified using as a single string in
             the following format:
-            ``edgedb://user:pass@host:port/database?option=value``.
+            ``gel://user:pass@host:port/database?option=value``.
 
         :param \*\*connect_kwargs:
             Keyword arguments for the
-            :func:`~edgedb.asyncio_client.create_async_client` function.
+            :func:`~gel.asyncio_client.create_async_client` function.
         """
 
         connect_kwargs["dsn"] = dsn

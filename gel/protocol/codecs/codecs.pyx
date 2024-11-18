@@ -21,9 +21,9 @@ import array
 import decimal
 import uuid
 import datetime
-from edgedb import describe
-from edgedb import enums
-from edgedb.datatypes import datatypes
+from gel import describe
+from gel import enums
+from gel.datatypes import datatypes
 
 from libc.string cimport memcpy
 from cpython.bytes cimport PyBytes_FromStringAndSize

@@ -32,7 +32,7 @@
 #define EDGE_POINTER_IS_LINK        (1 << 2)
 
 
-/* === edgedb.RecordDesc ==================================== */
+/* === gel.RecordDesc ==================================== */
 
 extern PyTypeObject EdgeRecordDesc_Type;
 
@@ -86,7 +86,7 @@ PyObject * EdgeRecordDesc_List(PyObject *, uint8_t, uint8_t);
 PyObject * EdgeRecordDesc_GetDataclassFields(PyObject *);
 
 
-/* === edgedb.NamedTuple ==================================== */
+/* === gel.NamedTuple ==================================== */
 
 #define EDGE_NAMEDTUPLE_FREELIST_SIZE 500
 #define EDGE_NAMEDTUPLE_FREELIST_MAXSAVE 20
@@ -98,7 +98,7 @@ PyObject * EdgeNamedTuple_Type_New(PyObject *);
 PyObject * EdgeNamedTuple_New(PyObject *);
 
 
-/* === edgedb.Object ======================================== */
+/* === gel.Object ======================================== */
 
 #define EDGE_OBJECT_FREELIST_SIZE 2000
 #define EDGE_OBJECT_FREELIST_MAXSAVE 20

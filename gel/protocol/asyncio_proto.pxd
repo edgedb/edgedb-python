@@ -19,7 +19,7 @@
 
 from . cimport protocol
 
-from edgedb.pgproto.debug cimport PG_DEBUG
+from gel.pgproto.debug cimport PG_DEBUG
 
 
 cdef class AsyncIOProtocol(protocol.SansIOProtocolBackwardsCompatible):

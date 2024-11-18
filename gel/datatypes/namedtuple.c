@@ -159,7 +159,7 @@ namedtuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     {
         PyErr_SetString(
             PyExc_ValueError,
-            "edgedb.NamedTuple requires at least one field/value");
+            "gel.NamedTuple requires at least one field/value");
         goto fail;
     }
 
@@ -254,7 +254,7 @@ namedtuple_derived_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         if (args_size > size) {
             PyErr_Format(
                 PyExc_ValueError,
-                "edgedb.NamedTuple only needs %zd arguments, %zd given",
+                "gel.NamedTuple only needs %zd arguments, %zd given",
                 size, args_size);
             goto fail;
         }
@@ -270,7 +270,7 @@ namedtuple_derived_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         } else {
             PyErr_Format(
                 PyExc_ValueError,
-                "edgedb.NamedTuple requires %zd arguments, %zd given",
+                "gel.NamedTuple requires %zd arguments, %zd given",
                 size, args_size);
             goto fail;
         }
@@ -278,7 +278,7 @@ namedtuple_derived_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     if (PyDict_Size(kwargs) > size - args_size) {
         PyErr_SetString(
             PyExc_ValueError,
-            "edgedb.NamedTuple got extra keyword arguments");
+            "gel.NamedTuple got extra keyword arguments");
         goto fail;
     }
     for (Py_ssize_t i = args_size; i < size; i++) {
@@ -294,7 +294,7 @@ namedtuple_derived_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
             } else {
                 PyErr_Format(
                     PyExc_ValueError,
-                    "edgedb.NamedTuple missing required argument: %U",
+                    "gel.NamedTuple missing required argument: %U",
                     key);
                 Py_CLEAR(key);
                 goto fail;
@@ -407,7 +407,7 @@ static PyType_Slot namedtuple_slots[] = {
 
 
 static PyType_Spec namedtuple_spec = {
-    "edgedb.DerivedNamedTuple",
+    "gel.DerivedNamedTuple",
     sizeof(PyTupleObject) - sizeof(PyObject *),
     sizeof(PyObject *),
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
@@ -417,7 +417,7 @@ static PyType_Spec namedtuple_spec = {
 
 PyTypeObject EdgeNamedTuple_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    "edgedb.NamedTuple",
+    "gel.NamedTuple",
     .tp_basicsize = sizeof(PyTupleObject) - sizeof(PyObject *),
     .tp_itemsize = sizeof(PyObject *),
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,

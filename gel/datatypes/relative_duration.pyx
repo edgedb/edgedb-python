@@ -50,7 +50,7 @@ cdef class RelativeDuration:
         return hash((RelativeDuration, self.microseconds, self.days, self.months))
 
     def __repr__(self):
-        return f'<edgedb.RelativeDuration "{self}">'
+        return f'<gel.RelativeDuration "{self}">'
 
     @cython.cdivision(True)
     def __str__(self):

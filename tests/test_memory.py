@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 
 
 class TestConfigMemory(tb.SyncQueryTestCase):

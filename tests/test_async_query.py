@@ -29,7 +29,7 @@ import asyncio
 import edgedb
 
 from edgedb import abstract
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 from edgedb.options import RetryOptions
 from edgedb.protocol import protocol
 

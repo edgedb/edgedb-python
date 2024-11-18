@@ -23,14 +23,14 @@ cimport cpython
 from libc.stdint cimport int16_t, int32_t, uint16_t, \
                          uint32_t, int64_t, uint64_t
 
-from edgedb.pgproto.pgproto cimport (
+from gel.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
     FRBuffer,
 )
 
-from edgedb.pgproto cimport pgproto
-from edgedb.pgproto.debug cimport PG_DEBUG
+from gel.pgproto cimport pgproto
+from gel.pgproto.debug cimport PG_DEBUG
 
 
 include "./lru.pxd"

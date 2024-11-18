@@ -86,7 +86,7 @@ EdgeObject_GetRecordDesc(PyObject *o)
     if (!EdgeObject_Check(o)) {
         PyErr_Format(
             PyExc_TypeError,
-            "an instance of edgedb.Object expected");
+            "an instance of gel.Object expected");
         return NULL;
     }
 
@@ -324,7 +324,7 @@ static PyMappingMethods object_as_mapping = {
 
 PyTypeObject EdgeObject_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    "edgedb.Object",
+    "gel.Object",
     .tp_basicsize = sizeof(EdgeObject) - sizeof(PyObject *),
     .tp_itemsize = sizeof(PyObject *),
     .tp_dealloc = (destructor)object_dealloc,

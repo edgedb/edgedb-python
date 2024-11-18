@@ -28,7 +28,7 @@ cdef class EnumCodec(BaseCodec):
                 obj = self.cls._try_from(obj)
             except (TypeError, ValueError):
                 raise TypeError(
-                    f'a str or edgedb.EnumValue(__tid__={self.cls.__tid__}) '
+                    f'a str or gel.EnumValue(__tid__={self.cls.__tid__}) '
                     f'is expected as a valid enum argument, '
                     f'got {type(obj).__name__}') from None
         pgproto.text_encode(DEFAULT_CODEC_CONTEXT, buf, str(obj))
@@ -49,8 +49,8 @@ cdef class EnumCodec(BaseCodec):
         cls = "DerivedEnumValue"
         bases = (datatypes.EnumValue,)
         classdict = enum.EnumMeta.__prepare__(cls, bases)
-        classdict["__module__"] = "edgedb"
-        classdict["__qualname__"] = "edgedb.DerivedEnumValue"
+        classdict["__module__"] = "gel"
+        classdict["__qualname__"] = "gel.DerivedEnumValue"
         classdict["__tid__"] = pgproto.UUID(tid)
         for label in enum_labels:
             classdict[label.upper()] = label

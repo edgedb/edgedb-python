@@ -709,7 +709,7 @@ def _parse_connect_dsn_and_args(
         )
 
     if not has_compound_options:
-        dir = find_edgedb_project_dir()
+        dir = find_gel_project_dir()
         stash_dir = _stash_path(dir)
         if os.path.exists(stash_dir):
             with open(os.path.join(stash_dir, 'instance-name'), 'rt') as f:
@@ -741,8 +741,8 @@ def _parse_connect_dsn_and_args(
                 resolved_config.set_database(database, "project")
         else:
             raise errors.ClientConnectionError(
-                f'Found `edgedb.toml` but the project is not initialized. '
-                f'Run `edgedb project init`.'
+                f'Found `gel.toml` but the project is not initialized. '
+                f'Run `gel project init`.'
             )
 
     return resolved_config
@@ -1128,7 +1128,7 @@ def _resolve_config_options(
         return False
 
 
-def find_edgedb_project_dir():
+def find_gel_project_dir():
     dir = os.getcwd()
     dev = os.stat(dir).st_dev
 

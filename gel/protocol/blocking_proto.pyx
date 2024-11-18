@@ -19,7 +19,7 @@
 import socket
 import time
 
-from edgedb.pgproto.pgproto cimport (
+from gel.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
 )

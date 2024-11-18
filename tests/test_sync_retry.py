@@ -24,7 +24,7 @@ import unittest.mock
 from concurrent import futures
 
 import gel
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 
 
 class Barrier:

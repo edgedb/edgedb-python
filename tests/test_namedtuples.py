@@ -20,7 +20,7 @@
 from collections import namedtuple, UserDict
 
 import edgedb
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 
 
 class TestNamedTupleTypes(tb.SyncQueryTestCase):

@@ -202,7 +202,7 @@ static PyMethodDef record_desc_methods[] = {
 
 PyTypeObject EdgeRecordDesc_Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "edgedb.RecordDescriptor",
+    .tp_name = "gel.RecordDescriptor",
     .tp_basicsize = sizeof(EdgeRecordDescObject),
     .tp_dealloc = (destructor)record_desc_dealloc,
     .tp_getattro = PyObject_GenericGetAttr,

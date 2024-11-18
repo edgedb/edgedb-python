@@ -17,7 +17,7 @@
 #
 
 
-from edgedb.datatypes import range as range_mod
+from gel.datatypes import range as range_mod
 
 
 cdef uint8_t RANGE_EMPTY = 0x01
