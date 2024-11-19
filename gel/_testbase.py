@@ -89,7 +89,7 @@ def _start_cluster(*, cleanup_atexit=True):
         # not interfere with the server's.
         env.pop('PYTHONPATH', None)
 
-        gel_server = env.get('EDGEDB_SERVER_BINARY', 'gel-server')
+        gel_server = env.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
         args = [
             gel_server,
             "--temp-dir",
