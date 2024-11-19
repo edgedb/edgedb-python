@@ -4,15 +4,14 @@ on:
   workflow_dispatch:
     inputs: {}
 
-  # XXX: Commented out to prevent firing during this refactor.
-  # pull_request:
-  #   branches:
-  #     - "master"
-  #     - "ci"
-  #     - "release/[0-9]+.x"
-  #     - "release/[0-9]+.[0-9]+.x"
-  #   paths:
-  #     - "gel/_version.py"
+  pull_request:
+    branches:
+      - "master"
+      - "ci"
+      - "release/[0-9]+.x"
+      - "release/[0-9]+.[0-9]+.x"
+    paths:
+      - "gel/_version.py"
 
 jobs:
   validate-release-request:
