@@ -3,12 +3,12 @@
 #     'select_scalar.edgeql'
 #     'linked/test_linked.edgeql'
 # WITH:
-#     $ edgedb-py --target async --file --no-skip-pydantic-validation
+#     $ gel-py --target async --file --no-skip-pydantic-validation
 
 
 from __future__ import annotations
 import dataclasses
-import edgedb
+import gel
 import uuid
 
 
@@ -24,7 +24,7 @@ class SelectOptionalJsonResultItemSnakeCase:
 
 
 async def select_optional_json(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
     arg0: str | None,
 ) -> list[tuple[str, SelectOptionalJsonResultItem]]:
     return await executor.query(
@@ -40,7 +40,7 @@ async def select_optional_json(
 
 
 async def select_scalar(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
 ) -> int:
     return await executor.query_single(
         """\
@@ -50,7 +50,7 @@ async def select_scalar(
 
 
 async def test_linked(
-    executor: edgedb.AsyncIOExecutor,
+    executor: gel.AsyncIOExecutor,
 ) -> int:
     return await executor.query_single(
         """\

@@ -23,10 +23,8 @@ import queue
 import unittest.mock
 from concurrent import futures
 
-import edgedb
-from edgedb import _testbase as tb
-from edgedb import errors
-from edgedb import RetryOptions
+import gel
+from gel import _testbase as tb
 
 
 class Barrier:
@@ -82,7 +80,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                         };
                     ''')
                     1 / 0
-        with self.assertRaises(edgedb.NoDataError):
+        with self.assertRaises(gel.NoDataError):
             self.client.query_required_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_02'
@@ -109,9 +107,9 @@ class TestSyncRetry(tb.SyncQueryTestCase):
 
         self.addCleanup(cleanup)
 
-        _start.side_effect = errors.BackendUnavailableError()
+        _start.side_effect = gel.BackendUnavailableError()
 
-        with self.assertRaises(errors.BackendUnavailableError):
+        with self.assertRaises(gel.BackendUnavailableError):
             for tx in self.client.transaction():
                 with tx:
                     tx.execute('''
@@ -119,7 +117,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
                             name := 'counter_retry_begin'
                         };
                     ''')
-        with self.assertRaises(edgedb.NoDataError):
+        with self.assertRaises(gel.NoDataError):
             self.client.query_required_single('''
                 SELECT test::Counter
                 FILTER .name = 'counter_retry_begin'
@@ -134,7 +132,7 @@ class TestSyncRetry(tb.SyncQueryTestCase):
 
         def recover_after_first_error(*_, **__):
             patcher.stop()
-            raise errors.BackendUnavailableError()
+            raise gel.BackendUnavailableError()
 
         _start.side_effect = recover_after_first_error
         call_count = _start.call_count
@@ -156,16 +154,16 @@ class TestSyncRetry(tb.SyncQueryTestCase):
         self.execute_conflict('counter2')
 
     def test_sync_conflict_no_retry(self):
-        with self.assertRaises(edgedb.TransactionSerializationError):
+        with self.assertRaises(gel.TransactionSerializationError):
             self.execute_conflict(
                 'counter3',
-                RetryOptions(attempts=1, backoff=edgedb.default_backoff)
+                gel.RetryOptions(attempts=1, backoff=gel.default_backoff)
             )
 
     def execute_conflict(self, name='counter2', options=None):
         con_args = self.get_connect_args().copy()
         con_args.update(database=self.get_database_name())
-        client2 = edgedb.create_client(**con_args)
+        client2 = gel.create_client(**con_args)
         self.addCleanup(client2.close)
 
         barrier = Barrier(2)
@@ -243,13 +241,13 @@ class TestSyncRetry(tb.SyncQueryTestCase):
             for tx in self.client.transaction():
                 tx.start()
 
-        with self.assertRaisesRegex(edgedb.InterfaceError,
+        with self.assertRaisesRegex(gel.InterfaceError,
                                     r'.*Use `with transaction:`'):
             for tx in self.client.transaction():
                 tx.execute("SELECT 123")
 
         with self.assertRaisesRegex(
-            edgedb.InterfaceError,
+            gel.InterfaceError,
             r"already in a `with` block",
         ):
             for tx in self.client.transaction():

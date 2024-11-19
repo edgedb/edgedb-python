@@ -1,17 +1,11 @@
-#
-# This source file is part of the EdgeDB open source project.
-#
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
+# Auto-generated shim
+import gel.protocol as _mod
+import sys as _sys
+_cur = _sys.modules['edgedb.protocol']
+for _k in vars(_mod):
+    if not _k.startswith('__') or _k in ('__all__', '__doc__'):
+        setattr(_cur, _k, getattr(_mod, _k))
+del _cur
+del _sys
+del _mod
+del _k

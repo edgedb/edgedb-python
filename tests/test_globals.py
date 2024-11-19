@@ -17,7 +17,7 @@
 #
 
 
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 from edgedb import errors
 
 

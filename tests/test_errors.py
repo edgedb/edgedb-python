@@ -20,8 +20,8 @@
 import unittest
 
 
-from edgedb import errors
-from edgedb.errors import _base as base_errors
+from gel import errors
+from gel.errors import _base as base_errors
 
 
 class TestErrors(unittest.TestCase):

@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 import edgedb
 
 import array

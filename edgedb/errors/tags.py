@@ -1,25 +1,11 @@
-__all__ = [
-    'Tag',
-    'SHOULD_RECONNECT',
-    'SHOULD_RETRY',
-]
-
-
-class Tag(object):
-    """Error tag
-
-    Tags are used to differentiate certain properties of errors that apply to
-    error classes across hierarchy.
-
-    Use ``error.has_tag(tag_name)`` to check for a tag.
-    """
-
-    def __init__(self, name):
-        self.name = name
-
-    def __repr__(self):
-        return f'<Tag {self.name}>'
-
-
-SHOULD_RECONNECT = Tag('SHOULD_RECONNECT')
-SHOULD_RETRY = Tag('SHOULD_RETRY')
+# Auto-generated shim
+import gel.errors.tags as _mod
+import sys as _sys
+_cur = _sys.modules['edgedb.errors.tags']
+for _k in vars(_mod):
+    if not _k.startswith('__') or _k in ('__all__', '__doc__'):
+        setattr(_cur, _k, getattr(_mod, _k))
+del _cur
+del _sys
+del _mod
+del _k

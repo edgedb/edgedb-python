@@ -20,7 +20,7 @@
 import random
 from datetime import timedelta
 
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 from edgedb import errors
 from edgedb.datatypes.datatypes import RelativeDuration, DateDuration
 
@@ -178,7 +178,7 @@ class TestDatetimeTypes(tb.SyncQueryTestCase):
         self.assertEqual(d1.months, 0)
         self.assertEqual(d1.microseconds, 1)
 
-        self.assertEqual(repr(d1), '<edgedb.RelativeDuration "PT0.000001S">')
+        self.assertEqual(repr(d1), '<gel.RelativeDuration "PT0.000001S">')
 
     async def test_relative_duration_03(self):
         # Make sure that when we break down the microseconds into the bigger

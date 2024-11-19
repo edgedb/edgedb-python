@@ -24,7 +24,7 @@ import unittest.mock
 import edgedb
 from edgedb import errors
 from edgedb import RetryOptions
-from edgedb import _testbase as tb
+from gel import _testbase as tb
 
 log = logging.getLogger(__name__)
 

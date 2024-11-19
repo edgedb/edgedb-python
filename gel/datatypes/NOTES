@@ -1,0 +1,13 @@
+tp_clear
+--------
+
+Objects don't have tp_clear; that's because there shouldn't be
+a situation when there's a ref cycle between them -- the way
+the data is serialized on the wire precludes that.
+
+Furthermore, all gel.datatypes objects are immutable, so
+it's not possible to create a ref cycle with only them in the
+reference chain by using the public API.
+
+If we ever have an entity cache the situation might change,
+but for now there's no need for tp_clear.
