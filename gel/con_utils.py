@@ -766,10 +766,10 @@ def _parse_dsn_into_config(
     except Exception as e:
         raise ValueError(f'invalid DSN or instance name: {str(e)}')
 
-    if parsed.scheme != 'edgedb':
+    if parsed.scheme != 'edgedb' and parsed.scheme != 'gel':
         raise ValueError(
             f'invalid DSN: scheme is expected to be '
-            f'"edgedb", got {parsed.scheme!r}')
+            f'"edgedb" or "gel", got {parsed.scheme!r}')
 
     query = (
         urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
