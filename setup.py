@@ -50,6 +50,15 @@ TEST_DEPENDENCIES = [
     'flake8-bugbear~=24.4.26',
     'flake8~=7.0.0',
     'uvloop>=0.15.1; platform_system != "Windows"',
+    'SQLAlchemy>=2.0.0',
+]
+
+# This is needed specifically to test ORM reflection because the ORMs tend to
+# use this library to access Postgres. It's not always avaialable as a
+# pre-built package and we don't necessarily want to try and build it from
+# source.
+SQLTEST_DEPENDENCIES = [
+    'psycopg2-binary>=2.9.10',
 ]
 
 # Dependencies required to build documentation.
@@ -68,11 +77,12 @@ EXTRA_DEPENDENCIES = {
     'ai': AI_DEPENDENCIES,
     'docs': DOC_DEPENDENCIES,
     'test': TEST_DEPENDENCIES,
+    'sqltest': SQLTEST_DEPENDENCIES,
     # Dependencies required to develop edgedb.
     'dev': [
         CYTHON_DEPENDENCY,
         'pytest>=3.6.0',
-    ] + DOC_DEPENDENCIES + TEST_DEPENDENCIES
+    ] + DOC_DEPENDENCIES + TEST_DEPENDENCIES + SQLTEST_DEPENDENCIES
 }
 
 

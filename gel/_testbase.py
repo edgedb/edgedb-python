@@ -21,6 +21,7 @@ import asyncio
 import atexit
 import contextlib
 import functools
+import importlib.util
 import inspect
 import json
 import logging
@@ -35,6 +36,8 @@ import unittest
 import gel
 from gel import asyncio_client
 from gel import blocking_client
+from gel.orm.introspection import get_schema_json
+from gel.orm.sqla import ModelGenerator
 
 
 log = logging.getLogger(__name__)
@@ -625,6 +628,54 @@ class SyncQueryTestCase(DatabaseTestCase):
     @classmethod
     def adapt_call(cls, result):
         return result
+
+
+class SQLATestCase(SyncQueryTestCase):
+    SQLAPACKAGE = None
+    DEFAULT_MODULE = 'default'
+
+    @classmethod
+    def setUpClass(cls):
+        # SQLAlchemy relies on psycopg2 to connect to Postgres and thus we
+        # need it to run tests. Unfortunately not all test environemnts might
+        # have psycopg2 installed, as long as we run this in the test
+        # environments that have this, it is fine since we're not expecting
+        # different functionality based on flavours of psycopg2.
+        if importlib.util.find_spec("psycopg2") is None:
+            raise unittest.SkipTest("need psycopg2 for ORM tests")
+
+        super().setUpClass()
+
+        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
+        if not class_set_up:
+            # Now that the DB is setup, generate the SQLAlchemy models from it
+            spec = get_schema_json(cls.client)
+            # We'll need a temp directory to setup the generated Python
+            # package
+            cls.tmpsqladir = tempfile.TemporaryDirectory()
+            gen = ModelGenerator(
+                outdir=os.path.join(cls.tmpsqladir.name, cls.SQLAPACKAGE),
+                basemodule=cls.SQLAPACKAGE,
+            )
+            gen.render_models(spec)
+            sys.path.append(cls.tmpsqladir.name)
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        # cleanup the temp modules
+        sys.path.remove(cls.tmpsqladir.name)
+        cls.tmpsqladir.cleanup()
+
+    @classmethod
+    def get_dsn_for_sqla(cls):
+        cargs = cls.get_connect_args(database=cls.get_database_name())
+        dsn = (
+            f'postgresql://{cargs["user"]}:{cargs["password"]}'
+            f'@{cargs["host"]}:{cargs["port"]}/{cargs["database"]}'
+        )
+
+        return dsn
 
 
 _lock_cnt = 0
