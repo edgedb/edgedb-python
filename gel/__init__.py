@@ -59,6 +59,7 @@ __all__ = [
     "EnumValue",
     "Executor",
     "IsolationLevel",
+    "MultiRange",
     "NamedTuple",
     "Object",
     "Range",

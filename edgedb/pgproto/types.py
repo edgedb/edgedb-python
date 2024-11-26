@@ -1,4 +1,7 @@
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from gel.pgproto.types import *  # noqa
 import gel.pgproto.types as _mod
 import sys as _sys
 _cur = _sys.modules['edgedb.pgproto.types']

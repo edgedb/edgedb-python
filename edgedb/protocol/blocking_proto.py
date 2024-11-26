@@ -1,4 +1,7 @@
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from gel.protocol.blocking_proto import *  # noqa
 import gel.protocol.blocking_proto as _mod
 import sys as _sys
 _cur = _sys.modules['edgedb.protocol.blocking_proto']

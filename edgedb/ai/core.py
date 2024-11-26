@@ -1,4 +1,7 @@
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from gel.ai.core import *  # noqa
 import gel.ai.core as _mod
 import sys as _sys
 _cur = _sys.modules['edgedb.ai.core']

@@ -1,4 +1,7 @@
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from gel.ai.types import *  # noqa
 import gel.ai.types as _mod
 import sys as _sys
 _cur = _sys.modules['edgedb.ai.types']

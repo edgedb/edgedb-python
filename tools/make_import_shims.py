@@ -22,6 +22,9 @@ def main():
         with open(fname, 'w') as f:
             f.write(f'''\
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from {mod} import *  # noqa
 import {mod} as _mod
 import sys as _sys
 _cur = _sys.modules['{nmod}']

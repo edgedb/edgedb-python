@@ -1,4 +1,7 @@
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from gel.datatypes.range import *  # noqa
 import gel.datatypes.range as _mod
 import sys as _sys
 _cur = _sys.modules['edgedb.datatypes.range']
