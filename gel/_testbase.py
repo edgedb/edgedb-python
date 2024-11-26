@@ -95,6 +95,7 @@ def _start_cluster(*, cleanup_atexit=True):
             capture_output=True,
             text=True,
         )
+        print("VERSION", version_res.stdout)
         is_gel = version_res.stdout.startswith('gel-server,')
 
         role = 'admin' if is_gel else 'edgedb'
@@ -107,6 +108,7 @@ def _start_cluster(*, cleanup_atexit=True):
             "--auto-shutdown",
             f"--bootstrap-command=ALTER ROLE {role} {{SET password := 'test'}}",
         ]
+        print("STARTING UP", args)
 
         help_args = [gel_server, "--help"]
         if sys.platform == 'win32':
