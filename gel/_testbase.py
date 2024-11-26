@@ -90,6 +90,14 @@ def _start_cluster(*, cleanup_atexit=True):
         env.pop('PYTHONPATH', None)
 
         gel_server = env.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
+        version_res = subprocess.run(
+            [gel_server, '--version'],
+            capture_output=True,
+            text=True,
+        )
+        is_gel = version_res.stdout.startswith('gel-server,')
+
+        role = 'admin' if is_gel else 'edgedb'
         args = [
             gel_server,
             "--temp-dir",
@@ -97,8 +105,7 @@ def _start_cluster(*, cleanup_atexit=True):
             f"--emit-server-status={status_file_unix}",
             "--port=auto",
             "--auto-shutdown",
-            "--default-database-user=admin",
-            "--bootstrap-command=ALTER ROLE admin { SET password := 'test' }",
+            f"--bootstrap-command=ALTER ROLE {role} {{SET password := 'test'}}",
         ]
 
         help_args = [gel_server, "--help"]
