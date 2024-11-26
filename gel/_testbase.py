@@ -97,7 +97,8 @@ def _start_cluster(*, cleanup_atexit=True):
             f"--emit-server-status={status_file_unix}",
             "--port=auto",
             "--auto-shutdown",
-            "--bootstrap-command=ALTER ROLE edgedb { SET password := 'test' }",
+            "--default-database-user=admin",
+            "--bootstrap-command=ALTER ROLE admin { SET password := 'test' }",
         ]
 
         help_args = [gel_server, "--help"]
