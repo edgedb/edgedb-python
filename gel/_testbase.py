@@ -96,10 +96,22 @@ def _start_cluster(*, cleanup_atexit=True):
             capture_output=True,
             text=True,
         )
-        print("VERSION", version_res.stdout)
-        is_gel = version_res.stdout.startswith('gel-server,')
 
-        role = 'admin' if is_gel else 'edgedb'
+        version_line = version_res.stdout
+        print("VERSION", version_line)
+        is_gel = version_line.startswith('gel-server,')
+
+        # The default role became admin in nightly build 9024 for 6.0
+        if is_gel:
+            if '6.0-dev' in version_line:
+                rev = int(version_line.split('.')[2].split('+')[0])
+                has_admin = rev >= 9024
+            else:
+                has_admin = True
+        else:
+            has_admin = False
+
+        role = 'admin' if has_admin else 'edgedb'
         args = [
             gel_server,
             "--temp-dir",
