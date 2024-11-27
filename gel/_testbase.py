@@ -100,6 +100,7 @@ def _start_cluster(*, cleanup_atexit=True):
             capture_output=True,
             text=True,
         )
+        is_gel = version_res.stdout.startswith('gel-server,')
 
         version_line = version_res.stdout
         print("VERSION", version_line)
@@ -125,7 +126,6 @@ def _start_cluster(*, cleanup_atexit=True):
             "--auto-shutdown",
             f"--bootstrap-command=ALTER ROLE {role} {{SET password := 'test'}}",
         ]
-        print("STARTING UP", args)
 
         help_args = [gel_server, "--help"]
         if sys.platform == 'win32':
