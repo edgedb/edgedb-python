@@ -88,7 +88,6 @@ def _start_cluster(*, cleanup_atexit=True):
         # Make sure the PYTHONPATH of _this_ process does
         # not interfere with the server's.
         env.pop('PYTHONPATH', None)
-        env['EDGEDB_DEBUG_SERVER'] = '1'
 
         gel_server = env.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
 
