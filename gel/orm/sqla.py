@@ -189,10 +189,10 @@ class ModelGenerator(object):
             modules[mod]['prop_objects'][pobj['name']] = pobj
 
         for rec in spec['object_types']:
-            mod, _ = get_mod_and_name(rec['name'])
+            mod, name = get_mod_and_name(rec['name'])
             if 'object_types' not in modules[mod]:
-                modules[mod]['object_types'] = []
-            modules[mod]['object_types'].append(rec)
+                modules[mod]['object_types'] = {}
+            modules[mod]['object_types'][name] = rec
 
         # Initialize the base directory
         self.init_dir(self.outdir)
@@ -215,13 +215,13 @@ class ModelGenerator(object):
 
                 for lobj in maps.get('link_objects', {}).values():
                     self.write()
-                    self.render_link_object(lobj)
+                    self.render_link_object(lobj, modules)
 
                 for pobj in maps.get('prop_objects', {}).values():
                     self.write()
                     self.render_prop_object(pobj)
 
-                for rec in maps.get('object_types', []):
+                for rec in maps.get('object_types', {}).values():
                     self.write()
                     self.render_type(rec, modules)
 
@@ -243,11 +243,11 @@ class ModelGenerator(object):
         self.dedent()
         self.write(f')')
 
-    def render_link_object(self, spec):
+    def render_link_object(self, spec, modules):
         mod = spec['module']
         name = spec['name']
         sql_name = spec['table']
-        source_link = sql_name.split('.')[-1]
+        source_name, source_link = sql_name.split('.')
 
         self.write()
         self.write(f'class {name}(Base):')
@@ -281,7 +281,11 @@ class ModelGenerator(object):
                 if lname == 'source':
                     bklink = source_link
                 else:
-                    bklink = f'backlink_via_{source_link}'
+                    src = modules[mod]['object_types'][source_name]
+                    bklink = src['backlink_renames'].get(
+                        source_link,
+                        f'backlink_via_{source_link}',
+                    )
 
                 self.write(
                     f'{lname}: Mapped[{pyname}] = '
@@ -446,8 +450,9 @@ class ModelGenerator(object):
         name = spec['name']
         nullable = not spec['required']
         tmod, target = get_mod_and_name(spec['target']['name'])
+        source = modules[mod]['object_types'][parent]
         cardinality = spec['cardinality']
-        bklink = f'backlink_via_{name}'
+        bklink = source['backlink_renames'].get(name, f'backlink_via_{name}')
 
         if spec.get('has_link_object'):
             # intermediate object will have the actual source and target
@@ -514,7 +519,7 @@ class ModelGenerator(object):
         tmod, target = get_mod_and_name(spec['target']['name'])
         cardinality = spec['cardinality']
         exclusive = spec['exclusive']
-        bklink = name.replace('backlink_via_', '', 1)
+        bklink = spec.get('fwname', name.replace('backlink_via_', '', 1))
 
         if spec.get('has_link_object'):
             # intermediate object will have the actual source and target

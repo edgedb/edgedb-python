@@ -1,5 +1,6 @@
 import json
 import re
+import collections
 
 
 INTRO_QUERY = '''
@@ -100,6 +101,7 @@ def _process_links(types, modules):
     for spec in types:
         check_name(spec['name'])
         type_map[spec['name']] = spec
+        spec['backlink_renames'] = {}
 
         for prop in spec['properties']:
             check_name(prop['name'])
@@ -196,6 +198,32 @@ def _process_links(types, modules):
                         'source': spec["name"],
                         'target': target,
                     })
+
+    # Go over backlinks and resolve any name collisions using the type map.
+    for spec in types:
+        mod = spec["name"].rsplit('::', 1)[0]
+        sql_source = get_sql_name(spec["name"])
+
+        # Find collisions in backlink names
+        bk = collections.defaultdict(list)
+        for link in spec['backlinks']:
+            if link['name'].startswith('backlink_via_'):
+                bk[link['name']].append(link)
+
+        for bklinks in bk.values():
+            if len(bklinks) > 1:
+                # We have a collision, so each backlink in it must now be
+                # disambiguated.
+                for link in bklinks:
+                    origsrc = get_sql_name(link['target']['name'])
+                    lname = link['name']
+                    link['name'] = f'{lname}_from_{origsrc}'
+                    # Also update the original source of the link with the
+                    # special backlink name.
+                    source = type_map[link['target']['name']]
+                    fwname = lname.replace('backlink_via_', '', 1)
+                    link['fwname'] = fwname
+                    source['backlink_renames'][fwname] = link['name']
 
     return {
         'modules': modules,

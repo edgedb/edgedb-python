@@ -27,3 +27,21 @@ type Theme {
         property note: str;
     }
 };
+
+type Foo {
+    required property name: str;
+};
+
+type Bar {
+    link foo: Foo;
+    multi link many_foo: Foo;
+    required property n: int64;
+};
+
+type Who {
+    link foo: Foo;
+    multi link many_foo: Foo {
+        property note: str;
+    };
+    required property x: int64;
+};

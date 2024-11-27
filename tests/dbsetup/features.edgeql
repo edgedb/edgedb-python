@@ -60,3 +60,23 @@ insert Theme {
         select other::Branch{@note := 'fall'} filter .val = 'big'
     )
 };
+
+insert Foo {
+    name := 'foo'
+};
+
+insert Foo {
+    name := 'oof'
+};
+
+insert Bar {
+    n := 123,
+    foo := assert_single((select Foo filter .name = 'foo')),
+    many_foo := Foo,
+};
+
+insert Who {
+    x := 456,
+    foo := assert_single((select Foo filter .name = 'oof')),
+    many_foo := (select Foo{@note := 'just one'} filter .name = 'foo'),
+};
