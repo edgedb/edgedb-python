@@ -694,6 +694,9 @@ class BaseClient(abstract.BaseReadOnlyExecutor, _options._OptionsMixin):
     def _get_warning_handler(self) -> _options.WarningHandler:
         return self._options.warning_handler
 
+    def _get_annotations(self) -> typing.Dict[str, str]:
+        return self._options.annotations
+
     @property
     def max_concurrency(self) -> int:
         """Max number of connections in the pool."""

@@ -793,6 +793,7 @@ class TestSyncQuery(tb.SyncQueryTestCase):
                     retry_options=None,
                     state=None,
                     warning_handler=lambda _ex, _: None,
+                    annotations={},
                 )
             )
         )

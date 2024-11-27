@@ -413,13 +413,27 @@ class _OptionsMixin:
         )
         return result
 
+    def with_annotation(self, name: str, value: str):
+        result = self._shallow_clone()
+        result._options = self._options.with_annotations(
+            self._options.annotations | {name: value}
+        )
+        return result
+
+    def without_annotation(self, name: str):
+        result = self._shallow_clone()
+        annotations = self._options.annotations.copy()
+        annotations.pop(name, None)
+        result._options = self._options.with_annotations(annotations)
+        return result
+
 
 class _Options:
     """Internal class for storing connection options"""
 
     __slots__ = [
         '_retry_options', '_transaction_options', '_state',
-        '_warning_handler'
+        '_warning_handler', '_annotations'
     ]
 
     def __init__(
@@ -428,11 +442,13 @@ class _Options:
         transaction_options: TransactionOptions,
         state: State,
         warning_handler: WarningHandler,
+        annotations: typing.Dict[str, str],
     ):
         self._retry_options = retry_options
         self._transaction_options = transaction_options
         self._state = state
         self._warning_handler = warning_handler
+        self._annotations = annotations
 
     @property
     def retry_options(self):
@@ -450,12 +466,17 @@ class _Options:
     def warning_handler(self):
         return self._warning_handler
 
+    @property
+    def annotations(self):
+        return self._annotations
+
     def with_retry_options(self, options: RetryOptions):
         return _Options(
             options,
             self._transaction_options,
             self._state,
             self._warning_handler,
+            self._annotations,
         )
 
     def with_transaction_options(self, options: TransactionOptions):
@@ -464,6 +485,7 @@ class _Options:
             options,
             self._state,
             self._warning_handler,
+            self._annotations,
         )
 
     def with_state(self, state: State):
@@ -472,6 +494,7 @@ class _Options:
             self._transaction_options,
             state,
             self._warning_handler,
+            self._annotations,
         )
 
     def with_warning_handler(self, warning_handler: WarningHandler):
@@ -480,6 +503,16 @@ class _Options:
             self._transaction_options,
             self._state,
             warning_handler,
+            self._annotations,
+        )
+
+    def with_annotations(self, annotations: typing.Dict[str, str]):
+        return _Options(
+            self._retry_options,
+            self._transaction_options,
+            self._state,
+            self._warning_handler,
+            annotations,
         )
 
     @classmethod
@@ -489,4 +522,5 @@ class _Options:
             TransactionOptions.defaults(),
             State.defaults(),
             log_warnings,
+            {},
         )

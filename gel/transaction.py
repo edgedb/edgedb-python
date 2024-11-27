@@ -17,6 +17,8 @@
 #
 
 
+import typing
+
 import enum
 
 from . import abstract
@@ -188,6 +190,9 @@ class BaseTransaction:
     def _get_warning_handler(self) -> options.WarningHandler:
         return self._client._get_warning_handler()
 
+    def _get_annotations(self) -> typing.Dict[str, str]:
+        return self._client._get_annotations()
+
     async def _query(self, query_context: abstract.QueryContext):
         await self._ensure_transaction()
         return await self._connection.raw_query(query_context)
@@ -202,6 +207,7 @@ class BaseTransaction:
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
 

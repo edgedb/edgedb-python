@@ -67,6 +67,7 @@ class QueryContext(typing.NamedTuple):
     retry_options: typing.Optional[options.RetryOptions]
     state: typing.Optional[options.State]
     warning_handler: options.WarningHandler
+    annotations: typing.Dict[str, str]
 
     def lower(
         self, *, allow_capabilities: enums.Capability
@@ -83,6 +84,7 @@ class QueryContext(typing.NamedTuple):
             required_one=self.query_options.required_one,
             allow_capabilities=allow_capabilities,
             state=self.state.as_dict() if self.state else None,
+            annotations=self.annotations,
         )
 
 
@@ -91,6 +93,7 @@ class ExecuteContext(typing.NamedTuple):
     cache: QueryCache
     state: typing.Optional[options.State]
     warning_handler: options.WarningHandler
+    annotations: typing.Dict[str, str]
 
     def lower(
         self, *, allow_capabilities: enums.Capability
@@ -105,6 +108,7 @@ class ExecuteContext(typing.NamedTuple):
             output_format=protocol.OutputFormat.NONE,
             allow_capabilities=allow_capabilities,
             state=self.state.as_dict() if self.state else None,
+            annotations=self.annotations,
         )
 
 
@@ -193,6 +197,9 @@ class BaseReadOnlyExecutor(abc.ABC):
     def _get_warning_handler(self) -> options.WarningHandler:
         ...
 
+    def _get_annotations(self) -> typing.Dict[str, str]:
+        return {}
+
 
 class ReadOnlyExecutor(BaseReadOnlyExecutor):
     """Subclasses can execute *at least* read-only queries"""
@@ -211,6 +218,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     def query_single(
@@ -223,6 +231,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -233,6 +242,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     def query_json(self, query: str, *args, **kwargs) -> str:
@@ -243,6 +253,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -253,6 +264,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     def query_required_single_json(self, query: str, *args, **kwargs) -> str:
@@ -263,6 +275,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     def query_sql(self, query: str, *args, **kwargs) -> typing.Any:
@@ -278,6 +291,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     @abc.abstractmethod
@@ -290,6 +304,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     def execute_sql(self, commands: str, *args, **kwargs) -> None:
@@ -303,6 +318,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
 
@@ -329,6 +345,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
@@ -339,6 +356,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     async def query_required_single(
@@ -354,6 +372,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     async def query_json(self, query: str, *args, **kwargs) -> str:
@@ -364,6 +383,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     async def query_single_json(self, query: str, *args, **kwargs) -> str:
@@ -374,6 +394,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     async def query_required_single_json(
@@ -389,6 +410,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     async def query_sql(self, query: str, *args, **kwargs) -> typing.Any:
@@ -404,6 +426,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             retry_options=self._get_retry_options(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     @abc.abstractmethod
@@ -416,6 +439,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
     async def execute_sql(self, commands: str, *args, **kwargs) -> None:
@@ -429,6 +453,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
+            annotations=self._get_annotations(),
         ))
 
 
