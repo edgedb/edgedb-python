@@ -89,6 +89,7 @@ cdef class ExecuteContext:
         bint inline_typeids
         uint64_t allow_capabilities
         object state
+        object annotations
 
         # Contextual variables
         readonly bytes cardinality
@@ -151,6 +152,7 @@ cdef class SansIOProtocol:
     cdef inline ignore_headers(self)
     cdef inline dict read_headers(self)
     cdef dict parse_error_headers(self)
+    cdef write_annotations(self, ExecuteContext ctx, WriteBuffer buf)
 
     cdef parse_error_message(self)
 

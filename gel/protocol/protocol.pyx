@@ -109,6 +109,7 @@ cdef class ExecuteContext:
         inline_typeids: bool = False,
         allow_capabilities: enums.Capability = enums.Capability.ALL,
         state: typing.Optional[dict] = None,
+        annotations: typing.Optional[dict[str, str]] = None,
     ):
         self.query = query
         self.args = args
@@ -129,6 +130,7 @@ cdef class ExecuteContext:
         self.in_dc = self.out_dc = None
         self.capabilities = 0
         self.warnings = ()
+        self.annotations = annotations
 
     cdef inline bint has_na_cardinality(self):
         return self.cardinality == CARDINALITY_NOT_APPLICABLE
@@ -250,6 +252,18 @@ cdef class SansIOProtocol:
 
         return headers
 
+    cdef write_annotations(self, ExecuteContext ctx, WriteBuffer buf):
+        num_annos = len(ctx.annotations) if ctx.annotations is not None else 0
+        if self.protocol_version >= (3, 0) and num_annos > 0:
+            if num_annos >= 1 << 16:
+                raise errors.InvalidArgumentError("too many annotations")
+            buf.write_int16(num_annos)
+            for key, value in ctx.annotations.items():
+                buf.write_len_prefixed_utf8(key)
+                buf.write_len_prefixed_utf8(value)
+        else:
+            buf.write_int16(0)  # no annotations
+
     cdef ensure_connected(self):
         if self.cancelled:
             raise errors.ClientConnectionClosedError(
@@ -297,7 +311,7 @@ cdef class SansIOProtocol:
             raise RuntimeError('not connected')
 
         buf = WriteBuffer.new_message(PREPARE_MSG)
-        buf.write_int16(0)  # no headers
+        self.write_annotations(ctx, buf)
 
         params = self.encode_parse_params(ctx)
 
@@ -359,7 +373,7 @@ cdef class SansIOProtocol:
         params = self.encode_parse_params(ctx)
 
         buf = WriteBuffer.new_message(EXECUTE_MSG)
-        buf.write_int16(0)  # no headers
+        self.write_annotations(ctx, buf)
 
         buf.write_buffer(params)
 
@@ -525,8 +539,13 @@ cdef class SansIOProtocol:
         self.reset_status()
 
         buf = WriteBuffer.new_message(DUMP_MSG)
-        buf.write_int16(0)  # no headers
-        buf.end_message()
+        if self.protocol_version >= (3, 0):
+            buf.write_int16(0)  # no annotations
+            buf.write_int64(0)  # flags
+            buf.end_message()
+        else:
+            buf.write_int16(0)  # no headers
+            buf.end_message()
         buf.write_bytes(SYNC_MESSAGE)
         self.write(buf)
 
@@ -627,7 +646,7 @@ cdef class SansIOProtocol:
         self.reset_status()
 
         buf = WriteBuffer.new_message(RESTORE_MSG)
-        buf.write_int16(0)  # no headers
+        buf.write_int16(0)  # no attributes
         buf.write_int16(1)  # -j level
         buf.write_bytes(header)
         buf.end_message()
