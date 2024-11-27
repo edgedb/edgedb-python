@@ -46,7 +46,7 @@ jobs:
       with:
         github_token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
         missing_version_ok: yes
-        version_file: edgedb/_version.py
+        version_file: gel/_version.py
         version_line_pattern: |
           __version__\s*=\s*(?:['"])([[:PEP440:]])(?:['"])
 

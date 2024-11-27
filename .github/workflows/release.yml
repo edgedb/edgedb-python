@@ -26,7 +26,7 @@ jobs:
         github_token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
         require_team: Release Managers
         require_approval: no
-        version_file: edgedb/_version.py
+        version_file: gel/_version.py
         version_line_pattern: |
           __version__\s*=\s*(?:['"])([[:PEP440:]])(?:['"])
 
