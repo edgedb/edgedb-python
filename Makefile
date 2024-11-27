@@ -52,9 +52,9 @@ debug: _touch
 
 
 test:
-	PYTHONASYNCIODEBUG=1 $(PYTHON) setup.py test
-	$(PYTHON) setup.py test
-	USE_UVLOOP=1 $(PYTHON) setup.py test
+	PYTHONASYNCIODEBUG=1 $(PYTHON) -m unittest tests.suite
+	$(PYTHON) -m unittest tests.suite
+	USE_UVLOOP=1 $(PYTHON) -m unittest tests.suite
 
 
 testinstalled:
@@ -62,7 +62,7 @@ testinstalled:
 
 
 quicktest:
-	$(PYTHON) setup.py test
+	$(PYTHON) -m unittest tests.suite
 
 
 htmldocs:
