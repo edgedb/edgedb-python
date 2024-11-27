@@ -102,7 +102,6 @@ def _start_cluster(*, cleanup_atexit=True):
         is_gel = version_res.stdout.startswith('gel-server,')
 
         version_line = version_res.stdout
-        print("VERSION", version_line)
         is_gel = version_line.startswith('gel-server,')
 
         # The default role became admin in nightly build 9024 for 6.0
