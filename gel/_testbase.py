@@ -91,8 +91,12 @@ def _start_cluster(*, cleanup_atexit=True):
         env['EDGEDB_DEBUG_SERVER'] = '1'
 
         gel_server = env.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
+
+        version_args = [gel_server, '--version']
+        if sys.platform == 'win32':
+            version_args = ['wsl', '-u', 'edgedb'] + version_args
         version_res = subprocess.run(
-            [gel_server, '--version'],
+            version_args,
             capture_output=True,
             text=True,
         )
