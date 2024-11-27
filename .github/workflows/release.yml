@@ -149,7 +149,7 @@ jobs:
           set EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX=.assert${{ env.EDGEDB_SERVER_VERSION }} && python {project}\tests\__init__.py
         CIBW_TEST_COMMAND_LINUX: >
           PY=`which python`
-          && CODEGEN=`which edgedb-py`
+          && CODEGEN=`which gel-py`
           && chmod -R go+rX "$(dirname $(dirname $(dirname $PY)))"
           && su -l edgedb -c "EDGEDB_PYTHON_TEST_CODEGEN_CMD=$CODEGEN EDGEDB_TEST_CODEGEN_ASSERT_SUFFIX=.assert${{ env.EDGEDB_SERVER_VERSION }} $PY {project}/tests/__init__.py"
 
