@@ -539,8 +539,13 @@ cdef class SansIOProtocol:
         self.reset_status()
 
         buf = WriteBuffer.new_message(DUMP_MSG)
-        buf.write_int16(0)  # no headers
-        buf.end_message()
+        if self.protocol_version >= (3, 0):
+            buf.write_int16(0)  # no annotations
+            buf.write_int64(0)  # flags
+            buf.end_message()
+        else:
+            buf.write_int16(0)  # no headers
+            buf.end_message()
         buf.write_bytes(SYNC_MESSAGE)
         self.write(buf)
 
@@ -641,7 +646,7 @@ cdef class SansIOProtocol:
         self.reset_status()
 
         buf = WriteBuffer.new_message(RESTORE_MSG)
-        buf.write_int16(0)  # no headers
+        buf.write_int16(0)  # no attributes
         buf.write_int16(1)  # -j level
         buf.write_bytes(header)
         buf.end_message()
