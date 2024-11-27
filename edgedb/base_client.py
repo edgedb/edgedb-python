@@ -1,4 +1,7 @@
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from gel.base_client import *  # noqa
 import gel.base_client as _mod
 import sys as _sys
 _cur = _sys.modules['edgedb.base_client']

@@ -1,4 +1,7 @@
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from gel._taskgroup import *  # noqa
 import gel._taskgroup as _mod
 import sys as _sys
 _cur = _sys.modules['edgedb._taskgroup']

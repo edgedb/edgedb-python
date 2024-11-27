@@ -1,4 +1,7 @@
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from gel.asyncio_client import *  # noqa
 import gel.asyncio_client as _mod
 import sys as _sys
 _cur = _sys.modules['edgedb.asyncio_client']

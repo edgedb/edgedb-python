@@ -1,4 +1,7 @@
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from gel.codegen import *  # noqa
 import gel.codegen as _mod
 import sys as _sys
 _cur = _sys.modules['edgedb.codegen']

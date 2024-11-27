@@ -1,4 +1,7 @@
 # Auto-generated shim
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from gel.errors.tags import *  # noqa
 import gel.errors.tags as _mod
 import sys as _sys
 _cur = _sys.modules['edgedb.errors.tags']

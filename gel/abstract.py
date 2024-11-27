@@ -33,6 +33,7 @@ __all__ = (
     "QueryOptions",
     "QueryContext",
     "Executor",
+    "ExecuteContext",
     "AsyncIOExecutor",
     "ReadOnlyExecutor",
     "AsyncIOReadOnlyExecutor",
