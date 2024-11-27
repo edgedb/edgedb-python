@@ -90,6 +90,31 @@ def _start_cluster(*, cleanup_atexit=True):
         env.pop('PYTHONPATH', None)
 
         gel_server = env.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
+
+        version_args = [gel_server, '--version']
+        if sys.platform == 'win32':
+            version_args = ['wsl', '-u', 'edgedb'] + version_args
+        version_res = subprocess.run(
+            version_args,
+            capture_output=True,
+            text=True,
+        )
+        is_gel = version_res.stdout.startswith('gel-server,')
+
+        version_line = version_res.stdout
+        is_gel = version_line.startswith('gel-server,')
+
+        # The default role became admin in nightly build 9024 for 6.0
+        if is_gel:
+            if '6.0-dev' in version_line:
+                rev = int(version_line.split('.')[2].split('+')[0])
+                has_admin = rev >= 9024
+            else:
+                has_admin = True
+        else:
+            has_admin = False
+
+        role = 'admin' if has_admin else 'edgedb'
         args = [
             gel_server,
             "--temp-dir",
@@ -97,7 +122,7 @@ def _start_cluster(*, cleanup_atexit=True):
             f"--emit-server-status={status_file_unix}",
             "--port=auto",
             "--auto-shutdown",
-            "--bootstrap-command=ALTER ROLE edgedb { SET password := 'test' }",
+            f"--bootstrap-command=ALTER ROLE {role} {{SET password := 'test'}}",
         ]
 
         help_args = [gel_server, "--help"]
