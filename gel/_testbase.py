@@ -25,6 +25,7 @@ import importlib.util
 import inspect
 import json
 import logging
+import pathlib
 import os
 import re
 import subprocess
@@ -37,7 +38,8 @@ import gel
 from gel import asyncio_client
 from gel import blocking_client
 from gel.orm.introspection import get_schema_json
-from gel.orm.sqla import ModelGenerator
+from gel.orm.sqla import ModelGenerator as SQLAModGen
+from gel.orm.django.generator import ModelGenerator as DjangoModGen
 
 
 log = logging.getLogger(__name__)
@@ -630,13 +632,13 @@ class SyncQueryTestCase(DatabaseTestCase):
         return result
 
 
-class SQLATestCase(SyncQueryTestCase):
-    SQLAPACKAGE = None
+class ORMTestCase(SyncQueryTestCase):
+    MODEL_PACKAGE = None
     DEFAULT_MODULE = 'default'
 
     @classmethod
     def setUpClass(cls):
-        # SQLAlchemy relies on psycopg2 to connect to Postgres and thus we
+        # ORMs rely on psycopg2 to connect to Postgres and thus we
         # need it to run tests. Unfortunately not all test environemnts might
         # have psycopg2 installed, as long as we run this in the test
         # environments that have this, it is fine since we're not expecting
@@ -648,24 +650,34 @@ class SQLATestCase(SyncQueryTestCase):
 
         class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
         if not class_set_up:
-            # Now that the DB is setup, generate the SQLAlchemy models from it
-            spec = get_schema_json(cls.client)
             # We'll need a temp directory to setup the generated Python
             # package
-            cls.tmpsqladir = tempfile.TemporaryDirectory()
-            gen = ModelGenerator(
-                outdir=os.path.join(cls.tmpsqladir.name, cls.SQLAPACKAGE),
-                basemodule=cls.SQLAPACKAGE,
-            )
-            gen.render_models(spec)
-            sys.path.append(cls.tmpsqladir.name)
+            cls.tmpormdir = tempfile.TemporaryDirectory()
+            sys.path.append(cls.tmpormdir.name)
+            # Now that the DB is setup, generate the ORM models from it
+            cls.spec = get_schema_json(cls.client)
+            cls.setupORM()
+
+    @classmethod
+    def setupORM(cls):
+        raise NotImplementedError
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
         # cleanup the temp modules
-        sys.path.remove(cls.tmpsqladir.name)
-        cls.tmpsqladir.cleanup()
+        sys.path.remove(cls.tmpormdir.name)
+        cls.tmpormdir.cleanup()
+
+
+class SQLATestCase(ORMTestCase):
+    @classmethod
+    def setupORM(cls):
+        gen = SQLAModGen(
+            outdir=os.path.join(cls.tmpormdir.name, cls.MODEL_PACKAGE),
+            basemodule=cls.MODEL_PACKAGE,
+        )
+        gen.render_models(cls.spec)
 
     @classmethod
     def get_dsn_for_sqla(cls):
@@ -676,6 +688,69 @@ class SQLATestCase(SyncQueryTestCase):
         )
 
         return dsn
+
+
+APPS_PY = '''\
+from django.apps import AppConfig
+
+
+class TestConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = {name!r}
+'''
+
+SETTINGS_PY = '''\
+from pathlib import Path
+
+mysettings = dict(
+    INSTALLED_APPS=[
+        '{appname}.apps.TestConfig',
+        'gel.orm.django.gelmodels.apps.GelPGModel',
+    ],
+    DATABASES={{
+        'default': {{
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': {database!r},
+            'USER': {user!r},
+            'PASSWORD': {password!r},
+            'HOST': {host!r},
+            'PORT': {port!r},
+        }}
+    }},
+)
+'''
+
+
+class DjangoTestCase(ORMTestCase):
+    @classmethod
+    def setupORM(cls):
+        pkgbase = os.path.join(cls.tmpormdir.name, cls.MODEL_PACKAGE)
+        # Set up the package for testing Django models
+        os.mkdir(pkgbase)
+        open(os.path.join(pkgbase, '__init__.py'), 'w').close()
+        with open(os.path.join(pkgbase, 'apps.py'), 'wt') as f:
+            print(
+                APPS_PY.format(name=cls.MODEL_PACKAGE),
+                file=f,
+            )
+
+        with open(os.path.join(pkgbase, 'settings.py'), 'wt') as f:
+            cargs = cls.get_connect_args(database=cls.get_database_name())
+            print(
+                SETTINGS_PY.format(
+                    appname=cls.MODEL_PACKAGE,
+                    database=cargs["database"],
+                    user=cargs["user"],
+                    password=cargs["password"],
+                    host=cargs["host"],
+                    port=cargs["port"],
+                ),
+                file=f,
+            )
+
+        models = os.path.join(pkgbase, 'models.py')
+        gen = DjangoModGen(out=models)
+        gen.render_models(cls.spec)
 
 
 _lock_cnt = 0

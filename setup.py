@@ -50,14 +50,14 @@ TEST_DEPENDENCIES = [
     'flake8-bugbear~=24.4.26',
     'flake8~=7.0.0',
     'uvloop>=0.15.1; platform_system != "Windows"',
-    'SQLAlchemy>=2.0.0',
 ]
 
-# This is needed specifically to test ORM reflection because the ORMs tend to
-# use this library to access Postgres. It's not always avaialable as a
-# pre-built package and we don't necessarily want to try and build it from
-# source.
+# The ORMs and the SQL libraries they rely on may not be avaialble for older
+# Python versions. That's OK for the overall client build, though and we only
+# want to test them for the versions where they are avaialable.
 SQLTEST_DEPENDENCIES = [
+    'SQLAlchemy>=2.0.0',
+    'Django>=5.1.3',
     'psycopg2-binary>=2.9.10',
 ]
 

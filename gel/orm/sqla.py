@@ -1,13 +1,11 @@
 import pathlib
 import re
-import textwrap
 
 from contextlib import contextmanager
 
-from .introspection import get_sql_name
+from .introspection import get_sql_name, get_mod_and_name
+from .introspection import FilePrinter
 
-
-INDENT = ' ' * 4
 
 GEL_SCALAR_MAP = {
     'std::bool': ('bool', 'Boolean'),
@@ -52,20 +50,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 '''
 
 
-def get_mod_and_name(name):
-    # Assume the names are already validated to be properly formed
-    # alphanumeric identifiers that may be prefixed by a module. If the module
-    # is present assume it is safe to drop it (currently only defualt module
-    # is allowed).
-
-    # Split on module separator. Potentially if we ever handle more unusual
-    # names, there may be more processing done.
-    return name.rsplit('::', 1)
-
-
-class ModelGenerator(object):
-    INDENT = ' ' * 4
-
+class ModelGenerator(FilePrinter):
     def __init__(self, *, outdir=None, basemodule=None):
         # set the output to be stdout by default, but this is generally
         # expected to be overridden by appropriate files in the `outdir`
@@ -75,24 +60,7 @@ class ModelGenerator(object):
             self.outdir = None
 
         self.basemodule = basemodule
-        self.out = None
-        self._indent_level = 0
-
-    def indent(self):
-        self._indent_level += 1
-
-    def dedent(self):
-        if self._indent_level > 0:
-            self._indent_level -= 1
-
-    def reset_indent(self):
-        self._indent_level -= 0
-
-    def write(self, text=''):
-        print(
-            textwrap.indent(text, prefix=self.INDENT * self._indent_level),
-            file=self.out,
-        )
+        super().__init__()
 
     def init_dir(self, dirpath):
         if not dirpath:
@@ -161,11 +129,7 @@ class ModelGenerator(object):
             mod = mod.replace('::', '.')
             return f"'{self.basemodule}.{mod}.{name}'"
 
-    def render_models(self, spec):
-        # The modules dict will be populated with the respective types, link
-        # tables, etc., since they will need to be put in their own files. We
-        # sort the modules so that nested modules are initialized from root to
-        # leaf.
+    def spec_to_modules_dict(self, spec):
         modules = {
             mod: {} for mod in sorted(spec['modules'])
         }
@@ -193,6 +157,15 @@ class ModelGenerator(object):
             if 'object_types' not in modules[mod]:
                 modules[mod]['object_types'] = {}
             modules[mod]['object_types'][name] = rec
+
+        return modules
+
+    def render_models(self, spec):
+        # The modules dict will be populated with the respective types, link
+        # tables, etc., since they will need to be put in their own files. We
+        # sort the modules so that nested modules are initialized from root to
+        # leaf.
+        modules = self.spec_to_modules_dict(spec)
 
         # Initialize the base directory
         self.init_dir(self.outdir)

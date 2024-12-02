@@ -1,6 +1,7 @@
 import json
 import re
 import collections
+import textwrap
 
 
 INTRO_QUERY = '''
@@ -66,6 +67,17 @@ def get_sql_name(name):
     name = name.rsplit('::', 1)[-1]
 
     return name
+
+
+def get_mod_and_name(name):
+    # Assume the names are already validated to be properly formed
+    # alphanumeric identifiers that may be prefixed by a module. If the module
+    # is present assume it is safe to drop it (currently only defualt module
+    # is allowed).
+
+    # Split on module separator. Potentially if we ever handle more unusual
+    # names, there may be more processing done.
+    return name.rsplit('::', 1)
 
 
 def check_name(name):
@@ -232,3 +244,29 @@ def _process_links(types, modules):
         'link_objects': link_objects,
         'prop_objects': prop_objects,
     }
+
+
+class FilePrinter(object):
+    INDENT = ' ' * 4
+
+    def __init__(self):
+        # set the output to be stdout by default, but this is generally
+        # expected to be overridden
+        self.out = None
+        self._indent_level = 0
+
+    def indent(self):
+        self._indent_level += 1
+
+    def dedent(self):
+        if self._indent_level > 0:
+            self._indent_level -= 1
+
+    def reset_indent(self):
+        self._indent_level = 0
+
+    def write(self, text=''):
+        print(
+            textwrap.indent(text, prefix=self.INDENT * self._indent_level),
+            file=self.out,
+        )
