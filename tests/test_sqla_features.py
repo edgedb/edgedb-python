@@ -17,9 +17,15 @@
 #
 
 import os
+import unittest
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+try:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+except ImportError:
+    NO_ORM = True
+else:
+    NO_ORM = False
 
 from gel import _testbase as tb
 
@@ -37,10 +43,13 @@ class TestSQLAFeatures(tb.SQLATestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'dbsetup',
                          'features.edgeql')
 
-    SQLAPACKAGE = 'fmodels'
+    MODEL_PACKAGE = 'fmodels'
 
     @classmethod
     def setUpClass(cls):
+        if NO_ORM:
+            raise unittest.SkipTest("sqlalchemy is not installed")
+
         super().setUpClass()
         cls.engine = create_engine(cls.get_dsn_for_sqla())
         cls.sess = Session(cls.engine, autobegin=False)

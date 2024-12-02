@@ -18,9 +18,15 @@
 
 import os
 import uuid
+import unittest
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
+try:
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import Session
+except ImportError:
+    NO_ORM = True
+else:
+    NO_ORM = False
 
 from gel import _testbase as tb
 
@@ -32,10 +38,13 @@ class TestSQLABasic(tb.SQLATestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'dbsetup',
                          'base.edgeql')
 
-    SQLAPACKAGE = 'basemodels'
+    MODEL_PACKAGE = 'basemodels'
 
     @classmethod
     def setUpClass(cls):
+        if NO_ORM:
+            raise unittest.SkipTest("sqlalchemy is not installed")
+
         super().setUpClass()
         cls.engine = create_engine(cls.get_dsn_for_sqla())
         cls.sess = Session(cls.engine, autobegin=False)
@@ -269,7 +278,7 @@ class TestSQLABasic(tb.SQLATestCase):
             [
                 ('blue', set()),
                 ('green', {'Alice', 'Billie'}),
-                ('red', {'Alice', 'Billie', 'Cameron', 'Dana', 'Elsa'}),
+                ('red', {'Alice', 'Billie', 'Cameron', 'Dana'}),
             ]
         )
 
@@ -286,7 +295,7 @@ class TestSQLABasic(tb.SQLATestCase):
                 ('Billie', {'red', 'green'}),
                 ('Cameron', {'red'}),
                 ('Dana', {'red'}),
-                ('Elsa', {'red'}),
+                ('Elsa', set()),
                 ('Zoe', set()),
             ]
         )
@@ -310,7 +319,7 @@ class TestSQLABasic(tb.SQLATestCase):
             {
                 ('blue', ()),
                 ('green', ('Alice', 'Billie')),
-                ('red', ('Alice', 'Billie', 'Cameron', 'Dana', 'Elsa')),
+                ('red', ('Alice', 'Billie', 'Cameron', 'Dana')),
             }
         )
 
@@ -330,7 +339,7 @@ class TestSQLABasic(tb.SQLATestCase):
                 ('Billie', ('green', 'red')),
                 ('Cameron', ('red',)),
                 ('Dana', ('red',)),
-                ('Elsa', ('red',)),
+                ('Elsa', ()),
                 ('Zoe', ()),
             }
         )
@@ -528,7 +537,7 @@ class TestSQLABasic(tb.SQLATestCase):
         group = [g for g in user.backlink_via_users if g.name == 'red'][0]
         self.assertEqual(
             {u.name for u in group.users},
-            {'Alice', 'Billie', 'Cameron', 'Dana', 'Elsa', 'Yvonne'},
+            {'Alice', 'Billie', 'Cameron', 'Dana', 'Yvonne'},
         )
 
     def test_sqla_update_models_03(self):
