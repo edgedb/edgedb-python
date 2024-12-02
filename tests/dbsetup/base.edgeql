@@ -7,7 +7,7 @@ insert User {name := 'Zoe'};
 
 insert UserGroup {
     name := 'red',
-    users := (select User filter .name != 'Zoe'),
+    users := (select User filter .name not in {'Elsa', 'Zoe'}),
 };
 insert UserGroup {
     name := 'green',

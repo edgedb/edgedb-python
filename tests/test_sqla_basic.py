@@ -32,7 +32,7 @@ class TestSQLABasic(tb.SQLATestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'dbsetup',
                          'base.edgeql')
 
-    SQLAPACKAGE = 'basemodels'
+    MODEL_PACKAGE = 'basemodels'
 
     @classmethod
     def setUpClass(cls):
@@ -269,7 +269,7 @@ class TestSQLABasic(tb.SQLATestCase):
             [
                 ('blue', set()),
                 ('green', {'Alice', 'Billie'}),
-                ('red', {'Alice', 'Billie', 'Cameron', 'Dana', 'Elsa'}),
+                ('red', {'Alice', 'Billie', 'Cameron', 'Dana'}),
             ]
         )
 
@@ -286,7 +286,7 @@ class TestSQLABasic(tb.SQLATestCase):
                 ('Billie', {'red', 'green'}),
                 ('Cameron', {'red'}),
                 ('Dana', {'red'}),
-                ('Elsa', {'red'}),
+                ('Elsa', set()),
                 ('Zoe', set()),
             ]
         )
@@ -310,7 +310,7 @@ class TestSQLABasic(tb.SQLATestCase):
             {
                 ('blue', ()),
                 ('green', ('Alice', 'Billie')),
-                ('red', ('Alice', 'Billie', 'Cameron', 'Dana', 'Elsa')),
+                ('red', ('Alice', 'Billie', 'Cameron', 'Dana')),
             }
         )
 
@@ -330,7 +330,7 @@ class TestSQLABasic(tb.SQLATestCase):
                 ('Billie', ('green', 'red')),
                 ('Cameron', ('red',)),
                 ('Dana', ('red',)),
-                ('Elsa', ('red',)),
+                ('Elsa', ()),
                 ('Zoe', ()),
             }
         )
@@ -528,7 +528,7 @@ class TestSQLABasic(tb.SQLATestCase):
         group = [g for g in user.backlink_via_users if g.name == 'red'][0]
         self.assertEqual(
             {u.name for u in group.users},
-            {'Alice', 'Billie', 'Cameron', 'Dana', 'Elsa', 'Yvonne'},
+            {'Alice', 'Billie', 'Cameron', 'Dana', 'Yvonne'},
         )
 
     def test_sqla_update_models_03(self):
