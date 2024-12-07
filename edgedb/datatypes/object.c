@@ -124,25 +124,6 @@ EdgeObject_GetItem(PyObject *ob, Py_ssize_t i)
 }
 
 
-PyObject *
-EdgeObject_GetID(PyObject *ob)
-{
-    assert(EdgeObject_Check(ob));
-    EdgeObject *o = (EdgeObject *)ob;
-    Py_ssize_t i = EdgeRecordDesc_IDPos(o->desc);
-    if (i < 0) {
-        Py_RETURN_NONE;
-    }
-    if (i >= Py_SIZE(o)) {
-        PyErr_BadInternalCall();
-        return NULL;
-    }
-    PyObject *el = EdgeObject_GET_ITEM(o, i);
-    Py_INCREF(el);
-    return el;
-}
-
-
 static void
 object_dealloc(EdgeObject *o)
 {

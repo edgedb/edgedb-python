@@ -936,11 +936,12 @@ cdef class SansIOProtocol:
             typedesc_id = buf.read_bytes(16)
             typedesc = buf.read_bytes(typedesc_len)
 
-            if self.internal_reg.has_codec(typedesc_id):
-                codec = self.internal_reg.get_codec(typedesc_id)
+            if self.internal_reg.has_codec(InputLanguage.EDGEQL, typedesc_id):
+                codec = self.internal_reg.get_codec(
+                    InputLanguage.EDGEQL, typedesc_id)
             else:
                 codec = self.internal_reg.build_codec(
-                    typedesc, self.protocol_version)
+                    InputLanguage.EDGEQL, typedesc, self.protocol_version)
 
             data = buf.read_len_prefixed_bytes()
             self.server_settings[name] = self.parse_system_config(codec, data)
@@ -1021,7 +1022,7 @@ cdef class SansIOProtocol:
 
             ctx.capabilities = self.buffer.read_int64()
             ctx.cardinality = self.buffer.read_byte()
-            ctx.in_dc, ctx.out_dc = self.parse_type_data(ctx.reg)
+            ctx.in_dc, ctx.out_dc = self.parse_type_data(ctx)
         finally:
             self.buffer.finish_message()
 
@@ -1034,37 +1035,44 @@ cdef class SansIOProtocol:
             if state_type_id != self.state_type_id:
                 self.state_type_id = state_type_id
                 self.state_cache = (None, None)
-                if self.internal_reg.has_codec(state_type_id):
+                if self.internal_reg.has_codec(
+                        InputLanguage.EDGEQL, state_type_id):
                     self.state_codec = self.internal_reg.get_codec(
+                        InputLanguage.EDGEQL,
                         state_type_id
                     )
                 else:
                     self.state_codec = self.internal_reg.build_codec(
-                        state_typedesc, self.protocol_version
+                        InputLanguage.EDGEQL,
+                        state_typedesc,
+                        self.protocol_version
                     )
         finally:
             self.buffer.finish_message()
 
-    cdef parse_type_data(self, CodecsRegistry reg):
+    cdef parse_type_data(self, ExecuteContext ctx):
         cdef:
             bytes type_id
             BaseCodec in_dc, out_dc
+            CodecsRegistry reg = ctx.reg
 
         type_id = self.buffer.read_bytes(16)
         type_data = self.buffer.read_len_prefixed_bytes()
 
-        if reg.has_codec(type_id):
-            in_dc = reg.get_codec(type_id)
+        if reg.has_codec(ctx.input_language, type_id):
+            in_dc = reg.get_codec(ctx.input_language, type_id)
         else:
-            in_dc = reg.build_codec(type_data, self.protocol_version)
+            in_dc = reg.build_codec(
+                ctx.input_language, type_data, self.protocol_version)
 
         type_id = self.buffer.read_bytes(16)
         type_data = self.buffer.read_len_prefixed_bytes()
 
-        if reg.has_codec(type_id):
-            out_dc = reg.get_codec(type_id)
+        if reg.has_codec(ctx.input_language, type_id):
+            out_dc = reg.get_codec(ctx.input_language, type_id)
         else:
-            out_dc = reg.build_codec(type_data, self.protocol_version)
+            out_dc = reg.build_codec(
+                ctx.input_language, type_data, self.protocol_version)
 
         return in_dc, out_dc
 

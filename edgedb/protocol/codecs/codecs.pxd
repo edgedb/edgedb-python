@@ -22,6 +22,7 @@ include "./scalar.pxd"
 include "./tuple.pxd"
 include "./namedtuple.pxd"
 include "./object.pxd"
+include "./record.pxd"
 include "./array.pxd"
 include "./range.pxd"
 include "./set.pxd"
@@ -35,9 +36,11 @@ cdef class CodecsRegistry:
         LRUMapping codecs
         dict base_codec_overrides
 
-    cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list,
+    cdef BaseCodec _build_codec(self, InputLanguage lang,
+                                FRBuffer *spec, list codecs_list,
                                 protocol_version)
-    cdef BaseCodec build_codec(self, bytes spec, protocol_version)
+    cdef BaseCodec build_codec(self, InputLanguage lang, bytes spec,
+                               protocol_version)
 
-    cdef has_codec(self, bytes type_id)
-    cdef BaseCodec get_codec(self, bytes type_id)
+    cdef has_codec(self, InputLanguage lang, bytes type_id)
+    cdef BaseCodec get_codec(self, InputLanguage lang, bytes type_id)

@@ -30,6 +30,7 @@ _RecordDescriptor = EdgeRecordDesc_InitType()
 Tuple = tuple
 NamedTuple = EdgeNamedTuple_InitType()
 Object = EdgeObject_InitType()
+Record = EdgeRecord_InitType()
 Set = list
 Array = list
 
@@ -132,6 +133,11 @@ cdef namedtuple_type_new(object desc):
 cdef object_new(object desc):
     return EdgeObject_New(desc)
 
-
 cdef object_set(object obj, Py_ssize_t pos, object elem):
     EdgeObject_SetItem(obj, pos, elem)
+
+cdef record_new(object desc):
+    return EdgeRecord_New(desc)
+
+cdef record_set(object obj, Py_ssize_t pos, object elem):
+    EdgeRecord_SetItem(obj, pos, elem)

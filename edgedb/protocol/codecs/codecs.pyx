@@ -36,6 +36,7 @@ include "./scalar.pyx"
 include "./tuple.pyx"
 include "./namedtuple.pyx"
 include "./object.pyx"
+include "./record.pyx"
 include "./array.pyx"
 include "./range.pyx"
 include "./set.pyx"
@@ -94,7 +95,8 @@ cdef class CodecsRegistry:
             decoder,
         )
 
-    cdef BaseCodec _build_codec(self, FRBuffer *spec, list codecs_list,
+    cdef BaseCodec _build_codec(self, InputLanguage lang,
+                                FRBuffer *spec, list codecs_list,
                                 protocol_version):
         cdef:
             uint32_t desc_len = 0
@@ -114,7 +116,7 @@ cdef class CodecsRegistry:
         t = <uint8_t>(frb_read(spec, 1)[0])
         tid = frb_read(spec, 16)[:16]
 
-        res = self.codecs.get(tid, None)
+        res = self.codecs.get(chr(lang) + tid, None)
         if res is None:
             res = self.codecs_build_cache.get(tid, None)
         if res is not None:
@@ -237,9 +239,14 @@ cdef class CodecsRegistry:
                         frb_read(spec, 2))
                     source_type = codecs_list[source_type_pos]
 
-            res = ObjectCodec.new(
-                tid, names, flags, cards, codecs, t == CTYPE_INPUT_SHAPE
-            )
+            if lang == InputLanguage.EDGEQL:
+                res = ObjectCodec.new(
+                    tid, names, flags, cards, codecs, t == CTYPE_INPUT_SHAPE
+                )
+            else:
+                res = RecordCodec.new(
+                    tid, names, flags, cards, codecs
+                )
 
         elif t == CTYPE_INPUT_SHAPE:
             els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
@@ -483,15 +490,17 @@ cdef class CodecsRegistry:
         self.codecs_build_cache[tid] = res
         return res
 
-    cdef has_codec(self, bytes type_id):
+    cdef has_codec(self, InputLanguage lang, bytes type_id):
+        key = chr(lang) + type_id
         return (
-            type_id in self.codecs or
+            key in self.codecs or
             type_id in {NULL_CODEC_ID, EMPTY_TUPLE_CODEC_ID}
         )
 
-    cdef BaseCodec get_codec(self, bytes type_id):
+    cdef BaseCodec get_codec(self, InputLanguage lang, bytes type_id):
+        key = chr(lang) + type_id
         try:
-            return <BaseCodec>self.codecs[type_id]
+            return <BaseCodec>self.codecs[key]
         except KeyError:
             pass
 
@@ -503,7 +512,8 @@ cdef class CodecsRegistry:
 
         raise LookupError
 
-    cdef BaseCodec build_codec(self, bytes spec, protocol_version):
+    cdef BaseCodec build_codec(self, InputLanguage lang, bytes spec,
+                               protocol_version):
         cdef:
             FRBuffer buf
             FRBuffer elem_buf
@@ -521,17 +531,18 @@ cdef class CodecsRegistry:
                 desc_len = <uint32_t>hton.unpack_int32(frb_read(&buf, 4))
                 frb_slice_from(&elem_buf, &buf, desc_len)
                 res = self._build_codec(
-                    &elem_buf, codecs_list, protocol_version)
+                    lang, &elem_buf, codecs_list, protocol_version)
                 if frb_get_len(&elem_buf):
                     raise RuntimeError(
                         f'unexpected trailing data in type descriptor datum')
             else:
-                res = self._build_codec(&buf, codecs_list, protocol_version)
+                res = self._build_codec(
+                    lang, &buf, codecs_list, protocol_version)
             if res is None:
                 # An annotation; ignore.
                 continue
             codecs_list.append(res)
-            self.codecs[res.tid] = res
+            self.codecs[chr(lang) + res.tid] = res
 
         if not codecs_list:
             raise RuntimeError(f'cannot not build codec; empty type desc')

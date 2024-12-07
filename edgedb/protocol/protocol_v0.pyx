@@ -33,7 +33,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         self,
         query: str,
         *,
-        reg: CodecsRegistry,
+        ctx: ExecuteContext,
         output_format: OutputFormat=OutputFormat.BINARY,
         expect_one: bint=False,
         required_one: bool=False,
@@ -51,6 +51,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             bytes in_type_id
             bytes out_type_id
             bytes cardinality
+            CodecsRegistry reg = ctx.reg
 
         if not self.connected:
             raise RuntimeError('not connected')
@@ -80,7 +81,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                     attrs = self.legacy_parse_headers()
                     cardinality = self.buffer.read_byte()
                     if self.protocol_version >= (0, 14):
-                        in_dc, out_dc = self.parse_type_data(reg)
+                        in_dc, out_dc = self.parse_type_data(ctx)
                     else:
                         in_type_id = self.buffer.read_bytes(16)
                         out_type_id = self.buffer.read_bytes(16)
@@ -103,10 +104,10 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             raise exc
 
         if self.protocol_version < (0, 14):
-            if reg.has_codec(in_type_id):
-                in_dc = reg.get_codec(in_type_id)
-            if reg.has_codec(out_type_id):
-                out_dc = reg.get_codec(out_type_id)
+            if reg.has_codec(InputLanguage.EDGEQL, in_type_id):
+                in_dc = reg.get_codec(InputLanguage.EDGEQL, in_type_id)
+            if reg.has_codec(InputLanguage.EDGEQL, out_type_id):
+                out_dc = reg.get_codec(InputLanguage.EDGEQL, out_type_id)
 
             if in_dc is None or out_dc is None:
                 buf = WriteBuffer.new_message(DESCRIBE_STMT_MSG)
@@ -125,7 +126,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                     try:
                         if mtype == STMT_DATA_DESC_MSG:
                             cardinality, in_dc, out_dc, _ = \
-                                self.parse_legacy_describe_type_message(reg)
+                                self.parse_legacy_describe_type_message(ctx)
 
                         elif mtype == ERROR_RESPONSE_MSG:
                             exc = self.parse_error_message()
@@ -237,7 +238,6 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
             str query = ctx.query
             object args = ctx.args
             object kwargs = ctx.kwargs
-            CodecsRegistry reg = ctx.reg
             OutputFormat output_format = ctx.output_format
             bint expect_one = ctx.expect_one
             bint required_one = ctx.required_one
@@ -278,7 +278,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
                 if mtype == STMT_DATA_DESC_MSG:
                     # our in/out type spec is out-dated
                     new_cardinality, in_dc, out_dc, headers = \
-                        self.parse_legacy_describe_type_message(reg)
+                        self.parse_legacy_describe_type_message(ctx)
 
                     capabilities = headers.get(SERVER_HEADER_CAPABILITIES)
                     if capabilities is not None:
@@ -368,7 +368,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         if not ctx.load_from_cache():
             codecs = await self._legacy_parse(
                 query,
-                reg=reg,
+                ctx=ctx,
                 output_format=output_format,
                 expect_one=expect_one,
                 required_one=required_one,
@@ -483,7 +483,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         if exc is not None:
             raise exc
 
-    cdef parse_legacy_describe_type_message(self, CodecsRegistry reg):
+    cdef parse_legacy_describe_type_message(self, ExecuteContext ctx):
         assert self.buffer.get_message_type() == COMMAND_DATA_DESC_MSG
 
         cdef:
@@ -494,7 +494,7 @@ cdef class SansIOProtocolBackwardsCompatible(SansIOProtocol):
         try:
             cardinality = self.buffer.read_byte()
 
-            in_dc, out_dc = self.parse_type_data(reg)
+            in_dc, out_dc = self.parse_type_data(ctx)
         finally:
             self.buffer.finish_message()
 

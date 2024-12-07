@@ -122,6 +122,29 @@ PyObject * EdgeObject_GetRecordDesc(PyObject *);
 int EdgeObject_SetItem(PyObject *, Py_ssize_t, PyObject *);
 PyObject * EdgeObject_GetItem(PyObject *, Py_ssize_t);
 
-PyObject * EdgeObject_GetID(PyObject *ob);
+
+/* === edgedb.Record ======================================== */
+
+#define EDGE_RECORD_FREELIST_SIZE 2000
+#define EDGE_RECORD_FREELIST_MAXSAVE 20
+
+extern PyTypeObject EdgeRecord_Type;
+
+#define EdgeRecord_Check(d) (Py_TYPE(d) == &EdgeRecord_Type)
+
+typedef struct {
+    PyObject_VAR_HEAD
+    PyObject *weakreflist;
+    PyObject *desc;
+    Py_hash_t cached_hash;
+    PyObject *ob_item[1];
+} EdgeRecord;
+
+PyObject * EdgeRecord_InitType(void);
+PyObject * EdgeRecord_New(PyObject *);
+PyObject * EdgeRecord_GetRecordDesc(PyObject *);
+
+int EdgeRecord_SetItem(PyObject *, Py_ssize_t, PyObject *);
+PyObject * EdgeRecord_GetItem(PyObject *, Py_ssize_t);
 
 #endif
