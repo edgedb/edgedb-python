@@ -37,7 +37,7 @@ class TestSQLAFeatures(tb.SQLATestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'dbsetup',
                          'features.edgeql')
 
-    SQLAPACKAGE = 'fmodels'
+    MODEL_PACKAGE = 'fmodels'
 
     @classmethod
     def setUpClass(cls):

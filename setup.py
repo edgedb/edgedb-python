@@ -51,6 +51,7 @@ TEST_DEPENDENCIES = [
     'flake8~=7.0.0',
     'uvloop>=0.15.1; platform_system != "Windows"',
     'SQLAlchemy>=2.0.0',
+    'Django>=5.1.3',
 ]
 
 # This is needed specifically to test ORM reflection because the ORMs tend to
