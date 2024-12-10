@@ -1,7 +1,8 @@
 import pathlib
 import re
+import warnings
 
-from ..introspection import get_mod_and_name, FilePrinter
+from ..introspection import get_mod_and_name, GelORMWarning, FilePrinter
 
 
 GEL_SCALAR_MAP = {
@@ -24,7 +25,7 @@ GEL_SCALAR_MAP = {
     'cal::local_date': 'DateField',
     'cal::local_datetime': 'DateTimeField',
     'cal::local_time': 'TimeField',
-    # all kinds of duration is not supported due to this error:
+    # all kinds of durations are not supported due to this error:
     # iso_8601 intervalstyle currently not supported
 }
 
@@ -53,7 +54,6 @@ class GelPGMeta:
     'This is a model reflected from Gel using Postgres protocol.'
 '''
 
-FK_RE = re.compile(r'''models\.ForeignKey\((.+?),''')
 CLOSEPAR_RE = re.compile(r'\)(?=\s+#|$)')
 
 
@@ -83,19 +83,16 @@ class ModelGenerator(FilePrinter):
 
     def spec_to_modules_dict(self, spec):
         modules = {
-            mod: {} for mod in sorted(spec['modules'])
+            mod: {'link_tables': {}, 'object_types': {}}
+            for mod in sorted(spec['modules'])
         }
 
         for rec in spec['link_tables']:
             mod = rec['module']
-            if 'link_tables' not in modules[mod]:
-                modules[mod]['link_tables'] = {}
             modules[mod]['link_tables'][rec['table']] = rec
 
         for rec in spec['object_types']:
             mod, name = get_mod_and_name(rec['name'])
-            if 'object_types' not in modules[mod]:
-                modules[mod]['object_types'] = {}
             modules[mod]['object_types'][name] = rec
 
         return modules['default']
@@ -128,10 +125,12 @@ class ModelGenerator(FilePrinter):
             # process properties as fields
             for prop in rec['properties']:
                 pname = prop['name']
-                if pname == 'id':
+                if pname == 'id' or prop['cardinality'] == 'Many':
                     continue
 
-                mod.props[pname] = self.render_prop(prop)
+                code = self.render_prop(prop)
+                if code:
+                    mod.props[pname] = code
 
             # process single links as fields
             for link in rec['links']:
@@ -142,7 +141,9 @@ class ModelGenerator(FilePrinter):
 
                 lname = link['name']
                 bklink = mod.get_backlink_name(lname)
-                mod.links[lname] = self.render_link(link, bklink)
+                code = self.render_link(link, bklink)
+                if code:
+                    mod.links[lname] = code
 
             modmap[mod.name] = mod
 
@@ -153,7 +154,16 @@ class ModelGenerator(FilePrinter):
             mod.meta['unique_together'] = "(('source', 'target'),)"
 
             # Only have source and target
-            _, target = get_mod_and_name(rec['target'])
+            mtgt, target = get_mod_and_name(rec['target'])
+            if mtgt != 'default':
+                # skip this whole link table
+                warnings.warn(
+                    f'Skipping link {fwname!r}: link target '
+                    f'{rec["target"]!r} is not supported',
+                    GelORMWarning,
+                )
+                continue
+
             mod.links['source'] = (
                 f"LTForeignKey({source!r}, models.DO_NOTHING, "
                 f"db_column='source', primary_key=True)"
@@ -190,8 +200,11 @@ class ModelGenerator(FilePrinter):
         try:
             ftype = GEL_SCALAR_MAP[target]
         except KeyError:
-            raise RuntimeError(
-                f'Scalar type {target} is not supported')
+            warnings.warn(
+                f'Scalar type {target} is not supported',
+                GelORMWarning,
+            )
+            return ''
 
         return f'models.{ftype}({req})'
 
@@ -201,7 +214,15 @@ class ModelGenerator(FilePrinter):
         else:
             req = ', blank=True, null=True'
 
-        _, target = get_mod_and_name(link['target']['name'])
+        mod, target = get_mod_and_name(link['target']['name'])
+
+        if mod != 'default':
+            warnings.warn(
+                f'Skipping link {link["name"]!r}: link target '
+                f'{link["target"]["name"]!r} is not supported',
+                GelORMWarning,
+            )
+            return ''
 
         if bklink:
             bklink = f', related_name={bklink!r}'
@@ -215,23 +236,28 @@ class ModelGenerator(FilePrinter):
         # Check that there is only "default" module
         mods = spec['modules']
         if mods[0] != 'default' or len(mods) > 1:
-            raise RuntimeError(
-                f"Django reflection doesn't support multiple modules or "
-                f"non-default modules."
+            skipped = ', '.join([repr(m) for m in mods if m != 'default'])
+            warnings.warn(
+                f"Skipping modules {skipped}: Django reflection doesn't "
+                f"support multiple modules or non-default modules.",
+                GelORMWarning,
             )
         # Check that we don't have multiprops or link properties as they
         # produce models without `id` field and Django doesn't like that. It
         # causes Django to mistakenly use `source` as `id` and also attempt to
         # UPDATE `target` on link tables.
         if len(spec['prop_objects']) > 0:
-            raise RuntimeError(
-                f"Django reflection doesn't support multi properties as they "
-                f"produce models without `id` field."
+            warnings.warn(
+                f"Skipping multi properties: Django reflection doesn't "
+                f"support multi properties as they produce models without "
+                f"`id` field.",
+                GelORMWarning,
             )
         if len(spec['link_objects']) > 0:
-            raise RuntimeError(
-                f"Django reflection doesn't support link properties as they "
-                f"produce models without `id` field."
+            warnings.warn(
+                f"Skipping link properties: Django reflection doesn't support "
+                f"link properties as they produce models without `id` field.",
+                GelORMWarning,
             )
 
         maps = self.spec_to_modules_dict(spec)
