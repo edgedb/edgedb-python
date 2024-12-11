@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import unittest
 from collections import namedtuple
 
 from gel import _testbase as tb
@@ -34,27 +35,29 @@ class TestPostgis(tb.SyncQueryTestCase):
     Raw bytes used as sample GEOS data in (E)WKB format.
     '''
 
-    def setUp(self):
-        super().setUp()
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
 
-        if not self.client.query_required_single('''
+        if not cls.client.query_required_single('''
             select exists (
               select sys::ExtensionPackage filter .name = 'postgis'
             )
         '''):
-            self.skipTest("feature not implemented")
+            raise unittest.SkipTest("feature not implemented")
 
-        self.client.execute('''
+        cls.client.execute('''
             create extension postgis;
         ''')
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(cls):
         try:
-            self.client.execute('''
+            cls.client.execute('''
                 drop extension postgis;
             ''')
         finally:
-            super().tearDown()
+            super().tearDownClass()
 
     async def _test_postgis_geometry(self, wkt, wkb):
         val = self.client.query_single(f'''

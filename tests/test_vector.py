@@ -21,6 +21,7 @@ import edgedb
 
 import array
 import math
+import unittest
 
 
 # An array.array subtype where indexing doesn't work.
@@ -35,29 +36,31 @@ class TestVector(tb.SyncQueryTestCase):
 
     PGVECTOR_VER = None
 
-    def setUp(self):
-        super().setUp()
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
 
-        self.PGVECTOR_VER = self.client.query_single('''
+        cls.PGVECTOR_VER = cls.client.query_single('''
             select assert_single((
               select sys::ExtensionPackage filter .name = 'pgvector'
             )).version
         ''')
 
-        if self.PGVECTOR_VER is None:
-            self.skipTest("feature not implemented")
+        if cls.PGVECTOR_VER is None:
+            raise unittest.SkipTest("feature not implemented")
 
-        self.client.execute('''
+        cls.client.execute('''
             create extension pgvector;
         ''')
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(cls):
         try:
-            self.client.execute('''
+            cls.client.execute('''
                 drop extension pgvector;
             ''')
         finally:
-            super().tearDown()
+            super().tearDownClass()
 
     async def test_vector_01(self):
         val = self.client.query_single('''
