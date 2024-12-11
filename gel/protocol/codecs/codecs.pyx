@@ -1164,13 +1164,17 @@ cdef geometry_encode(pgproto.CodecContext settings, WriteBuffer buf, obj):
 cdef geometry_decode(pgproto.CodecContext settings, FRBuffer *buf):
     cdef:
         object result
+        ssize_t buf_len
+
     # Just wrap the bytes into a named tuple with a single field `wkb`
     descriptor = datatypes.record_desc_new(
         ('wkb',), <object>NULL, <object>NULL)
     result = datatypes.namedtuple_new(
         datatypes.namedtuple_type_new(descriptor))
 
-    elem = PyBytes_FromStringAndSize(frb_read_all(buf), buf.len)
+    # frb_read_all adjusts buf.len, so we need to read it out first
+    buf_len = buf.len
+    elem = PyBytes_FromStringAndSize(frb_read_all(buf), buf_len)
     cpython.Py_INCREF(elem)
     cpython.PyTuple_SET_ITEM(result, 0, elem)
 
