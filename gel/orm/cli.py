@@ -23,7 +23,8 @@ import gel
 
 from gel.codegen.generator import _get_conn_args
 from .introspection import get_schema_json
-from .sqla import ModelGenerator
+from .sqla import ModelGenerator as SQLAModGen
+from .django.generator import ModelGenerator as DjangoModGen
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -65,7 +66,6 @@ parser.add_argument(
     "--mod",
     help="The fullname of the Python module corresponding to the output "
          "directory.",
-    required=True,
 )
 
 
@@ -74,13 +74,23 @@ def main():
     # setup client
     client = gel.create_client(**_get_conn_args(args))
     spec = get_schema_json(client)
+    generate_models(args, spec)
 
+
+def generate_models(args, spec):
     match args.orm:
         case 'sqlalchemy':
-            gen = ModelGenerator(
+            if args.mod is None:
+                parser.error('sqlalchemy requires to specify --mod')
+
+            gen = SQLAModGen(
                 outdir=args.out,
                 basemodule=args.mod,
             )
             gen.render_models(spec)
+
         case 'django':
-            print('Not available yet. Coming soon!')
+            gen = DjangoModGen(
+                out=args.out,
+            )
+            gen.render_models(spec)
