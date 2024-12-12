@@ -263,9 +263,11 @@ object_repr(EdgeObject *o)
         goto error;
     }
 
-    if (_EdgeGeneric_RenderItems(&writer,
-                                 (PyObject *)o, o->desc,
-                                 o->ob_item, Py_SIZE(o), 1, 1, 0) < 0)
+    if (_EdgeGeneric_RenderItems(
+            &writer,
+            (PyObject *)o, o->desc,
+            o->ob_item, Py_SIZE(o),
+            EDGE_RENDER_NAMES | EDGE_RENDER_LINK_PROPS) < 0)
     {
         goto error;
     }

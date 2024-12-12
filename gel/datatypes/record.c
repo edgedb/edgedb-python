@@ -206,7 +206,8 @@ record_repr(EdgeRecord *o)
 
     if (_EdgeGeneric_RenderItems(&writer,
                                  (PyObject *)o, o->desc,
-                                 o->ob_item, Py_SIZE(o), 0, 0, 0) < 0)
+                                 o->ob_item, Py_SIZE(o),
+                                 EDGE_RENDER_DEFAULT) < 0)
     {
         goto error;
     }
