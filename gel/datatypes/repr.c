@@ -81,6 +81,7 @@ int
 _EdgeGeneric_RenderItems(_PyUnicodeWriter *writer,
                          PyObject *host, PyObject *desc,
                          PyObject **items, Py_ssize_t len,
+                         int include_names,
                          int include_link_props,
                          int include_implicit)
 {
@@ -128,19 +129,21 @@ _EdgeGeneric_RenderItems(_PyUnicodeWriter *writer,
             goto error;
         }
 
-        item_name = EdgeRecordDesc_PointerName(desc, i);
-        if (item_name == NULL) {
-            goto error;
-        }
-        assert(PyUnicode_CheckExact(item_name));
+        if (include_names) {
+            item_name = EdgeRecordDesc_PointerName(desc, i);
+            if (item_name == NULL) {
+                goto error;
+            }
+            assert(PyUnicode_CheckExact(item_name));
 
-        if (_PyUnicodeWriter_WriteStr(writer, item_name) < 0) {
-            goto error;
-        }
-        Py_CLEAR(item_name);
+            if (_PyUnicodeWriter_WriteStr(writer, item_name) < 0) {
+                goto error;
+            }
+            Py_CLEAR(item_name);
 
-        if (_PyUnicodeWriter_WriteASCIIString(writer, " := ", 4) < 0) {
-            goto error;
+            if (_PyUnicodeWriter_WriteASCIIString(writer, " := ", 4) < 0) {
+                goto error;
+            }
         }
 
         if (_PyUnicodeWriter_WriteStr(writer, item_repr) < 0) {

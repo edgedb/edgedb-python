@@ -43,6 +43,7 @@ PyObject *
 EdgeNamedTuple_New(PyObject *type)
 {
     assert(init_type_called);
+    assert(PyType_Check(type));
 
     PyObject *desc = EdgeNamedTuple_Type_DESC(type);
     if (desc == NULL || !EdgeRecordDesc_Check(desc)) {
@@ -77,7 +78,7 @@ EdgeNamedTuple_New(PyObject *type)
             _EDGE_NAMED_TUPLE_FL_NUM_FREE[size]--;
             _Py_NewReference((PyObject *)nt);
             Py_INCREF(type);
-            Py_SET_TYPE(nt, type);
+            Py_SET_TYPE(nt, (PyTypeObject*)type);
         }
     } else {
         if (
@@ -88,7 +89,7 @@ EdgeNamedTuple_New(PyObject *type)
             PyErr_NoMemory();
             return NULL;
         }
-        nt = PyObject_GC_NewVar(PyTupleObject, type, size);
+        nt = PyObject_GC_NewVar(PyTupleObject, (PyTypeObject*)type, size);
         if (nt == NULL) {
             return NULL;
         }
@@ -197,9 +198,9 @@ namedtuple_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         goto fail;
     }
 
-    type = EdgeNamedTuple_Type_New(desc);
-    o = (PyTupleObject *)EdgeNamedTuple_New(type);
-    Py_CLEAR(type);  // the type is now referenced by the object
+    PyObject *new_type = EdgeNamedTuple_Type_New(desc);
+    o = (PyTupleObject *)EdgeNamedTuple_New(new_type);
+    Py_CLEAR(new_type);  // the type is now referenced by the object
 
     if (o == NULL) {
         goto fail;
@@ -236,7 +237,7 @@ fail:
 
 static PyObject *
 namedtuple_derived_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-    PyTupleObject *o = (PyTupleObject *)EdgeNamedTuple_New(type);
+    PyTupleObject *o = (PyTupleObject *)EdgeNamedTuple_New((PyObject*)type);
     if (o == NULL) {
         goto fail;
     }
@@ -356,7 +357,7 @@ namedtuple_repr(PyTupleObject *o)
     if (_EdgeGeneric_RenderItems(&writer,
                                  (PyObject *)o,
                                  EdgeNamedTuple_Type_DESC(Py_TYPE(o)),
-                                 o->ob_item, Py_SIZE(o), 0, 0) < 0)
+                                 o->ob_item, Py_SIZE(o), 1, 0, 0) < 0)
     {
         goto error;
     }
@@ -458,7 +459,7 @@ EdgeNamedTuple_Type_New(PyObject *desc)
 
     // store `_fields` for collections.namedtuple duck-typing
     Py_ssize_t size = EdgeRecordDesc_GetSize(desc);
-    PyTupleObject *fields = PyTuple_New(size);
+    PyTupleObject *fields = (PyTupleObject *)PyTuple_New(size);
     if (fields == NULL) {
         goto fail;
     }
@@ -470,11 +471,11 @@ EdgeNamedTuple_Type_New(PyObject *desc)
         }
         PyTuple_SET_ITEM(fields, i, name);
     }
-    if (PyDict_SetItemString(rv->tp_dict, "_fields", fields) < 0) {
+    if (PyDict_SetItemString(rv->tp_dict, "_fields", (PyObject*)fields) < 0) {
         goto fail;
     }
 
-    return rv;
+    return (PyObject*)rv;
 
 fail:
     Py_DECREF(rv);

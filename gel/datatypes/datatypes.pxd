@@ -58,6 +58,10 @@ cdef extern from "datatypes.h":
     int EdgeObject_SetItem(object, Py_ssize_t, object) except -1
     object EdgeObject_GetRecordDesc(object)
 
+    object EdgeRecord_InitType()
+    object EdgeRecord_New(object);
+    int EdgeRecord_SetItem(object, Py_ssize_t, object) except -1
+    object EdgeRecord_GetRecordDesc(object)
 
 cdef record_desc_new(object names, object flags, object cards)
 cdef record_desc_pointer_name(object desc, Py_ssize_t pos)
@@ -69,5 +73,7 @@ cdef namedtuple_new(object namedtuple_type)
 cdef namedtuple_type_new(object desc)
 cdef object_new(object desc)
 cdef object_set(object tuple, Py_ssize_t pos, object elem)
+cdef record_new(object desc)
+cdef record_set(object obj, Py_ssize_t pos, object elem)
 
 cdef extern cpython.PyObject* at_sign_ptr
