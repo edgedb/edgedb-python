@@ -113,7 +113,7 @@ EdgeRecord_GetItem(PyObject *ob, Py_ssize_t i)
     assert(EdgeRecord_Check(ob));
     EdgeRecord *o = (EdgeRecord *)ob;
     if (i < 0 || i >= Py_SIZE(o)) {
-        PyErr_SetString(PyExc_IndexError, "row index out of range");
+        PyErr_SetString(PyExc_IndexError, "record index out of range");
         return NULL;
     }
     PyObject *el = EdgeRecord_GET_ITEM(o, i);
@@ -200,7 +200,7 @@ record_repr(EdgeRecord *o)
     _PyUnicodeWriter_Init(&writer);
     writer.overallocate = 1;
 
-    if (_PyUnicodeWriter_WriteASCIIString(&writer, "Row{", 4) < 0) {
+    if (_PyUnicodeWriter_WriteASCIIString(&writer, "Record{", 4) < 0) {
         goto error;
     }
 
