@@ -40,6 +40,7 @@ include "./array.pyx"
 include "./range.pyx"
 include "./set.pyx"
 include "./enum.pyx"
+include "./record.pyx"
 
 
 DEF CTYPE_SET = 0
@@ -55,6 +56,7 @@ DEF CTYPE_RANGE = 9
 DEF CTYPE_OBJECT = 10
 DEF CTYPE_COMPOUND = 11
 DEF CTYPE_MULTIRANGE = 12
+DEF CTYPE_SQL_ROW = 13
 DEF CTYPE_ANNO_TYPENAME = 255
 
 DEF _CODECS_BUILD_CACHE_SIZE = 200
@@ -168,6 +170,12 @@ cdef class CodecsRegistry:
 
             elif t == CTYPE_MULTIRANGE:
                 frb_read(spec, 2)
+
+            elif t == CTYPE_SQL_ROW:
+                els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+                for i in range(els):
+                    str_len = hton.unpack_uint32(frb_read(spec, 4))
+                    frb_read(spec, str_len + 2)
 
             elif t == CTYPE_ENUM:
                 els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
@@ -379,6 +387,25 @@ cdef class CodecsRegistry:
 
             res = NamedTupleCodec.new(tid, names, codecs)
             res.type_name = type_name
+
+        elif t == CTYPE_SQL_ROW:
+            els = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+            codecs = cpython.PyTuple_New(els)
+            names = cpython.PyTuple_New(els)
+            for i in range(els):
+                str_len = hton.unpack_uint32(frb_read(spec, 4))
+                name = cpythonx.PyUnicode_FromStringAndSize(
+                    frb_read(spec, str_len), str_len)
+                pos = <uint16_t>hton.unpack_int16(frb_read(spec, 2))
+
+                cpython.Py_INCREF(name)
+                cpython.PyTuple_SetItem(names, i, name)
+
+                sub_codec = codecs_list[pos]
+                cpython.Py_INCREF(sub_codec)
+                cpython.PyTuple_SetItem(codecs, i, sub_codec)
+
+            res = RecordCodec.new(tid, names, codecs)
 
         elif t == CTYPE_ENUM:
             if protocol_version >= (2, 0):

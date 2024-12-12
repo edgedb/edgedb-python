@@ -37,14 +37,20 @@ PyObject * _EdgeGeneric_RenderObject(PyObject *obj);
 int _EdgeGeneric_RenderValues(
     _PyUnicodeWriter *, PyObject *, PyObject **, Py_ssize_t);
 
-int _EdgeGeneric_RenderItems(_PyUnicodeWriter *,
-                             PyObject *, PyObject *,
-                             PyObject **, Py_ssize_t, int, int);
-
 PyObject * _EdgeGeneric_RichCompareValues(PyObject **, Py_ssize_t,
                                           PyObject **, Py_ssize_t,
                                           int);
 
+
+#define EDGE_RENDER_NAMES       0x1
+#define EDGE_RENDER_LINK_PROPS  0x2
+#define EDGE_RENDER_IMPLICIT    0x4
+#define EDGE_RENDER_DEFAULT     0
+
+int _EdgeGeneric_RenderItems(_PyUnicodeWriter *,
+                             PyObject *, PyObject *,
+                             PyObject **, Py_ssize_t,
+                             int);
 
 #ifndef _PyList_CAST
 #  define _PyList_CAST(op) (assert(PyList_Check(op)), (PyListObject *)(op))

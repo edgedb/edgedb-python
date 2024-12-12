@@ -1151,3 +1151,14 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
                 await tx.execute('''
                     INSERT test::Tmp { id := <uuid>$0, tmp := '' }
                 ''', uuid.uuid4())
+
+    @unittest.expectedFailure
+    async def test_async_query_sql_01(self):
+        res = await self.client.query_sql("SELECT 1")
+        self.assertEqual(res[0].as_dict(), {'col~1': 1})
+
+        res = await self.client.query_sql("SELECT 1 as aa")
+        self.assertEqual(res[0].as_dict(), {'aa': 1})
+
+        res = await self.client.query_sql("SELECT FROM generate_series(0, 1)")
+        self.assertEqual(res[0].as_dict(), {})

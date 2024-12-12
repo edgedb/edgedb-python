@@ -325,6 +325,7 @@ setuptools.setup(
              "gel/datatypes/record_desc.c",
              "gel/datatypes/namedtuple.c",
              "gel/datatypes/object.c",
+             "gel/datatypes/record.c",
              "gel/datatypes/hash.c",
              "gel/datatypes/repr.c",
              "gel/datatypes/comp.c",

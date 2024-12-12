@@ -24,7 +24,7 @@ from ._version import __version__
 from gel.datatypes.datatypes import (
     Tuple, NamedTuple, EnumValue, RelativeDuration, DateDuration, ConfigMemory
 )
-from gel.datatypes.datatypes import Set, Object, Array
+from gel.datatypes.datatypes import Record, Set, Object, Array
 from gel.datatypes.range import Range, MultiRange
 
 from .abstract import (
@@ -68,6 +68,7 @@ __all__ = [
     "RetryCondition",
     "RetryOptions",
     "Set",
+    "Record",
     "State",
     "TransactionOptions",
     "Tuple",

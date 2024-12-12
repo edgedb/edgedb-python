@@ -22,6 +22,7 @@ import abc
 import dataclasses
 import typing
 
+from . import datatypes
 from . import describe
 from . import enums
 from . import options
@@ -278,7 +279,7 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             annotations=self._get_annotations(),
         ))
 
-    def query_sql(self, query: str, *args, **kwargs) -> typing.Any:
+    def query_sql(self, query: str, *args, **kwargs) -> list[datatypes.Record]:
         return self._query(QueryContext(
             query=QueryWithArgs(
                 query,
