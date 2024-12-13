@@ -62,7 +62,7 @@ class TestVector(tb.SyncQueryTestCase):
         finally:
             super().tearDownClass()
 
-    async def test_vector_01(self):
+    def test_vector_01(self):
         val = self.client.query_single('''
             select <ext::pgvector::vector>[1.5,2.0,3.8]
         ''')
@@ -139,7 +139,7 @@ class TestVector(tb.SyncQueryTestCase):
                 'foo',
             )
 
-    async def test_vector_02(self):
+    def test_vector_02(self):
         if self.PGVECTOR_VER < (0, 7):
             self.skipTest("need at least pgvector 0.7.4 for sparsevec")
 
@@ -209,7 +209,7 @@ class TestVector(tb.SyncQueryTestCase):
                 {'dim': 6, 1: 1.5, 2: 2, 3: 0},
             )
 
-    async def test_vector_03(self):
+    def test_vector_03(self):
         if self.PGVECTOR_VER < (0, 7):
             self.skipTest("need at least pgvector 0.7.4 for halfvec")
 
