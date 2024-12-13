@@ -59,7 +59,7 @@ class TestPostgis(tb.SyncQueryTestCase):
         finally:
             super().tearDownClass()
 
-    async def _test_postgis_geometry(self, wkt, wkb):
+    def _test_postgis_geometry(self, wkt, wkb):
         val = self.client.query_single(f'''
             with module ext::postgis
             select <geometry>{wkt!r}
@@ -74,7 +74,7 @@ class TestPostgis(tb.SyncQueryTestCase):
         ''', Geo(wkb=wkb))
         self.assertTrue(val)
 
-    async def _test_postgis_geography(self, wkt, wkb):
+    def _test_postgis_geography(self, wkt, wkb):
         val = self.client.query_single(f'''
             with module ext::postgis
             select <geography>{wkt!r}
@@ -89,34 +89,34 @@ class TestPostgis(tb.SyncQueryTestCase):
         ''', Geo(wkb=wkb))
         self.assertTrue(val)
 
-    async def test_postgis_01(self):
-        await self._test_postgis_geometry(
+    def test_postgis_01(self):
+        self._test_postgis_geometry(
             'point(1 2)',
             b'\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0?\x00\x00'
             b'\x00\x00\x00\x00\x00@',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'point z (1 2 3)',
             b'\x01\x01\x00\x00\x80\x00\x00\x00\x00\x00\x00\xf0?\x00\x00'
             b'\x00\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x08@',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'point m (1 2 3)',
             b'\x01\x01\x00\x00@\x00\x00\x00\x00\x00\x00\xf0?\x00\x00\x00'
             b'\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x08@',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'point zm (1 2 3 4)',
             b'\x01\x01\x00\x00\xc0\x00\x00\x00\x00\x00\x00\xf0?\x00\x00'
             b'\x00\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x08@\x00\x00'
             b'\x00\x00\x00\x00\x10@',
         )
 
-    async def test_postgis_02(self):
-        await self._test_postgis_geometry(
+    def test_postgis_02(self):
+        self._test_postgis_geometry(
             'multipoint ((1 2), (4 5))',
             b'\x01\x04\x00\x00\x00\x02\x00\x00\x00\x01\x01\x00\x00\x00\x00'
             b'\x00\x00\x00\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\x00@\x01'
@@ -124,7 +124,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x00\x14@',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'multipoint z ((1 2 3), (4 5 6))',
             b'\x01\x04\x00\x00\x80\x02\x00\x00\x00\x01\x01\x00\x00\x80\x00'
             b'\x00\x00\x00\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\x00@\x00'
@@ -133,8 +133,8 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x18@',
         )
 
-    async def test_postgis_03(self):
-        await self._test_postgis_geometry(
+    def test_postgis_03(self):
+        self._test_postgis_geometry(
             'linestring (1 2, 3 4, 5 6)',
             b'\x01\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00'
             b'\xf0?\x00\x00\x00\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x08'
@@ -142,7 +142,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x00\x00\x00\x00\x00\x18@',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             '''polygon (
                 (0 0 0, 4 0 0, 4 4 0, 0 4 0, 0 0 0),
                 (1 1 0, 2 1 0, 2 2 0, 1 2 0, 1 1 0)
@@ -167,7 +167,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x00',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'multilinestring ((0 0, 1 1, 1 2), (2 3, 3 2, 5 4))',
             b'\x01\x05\x00\x00\x00\x02\x00\x00\x00\x01\x02\x00\x00\x00\x03'
             b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -180,7 +180,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x10@',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             '''multipolygon (
                 ((1 5, 5 5, 5 1, 1 1, 1 5)), ((6 5, 9 1, 6 1, 6 5))
             )''',
@@ -198,7 +198,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x00\x00\x00\x18@\x00\x00\x00\x00\x00\x00\x14@',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'geometrycollection ( point(2 3), linestring(2 3, 3 4))',
             b'\x01\x07\x00\x00\x00\x02\x00\x00\x00\x01\x01\x00\x00\x00\x00'
             b'\x00\x00\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x08@'
@@ -207,9 +207,9 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x08@\x00\x00\x00\x00\x00\x00\x10@',
         )
 
-    async def test_postgis_04(self):
+    def test_postgis_04(self):
         # Extended WKB
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             '''polyhedralsurface z (
                 ((0 0 0, 0 0 1, 0 1 1, 0 1 0, 0 0 0)),
                 ((0 0 0, 0 1 0, 1 1 0, 1 0 0, 0 0 0)),
@@ -274,7 +274,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0?',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'triangle ((0 0, 0 9, 9 0, 0 0))',
             b'\x01\x11\x00\x00\x00\x01\x00\x00\x00\x04\x00\x00\x00\x00\x00'
             b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -284,7 +284,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x00',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             '''tin z (
                 ((0 0 0, 0 0 1, 0 1 0, 0 0 0)),
                 ((0 0 0, 0 1 0, 1 1 0, 0 0 0))
@@ -307,9 +307,9 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x00',
         )
 
-    async def test_postgis_05(self):
+    def test_postgis_05(self):
         # Curved geometry: extended WKB
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'circularstring(0 0, 1 1, 1 0)',
             b'\x01\x08\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00'
             b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -317,7 +317,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\x00\x00',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'compoundcurve( circularstring(0 0, 1 1, 1 0),(1 0, 0 1))',
             b'\x01\t\x00\x00\x00\x02\x00\x00\x00\x01\x08\x00\x00\x00\x03'
             b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -329,7 +329,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\xf0?',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             '''curvepolygon(
                 compoundcurve(
                     circularstring(0 0, 2 0, 2 1, 2 3, 4 3),
@@ -357,7 +357,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'3333\xfb?\x00\x00\x00\x00\x00\x00\xf0?',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'multicurve( (0 0, 5 5), circularstring(4 0, 4 4, 8 4))',
             b'\x01\x0b\x00\x00\x00\x02\x00\x00\x00\x01\x02\x00\x00\x00\x02'
             b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -369,7 +369,7 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'\x10@',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             '''multisurface(
                 curvepolygon(
                     circularstring(0 0, 4 0, 4 4, 0 4, 0 0),
@@ -404,35 +404,35 @@ class TestPostgis(tb.SyncQueryTestCase):
             b'&@\x00\x00\x00\x00\x00\x00&@',
         )
 
-    async def test_postgis_06(self):
+    def test_postgis_06(self):
         # Geometry with SRID
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'srid=4; point(1 2)',
             b'\x01\x01\x00\x00 \x04\x00\x00\x00\x00\x00\x00\x00\x00\x00'
             b'\xf0?\x00\x00\x00\x00\x00\x00\x00@',
         )
 
-        await self._test_postgis_geometry(
+        self._test_postgis_geometry(
             'srid=4267; point(1 2)',
             b'\x01\x01\x00\x00 \xab\x10\x00\x00\x00\x00\x00\x00\x00\x00'
             b'\xf0?\x00\x00\x00\x00\x00\x00\x00@',
         )
 
-    async def test_postgis_07(self):
+    def test_postgis_07(self):
         # Geography with SRID
-        await self._test_postgis_geography(
+        self._test_postgis_geography(
             'point(1 2)',
             b'\x01\x01\x00\x00 \xe6\x10\x00\x00\x00\x00\x00\x00\x00\x00'
             b'\xf0?\x00\x00\x00\x00\x00\x00\x00@',
         )
 
-        await self._test_postgis_geography(
+        self._test_postgis_geography(
             'srid=4267; point(1 2)',
             b'\x01\x01\x00\x00 \xab\x10\x00\x00\x00\x00\x00\x00\x00\x00'
             b'\xf0?\x00\x00\x00\x00\x00\x00\x00@',
         )
 
-    async def test_postgis_08(self):
+    def test_postgis_08(self):
         text = 'box(0 1, 2 3)'
         data = (
             b'\x01\x03\x00\x00\x00\x01\x00\x00\x00\x05\x00\x00\x00\x00\x00'
@@ -470,7 +470,7 @@ class TestPostgis(tb.SyncQueryTestCase):
         ''', (Geo(wkb=data), 'ok'))
         self.assertTrue(val)
 
-    async def test_postgis_09(self):
+    def test_postgis_09(self):
         text = 'BOX3D(0 1 5, 2 3 9)'
         data = (
             b'\x01\x0f\x00\x00\x80\x06\x00\x00\x00\x01\x03\x00\x00\x80\x01'
