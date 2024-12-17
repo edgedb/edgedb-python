@@ -2,6 +2,7 @@ import json
 import re
 import collections
 import textwrap
+import warnings
 
 
 INTRO_QUERY = '''
@@ -62,6 +63,10 @@ select m.name;
 CLEAN_NAME = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
 
+class GelORMWarning(Warning):
+    pass
+
+
 def get_sql_name(name):
     # Just remove the module name
     name = name.rsplit('::', 1)[-1]
@@ -80,12 +85,16 @@ def get_mod_and_name(name):
     return name.rsplit('::', 1)
 
 
-def check_name(name):
+def valid_name(name):
     # Just remove module separators and check the rest
     name = name.replace('::', '')
     if not CLEAN_NAME.fullmatch(name):
-        raise RuntimeError(
-            f'Non-alphanumeric names are not supported: {name}')
+        warnings.warn(
+            f'Skipping {name!r}: non-alphanumeric names are not supported',
+            GelORMWarning,
+        )
+        return False
+    return True
 
 
 def get_schema_json(client):
@@ -102,6 +111,23 @@ async def async_get_schema_json(client):
     return _process_links(types, modules)
 
 
+def _skip_invalid_names(spec_list, recurse_into=None):
+    valid = []
+    for spec in spec_list:
+        # skip invalid names
+        if valid_name(spec['name']):
+            if recurse_into is not None:
+                for fname in recurse_into:
+                    if fname not in spec:
+                        continue
+                    spec[fname] = _skip_invalid_names(
+                        spec[fname], recurse_into)
+
+            valid.append(spec)
+
+    return valid
+
+
 def _process_links(types, modules):
     # Figure out all the backlinks, link tables, and links with link
     # properties that require their own intermediate objects.
@@ -110,23 +136,20 @@ def _process_links(types, modules):
     link_objects = []
     prop_objects = []
 
+    # All the names of types, props and links are valid beyond this point.
+    types = _skip_invalid_names(types, ['properties', 'links'])
     for spec in types:
-        check_name(spec['name'])
         type_map[spec['name']] = spec
         spec['backlink_renames'] = {}
-
-        for prop in spec['properties']:
-            check_name(prop['name'])
 
     for spec in types:
         mod = spec["name"].rsplit('::', 1)[0]
         sql_source = get_sql_name(spec["name"])
 
         for prop in spec['properties']:
+            name = prop['name']
             exclusive = prop['exclusive']
             cardinality = prop['cardinality']
-            name = prop['name']
-            check_name(name)
             sql_name = get_sql_name(name)
 
             if cardinality == 'Many':
@@ -158,11 +181,10 @@ def _process_links(types, modules):
 
         for link in spec['links']:
             if link['name'] != '__type__':
+                name = link['name']
                 target = link['target']['name']
                 cardinality = link['cardinality']
                 exclusive = link['exclusive']
-                name = link['name']
-                check_name(name)
                 sql_name = get_sql_name(name)
 
                 objtype = type_map[target]
@@ -175,8 +197,6 @@ def _process_links(types, modules):
                     'has_link_object': False,
                 })
 
-                for prop in link['properties']:
-                    check_name(prop['name'])
 
                 link['has_link_object'] = False
                 # Any link with properties should become its own intermediate

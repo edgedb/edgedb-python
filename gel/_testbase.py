@@ -33,11 +33,12 @@ import sys
 import tempfile
 import time
 import unittest
+import warnings
 
 import gel
 from gel import asyncio_client
 from gel import blocking_client
-from gel.orm.introspection import get_schema_json
+from gel.orm.introspection import get_schema_json, GelORMWarning
 from gel.orm.sqla import ModelGenerator as SQLAModGen
 from gel.orm.django.generator import ModelGenerator as DjangoModGen
 
@@ -646,17 +647,20 @@ class ORMTestCase(SyncQueryTestCase):
         if importlib.util.find_spec("psycopg2") is None:
             raise unittest.SkipTest("need psycopg2 for ORM tests")
 
-        super().setUpClass()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", GelORMWarning)
 
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
-        if not class_set_up:
-            # We'll need a temp directory to setup the generated Python
-            # package
-            cls.tmpormdir = tempfile.TemporaryDirectory()
-            sys.path.append(cls.tmpormdir.name)
-            # Now that the DB is setup, generate the ORM models from it
-            cls.spec = get_schema_json(cls.client)
-            cls.setupORM()
+            super().setUpClass()
+
+            class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
+            if not class_set_up:
+                # We'll need a temp directory to setup the generated Python
+                # package
+                cls.tmpormdir = tempfile.TemporaryDirectory()
+                sys.path.append(cls.tmpormdir.name)
+                # Now that the DB is setup, generate the ORM models from it
+                cls.spec = get_schema_json(cls.client)
+                cls.setupORM()
 
     @classmethod
     def setupORM(cls):

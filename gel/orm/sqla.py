@@ -1,10 +1,11 @@
 import pathlib
 import re
+import warnings
 
 from contextlib import contextmanager
 
 from .introspection import get_sql_name, get_mod_and_name
-from .introspection import FilePrinter
+from .introspection import GelORMWarning, FilePrinter
 
 
 GEL_SCALAR_MAP = {
@@ -134,6 +135,14 @@ class ModelGenerator(FilePrinter):
             mod: {} for mod in sorted(spec['modules'])
         }
 
+        if len(spec['prop_objects']) > 0:
+            warnings.warn(
+                f"Skipping multi properties: SQLAlchemy reflection doesn't "
+                f"support multi properties as they produce models without a "
+                f"clear identity.",
+                GelORMWarning,
+            )
+
         for rec in spec['link_tables']:
             mod = rec['module']
             if 'link_tables' not in modules[mod]:
@@ -145,12 +154,6 @@ class ModelGenerator(FilePrinter):
             if 'link_objects' not in modules[mod]:
                 modules[mod]['link_objects'] = {}
             modules[mod]['link_objects'][lobj['name']] = lobj
-
-        for pobj in spec['prop_objects']:
-            mod = pobj['module']
-            if 'prop_objects' not in modules[mod]:
-                modules[mod]['prop_objects'] = {}
-            modules[mod]['prop_objects'][pobj['name']] = pobj
 
         for rec in spec['object_types']:
             mod, name = get_mod_and_name(rec['name'])
@@ -189,10 +192,6 @@ class ModelGenerator(FilePrinter):
                 for lobj in maps.get('link_objects', {}).values():
                     self.write()
                     self.render_link_object(lobj, modules)
-
-                for pobj in maps.get('prop_objects', {}).values():
-                    self.write()
-                    self.render_prop_object(pobj)
 
                 for rec in maps.get('object_types', {}).values():
                     self.write()
@@ -275,50 +274,6 @@ class ModelGenerator(FilePrinter):
 
         self.dedent()
 
-    def render_prop_object(self, spec):
-        mod = spec['module']
-        name = spec['name']
-        sql_name = spec['table']
-        bklink = sql_name.split('.')[-1]
-
-        self.write()
-        self.write(f'class {name}(Base):')
-        self.indent()
-        self.write(f'__tablename__ = {sql_name!r}')
-        if mod != 'default':
-            self.write(f'__table_args__ = {{"schema": {mod!r}}}')
-        # We rely on Gel for maintaining integrity and various on delete
-        # triggers, so the rows may be deleted in a different way from what
-        # SQLAlchemy expects.
-        self.write('__mapper_args__ = {"confirm_deleted_rows": False}')
-        self.write()
-        # No ids for these intermediate objects
-
-        # Link to the source type (with "backlink" being the original
-        # property)
-        link = spec['links'][0]
-        self.write()
-        self.write('# Links:')
-        tmod, target = get_mod_and_name(link['target']['name'])
-        self.write(f'source_id: Mapped[uuid.UUID] = mapped_column(')
-        self.indent()
-        self.write(f'"source", Uuid(), ForeignKey("{target}.id"),')
-        self.write(f'primary_key=True, nullable=False,')
-        self.dedent()
-        self.write(')')
-        self.write(
-            f'source: Mapped[{target!r}] = '
-            f'relationship(back_populates={bklink!r})'
-        )
-
-        # The target is the actual multi prop
-        prop = spec['properties'][0]
-        self.write()
-        self.write('# Properties:')
-        self.render_prop(prop, mod, name, {}, is_pk=True)
-
-        self.dedent()
-
     def render_type(self, spec, modules):
         # assume nice names for now
         mod, name = get_mod_and_name(spec['name'])
@@ -384,8 +339,12 @@ class ModelGenerator(FilePrinter):
         try:
             pytype, sqlatype = GEL_SCALAR_MAP[target]
         except KeyError:
-            raise RuntimeError(
-                f'Scalar type {target} is not supported')
+            warnings.warn(
+                f'Scalar type {target} is not supported',
+                GelORMWarning,
+            )
+            # Skip rendering this one
+            return
 
         if is_pk:
             # special case of a primary key property (should only happen to
@@ -395,22 +354,8 @@ class ModelGenerator(FilePrinter):
                 f'{sqlatype}(), primary_key=True, nullable=False)'
             )
         elif cardinality == 'Many':
-            # multi property (treated as a link)
-            propobj = modules[mod]['prop_objects'][f'{parent}_{name}_prop']
-            target = propobj['name']
-
-            if cardinality == 'One':
-                tmap = f'Mapped[{target!r}]'
-            elif cardinality == 'Many':
-                tmap = f'Mapped[List[{target!r}]]'
-            # We want the cascade to delete orphans here as the objects
-            # represent property leaves
-            self.write(f'{name}: {tmap} = relationship(')
-            self.indent()
-            self.write(f"back_populates='source',")
-            self.write(f"cascade='all, delete-orphan',")
-            self.dedent()
-            self.write(')')
+            # skip it
+            return
 
         else:
             # plain property

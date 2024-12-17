@@ -18,11 +18,12 @@
 
 
 import argparse
+import warnings
 
 import gel
 
 from gel.codegen.generator import _get_conn_args
-from .introspection import get_schema_json
+from .introspection import get_schema_json, GelORMWarning
 from .sqla import ModelGenerator as SQLAModGen
 from .django.generator import ModelGenerator as DjangoModGen
 
@@ -73,8 +74,15 @@ def main():
     args = parser.parse_args()
     # setup client
     client = gel.create_client(**_get_conn_args(args))
-    spec = get_schema_json(client)
-    generate_models(args, spec)
+
+    with warnings.catch_warnings(record=True) as wlist:
+        warnings.simplefilter("always", GelORMWarning)
+
+        spec = get_schema_json(client)
+        generate_models(args, spec)
+
+        for w in wlist:
+            print(w.message)
 
 
 def generate_models(args, spec):
