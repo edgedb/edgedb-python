@@ -97,6 +97,9 @@ def _start_cluster(*, cleanup_atexit=True):
 
         gel_server = env.get('EDGEDB_SERVER_BINARY', 'edgedb-server')
 
+        if env.get('EDGEDB_SERVER_BINARY') is None and env.get('CI') is None:
+            env['__EDGEDB_DEVMODE'] = '1'
+
         version_args = [gel_server, '--version']
         if sys.platform == 'win32':
             version_args = ['wsl', '-u', 'edgedb'] + version_args

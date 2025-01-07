@@ -463,6 +463,10 @@ cdef class SansIOProtocol:
         if exc is not None:
             raise exc
         else:
+            if ctx.output_format == OutputFormat.NONE:
+                assert ctx.out_dc == NULL_CODEC
+                assert result == []
+
             return result
 
     cdef encode_state(self, state):

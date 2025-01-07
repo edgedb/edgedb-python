@@ -1166,3 +1166,5 @@ class TestAsyncQuery(tb.AsyncQueryTestCase):
 
         res = await self.client.query_sql("SELECT FROM generate_series(0, 1)")
         self.assertEqual(res[0].as_dict(), {})
+
+        await self.client.execute_sql("SELECT 1")
