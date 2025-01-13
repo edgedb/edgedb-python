@@ -9,7 +9,59 @@
 # CLIP into the interface and use it to generate and store image embeddings.
 #
 
+import gel
 from typing import TypeVar, Any
+from jinja2 import Template
+
+
+ADD_QUERY = Template(
+    """
+select (
+    insert {{record_type}} {
+        collection := <str>$collection_name,
+        text := <str>$text,
+        embedding := <array<float32>>$embedding,
+        metadata := <json>$metadata,
+    }
+)
+""".strip()
+)
+
+
+DELETE_BY_IDS_QUERY = Template(
+    """
+with collection_records := (select {{record_type}} filter .collection = <str>$collection_name)
+delete {{record_type}}
+filter .id in array_unpack(<array<str>>$ids);
+"""
+)
+
+
+SEARCH_QUERY = Template(
+    """
+with collection_records := (select {{record_type}} filter .collection = <str>$collection_name)
+select collection_records {
+    text,
+    embedding,
+    metadata,
+    cosine_similarity := 1 - ext::pgvector::cosine_distance(
+        .embedding, <ext::pgvector::vector>$query_embedding),
+}
+order by .cosine_similarity desc empty last
+limit <optional int64>$limit;
+"""
+)
+
+GET_BY_IDS_QUERY = Template(
+    """
+select {{record_type}} {
+    text,
+    embedding,
+    metadata,
+}
+filter .id in array_unpack(<array<str>>$ids);
+"""
+)
 
 
 class BaseEmbeddingModel:
@@ -46,6 +98,19 @@ class GelVectorstore:
         collection_name: str = "default",
         record_type: str = "ext::ai::DefaultRecord",
     ):
+        self.embedding_model = embedding_model
+        self.collection_name = collection_name
+        self.record_type = record_type
+
+        self._add_query = ADD_QUERY.render(self.record_type)
+        self._delete_query = DELETE_BY_IDS_QUERY.render(self.record_type)
+        self._search_query = SEARCH_QUERY.render(self.record_type)
+        self._get_query = GET_BY_IDS_QUERY.render(self.record_type)
+
+        self.gel_client = gel.create_client()
+        raise NotImplementedError
+
+    def verify_schema(self):
         raise NotImplementedError
 
     def add_item(self, item: Any, metadata: dict[str, Any]) -> str:
@@ -55,26 +120,45 @@ class GelVectorstore:
 
         Returns the UUID of the inserted object.
         """
-        raise NotImplementedError
+        vector = self.embedding_model(item)
+        return self.add_vector(vector=vector, raw_data=item, metadata=metadata)
 
-    def add_vector(self, vector: list[float], metadata: dict[str, Any]) -> str:
+    def add_vector(
+        self, vector: list[float], raw_data: str, metadata: dict[str, Any]
+    ) -> str:
         """
         Add a new record. The vectorstore is going to store the provided vector as is,
         as long as its dimensions match those configured in the schema.
         """
-        raise NotImplementedError
+
+        result = self.gel_client.query(
+            query=self._add_query,
+            collection_name=self.collection_name,
+            text=raw_data,
+            embedding=vector,
+            metadata=metadata,
+        )
+        return result
 
     def delete(self, ids: list[str]) -> list[dict[str, Any]]:
         """
         Delete records by id. Return a list of deleted records, mirroring Gel's behaviour.
         """
-        raise NotImplementedError
+        return self.gel_client.query(
+            query=self._delete_query,
+            collection_name=self.collection_name,
+            ids=ids,
+        )
 
-    def get_by_id(self, id) -> dict[str, Any]:
+    def get_by_ids(self, ids: list[str]) -> dict[str, Any]:
         """
         Get a record by its id.
         """
-        raise NotImplementedError
+        return self.gel_client.query(
+            query=self._get_query,
+            collection_name=self.collection_name,
+            ids=ids,
+        )
 
     def search_by_item(
         self,
@@ -86,7 +170,10 @@ class GelVectorstore:
         Create an embedding for the provided item using the embedding_model,
         then perform a similarity search.
         """
-        raise NotImplementedError
+        vector = self.embedding_model(item)
+        return self.search_by_vector(
+            vector=vector, metadata_filter=metadata_filter, limit=limit
+        )
 
     def search_by_vector(
         self,
@@ -97,4 +184,9 @@ class GelVectorstore:
         """
         Perform a similarity search.
         """
-        raise NotImplementedError
+        result = self._search_query(
+            collection_name=self.collection_name,
+            query_embedding=vector,
+            limit=limit,
+        )
+        return result
