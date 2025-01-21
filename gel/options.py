@@ -52,6 +52,7 @@ class RetryCondition:
 class IsolationLevel:
     """Isolation level for transaction"""
     Serializable = "SERIALIZABLE"
+    RepeatableRead = "REPEATABLE READ"
 
 
 class RetryOptions:
