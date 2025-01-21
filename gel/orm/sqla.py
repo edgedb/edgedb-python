@@ -256,7 +256,7 @@ class ModelGenerator(FilePrinter):
                     src = modules[mod]['object_types'][source_name]
                     bklink = src['backlink_renames'].get(
                         source_link,
-                        f'backlink_via_{source_link}',
+                        f'back_to_{source_name}',
                     )
 
                 self.write(
@@ -303,7 +303,7 @@ class ModelGenerator(FilePrinter):
         self.write(f'gel_type_id: Mapped[uuid.UUID] = mapped_column(')
         self.indent()
         self.write(
-            f"'__type__', Uuid(), unique=True, server_default='PLACEHOLDER')")
+            f"'__type__', Uuid(), server_default='PLACEHOLDER')")
         self.dedent()
 
         if spec['properties']:
@@ -370,7 +370,7 @@ class ModelGenerator(FilePrinter):
         tmod, target = get_mod_and_name(spec['target']['name'])
         source = modules[mod]['object_types'][parent]
         cardinality = spec['cardinality']
-        bklink = source['backlink_renames'].get(name, f'backlink_via_{name}')
+        bklink = source['backlink_renames'].get(name, f'back_to_{parent}')
 
         if spec.get('has_link_object'):
             # intermediate object will have the actual source and target
@@ -437,7 +437,7 @@ class ModelGenerator(FilePrinter):
         tmod, target = get_mod_and_name(spec['target']['name'])
         cardinality = spec['cardinality']
         exclusive = spec['exclusive']
-        bklink = spec.get('fwname', name.replace('backlink_via_', '', 1))
+        bklink = spec['fwname']
 
         if spec.get('has_link_object'):
             # intermediate object will have the actual source and target
