@@ -57,6 +57,7 @@ TEST_DEPENDENCIES = [
 # want to test them for the versions where they are avaialable.
 SQLTEST_DEPENDENCIES = [
     'SQLAlchemy>=2.0.0',
+    'sqlmodel>=0.0.22',
     'Django>=5.1.3',
     'psycopg2-binary>=2.9.10',
 ]
