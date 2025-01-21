@@ -71,8 +71,8 @@ class ModelClass(object):
     def table(self):
         return self.meta['db_table'].strip("'")
 
-    def get_backlink_name(self, name):
-        return self.backlink_renames.get(name, f'backlink_via_{name}')
+    def get_backlink_name(self, name, srcname):
+        return self.backlink_renames.get(name, f'back_to_{srcname}')
 
 
 class ModelGenerator(FilePrinter):
@@ -140,7 +140,7 @@ class ModelGenerator(FilePrinter):
                     continue
 
                 lname = link['name']
-                bklink = mod.get_backlink_name(lname)
+                bklink = mod.get_backlink_name(lname, name)
                 code = self.render_link(link, bklink)
                 if code:
                     mod.links[lname] = code
@@ -177,7 +177,7 @@ class ModelGenerator(FilePrinter):
             # ManyToManyField.
             src = modmap[source]
             tgt = modmap[target]
-            bkname = src.get_backlink_name(fwname)
+            bkname = src.get_backlink_name(fwname, source)
             src.mlinks[fwname] = (
                 f'models.ManyToManyField('
                 f'{tgt.name!r}, '

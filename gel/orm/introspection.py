@@ -189,7 +189,8 @@ def _process_links(types, modules):
 
                 objtype = type_map[target]
                 objtype['backlinks'].append({
-                    'name': f'backlink_via_{sql_name}',
+                    'name': f'back_to_{sql_source}',
+                    'fwname': sql_name,
                     # flip cardinality and exclusivity
                     'cardinality': 'One' if exclusive else 'Many',
                     'exclusive': cardinality == 'One',
@@ -239,7 +240,7 @@ def _process_links(types, modules):
         # Find collisions in backlink names
         bk = collections.defaultdict(list)
         for link in spec['backlinks']:
-            if link['name'].startswith('backlink_via_'):
+            if link['name'].startswith('back_to_'):
                 bk[link['name']].append(link)
 
         for bklinks in bk.values():
@@ -249,12 +250,11 @@ def _process_links(types, modules):
                 for link in bklinks:
                     origsrc = get_sql_name(link['target']['name'])
                     lname = link['name']
-                    link['name'] = f'{lname}_from_{origsrc}'
+                    fwname = link['fwname']
+                    link['name'] = f'follow_{fwname}_{lname}'
                     # Also update the original source of the link with the
                     # special backlink name.
                     source = type_map[link['target']['name']]
-                    fwname = lname.replace('backlink_via_', '', 1)
-                    link['fwname'] = fwname
                     source['backlink_renames'][fwname] = link['name']
 
     return {

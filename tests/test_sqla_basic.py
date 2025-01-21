@@ -111,7 +111,7 @@ class TestSQLABasic(tb.SQLATestCase):
         # use backlink
         res = self.sess.query(self.sm.User).order_by(self.sm.User.name).all()
         vals = [
-            (u.name, {p.body for p in u.backlink_via_author})
+            (u.name, {p.body for p in u.back_to_Post})
             for u in res
         ]
         self.assertEqual(
@@ -147,13 +147,13 @@ class TestSQLABasic(tb.SQLATestCase):
         # join via backlink
         res = self.sess.execute(
             select(self.sm.Post, self.sm.User)
-            .join(self.sm.User.backlink_via_author)
+            .join(self.sm.User.back_to_Post)
             .order_by(self.sm.Post.body)
         )
         # We'll get a cross-product, so we need to jump through some hoops to
         # remove duplicates
         vals = {
-            (u.name, tuple(p.body for p in u.backlink_via_author))
+            (u.name, tuple(p.body for p in u.back_to_Post))
             for (_, u) in res
         }
         self.assertEqual(
@@ -168,11 +168,11 @@ class TestSQLABasic(tb.SQLATestCase):
         # LEFT OUTER join via backlink
         res = self.sess.execute(
             select(self.sm.Post, self.sm.User)
-            .join(self.sm.User.backlink_via_author, isouter=True)
+            .join(self.sm.User.back_to_Post, isouter=True)
             .order_by(self.sm.Post.body)
         )
         vals = {
-            (u.name, tuple(p.body for p in u.backlink_via_author))
+            (u.name, tuple(p.body for p in u.back_to_Post))
             for (p, u) in res
         }
         self.assertEqual(
@@ -207,7 +207,7 @@ class TestSQLABasic(tb.SQLATestCase):
         # use backlink
         res = self.sess.query(self.sm.User).all()
         vals = {
-            (u.name, tuple(g.num for g in u.backlink_via_players))
+            (u.name, tuple(g.num for g in u.back_to_GameSession))
             for u in res
         }
         self.assertEqual(
@@ -246,10 +246,10 @@ class TestSQLABasic(tb.SQLATestCase):
         # LEFT OUTER join via backlink
         res = self.sess.execute(
             select(self.sm.GameSession, self.sm.User)
-            .join(self.sm.User.backlink_via_players, isouter=True)
+            .join(self.sm.User.back_to_GameSession, isouter=True)
         )
         vals = {
-            (u.name, tuple(g.num for g in u.backlink_via_players))
+            (u.name, tuple(g.num for g in u.back_to_GameSession))
             for (_, u) in res
         }
         self.assertEqual(
@@ -285,7 +285,7 @@ class TestSQLABasic(tb.SQLATestCase):
         # use backlink
         res = self.sess.query(self.sm.User).order_by(self.sm.User.name).all()
         vals = [
-            (u.name, {g.name for g in u.backlink_via_users})
+            (u.name, {g.name for g in u.back_to_UserGroup})
             for u in res
         ]
         self.assertEqual(
@@ -326,10 +326,10 @@ class TestSQLABasic(tb.SQLATestCase):
         # LEFT OUTER join via backlink
         res = self.sess.execute(
             select(self.sm.UserGroup, self.sm.User)
-            .join(self.sm.User.backlink_via_users, isouter=True)
+            .join(self.sm.User.back_to_UserGroup, isouter=True)
         )
         vals = {
-            (u.name, tuple(sorted(g.name for g in u.backlink_via_users)))
+            (u.name, tuple(sorted(g.name for g in u.back_to_UserGroup)))
             for (_, u) in res
         }
         self.assertEqual(
@@ -371,7 +371,7 @@ class TestSQLABasic(tb.SQLATestCase):
             user = self.sess.query(self.sm.User).filter_by(name=name).one()
 
             self.assertEqual(user.name, name)
-            self.assertEqual(user.backlink_via_users[0].name, 'cyan')
+            self.assertEqual(user.back_to_UserGroup[0].name, 'cyan')
             self.assertIsInstance(user.id, uuid.UUID)
 
     def test_sqla_create_models_03(self):
@@ -379,8 +379,8 @@ class TestSQLABasic(tb.SQLATestCase):
         user1 = self.sm.User(name='Xander')
         cyan = self.sm.UserGroup(name='cyan')
 
-        user0.backlink_via_users.append(cyan)
-        user1.backlink_via_users.append(cyan)
+        user0.back_to_UserGroup.append(cyan)
+        user1.back_to_UserGroup.append(cyan)
 
         self.sess.add(cyan)
         self.sess.flush()
@@ -389,7 +389,7 @@ class TestSQLABasic(tb.SQLATestCase):
             user = self.sess.query(self.sm.User).filter_by(name=name).one()
 
             self.assertEqual(user.name, name)
-            self.assertEqual(user.backlink_via_users[0].name, 'cyan')
+            self.assertEqual(user.back_to_UserGroup[0].name, 'cyan')
             self.assertIsInstance(user.id, uuid.UUID)
 
     def test_sqla_create_models_04(self):
@@ -528,13 +528,13 @@ class TestSQLABasic(tb.SQLATestCase):
         self.sess.flush()
 
         self.assertEqual(
-            {g.name for g in user.backlink_via_users},
+            {g.name for g in user.back_to_UserGroup},
             {'red', 'blue'},
         )
         self.assertEqual(user.name, 'Yvonne')
         self.assertIsInstance(user.id, uuid.UUID)
 
-        group = [g for g in user.backlink_via_users if g.name == 'red'][0]
+        group = [g for g in user.back_to_UserGroup if g.name == 'red'][0]
         self.assertEqual(
             {u.name for u in group.users},
             {'Alice', 'Billie', 'Cameron', 'Dana', 'Yvonne'},
@@ -544,7 +544,7 @@ class TestSQLABasic(tb.SQLATestCase):
         user0 = self.sess.query(self.sm.User).filter_by(name='Elsa').one()
         user1 = self.sess.query(self.sm.User).filter_by(name='Zoe').one()
         # Replace the author or a post
-        post = user0.backlink_via_author[0]
+        post = user0.back_to_Post[0]
         body = post.body
         post.author = user1
 
