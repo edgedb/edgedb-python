@@ -20,7 +20,7 @@
 import sys
 
 if sys.version_info < (3, 8):
-    raise RuntimeError('edgedb requires Python 3.8 or greater')
+    raise RuntimeError('gel requires Python 3.8 or greater')
 
 import os
 import os.path
@@ -161,7 +161,7 @@ class sdist(setuptools_sdist.sdist, VersionMixin):
 
     def make_release_tree(self, base_dir, files):
         super().make_release_tree(base_dir, files)
-        self._fix_version(pathlib.Path(base_dir) / 'edgedb' / '_version.py')
+        self._fix_version(pathlib.Path(base_dir) / 'gel' / '_version.py')
 
 
 class build_py(setuptools_build_py.build_py, VersionMixin):
@@ -169,7 +169,7 @@ class build_py(setuptools_build_py.build_py, VersionMixin):
     def build_module(self, module, module_file, package):
         outfile, copied = super().build_module(module, module_file, package)
 
-        if module == '_version' and package == 'edgedb':
+        if module == '_version' and package == 'gel':
             self._fix_version(outfile)
 
         return outfile, copied
@@ -243,13 +243,13 @@ class build_ext(distutils_build_ext.build_ext):
                 import Cython
             except ImportError:
                 raise RuntimeError(
-                    'please install {} to compile edgedb from source'.format(
+                    'please install {} to compile gel from source'.format(
                         CYTHON_DEPENDENCY))
 
             cython_dep = pkg_resources.Requirement.parse(CYTHON_DEPENDENCY)
             if Cython.__version__ not in cython_dep:
                 raise RuntimeError(
-                    'edgedb requires {}, got Cython=={}'.format(
+                    'gel requires {}, got Cython=={}'.format(
                         CYTHON_DEPENDENCY, Cython.__version__
                     ))
 
@@ -284,7 +284,7 @@ INCLUDE_DIRS = [
 
 setup_requires = []
 
-if (not (_ROOT / 'edgedb' / 'protocol' / 'protocol.c').exists() or
+if (not (_ROOT / 'gel' / 'protocol' / 'protocol.c').exists() or
         '--cython-always' in sys.argv):
     # No Cython output, require Cython to build.
     setup_requires.append(CYTHON_DEPENDENCY)
@@ -295,9 +295,9 @@ with open(str(_ROOT / 'README.rst')) as f:
 
 
 setuptools.setup(
-    name='edgedb',
+    name='gel',
     version=VERSION,
-    description='EdgeDB Python driver',
+    description='Gel Python driver',
     long_description=readme,
     platforms=['macOS', 'POSIX', 'Windows'],
     author='MagicStack Inc',
