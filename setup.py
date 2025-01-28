@@ -367,6 +367,7 @@ setuptools.setup(
             "edgedb-py=gel.codegen.cli:main",
             "gel-py=gel.codegen.cli:main",
             "gel-orm=gel.orm.cli:main",
+            "gel=gel.cli:main",
         ]
     }
 )
