@@ -9,46 +9,62 @@ from .introspection import GelORMWarning, FilePrinter
 
 
 GEL_SCALAR_MAP = {
-    'std::bool': ('bool', 'Boolean'),
-    'std::str': ('str', 'String'),
-    'std::int16': ('int', 'Integer'),
-    'std::int32': ('int', 'Integer'),
-    'std::int64': ('int', 'Integer'),
-    'std::float32': ('float', 'Float'),
-    'std::float64': ('float', 'Float'),
-    'std::uuid': ('uuid.UUID', 'Uuid'),
+    'std::bool': ('bool', 'sa.Boolean'),
+    'std::str': ('str', 'sa.String'),
+    'std::int16': ('int', 'sa.Integer'),
+    'std::int32': ('int', 'sa.Integer'),
+    'std::int64': ('int', 'sa.Integer'),
+    'std::float32': ('float', 'sa.Float'),
+    'std::float64': ('float', 'sa.Float'),
+    'std::uuid': ('uuid.UUID', 'sa.Uuid'),
+    'std::bytes': ('bytes', 'sa.LargeBinary'),
+    'std::cal::local_date': ('datetime.date', 'sa.Date'),
+    'std::cal::local_time': ('datetime.time', 'sa.Time'),
+    'std::cal::local_datetime': ('datetime.datetime', 'sa.DateTime'),
+    'std::datetime': ('datetime.datetime', 'sa.TIMESTAMP'),
 }
 
-CLEAN_RE = re.compile(r'[^A-Za-z0-9]+')
+ARRAY_RE = re.compile(r'^array<(?P<el>.+)>$')
+NAME_RE = re.compile(r'^(?P<alpha>\w+?)(?P<num>\d*)$')
 
 COMMENT = '''\
 #
 # Automatically generated from Gel schema.
+#
+# Do not edit directly as re-generating this file will overwrite any changes.
 #\
 '''
 
 BASE_STUB = f'''\
 {COMMENT}
 
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import orm as orm
 
 
-class Base(DeclarativeBase):
+class Base(orm.DeclarativeBase):
     pass\
 '''
 
 MODELS_STUB = f'''\
 {COMMENT}
 
+import datetime
 import uuid
 
-from typing import List
-from typing import Optional
+from typing import List, Optional
 
-from sqlalchemy import MetaData, Table, Column, ForeignKey
-from sqlalchemy import String, Uuid, Integer, Float, Boolean
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+import sqlalchemy as sa
+from sqlalchemy import orm as orm
 '''
+
+
+def field_name_sort(spec):
+    key = spec['name']
+
+    match = NAME_RE.fullmatch(key)
+    res = (match.group('alpha'), int(match.group('num') or -1))
+
+    return res
 
 
 class ModelGenerator(FilePrinter):
@@ -118,9 +134,9 @@ class ModelGenerator(FilePrinter):
     def get_fk(self, mod, table, curmod):
         if mod == curmod:
             # No need for anything fancy within the same schema
-            return f'ForeignKey("{table}.id")'
+            return f'sa.ForeignKey("{table}.id")'
         else:
-            return f'ForeignKey("{mod}.{table}.id")'
+            return f'sa.ForeignKey("{mod}.{table}.id")'
 
     def get_py_name(self, mod, name, curmod):
         if False and mod == curmod:
@@ -179,7 +195,8 @@ class ModelGenerator(FilePrinter):
             self.write(MODELS_STUB)
             self.write(f'from ._sqlabase import Base')
 
-            for rec in spec['link_tables']:
+            link_tables = sorted(spec['link_tables'], key=lambda x: x['name'])
+            for rec in link_tables:
                 self.write()
                 self.render_link_table(rec)
 
@@ -189,11 +206,19 @@ class ModelGenerator(FilePrinter):
                     # skip apparently empty modules
                     continue
 
-                for lobj in maps.get('link_objects', {}).values():
+                link_objects = sorted(
+                    maps.get('link_objects', {}).values(),
+                    key=lambda x: x['name'],
+                )
+                for lobj in link_objects:
                     self.write()
                     self.render_link_object(lobj, modules)
 
-                for rec in maps.get('object_types', {}).values():
+                object_types = sorted(
+                    maps.get('object_types', {}).values(),
+                    key=lambda x: x['name'],
+                )
+                for rec in object_types:
                     self.write()
                     self.render_type(rec, modules)
 
@@ -204,13 +229,13 @@ class ModelGenerator(FilePrinter):
         t_fk = self.get_fk(tmod, target, 'default')
 
         self.write()
-        self.write(f'{spec["name"]} = Table(')
+        self.write(f'{spec["name"]} = sa.Table(')
         self.indent()
         self.write(f'{spec["table"]!r},')
         self.write(f'Base.metadata,')
         # source is in the same module as this table
-        self.write(f'Column("source", {s_fk}),')
-        self.write(f'Column("target", {t_fk}),')
+        self.write(f'sa.Column("source", {s_fk}),')
+        self.write(f'sa.Column("target", {t_fk}),')
         self.write(f'schema={mod!r},')
         self.dedent()
         self.write(f')')
@@ -243,10 +268,13 @@ class ModelGenerator(FilePrinter):
                 tmod, target = get_mod_and_name(link['target']['name'])
                 fk = self.get_fk(tmod, target, mod)
                 pyname = self.get_py_name(tmod, target, mod)
-                self.write(f'{lname}_id: Mapped[uuid.UUID] = mapped_column(')
+                self.write(f'{lname}_id: orm.Mapped[uuid.UUID] = orm.mapped_column(')
                 self.indent()
-                self.write(f'{lname!r}, Uuid(), {fk},')
-                self.write(f'primary_key=True, nullable=False,')
+                self.write(f'{lname!r},')
+                self.write(f'sa.Uuid(),')
+                self.write(f'{fk},')
+                self.write(f'primary_key=True,')
+                self.write(f'nullable=False,')
                 self.dedent()
                 self.write(')')
 
@@ -260,8 +288,8 @@ class ModelGenerator(FilePrinter):
                     )
 
                 self.write(
-                    f'{lname}: Mapped[{pyname}] = '
-                    f'relationship(back_populates={bklink!r})'
+                    f'{lname}: orm.Mapped[{pyname}] = '
+                    f'orm.relationship(back_populates={bklink!r})'
                 )
 
         if spec['properties']:
@@ -292,25 +320,30 @@ class ModelGenerator(FilePrinter):
         self.write()
 
         # Add two fields that all objects have
-        self.write(f'id: Mapped[uuid.UUID] = mapped_column(')
+        self.write(f'id: orm.Mapped[uuid.UUID] = orm.mapped_column(')
         self.indent()
-        self.write(
-            f"Uuid(), primary_key=True, server_default='uuid_generate_v4()')")
+        self.write(f"sa.Uuid(),")
+        self.write(f"primary_key=True,")
+        self.write(f"server_default='uuid_generate_v4()',")
         self.dedent()
+        self.write(f')')
 
         # This is maintained entirely by Gel, the server_default simply
         # indicates to SQLAlchemy that this value may be omitted.
-        self.write(f'gel_type_id: Mapped[uuid.UUID] = mapped_column(')
+        self.write(f'gel_type_id: orm.Mapped[uuid.UUID] = orm.mapped_column(')
         self.indent()
-        self.write(
-            f"'__type__', Uuid(), server_default='PLACEHOLDER')")
+        self.write(f"'__type__',")
+        self.write(f"sa.Uuid(),")
+        self.write(f"server_default='PLACEHOLDER',")
         self.dedent()
+        self.write(f")")
 
         if spec['properties']:
             self.write()
             self.write('# Properties:')
 
-            for prop in spec['properties']:
+            properties = sorted(spec['properties'], key=field_name_sort)
+            for prop in properties:
                 if prop['name'] != 'id':
                     self.render_prop(prop, mod, name, modules)
 
@@ -318,14 +351,16 @@ class ModelGenerator(FilePrinter):
             self.write()
             self.write('# Links:')
 
-            for link in spec['links']:
+            links = sorted(spec['links'], key=field_name_sort)
+            for link in links:
                 self.render_link(link, mod, name, modules)
 
         if spec['backlinks']:
             self.write()
             self.write('# Back-links:')
 
-            for link in spec['backlinks']:
+            backlinks = sorted(spec['backlinks'], key=field_name_sort)
+            for link in backlinks:
                 self.render_backlink(link, mod, modules)
 
         self.dedent()
@@ -336,8 +371,15 @@ class ModelGenerator(FilePrinter):
         cardinality = spec['cardinality']
 
         target = spec['target']['name']
+        is_array = False
+        match = ARRAY_RE.fullmatch(target)
+        if match:
+            is_array = True
+            target = match.group('el')
+
         try:
             pytype, sqlatype = GEL_SCALAR_MAP[target]
+            sqlatype = sqlatype + '()'
         except KeyError:
             warnings.warn(
                 f'Scalar type {target} is not supported',
@@ -346,23 +388,29 @@ class ModelGenerator(FilePrinter):
             # Skip rendering this one
             return
 
+        if is_array:
+            pytype = f'List[{pytype}]'
+            sqlatype = f'sa.ARRAY({sqlatype})'
+
         if is_pk:
             # special case of a primary key property (should only happen to
             # 'target' in multi property table)
-            self.write(
-                f'{name}: Mapped[{pytype}] = mapped_column('
-                f'{sqlatype}(), primary_key=True, nullable=False)'
-            )
+            self.write(f'{name}: orm.Mapped[{pytype}] = orm.mapped_column(')
+            self.indent()
+            self.write(f'{sqlatype}, primary_key=True, nullable=False,')
+            self.dedent()
+            self.write(f')')
         elif cardinality == 'Many':
             # skip it
             return
 
         else:
             # plain property
-            self.write(
-                f'{name}: Mapped[{pytype}] = '
-                f'mapped_column({sqlatype}(), nullable={nullable})'
-            )
+            self.write(f'{name}: orm.Mapped[{pytype}] = orm.mapped_column(')
+            self.indent()
+            self.write(f'{sqlatype}, nullable={nullable},')
+            self.dedent()
+            self.write(f')')
 
     def render_link(self, spec, mod, parent, modules):
         name = spec['name']
@@ -383,22 +431,22 @@ class ModelGenerator(FilePrinter):
 
             if cardinality == 'One':
                 self.write(
-                    f'{name}: Mapped[{pyname}] = '
-                    f"relationship(back_populates='source')"
+                    f'{name}: orm.Mapped[{pyname}] = '
+                    f"orm.relationship(back_populates='source')"
                 )
             elif cardinality == 'Many':
                 self.write(
-                    f'{name}: Mapped[List[{pyname}]] = '
-                    f"relationship(back_populates='source')"
+                    f'{name}: orm.Mapped[List[{pyname}]] = '
+                    f"orm.relationship(back_populates='source')"
                 )
 
             if cardinality == 'One':
-                tmap = f'Mapped[{pyname}]'
+                tmap = f'orm.Mapped[{pyname}]'
             elif cardinality == 'Many':
-                tmap = f'Mapped[List[{pyname}]]'
+                tmap = f'orm.Mapped[List[{pyname}]]'
             # We want the cascade to delete orphans here as the intermediate
             # objects represent links and must not exist without source.
-            self.write(f'{name}: {tmap} = relationship(')
+            self.write(f'{name}: {tmap} = orm.relationship(')
             self.indent()
             self.write(f"back_populates='source',")
             self.write(f"cascade='all, delete-orphan',")
@@ -411,26 +459,29 @@ class ModelGenerator(FilePrinter):
 
             if cardinality == 'One':
                 self.write(
-                    f'{name}_id: Mapped[uuid.UUID] = '
-                    f'mapped_column(Uuid(), '
-                    f'{fk}, nullable={nullable})'
-                )
-                self.write(
-                    f'{name}: Mapped[{pyname}] = '
-                    f'relationship(back_populates={bklink!r})'
-                )
+                    f'{name}_id: orm.Mapped[uuid.UUID] = orm.mapped_column(')
+                self.indent()
+                self.write(f'sa.Uuid(), {fk}, nullable={nullable},')
+                self.dedent()
+                self.write(f')')
+
+                self.write(f'{name}: orm.Mapped[{pyname}] = orm.relationship(')
+                self.indent()
+                self.write(f'back_populates={bklink!r},')
+                self.dedent()
+                self.write(f')')
 
             elif cardinality == 'Many':
                 secondary = f'{parent}_{name}_table'
+
                 self.write(
-                    f'{name}: Mapped[List[{pyname}]] = relationship(')
+                    f'{name}: orm.Mapped[List[{pyname}]] = orm.relationship(')
                 self.indent()
-                self.write(
-                    f'{pyname}, secondary={secondary}, '
-                    f'back_populates={bklink!r},'
-                )
+                self.write(f'{pyname},')
+                self.write(f'secondary={secondary},')
+                self.write(f'back_populates={bklink!r},')
                 self.dedent()
-                self.write(')')
+                self.write(f')')
 
     def render_backlink(self, spec, mod, modules):
         name = spec['name']
@@ -449,12 +500,12 @@ class ModelGenerator(FilePrinter):
             pyname = self.get_py_name(tmod, target, mod)
 
             if cardinality == 'One':
-                tmap = f'Mapped[{pyname}]'
+                tmap = f'orm.Mapped[{pyname}]'
             elif cardinality == 'Many':
-                tmap = f'Mapped[List[{pyname}]]'
+                tmap = f'orm.Mapped[List[{pyname}]]'
             # We want the cascade to delete orphans here as the intermediate
             # objects represent links and must not exist without target.
-            self.write(f'{name}: {tmap} = relationship(')
+            self.write(f'{name}: {tmap} = orm.relationship(')
             self.indent()
             self.write(f"back_populates='target',")
             self.write(f"cascade='all, delete-orphan',")
@@ -467,25 +518,29 @@ class ModelGenerator(FilePrinter):
                 # This is a backlink from a single link. There is no link table
                 # involved.
                 if cardinality == 'One':
-                    self.write(
-                        f'{name}: Mapped[{pyname}] = '
-                        f'relationship(back_populates={bklink!r})'
-                    )
+                    self.write(f'{name}: orm.Mapped[{pyname}] = \\')
+                    self.indent()
+                    self.write(f'orm.relationship(back_populates={bklink!r})')
+                    self.dedent()
+
                 elif cardinality == 'Many':
-                    self.write(
-                        f'{name}: Mapped[List[{pyname}]] = '
-                        f'relationship(back_populates={bklink!r})'
-                    )
+                    self.write(f'{name}: orm.Mapped[List[{pyname}]] = \\')
+                    self.indent()
+                    self.write(f'orm.relationship(back_populates={bklink!r})')
+                    self.dedent()
 
             else:
                 # This backlink involves a link table, so we still treat it as
                 # a Many-to-Many.
                 secondary = f'{target}_{bklink}_table'
-                self.write(f'{name}: Mapped[List[{pyname}]] = relationship(')
+
+                self.write(f'{name}: orm.Mapped[List[{pyname}]] = \\')
                 self.indent()
-                self.write(
-                    f'{pyname}, secondary={secondary}, '
-                    f'back_populates={bklink!r},'
-                )
+                self.write(f'orm.relationship(')
+                self.indent()
+                self.write(f'{pyname},')
+                self.write(f'secondary={secondary},')
+                self.write(f'back_populates={bklink!r},')
                 self.dedent()
                 self.write(')')
+                self.dedent()

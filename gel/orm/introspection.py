@@ -31,7 +31,7 @@ select ObjectType {
             ),
             target: {name},
         },
-    } filter .name != '__type__',
+    } filter .name != '__type__' and not exists .expr,
     properties: {
         name,
         readonly,
@@ -42,7 +42,7 @@ select ObjectType {
             filter .name = 'std::exclusive'
         ),
         target: {name},
-    },
+    } filter not exists .expr,
     backlinks := <array<str>>[],
 }
 filter

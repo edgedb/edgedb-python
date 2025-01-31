@@ -39,3 +39,14 @@ type HasLinkPropsB {
         property b: str;
     }
 }
+
+type AssortedScalars {
+    required name: str;
+    vals: array<str>;
+
+    date: cal::local_date;
+    time: cal::local_time;
+    ts: datetime;
+    lts: cal::local_datetime;
+    bstr: bytes;
+}

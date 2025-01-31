@@ -59,3 +59,13 @@ update HasLinkPropsB
 set {
     children += (select Child{@b := 'world'} filter .num = 1)
 };
+
+insert AssortedScalars {
+    name:= 'hello world',
+    vals := ['brown', 'fox'],
+    bstr := b'word\x00\x0b',
+    time := <cal::local_time>'20:13:45.678',
+    date:= <cal::local_date>'2025-01-26',
+    ts:=<datetime>'2025-01-26T20:13:45+00:00',
+    lts:=<cal::local_datetime>'2025-01-26T20:13:45',
+};

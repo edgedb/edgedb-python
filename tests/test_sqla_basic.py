@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import datetime as dt
 import os
 import uuid
 import unittest
@@ -344,6 +345,33 @@ class TestSQLABasic(tb.SQLATestCase):
             }
         )
 
+    def test_sqla_read_models_08(self):
+        # test arrays, bytes and various date/time scalars
+
+        res = self.sess.query(self.sm.AssortedScalars).one()
+
+        self.assertEqual(res.name, 'hello world')
+        self.assertEqual(res.vals, ['brown', 'fox'])
+        self.assertEqual(res.bstr, b'word\x00\x0b')
+        self.assertEqual(
+            res.time,
+            dt.time(20, 13, 45, 678_000),
+        )
+        self.assertEqual(
+            res.date,
+            dt.date(2025, 1, 26),
+        )
+        # time zone aware
+        self.assertEqual(
+            res.ts,
+            dt.datetime.fromisoformat('2025-01-26T20:13:45+00:00'),
+        )
+        # naive datetime
+        self.assertEqual(
+            res.lts,
+            dt.datetime.fromisoformat('2025-01-26T20:13:45'),
+        )
+
     def test_sqla_create_models_01(self):
         vals = self.sess.query(self.sm.User).filter_by(name='Yvonne').all()
         self.assertEqual(list(vals), [])
@@ -578,3 +606,46 @@ class TestSQLABasic(tb.SQLATestCase):
 
         post = self.sess.get(self.sm.Post, post_id)
         self.assertEqual(post.author.name, 'Zoe')
+
+    def test_sqla_update_models_05(self):
+        # test arrays, bytes and various date/time scalars
+        #
+        # For the purpose of sending data creating and updating a model are
+        # both testing accurate data transfer.
+
+        res = self.sess.query(self.sm.AssortedScalars).one()
+
+        res.name = 'New Name'
+        res.vals.append('jumped')
+        res.bstr = b'\x01success\x02'
+        res.time = dt.time(8, 23, 54, 999_000)
+        res.date = dt.date(2020, 2, 14)
+        res.ts = res.ts - dt.timedelta(days=6)
+        res.lts = res.lts + dt.timedelta(days=6)
+
+        self.sess.add(res)
+        self.sess.flush()
+
+        upd = self.sess.query(self.sm.AssortedScalars).one()
+
+        self.assertEqual(upd.name, 'New Name')
+        self.assertEqual(upd.vals, ['brown', 'fox', 'jumped'])
+        self.assertEqual(upd.bstr, b'\x01success\x02')
+        self.assertEqual(
+            upd.time,
+            dt.time(8, 23, 54, 999_000),
+        )
+        self.assertEqual(
+            upd.date,
+            dt.date(2020, 2, 14),
+        )
+        # time zone aware
+        self.assertEqual(
+            upd.ts,
+            dt.datetime.fromisoformat('2025-01-20T20:13:45+00:00'),
+        )
+        # naive datetime
+        self.assertEqual(
+            upd.lts,
+            dt.datetime.fromisoformat('2025-02-01T20:13:45'),
+        )
