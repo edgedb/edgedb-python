@@ -39,10 +39,10 @@ class MetadataFilter:
 
     def __repr__(self):
         return (
-            f"MetadataFilters(condition={self.condition}, "
-            f"filters={self.filters})"
+            f'MetadataFilter(key="{self.key}", '
+            f'value={"\"" + self.value + "\"" if isinstance(self.value, str) else self.value}, '
+            f'operator="{self.operator.value}")'
         )
-
 
 class MetadataFilters:
     """
@@ -59,6 +59,6 @@ class MetadataFilters:
 
     def __repr__(self):
         return (
-            f"MetadataFilters(condition={self.condition}, "
-            f"filters={self.filters})"
+            f'MetadataFilters(condition="{self.condition.value}", '
+            f'filters={self.filters})'
         )
