@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import datetime as dt
 import os
 import uuid
 import unittest
@@ -299,6 +300,28 @@ class TestDjangoBasic(tb.DjangoTestCase):
             }
         )
 
+    def test_django_read_models_08(self):
+        # test arrays, bytes and various date/time scalars
+
+        res = self.m.AssortedScalars.objects.all()[0]
+
+        self.assertEqual(res.name, 'hello world')
+        self.assertEqual(res.vals, ['brown', 'fox'])
+        self.assertEqual(bytes(res.bstr), b'word\x00\x0b')
+        self.assertEqual(
+            res.time,
+            dt.time(20, 13, 45, 678_000),
+        )
+        self.assertEqual(
+            res.date,
+            dt.date(2025, 1, 26),
+        )
+        # time zone aware (default for Django)
+        self.assertEqual(
+            res.ts,
+            dt.datetime.fromisoformat('2025-01-26T20:13:45+00:00'),
+        )
+
     def test_django_create_models_01(self):
         vals = self.m.User.objects.filter(name='Yvonne').all()
         self.assertEqual(list(vals), [])
@@ -492,3 +515,39 @@ class TestDjangoBasic(tb.DjangoTestCase):
 
         post = self.m.Post.objects.get(id=post_id)
         self.assertEqual(post.author.name, 'Zoe')
+
+    def test_django_update_models_05(self):
+        # test arrays, bytes and various date/time scalars
+        #
+        # For the purpose of sending data creating and updating a model are
+        # both testing accurate data transfer.
+
+        res = self.m.AssortedScalars.objects.all()[0]
+
+        res.name = 'New Name'
+        res.vals.append('jumped')
+        res.bstr = b'\x01success\x02'
+        res.time = dt.time(8, 23, 54, 999_000)
+        res.date = dt.date(2020, 2, 14)
+        res.ts = res.ts - dt.timedelta(days=6)
+
+        res.save()
+
+        upd = self.m.AssortedScalars.objects.all()[0]
+
+        self.assertEqual(upd.name, 'New Name')
+        self.assertEqual(upd.vals, ['brown', 'fox', 'jumped'])
+        self.assertEqual(bytes(upd.bstr), b'\x01success\x02')
+        self.assertEqual(
+            upd.time,
+            dt.time(8, 23, 54, 999_000),
+        )
+        self.assertEqual(
+            upd.date,
+            dt.date(2020, 2, 14),
+        )
+        # time zone aware (default for Django)
+        self.assertEqual(
+            upd.ts,
+            dt.datetime.fromisoformat('2025-01-20T20:13:45+00:00'),
+        )
