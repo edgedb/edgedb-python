@@ -189,7 +189,8 @@ def _process_links(types, modules):
 
                 objtype = type_map[target]
                 objtype['backlinks'].append({
-                    'name': f'back_to_{sql_source}',
+                    # naming scheme mimics .<link[is Type]
+                    'name': f'_{sql_name}_{sql_source}',
                     'fwname': sql_name,
                     # flip cardinality and exclusivity
                     'cardinality': 'One' if exclusive else 'Many',
@@ -197,7 +198,6 @@ def _process_links(types, modules):
                     'target': {'name': spec['name']},
                     'has_link_object': False,
                 })
-
 
                 link['has_link_object'] = False
                 # Any link with properties should become its own intermediate
@@ -231,31 +231,6 @@ def _process_links(types, modules):
                         'source': spec["name"],
                         'target': target,
                     })
-
-    # Go over backlinks and resolve any name collisions using the type map.
-    for spec in types:
-        mod = spec["name"].rsplit('::', 1)[0]
-        sql_source = get_sql_name(spec["name"])
-
-        # Find collisions in backlink names
-        bk = collections.defaultdict(list)
-        for link in spec['backlinks']:
-            if link['name'].startswith('back_to_'):
-                bk[link['name']].append(link)
-
-        for bklinks in bk.values():
-            if len(bklinks) > 1:
-                # We have a collision, so each backlink in it must now be
-                # disambiguated.
-                for link in bklinks:
-                    origsrc = get_sql_name(link['target']['name'])
-                    lname = link['name']
-                    fwname = link['fwname']
-                    link['name'] = f'follow_{fwname}_{lname}'
-                    # Also update the original source of the link with the
-                    # special backlink name.
-                    source = type_map[link['target']['name']]
-                    source['backlink_renames'][fwname] = link['name']
 
     return {
         'modules': modules,

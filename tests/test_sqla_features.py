@@ -224,24 +224,21 @@ class TestSQLAFeatures(tb.SQLATestCase):
 
         # only one link from Bar 123 to foo
         self.assertEqual(
-            [obj.n for obj in foo.follow_foo_back_to_Bar],
+            [obj.n for obj in foo._foo_Bar],
             [123],
         )
         # only one link from Who 456 to oof
         self.assertEqual(
-            [obj.x for obj in oof.follow_foo_back_to_Who],
+            [obj.x for obj in oof._foo_Who],
             [456],
         )
 
         # foo is linked via `many_foo` from both Bar and Who
         self.assertEqual(
-            [obj.n for obj in foo.follow_many_foo_back_to_Bar],
+            [obj.n for obj in foo._many_foo_Bar],
             [123],
         )
         self.assertEqual(
-            [
-                (obj.note, obj.source.x)
-                for obj in foo.follow_many_foo_back_to_Who
-            ],
+            [(obj.note, obj.source.x) for obj in foo._many_foo_Who],
             [('just one', 456)],
         )
