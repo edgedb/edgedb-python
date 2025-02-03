@@ -30,6 +30,7 @@ else:
     NO_ORM = False
 
 from gel import _testbase as tb
+from gel.orm.django import generator
 
 
 class TestDjangoBasic(tb.DjangoTestCase):
@@ -550,4 +551,36 @@ class TestDjangoBasic(tb.DjangoTestCase):
         self.assertEqual(
             upd.ts,
             dt.datetime.fromisoformat('2025-01-20T20:13:45+00:00'),
+        )
+
+    def test_django_sorting(self):
+        # Test the natural sorting function used for ordering fields, etc.
+
+        unsorted = {
+            'zoo': 1,
+            'apple': 1,
+            'potato': 1,
+            'grape10': 1,
+            'grape1': 1,
+            'grape5': 1,
+            'grape2': 1,
+            'grape20': 1,
+            'grape25': 1,
+            'grape12': 1,
+        }
+
+        self.assertEqual(
+            list(sorted(unsorted.items(), key=generator.field_name_sort)),
+            [
+                ('apple', 1),
+                ('grape1', 1),
+                ('grape2', 1),
+                ('grape5', 1),
+                ('grape10', 1),
+                ('grape12', 1),
+                ('grape20', 1),
+                ('grape25', 1),
+                ('potato', 1),
+                ('zoo', 1),
+            ],
         )

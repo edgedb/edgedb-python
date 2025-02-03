@@ -29,6 +29,7 @@ else:
     NO_ORM = False
 
 from gel import _testbase as tb
+from gel.orm import sqlmodel as sqlm
 
 
 class TestSQLModelBasic(tb.SQLModelTestCase):
@@ -751,4 +752,36 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
         self.assertEqual(
             {(c.b, c.target.num) for c in val.children},
             {('world', 1)},
+        )
+
+    def test_sqlmodel_sorting(self):
+        # Test the natural sorting function used for ordering fields, etc.
+
+        unsorted = [
+            {'name': 'zoo'},
+            {'name': 'apple'},
+            {'name': 'potato'},
+            {'name': 'grape10'},
+            {'name': 'grape1'},
+            {'name': 'grape5'},
+            {'name': 'grape2'},
+            {'name': 'grape20'},
+            {'name': 'grape25'},
+            {'name': 'grape12'},
+        ]
+
+        self.assertEqual(
+            list(sorted(unsorted, key=sqlm.field_name_sort)),
+            [
+                {'name': 'apple'},
+                {'name': 'grape1'},
+                {'name': 'grape2'},
+                {'name': 'grape5'},
+                {'name': 'grape10'},
+                {'name': 'grape12'},
+                {'name': 'grape20'},
+                {'name': 'grape25'},
+                {'name': 'potato'},
+                {'name': 'zoo'},
+            ],
         )
