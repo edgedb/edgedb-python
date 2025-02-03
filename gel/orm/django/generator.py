@@ -85,7 +85,7 @@ class ModelClass(object):
         return self.meta['db_table'].strip("'")
 
     def get_backlink_name(self, name, srcname):
-        return self.backlink_renames.get(name, f'back_to_{srcname}')
+        return f'_{name}_{srcname}'
 
 
 class ModelGenerator(FilePrinter):
