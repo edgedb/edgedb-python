@@ -30,6 +30,7 @@ else:
     NO_ORM = False
 
 from gel import _testbase as tb
+from gel.orm import sqla
 
 
 class TestSQLABasic(tb.SQLATestCase):
@@ -648,4 +649,36 @@ class TestSQLABasic(tb.SQLATestCase):
         self.assertEqual(
             upd.lts,
             dt.datetime.fromisoformat('2025-02-01T20:13:45'),
+        )
+
+    def test_sqla_sorting(self):
+        # Test the natural sorting function used for ordering fields, etc.
+
+        unsorted = [
+            {'name': 'zoo'},
+            {'name': 'apple'},
+            {'name': 'potato'},
+            {'name': 'grape10'},
+            {'name': 'grape1'},
+            {'name': 'grape5'},
+            {'name': 'grape2'},
+            {'name': 'grape20'},
+            {'name': 'grape25'},
+            {'name': 'grape12'},
+        ]
+
+        self.assertEqual(
+            list(sorted(unsorted, key=sqla.field_name_sort)),
+            [
+                {'name': 'apple'},
+                {'name': 'grape1'},
+                {'name': 'grape2'},
+                {'name': 'grape5'},
+                {'name': 'grape10'},
+                {'name': 'grape12'},
+                {'name': 'grape20'},
+                {'name': 'grape25'},
+                {'name': 'potato'},
+                {'name': 'zoo'},
+            ],
         )
