@@ -115,7 +115,7 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
             select(self.sm.User).order_by('name')
         )
         vals = [
-            (u.name, {p.body for p in u.back_to_Post})
+            (u.name, {p.body for p in u._author_Post})
             for u in res
         ]
         self.assertEqual(
@@ -150,11 +150,11 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
         # prefetch via backlink
         res = self.sess.exec(
             select(self.sm.User).join(
-                self.sm.User.back_to_Post, isouter=True
+                self.sm.User._author_Post, isouter=True
             ).order_by(self.sm.Post.body)
         )
         vals = {
-            (u.name, tuple(p.body for p in u.back_to_Post))
+            (u.name, tuple(p.body for p in u._author_Post))
             for u in res
         }
         self.assertEqual(
@@ -188,7 +188,7 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
         # use backlink
         res = self.sess.exec(select(self.sm.User))
         vals = {
-            (u.name, tuple(g.num for g in u.back_to_GameSession))
+            (u.name, tuple(g.num for g in u._players_GameSession))
             for u in res
         }
         self.assertEqual(
@@ -226,11 +226,11 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
         # prefetch via backlink
         res = self.sess.exec(
             select(self.sm.User).join(
-                self.sm.User.back_to_GameSession, isouter=True,
+                self.sm.User._players_GameSession, isouter=True,
             )
         )
         vals = {
-            (u.name, tuple(g.num for g in u.back_to_GameSession))
+            (u.name, tuple(g.num for g in u._players_GameSession))
             for u in res
         }
         self.assertEqual(
@@ -267,7 +267,7 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
             select(self.sm.User).order_by('name')
         )
         vals = [
-            (u.name, {g.name for g in u.back_to_UserGroup})
+            (u.name, {g.name for g in u._users_UserGroup})
             for u in res
         ]
         self.assertEqual(
@@ -306,11 +306,11 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
         # prefetch via backlink
         res = self.sess.exec(
             select(self.sm.User).join(
-                self.sm.User.back_to_UserGroup, isouter=True,
+                self.sm.User._users_UserGroup, isouter=True,
             )
         )
         vals = {
-            (u.name, tuple(sorted(g.name for g in u.back_to_UserGroup)))
+            (u.name, tuple(sorted(g.name for g in u._users_UserGroup)))
             for u in res
         }
         self.assertEqual(
@@ -390,7 +390,7 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
             ).one()
 
             self.assertEqual(user.name, name)
-            self.assertEqual(user.back_to_UserGroup[0].name, 'cyan')
+            self.assertEqual(user._users_UserGroup[0].name, 'cyan')
             self.assertIsInstance(user.id, uuid.UUID)
 
     def test_sqlmodel_create_models_03(self):
@@ -398,8 +398,8 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
         user1 = self.sm.User(name='Xander')
         cyan = self.sm.UserGroup(name='cyan')
 
-        user0.back_to_UserGroup.append(cyan)
-        user1.back_to_UserGroup.append(cyan)
+        user0._users_UserGroup.append(cyan)
+        user1._users_UserGroup.append(cyan)
 
         self.sess.add(cyan)
         self.sess.flush()
@@ -410,7 +410,7 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
             ).one()
 
             self.assertEqual(user.name, name)
-            self.assertEqual(user.back_to_UserGroup[0].name, 'cyan')
+            self.assertEqual(user._users_UserGroup[0].name, 'cyan')
             self.assertIsInstance(user.id, uuid.UUID)
 
     def test_sqlmodel_create_models_04(self):
@@ -565,13 +565,13 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
         self.sess.flush()
 
         self.assertEqual(
-            {g.name for g in user.back_to_UserGroup},
+            {g.name for g in user._users_UserGroup},
             {'red', 'blue'},
         )
         self.assertEqual(user.name, 'Yvonne')
         self.assertIsInstance(user.id, uuid.UUID)
 
-        group = [g for g in user.back_to_UserGroup if g.name == 'red'][0]
+        group = [g for g in user._users_UserGroup if g.name == 'red'][0]
         self.assertEqual(
             {u.name for u in group.users},
             {'Alice', 'Billie', 'Cameron', 'Dana', 'Yvonne'},
@@ -585,7 +585,7 @@ class TestSQLModelBasic(tb.SQLModelTestCase):
             select(self.sm.User).filter_by(name='Zoe')
         ).one()
         # Replace the author or a post
-        post = user0.back_to_Post[0]
+        post = user0._author_Post[0]
         body = post.body
         post.author = user1
 
