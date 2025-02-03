@@ -118,7 +118,7 @@ class TestDjangoBasic(tb.DjangoTestCase):
         # use backlink
         res = self.m.User.objects.order_by('name').all()
         vals = [
-            (u.name, {p.body for p in u.back_to_Post.all()})
+            (u.name, {p.body for p in u._author_Post.all()})
             for u in res
         ]
         self.assertEqual(
@@ -149,10 +149,10 @@ class TestDjangoBasic(tb.DjangoTestCase):
         )
 
         # prefetch via backlink
-        res = self.m.User.objects.prefetch_related('back_to_Post') \
-                  .order_by('back_to_Post__body')
+        res = self.m.User.objects.prefetch_related('_author_Post') \
+                  .order_by('_author_Post__body')
         vals = {
-            (u.name, tuple(p.body for p in u.back_to_Post.all()))
+            (u.name, tuple(p.body for p in u._author_Post.all()))
             for u in res
         }
         self.assertEqual(
@@ -184,7 +184,7 @@ class TestDjangoBasic(tb.DjangoTestCase):
         # use backlink
         res = self.m.User.objects.all()
         vals = {
-            (u.name, tuple(g.num for g in u.back_to_GameSession.all()))
+            (u.name, tuple(g.num for g in u._players_GameSession.all()))
             for u in res
         }
         self.assertEqual(
@@ -216,9 +216,9 @@ class TestDjangoBasic(tb.DjangoTestCase):
         )
 
         # prefetch via backlink
-        res = self.m.User.objects.prefetch_related('back_to_GameSession')
+        res = self.m.User.objects.prefetch_related('_players_GameSession')
         vals = {
-            (u.name, tuple(g.num for g in u.back_to_GameSession.all()))
+            (u.name, tuple(g.num for g in u._players_GameSession.all()))
             for u in res
         }
         self.assertEqual(
@@ -251,7 +251,7 @@ class TestDjangoBasic(tb.DjangoTestCase):
         # use backlink
         res = self.m.User.objects.order_by('name').all()
         vals = [
-            (u.name, {g.name for g in u.back_to_UserGroup.all()})
+            (u.name, {g.name for g in u._users_UserGroup.all()})
             for u in res
         ]
         self.assertEqual(
@@ -284,9 +284,9 @@ class TestDjangoBasic(tb.DjangoTestCase):
         )
 
         # prefetch via backlink
-        res = self.m.User.objects.prefetch_related('back_to_UserGroup')
+        res = self.m.User.objects.prefetch_related('_users_UserGroup')
         vals = {
-            (u.name, tuple(sorted(g.name for g in u.back_to_UserGroup.all())))
+            (u.name, tuple(sorted(g.name for g in u._users_UserGroup.all())))
             for u in res
         }
         self.assertEqual(
@@ -347,7 +347,7 @@ class TestDjangoBasic(tb.DjangoTestCase):
             user = self.m.User.objects.get(name=name)
 
             self.assertEqual(user.name, name)
-            self.assertEqual(user.back_to_UserGroup.all()[0].name, 'cyan')
+            self.assertEqual(user._users_UserGroup.all()[0].name, 'cyan')
             self.assertIsInstance(user.id, uuid.UUID)
 
     def test_django_create_models_03(self):
@@ -359,8 +359,8 @@ class TestDjangoBasic(tb.DjangoTestCase):
         y.save()
         cyan.save()
 
-        x.back_to_UserGroup.add(cyan)
-        y.back_to_UserGroup.add(cyan)
+        x._users_UserGroup.add(cyan)
+        y._users_UserGroup.add(cyan)
 
         group = self.m.UserGroup.objects.get(name='cyan')
         self.assertEqual(group.name, 'cyan')
@@ -443,8 +443,8 @@ class TestDjangoBasic(tb.DjangoTestCase):
 
         group.delete()
         # make sure the user object is no longer a link target
-        user.back_to_UserGroup.clear()
-        user.back_to_GameSession.clear()
+        user._users_UserGroup.clear()
+        user._players_GameSession.clear()
         user.delete()
 
         vals = self.m.UserGroup.objects.filter(name='green').all()
@@ -476,13 +476,13 @@ class TestDjangoBasic(tb.DjangoTestCase):
         blue.users.add(user)
 
         self.assertEqual(
-            {g.name for g in user.back_to_UserGroup.all()},
+            {g.name for g in user._users_UserGroup.all()},
             {'red', 'blue'},
         )
         self.assertEqual(user.name, 'Yvonne')
         self.assertIsInstance(user.id, uuid.UUID)
 
-        group = [g for g in user.back_to_UserGroup.all()
+        group = [g for g in user._users_UserGroup.all()
                  if g.name == 'red'][0]
         self.assertEqual(
             {u.name for u in group.users.all()},
@@ -493,7 +493,7 @@ class TestDjangoBasic(tb.DjangoTestCase):
         user0 = self.m.User.objects.get(name='Elsa')
         user1 = self.m.User.objects.get(name='Zoe')
         # Replace the author or a post
-        post = user0.back_to_Post.all()[0]
+        post = user0._author_Post.all()[0]
         body = post.body
         post.author = user1
         post.save()

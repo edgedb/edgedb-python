@@ -317,10 +317,7 @@ class ModelGenerator(FilePrinter):
                     bklink = source_link
                 else:
                     src = modules[mod]['object_types'][source_name]
-                    bklink = src['backlink_renames'].get(
-                        source_link,
-                        f'back_to_{source_name}',
-                    )
+                    bklink = f'_{source_link}_{source_name}'
 
                 self.write(
                     f'{lname}: {pyname} = sm.Relationship(')
@@ -452,7 +449,7 @@ class ModelGenerator(FilePrinter):
         tmod, target = get_mod_and_name(spec['target']['name'])
         source = modules[mod]['object_types'][parent]
         cardinality = spec['cardinality']
-        bklink = source['backlink_renames'].get(name, f'back_to_{parent}')
+        bklink = f'_{name}_{parent}'
 
         if tmod != 'default':
             warnings.warn(
