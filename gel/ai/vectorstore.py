@@ -10,9 +10,11 @@
 # this interface to generate and store image embeddings.
 
 import gel
+import json
+import uuid
 from typing import Optional, TypeVar, Any
 from jinja2 import Template
-from metadata_filters import (
+from .metadata_filters import (
     MetadataFilter,
     MetadataFilters,
     FilterOperator,
@@ -27,7 +29,23 @@ ADD_QUERY = Template(
             text := <str>$text,
             embedding := <array<float32>>$embedding,
             metadata := <json>$metadata,
-        }
+        } 
+    )
+    """.strip()
+)
+
+BATCH_ADD_QUERY = Template(
+    """
+    with items := json_array_unpack(<json>$items)
+    select (
+        for item in items union (
+            insert {{record_type}} {
+                collection := <str>$collection_name,
+                text := <str>item['text'],
+                embedding := <array<float32>>item['embedding'],
+                metadata := <json>item['metadata']
+            }
+        )
     )
     """.strip()
 )
@@ -35,9 +53,9 @@ ADD_QUERY = Template(
 DELETE_BY_IDS_QUERY = Template(
     """
     delete {{record_type}}
-    filter .id in array_unpack(<array<str>>$ids) 
+    filter .id in array_unpack(<array<uuid>>$ids) 
     and .collection = <str>$collection_name;
-    """
+    """.strip()
 )
 
 SEARCH_QUERY = Template(
@@ -47,6 +65,7 @@ SEARCH_QUERY = Template(
         filter .collection = <str>$collection_name
     )
     select collection_records {
+        id,
         text,
         embedding,
         metadata,
@@ -62,14 +81,15 @@ SEARCH_QUERY = Template(
 GET_BY_IDS_QUERY = Template(
     """
     select {{record_type}} {
+        id, 
         text,
         embedding,
         metadata,
     }
-    filter .id in array_unpack(<array<str>>$ids);
-    """
+    filter .id in array_unpack(<array<uuid>>$ids)
+    and .collection = <str>$collection_name;
+    """.strip()
 )
-
 
 def get_filter_clause(filters: MetadataFilters) -> str:
     subclauses = []
@@ -180,7 +200,8 @@ class GelVectorstore:
         self,
         embedding_model: BaseEmbeddingModel,
         collection_name: str = "default",
-        record_type: str = "ext::ai::DefaultRecord",
+        record_type: str = "ext::vectorstore::DefaultRecord",
+        client_config: Optional[dict] = None,
     ):
         """
         Initialize the vector store.
@@ -194,15 +215,9 @@ class GelVectorstore:
         self.embedding_model = embedding_model
         self.collection_name = collection_name
         self.record_type = record_type
+        self.gel_client = gel.create_client(**client_config)
 
-        self.gel_client = gel.create_client()
-        raise NotImplementedError
-
-    def verify_schema(self):
-        """Verify that the database schema is correctly configured."""
-        raise NotImplementedError
-
-    def add_item(self, item: Any, metadata: dict[str, Any]) -> str:
+    def add_item(self, item: Any, metadata: dict[str, Any]) -> dict[str, uuid.UUID]:
         """
         Add a new record.
 
@@ -212,38 +227,66 @@ class GelVectorstore:
         Args:
             item (Any): The input data to be embedded.
             metadata (dict): Additional metadata for the record.
-
         Returns:
-            str: The UUID of the inserted object.
+            dict[str, Any]: Object that contains the UUID of the inserted object.
         """
         vector = self.embedding_model(item)
         return self.add_vector(vector=vector, raw_data=item, metadata=metadata)
 
+    def add_items(self, items: list[dict]) -> list[dict[str, uuid.UUID]]:
+        """
+        Add multiple items to the vector store in a single transaction.
+
+        Args:
+            items: List of dicts, each containing:
+                - text: The input data to be embedded.
+                - metadata:  Additional metadata for the record.
+        Returns:
+            list[dict[str, Any]]: List of objects that contain the UUIDs of the inserted objects.
+        """
+
+        items_with_embeddings = [
+            {
+                "text": item["text"],
+                "embedding": self.embedding_model(item["text"]),
+                "metadata": item["metadata"],
+            }
+            for item in items
+        ]
+
+        result = self.gel_client.query(
+            query=BATCH_ADD_QUERY.render(record_type=self.record_type),
+            collection_name=self.collection_name,
+            items=json.dumps(items_with_embeddings),
+        )
+        return result
+
     def add_vector(
-        self, vector: list[float], raw_data: str, metadata: dict[str, Any]
-    ) -> str:
+        self,
+        vector: list[float],
+        raw_data: str,
+        metadata: dict[str, Any],
+    ) -> dict[str, uuid.UUID]:
         """
         Add a precomputed vector to the vector store.
 
         Args:
-            vector (list[float]): The numerical vector representation of the 
+            vector (list[float]): The numerical vector representation of the
                 item.
             raw_data (str): The original input data.
             metadata (dict): Additional metadata.
-
         Returns:
-            str: The UUID of the inserted object.
+            dict[str, Any]: Object that contains the UUID of the inserted object.
         """
-        result = self.gel_client.query(
-            query=ADD_QUERY.render(self.record_type),
+        return self.gel_client.query_single(
+            query=ADD_QUERY.render(record_type=self.record_type),
             collection_name=self.collection_name,
             text=raw_data,
             embedding=vector,
-            metadata=metadata,
+            metadata=json.dumps(metadata),
         )
-        return result
 
-    def delete(self, ids: list[str]) -> list[dict[str, Any]]:
+    def delete(self, ids: list[str]) -> list[dict[str, uuid.UUID]]:
         """
         Delete records by their IDs.
 
@@ -251,15 +294,15 @@ class GelVectorstore:
             ids (list[str]): A list of record IDs to delete.
 
         Returns:
-            list[dict]: A list of deleted records.
+            list[dict[str, str]]: A list of deleted records.
         """
         return self.gel_client.query(
-            query=DELETE_BY_IDS_QUERY.render(self.record_type),
+            query=DELETE_BY_IDS_QUERY.render(record_type=self.record_type),
             collection_name=self.collection_name,
             ids=ids,
         )
 
-    def get_by_ids(self, ids: list[str]) -> dict[str, Any]:
+    def get_by_ids(self, ids: list[str]) -> dict[str, uuid.UUID]:
         """
         Retrieve records by their IDs.
 
@@ -270,7 +313,7 @@ class GelVectorstore:
             dict: The retrieved records.
         """
         return self.gel_client.query(
-            query= GET_BY_IDS_QUERY.render(self.record_type),
+            query=GET_BY_IDS_QUERY.render(record_type=self.record_type),
             collection_name=self.collection_name,
             ids=ids,
         )
@@ -320,7 +363,9 @@ class GelVectorstore:
         """
 
         result = self.gel_client.query(
-            query=SEARCH_QUERY.render(self.record_type, metadata_filter),
+            query=SEARCH_QUERY.render(
+                record_type=self.record_type, metadata_filter=metadata_filter
+            ),
             collection_name=self.collection_name,
             query_embedding=vector,
             limit=limit,
