@@ -38,9 +38,10 @@ class MetadataFilter:
         self.operator = operator
 
     def __repr__(self):
+        value = f'"{self.value}"' if isinstance(self.value, str) else self.value
         return (
             f'MetadataFilter(key="{self.key}", '
-            f'value={"\"" + self.value + "\"" if isinstance(self.value, str) else self.value}, '
+            f"value={value}, "
             f'operator="{self.operator.value}")'
         )
 

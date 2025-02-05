@@ -28,7 +28,7 @@ ADD_QUERY = Template(
             collection := <str>$collection_name,
             text := <str>$text,
             embedding := <array<float32>>$embedding,
-            metadata := <json>$metadata,
+            metadata := <optional json>$metadata,
         } 
     )
     """.strip()
@@ -90,6 +90,7 @@ GET_BY_IDS_QUERY = Template(
     and .collection = <str>$collection_name;
     """.strip()
 )
+
 
 def get_filter_clause(filters: MetadataFilters) -> str:
     subclauses = []
@@ -181,7 +182,7 @@ class BaseEmbeddingModel:
     @property
     def target_type(self) -> TypeVar:
         """
-        Return the expected data type of the input (e.g., str for text, image 
+        Return the expected data type of the input (e.g., str for text, image
         for vision models). Must be implemented in subclasses.
         """
         raise NotImplementedError
@@ -207,17 +208,20 @@ class GelVectorstore:
         Initialize the vector store.
 
         Args:
-            embedding_model (BaseEmbeddingModel): The embedding model used to 
+            embedding_model (BaseEmbeddingModel): The embedding model used to
                 generate vectors.
             collection_name (str): The name of the collection.
             record_type (str): The schema type (table name) for storing records.
+            client_config (Optional[dict]): The config for the Gel client.
         """
         self.embedding_model = embedding_model
         self.collection_name = collection_name
         self.record_type = record_type
         self.gel_client = gel.create_client(**client_config)
 
-    def add_item(self, item: Any, metadata: dict[str, Any]) -> dict[str, uuid.UUID]:
+    def add_item(
+        self, item: Any, metadata: Optional[dict[str, Any]] = None
+    ) -> dict[str, uuid.UUID]:
         """
         Add a new record.
 
@@ -226,9 +230,11 @@ class GelVectorstore:
 
         Args:
             item (Any): The input data to be embedded.
-            metadata (dict): Additional metadata for the record.
+            metadata (Optional[dict]): Additional metadata for the record.
+            Defaults to None.
+
         Returns:
-            dict[str, Any]: Object that contains the UUID of the inserted object.
+            dict[str, uuid.UUID]: Object containing UUID of the inserted record.
         """
         vector = self.embedding_model(item)
         return self.add_vector(vector=vector, raw_data=item, metadata=metadata)
@@ -241,8 +247,10 @@ class GelVectorstore:
             items: List of dicts, each containing:
                 - text: The input data to be embedded.
                 - metadata:  Additional metadata for the record.
+
         Returns:
-            list[dict[str, Any]]: List of objects that contain the UUIDs of the inserted objects.
+            list[dict[str, uuid.UUID]]: List of objects containing the UUIDs
+            of the inserted records.
         """
 
         items_with_embeddings = [
@@ -265,25 +273,25 @@ class GelVectorstore:
         self,
         vector: list[float],
         raw_data: str,
-        metadata: dict[str, Any],
+        metadata: Optional[dict[str, Any]] = None,
     ) -> dict[str, uuid.UUID]:
         """
         Add a precomputed vector to the vector store.
 
         Args:
-            vector (list[float]): The numerical vector representation of the
-                item.
+            vector (list[float]): Numerical vector representation of the item.
             raw_data (str): The original input data.
-            metadata (dict): Additional metadata.
+            metadata (Optional[dict]): Additional metadata. Defaults to None.
+
         Returns:
-            dict[str, Any]: Object that contains the UUID of the inserted object.
+            dict[str, uuid.UUID]: Object with UUID of the inserted record.
         """
         return self.gel_client.query_single(
             query=ADD_QUERY.render(record_type=self.record_type),
             collection_name=self.collection_name,
             text=raw_data,
             embedding=vector,
-            metadata=json.dumps(metadata),
+            metadata=json.dumps(metadata) if metadata is not None else None,
         )
 
     def delete(self, ids: list[str]) -> list[dict[str, uuid.UUID]]:
@@ -294,7 +302,7 @@ class GelVectorstore:
             ids (list[str]): A list of record IDs to delete.
 
         Returns:
-            list[dict[str, str]]: A list of deleted records.
+            list[dict[str, uuid.UUID]]: A list of deleted records.
         """
         return self.gel_client.query(
             query=DELETE_BY_IDS_QUERY.render(record_type=self.record_type),
@@ -302,7 +310,7 @@ class GelVectorstore:
             ids=ids,
         )
 
-    def get_by_ids(self, ids: list[str]) -> dict[str, uuid.UUID]:
+    def get_by_ids(self, ids: list[str]) -> list[dict[str, Any]]:
         """
         Retrieve records by their IDs.
 
@@ -310,7 +318,7 @@ class GelVectorstore:
             ids (list[str]): A list of record IDs to retrieve.
 
         Returns:
-            dict: The retrieved records.
+            list[dict[str, Any]]: The retrieved records.
         """
         return self.gel_client.query(
             query=GET_BY_IDS_QUERY.render(record_type=self.record_type),
@@ -336,10 +344,12 @@ class GelVectorstore:
             limit (int): Maximum number of results to return. Defaults to 4.
 
         Returns:
-            list[dict]: A list of the most similar records.
+            list[dict[str, Any]]: A list of the most similar records.
         """
         vector = self.embedding_model(item)
-        metadata_filter = f"filter {get_filter_clause(filters)}" if filters else ""
+        metadata_filter = (
+            f"filter {get_filter_clause(filters)}" if filters else ""
+        )
         return self.search_by_vector(
             vector=vector, metadata_filter=metadata_filter, limit=limit
         )
@@ -359,7 +369,7 @@ class GelVectorstore:
             limit (int): Maximum number of results to return. Defaults to 4.
 
         Returns:
-            list[dict]: A list of the most similar records.
+            list[dict[str, Any]]: A list of the most similar records.
         """
 
         result = self.gel_client.query(
