@@ -43,7 +43,7 @@ BATCH_ADD_QUERY = Template(
                 collection := <str>$collection_name,
                 text := <str>item['text'],
                 embedding := <array<float32>>item['embedding'],
-                metadata := <json>item['metadata']
+                metadata := <optional json>item['metadata']
             }
         )
     )
@@ -244,9 +244,9 @@ class GelVectorstore:
         Add multiple items to the vector store in a single transaction.
 
         Args:
-            items: List of dicts, each containing:
-                - text: The input data to be embedded.
-                - metadata:  Additional metadata for the record.
+            items (list[dict]): List of dicts, each containing:
+                - text (Any): The input data to be embedded.
+                - metadata (Optional[dict]): Additional metadata for the record.
 
         Returns:
             list[dict[str, uuid.UUID]]: List of objects containing the UUIDs
@@ -257,17 +257,16 @@ class GelVectorstore:
             {
                 "text": item["text"],
                 "embedding": self.embedding_model(item["text"]),
-                "metadata": item["metadata"],
+                "metadata": item.get("metadata"),
             }
             for item in items
         ]
 
-        result = self.gel_client.query(
+        return self.gel_client.query(
             query=BATCH_ADD_QUERY.render(record_type=self.record_type),
             collection_name=self.collection_name,
             items=json.dumps(items_with_embeddings),
         )
-        return result
 
     def add_vector(
         self,
@@ -291,7 +290,7 @@ class GelVectorstore:
             collection_name=self.collection_name,
             text=raw_data,
             embedding=vector,
-            metadata=json.dumps(metadata) if metadata is not None else None,
+            metadata=json.dumps(metadata) if metadata else None,
         )
 
     def delete(self, ids: list[str]) -> list[dict[str, uuid.UUID]]:
@@ -330,7 +329,7 @@ class GelVectorstore:
         self,
         item: Any,
         filters: Optional[MetadataFilters] = None,
-        limit: int = 4,
+        limit: Optional[int] = 4,
     ) -> list[dict[str, Any]]:
         """
         Perform a similarity search based on an input item.
@@ -340,8 +339,10 @@ class GelVectorstore:
 
         Args:
             item (Any): The input item to be embedded.
-            metadata_filter (str): A filter for metadata-based search.
-            limit (int): Maximum number of results to return. Defaults to 4.
+            filters (Optional[MetadataFilters]): Metadata filters.
+                Defaults to None.
+            limit (Optional[int]): Maximum number of results to return.
+                Defaults to 4.
 
         Returns:
             list[dict[str, Any]]: A list of the most similar records.
@@ -358,7 +359,7 @@ class GelVectorstore:
         self,
         vector: list[float],
         metadata_filter: str,
-        limit: int = 4,
+        limit: Optional[int] = 4,
     ) -> list[dict[str, Any]]:
         """
         Perform a similarity search using a precomputed vector.
@@ -366,7 +367,8 @@ class GelVectorstore:
         Args:
             vector (list[float]): The query embedding vector.
             metadata_filter (str): A filter for metadata-based search.
-            limit (int): Maximum number of results to return. Defaults to 4.
+            limit (Optional[int]): Maximum number of results to return.
+                Defaults to 4.
 
         Returns:
             list[dict[str, Any]]: A list of the most similar records.

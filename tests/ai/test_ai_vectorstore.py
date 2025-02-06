@@ -159,7 +159,7 @@ class TestAIVectorstore(tb.SyncQueryTestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].id, record.id)
 
-        # # delete the record
+        # delete the record
         deleted_records = self.vectorstore.delete([record.id])
         self.assertEqual(deleted_records[0].id, record.id)
 
