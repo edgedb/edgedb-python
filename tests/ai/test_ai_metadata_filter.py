@@ -1,14 +1,14 @@
 import unittest
 
-from gel.ai.metadata_filters import (
+from gel.ai.metadata_filter import (
     MetadataFilter,
-    MetadataFilters,
+    CompositeFilter,
     FilterOperator,
     FilterCondition,
 )
 
 
-class TestAIMetadataFilters(unittest.TestCase):
+class TestAICompositeFilter(unittest.TestCase):
 
     # Test MetadataFilter with default EQ operator
     def test_metadata_EQ_filter(self):
@@ -35,9 +35,9 @@ class TestAIMetadataFilters(unittest.TestCase):
 
         self.assertEqual(repr(filter_obj), expected_repr)
 
-    # Test MetadataFilters with AND condition
+    # Test CompositeFilter with AND condition
     def test_metadata_filters_and_condition(self):
-        filters = MetadataFilters(
+        filters = CompositeFilter(
             [
                 MetadataFilter(
                     key="category", value="AI", operator=FilterOperator.EQ
@@ -49,7 +49,7 @@ class TestAIMetadataFilters(unittest.TestCase):
             condition=FilterCondition.AND,
         )
         expected_repr = (
-            f'MetadataFilters(condition="and", filters=['
+            f'CompositeFilter(condition="and", filters=['
             f'MetadataFilter(key="category", value="AI", operator="="), '
             f'MetadataFilter(key="views", value=1000, operator=">")])'
         )
