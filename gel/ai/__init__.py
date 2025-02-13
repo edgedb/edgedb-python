@@ -19,6 +19,15 @@
 from .types import AIOptions, ChatParticipantRole, Prompt, QueryContext
 from .core import create_ai, EdgeDBAI
 from .core import create_async_ai, AsyncEdgeDBAI
+from .vectorstore import (
+    RecordToInsert,
+    ItemToInsert,
+    IdRecord,
+    Record,
+    SearchResult,
+    BaseEmbeddingModel,
+    GelVectorstore,
+)
 
 __all__ = [
     "AIOptions",
@@ -29,4 +38,11 @@ __all__ = [
     "EdgeDBAI",
     "create_async_ai",
     "AsyncEdgeDBAI",
+    "RecordToInsert",
+    "ItemToInsert",
+    "IdRecord",
+    "Record",
+    "SearchResult",
+    "BaseEmbeddingModel",
+    "GelVectorstore",
 ]

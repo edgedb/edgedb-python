@@ -204,7 +204,7 @@ class GelVectorstore:
 
     def __init__(
         self,
-        embedding_model: BaseEmbeddingModel,
+        embedding_model: BaseEmbeddingModel = None,
         collection_name: str = "default",
         record_type: str = "ext::vectorstore::DefaultRecord",
         client_config: Optional[Dict[str, Any]] = None,
@@ -351,7 +351,7 @@ class GelVectorstore:
     def search_by_vector(
         self,
         vector: List[float],
-        filter_expression: str,
+        filter_expression: str = "",
         limit: Optional[int] = 4,
     ) -> List[SearchResult]:
         """Search using a pre-computed vector embedding.
