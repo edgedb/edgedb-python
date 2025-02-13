@@ -20,7 +20,6 @@ import asyncio
 
 import logging
 import unittest.mock
-import sys
 
 import edgedb
 from edgedb import errors
@@ -263,10 +262,7 @@ class TestAsyncRetry(tb.AsyncQueryTestCase):
 
         excs = [e for e in results if isinstance(e, BaseException)]
         if excs:
-            if sys.version_info >= (3, 11) and len(excs) > 1:
-                raise ExceptionGroup('multiple failures', excs)
-            else:
-                raise excs[0]
+            raise excs[0]
         val = await client1.query_single('''
             select (select test::Counter filter .name = <str>$name).value
         ''', name=name)
