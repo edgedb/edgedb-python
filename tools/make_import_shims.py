@@ -49,12 +49,12 @@ for _k in vars(_mod):
 ''')
             if mod in COMPAT:
                 for k, v in COMPAT[mod].items():
-                    f.write(f"setattr(_cur, '{k}', getattr(_mod, '{v}'))\n")
+                    f.write(f"_cur.{k} = getattr(_mod, '{v}')\n")
                 f.write(f'''\
 if hasattr(_cur, '__all__'):
-    setattr(_cur, '__all__', getattr(_cur, '__all__') + [
+    _cur.__all__ = _cur.__all__ + [
         {',\n        '.join(repr(k) for k in COMPAT[mod])},
-    ])
+    ]
 ''')
             f.write(f'''\
 del _cur
