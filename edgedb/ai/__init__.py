@@ -13,11 +13,11 @@ _cur = _sys.modules['edgedb.ai']
 for _k in vars(_mod):
     if not _k.startswith('__') or _k in ('__all__', '__doc__'):
         setattr(_cur, _k, getattr(_mod, _k))
-_cur.create_ai = getattr(_mod, 'create_rag_client')
-_cur.EdgeDBAI = getattr(_mod, 'RAGClient')
-_cur.create_async_ai = getattr(_mod, 'create_async_rag_client')
-_cur.AsyncEdgeDBAI = getattr(_mod, 'AsyncRAGClient')
-_cur.AIOptions = getattr(_mod, 'RAGOptions')
+_cur.create_ai = _mod.create_rag_client
+_cur.EdgeDBAI = _mod.RAGClient
+_cur.create_async_ai = _mod.create_async_rag_client
+_cur.AsyncEdgeDBAI = _mod.AsyncRAGClient
+_cur.AIOptions = _mod.RAGOptions
 if hasattr(_cur, '__all__'):
     _cur.__all__ = _cur.__all__ + [
         'create_ai',

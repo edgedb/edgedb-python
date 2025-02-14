@@ -49,7 +49,7 @@ for _k in vars(_mod):
 ''')
             if mod in COMPAT:
                 for k, v in COMPAT[mod].items():
-                    f.write(f"_cur.{k} = getattr(_mod, '{v}')\n")
+                    f.write(f"_cur.{k} = _mod.{v}\n")
                 f.write(f'''\
 if hasattr(_cur, '__all__'):
     _cur.__all__ = _cur.__all__ + [
