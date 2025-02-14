@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 ''')
             if mod in COMPAT:
                 for k, v in COMPAT[mod].items():
-                    f.write(f'    {k} = {v}\n')
+                    f.write(f'    {k} = {v}  # noqa\n')
             f.write(f'''\
 import {mod} as _mod
 import sys as _sys
@@ -53,7 +53,7 @@ for _k in vars(_mod):
                 f.write(f'''\
 if hasattr(_cur, '__all__'):
     setattr(_cur, '__all__', getattr(_cur, '__all__') + [
-        {', '.join(repr(k) for k in COMPAT[mod])},
+        {',\n        '.join(repr(k) for k in COMPAT[mod])},
     ])
 ''')
             f.write(f'''\
