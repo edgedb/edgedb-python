@@ -111,8 +111,8 @@ class ItemToInsert:
 class RecordToInsert:
     """A record to be added to the vector store with embedding pre-computed."""
 
+    embedding: List[float]
     text: Optional[str] = None
-    embedding: Optional[List[float]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -136,7 +136,7 @@ class Record(IdRecord):
     embedding: Optional[List[float]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-    # We’ll fill these dynamically in __init__
+    # We'll fill these dynamically in __init__
     _explicitly_set_fields: set = field(default_factory=set, repr=False)
 
     def __init__(self, id: uuid.UUID, **kwargs):
@@ -147,7 +147,7 @@ class Record(IdRecord):
         # First, initialize IdRecord:
         super().__init__(id=id)
 
-        # For text, embedding, metadata, we use what’s in kwargs
+        # For text, embedding, metadata, we use what's in kwargs
         # or fall back to the default already on the class.
         self.text = kwargs.get("text", None)
         self.embedding = kwargs.get("embedding", None)
@@ -219,7 +219,7 @@ class GelVectorstore:
 
     def __init__(
         self,
-        embedding_model: BaseEmbeddingModel = None,
+        embedding_model: Optional[BaseEmbeddingModel] = None,
         collection_name: str = "default",
         record_type: str = "ext::vectorstore::DefaultRecord",
         client_config: Optional[Dict[str, Any]] = None,
@@ -241,11 +241,12 @@ class GelVectorstore:
     def add_items(self, items: List[ItemToInsert]) -> List[IdRecord]:
         """
         Add multiple items to the vector store in a single transaction.
+        Embeddinsg will be generated and stored for all items.
 
         Args:
             items (List[ItemToInsert]): List of items to add. Each contains:
                 - text (str): The text content to be embedded
-                - metadata (Optional[Dict[str, Any]]): Additional data to store.
+                - metadata (Dict[str, Any]): Additional data to store
 
         Returns:
             List[IdRecord]: List of database records for the inserted items.
@@ -270,9 +271,9 @@ class GelVectorstore:
 
         Args:
             records (List[RecordToInsert]): List of records. Each contains:
+                - embedding ([List[float]): Pre-computed embeddings
                 - text (Optional[str]): Original text content
-                - embedding (Optional[List[float]]): Pre-computed embedding
-                - metadata (Optional[Dict[str, Any]]): Additional data to store
+                - metadata ([Dict[str, Any]): Additional data to store
 
         Returns:
             List[IdRecord]: List of database records for the inserted items.
@@ -332,9 +333,7 @@ class GelVectorstore:
                 id=result.id,
                 text=result.text,
                 embedding=result.embedding and list(result.embedding),
-                metadata=(
-                    json.loads(result.metadata) if result.metadata else None
-                ),
+                metadata=(json.loads(result.metadata)),
             )
             for result in results
         ]
@@ -420,7 +419,7 @@ class GelVectorstore:
                 id=result.id,
                 text=result.text,
                 embedding=list(result.embedding) if result.embedding else None,
-                metadata=json.loads(result.metadata) if result.metadata else {},
+                metadata=json.loads(result.metadata),
                 cosine_similarity=result.cosine_similarity,
             )
             for result in results

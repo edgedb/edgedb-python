@@ -47,7 +47,7 @@ records = [
         metadata={"category": "edgeql"},
     ),
     ItemToInsert(
-        text="""EdgeDB schemas are declared using SDL (EdgeDB's
+        text="""Gel schemas are declared using SDL (Gel's
                 Schema Definition Language). Your schema is defined inside
                 .esdl files. It's common to define your entire schema in a
                 single file called default.esdl, but you can split it across
@@ -162,7 +162,7 @@ class TestAIVectorstore(tb.SyncQueryTestCase):
             self.assertAlmostEqual(a, b, places=places)
 
     def test_add_get_and_delete(self):
-        text = """EdgeDB is an open-source database engineered to advance SQL
+        text = """Gel is an open-source database engineered to advance SQL
         into a sophisticated graph data model, supporting composable
         hierarchical queries and accelerated development cycles."""
 
@@ -235,7 +235,7 @@ class TestAIVectorstore(tb.SyncQueryTestCase):
         # insert a record
         initial_metadata = {"category": "test"}
         records = self.vectorstore.add_vectors(
-            [RecordToInsert(metadata=initial_metadata)]
+            [RecordToInsert(embedding=[0.1] * 1536, metadata=initial_metadata)]
         )
         record_id = records[0].id
 
@@ -245,7 +245,7 @@ class TestAIVectorstore(tb.SyncQueryTestCase):
         self.assertIsNotNone(record.metadata)
         self.assertEqual(record.metadata, initial_metadata)
         self.assertIsNone(record.text)
-        self.assertIsNone(record.embedding)
+        self.assertListAlmostEqual(record.embedding, [0.1] * 1536)
 
         # update just metadata
         new_metadata = {"category": "test2", "new_field": "updated"}
