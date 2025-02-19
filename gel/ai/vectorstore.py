@@ -104,7 +104,7 @@ class ItemToInsert:
     alongside the item in the vector store."""
 
     text: str
-    metadata: Optional[Dict[str, Any]] = field(default=None)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -113,7 +113,7 @@ class RecordToInsert:
 
     text: Optional[str] = None
     embedding: Optional[List[float]] = None
-    metadata: Optional[Dict[str, Any]] = field(default=None)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -124,27 +124,42 @@ class IdRecord:
     id: uuid.UUID
 
 
-@dataclass
+@dataclass(init=False)
 class Record(IdRecord):
-    """A record retrieved from the vector store, including an ID."""
+    """A record retrieved from the vector store, or an update record.
+
+    Custom `__init__` so we can detect which fields the user passed
+    (even if they pass None or {}).
+    """
 
     text: Optional[str] = None
     embedding: Optional[List[float]] = None
-    metadata: Optional[Dict[str, Any]] = field(default=None)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
-    _set_fields: set = field(default_factory=set, repr=False)
+    # We’ll fill these dynamically in __init__
+    _explicitly_set_fields: set = field(default_factory=set, repr=False)
 
-    def __post_init__(self):
-        """Automatically track which fields were explicitly set."""
-        self._set_fields = {
-            field.name
-            for field in self.__dataclass_fields__.values()
-            if getattr(self, field.name) is not None
-        }
+    def __init__(self, id: uuid.UUID, **kwargs):
+        """
+        Force the user to provide `id` positionally/explicitly,
+        then capture any *other* fields in **kwargs.
+        """
+        # First, initialize IdRecord:
+        super().__init__(id=id)
+
+        # For text, embedding, metadata, we use what’s in kwargs
+        # or fall back to the default already on the class.
+        self.text = kwargs.get("text", None)
+        self.embedding = kwargs.get("embedding", None)
+        self.metadata = kwargs.get("metadata", {})
+
+        # Mark which fields were actually passed by the user (ignore 'id').
+        # So if user calls Record(id=..., text=None), "text" will appear here.
+        object.__setattr__(self, "_explicitly_set_fields", set(kwargs.keys()))
 
     def is_field_set(self, field: str) -> bool:
-        """Check if a field was explicitly set."""
-        return field in self._set_fields
+        """Check if a field was explicitly set in the constructor call."""
+        return field in self._explicitly_set_fields
 
 
 @dataclass
@@ -238,7 +253,9 @@ class GelVectorstore:
         items_with_embeddings = [
             RecordToInsert(
                 text=item.text,
-                embedding=(self.embedding_model(item.text) if item.text else None),
+                embedding=(
+                    self.embedding_model(item.text) if item.text else None
+                ),
                 metadata=item.metadata,
             )
             for item in items
@@ -263,7 +280,16 @@ class GelVectorstore:
         results = self.gel_client.query(
             query=BATCH_ADD_QUERY.render(record_type=self.record_type),
             collection_name=self.collection_name,
-            items=json.dumps([vars(record) for record in records]),
+            items=json.dumps(
+                [
+                    {
+                        "text": record.text,
+                        "embedding": record.embedding,
+                        "metadata": record.metadata or {},
+                    }
+                    for record in records
+                ]
+            ),
         )
         return [IdRecord(id=result.id) for result in results]
 
@@ -306,7 +332,9 @@ class GelVectorstore:
                 id=result.id,
                 text=result.text,
                 embedding=result.embedding and list(result.embedding),
-                metadata=(json.loads(result.metadata) if result.metadata else None),
+                metadata=(
+                    json.loads(result.metadata) if result.metadata else None
+                ),
             )
             for result in results
         ]
@@ -343,7 +371,9 @@ class GelVectorstore:
                   (higher is more similar)
         """
         vector = self.embedding_model(item)
-        filter_expression = f"filter {get_filter_clause(filters)}" if filters else ""
+        filter_expression = (
+            f"filter {get_filter_clause(filters)}" if filters else ""
+        )
         return self.search_by_vector(
             vector=vector, filter_expression=filter_expression, limit=limit
         )
@@ -417,7 +447,8 @@ class GelVectorstore:
             ValueError: If no fields are specified for update.
         """
         if not any(
-            record.is_field_set(field) for field in ["text", "embedding", "metadata"]
+            record.is_field_set(field)
+            for field in ["text", "embedding", "metadata"]
         ):
             raise ValueError("No fields specified for update.")
 
@@ -438,6 +469,6 @@ class GelVectorstore:
             updates=list(updates),
             text=record.text,
             embedding=record.embedding,
-            metadata=json.dumps(record.metadata) if record.metadata else None,
+            metadata=json.dumps(record.metadata or {}),
         )
         return IdRecord(id=result.id) if result else None

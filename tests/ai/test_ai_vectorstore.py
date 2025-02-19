@@ -18,7 +18,6 @@
 
 import os
 import unittest
-import json
 import uuid
 from gel import _testbase as tb
 from gel.ai.vectorstore import (
@@ -137,8 +136,12 @@ class TestAIVectorstore(tb.SyncQueryTestCase):
         )
 
     def tearDown(self):
-        self._clean_vectorstore()
-        super().tearDown()
+        try:
+            self._clean_vectorstore()
+        finally:
+            if hasattr(self, "vectorstore"):
+                self.vectorstore.gel_client.close()
+            super().tearDown()
 
     def _clean_vectorstore(self):
         """Helper method to remove all records from the vectorstore."""
@@ -278,6 +281,17 @@ class TestAIVectorstore(tb.SyncQueryTestCase):
         self.assertEqual(record.text, new_text)
         self.assertEqual(record.metadata, new_metadata)
         self.assertListAlmostEqual(record.embedding, [0.1] * 1536)
+
+        # remove text and metadata
+        self.vectorstore.update_record(
+            Record(id=record_id, text=None, metadata={})
+        )
+
+        # verify the update
+        record = self.vectorstore.get_by_ids([record_id])[0]
+
+        self.assertIsNone(record.text)
+        self.assertEqual(record.metadata, {})
 
     def test_update_nonexistent_record(self):
         fake_id = uuid.uuid4()
