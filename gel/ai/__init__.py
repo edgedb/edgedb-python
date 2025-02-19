@@ -20,9 +20,8 @@ from .types import AIOptions, ChatParticipantRole, Prompt, QueryContext
 from .core import create_ai, EdgeDBAI
 from .core import create_async_ai, AsyncEdgeDBAI
 from .vectorstore import (
-    RecordToInsert,
-    ItemToInsert,
-    IdRecord,
+    InsertRecord,
+    InsertItem,
     Record,
     SearchResult,
     BaseEmbeddingModel,
@@ -38,9 +37,8 @@ __all__ = [
     "EdgeDBAI",
     "create_async_ai",
     "AsyncEdgeDBAI",
-    "RecordToInsert",
-    "ItemToInsert",
-    "IdRecord",
+    "InsertRecord",
+    "InsertItem",
     "Record",
     "SearchResult",
     "BaseEmbeddingModel",

@@ -99,7 +99,7 @@ UPDATE_QUERY = Template(
 
 
 @dataclass
-class ItemToInsert:
+class InsertItem:
     """An item whose embedding will be created and stored
     alongside the item in the vector store."""
 
@@ -108,7 +108,7 @@ class ItemToInsert:
 
 
 @dataclass
-class RecordToInsert:
+class InsertRecord:
     """A record to be added to the vector store with embedding pre-computed."""
 
     embedding: List[float]
@@ -116,22 +116,14 @@ class RecordToInsert:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
-class IdRecord:
-    """A database record identifier returned from insert,
-    update, or delete operations."""
-
-    id: uuid.UUID
-
-
 @dataclass(init=False)
-class Record(IdRecord):
+class Record:
     """A record retrieved from the vector store, or an update record.
 
     Custom `__init__` so we can detect which fields the user passed
     (even if they pass None or {}).
     """
-
+    id: uuid.UUID
     text: Optional[str] = None
     embedding: Optional[List[float]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -144,11 +136,10 @@ class Record(IdRecord):
         Force the user to provide `id` positionally/explicitly,
         then capture any *other* fields in **kwargs.
         """
-        # First, initialize IdRecord:
-        super().__init__(id=id)
 
         # For text, embedding, metadata, we use what's in kwargs
         # or fall back to the default already on the class.
+        self.id = id
         self.text = kwargs.get("text", None)
         self.embedding = kwargs.get("embedding", None)
         self.metadata = kwargs.get("metadata", {})
@@ -238,45 +229,43 @@ class GelVectorstore:
         self.record_type = record_type
         self.gel_client = gel.create_client(**(client_config or {}))
 
-    def add_items(self, items: List[ItemToInsert]) -> List[IdRecord]:
+    def add_items(self, items: List[InsertItem]) -> List[uuid.UUID]:
         """
         Add multiple items to the vector store in a single transaction.
         Embeddinsg will be generated and stored for all items.
 
         Args:
-            items (List[ItemToInsert]): List of items to add. Each contains:
+            items (List[InsertItem]): List of items to add. Each contains:
                 - text (str): The text content to be embedded
                 - metadata (Dict[str, Any]): Additional data to store
 
         Returns:
-            List[IdRecord]: List of database records for the inserted items.
+            List[uuid.UUID]: List of database record IDs for the inserted items.
         """
         items_with_embeddings = [
-            RecordToInsert(
+            InsertRecord(
                 text=item.text,
-                embedding=(
-                    self.embedding_model(item.text) if item.text else None
-                ),
+                embedding=(self.embedding_model(item.text)),
                 metadata=item.metadata,
             )
             for item in items
         ]
         return self.add_vectors(items_with_embeddings)
 
-    def add_vectors(self, records: List[RecordToInsert]) -> List[IdRecord]:
+    def add_vectors(self, records: List[InsertRecord]) -> List[uuid.UUID]:
         """Add pre-computed vector embeddings to the store.
 
         Use this method when you have already generated embeddings and want to
         store them directly without re-computing them.
 
         Args:
-            records (List[RecordToInsert]): List of records. Each contains:
+            records (List[InsertRecord]): List of records. Each contains:
                 - embedding ([List[float]): Pre-computed embeddings
                 - text (Optional[str]): Original text content
                 - metadata ([Dict[str, Any]): Additional data to store
 
         Returns:
-            List[IdRecord]: List of database records for the inserted items.
+            List[uuid.UUID]: List of database record IDs for the inserted items.
         """
         results = self.gel_client.query(
             query=BATCH_ADD_QUERY.render(record_type=self.record_type),
@@ -292,23 +281,23 @@ class GelVectorstore:
                 ]
             ),
         )
-        return [IdRecord(id=result.id) for result in results]
+        return [result.id for result in results]
 
-    def delete(self, ids: List[uuid.UUID]) -> List[IdRecord]:
+    def delete(self, ids: List[uuid.UUID]) -> List[uuid.UUID]:
         """Delete records from the vector store by their IDs.
 
         Args:
             ids (List[uuid.UUID]): List of record IDs to delete.
 
         Returns:
-            List[IdRecord]: List of deleted records, containing their IDs.
+            List[uuid.UUID]: List of deleted record IDs.
         """
         results = self.gel_client.query(
             query=DELETE_BY_IDS_QUERY.render(record_type=self.record_type),
             collection_name=self.collection_name,
             ids=ids,
         )
-        return [IdRecord(id=result.id) for result in results]
+        return [result.id for result in results]
 
     def get_by_ids(self, ids: List[uuid.UUID]) -> List[Record]:
         """Retrieve specific records by their IDs.
@@ -425,7 +414,7 @@ class GelVectorstore:
             for result in results
         ]
 
-    def update_record(self, record: Record) -> Optional[IdRecord]:
+    def update_record(self, record: Record) -> Optional[uuid.UUID]:
         """Update an existing record in the vector store.
 
         Only specified fields will be updated. If text is provided but not
@@ -440,7 +429,7 @@ class GelVectorstore:
                 - metadata (Optional[Dict[str, Any]]): New metadata to store
                   with the record. Completely replaces existing metadata.
         Returns:
-            Optional[IdRecord]: The updated record's ID if found and updated,
+            Optional[uuid.UUID]: The updated record's ID if found and updated,
               None if no record was found with the given ID.
         Raises:
             ValueError: If no fields are specified for update.
@@ -457,7 +446,7 @@ class GelVectorstore:
             if record.is_field_set(field)
         }
 
-        if "text" in updates and "embedding" not in updates:
+        if "text" in updates and record.text is not None and "embedding" not in updates:
             updates.add("embedding")
             record.embedding = self.embedding_model(record.text)
 
@@ -470,4 +459,4 @@ class GelVectorstore:
             embedding=record.embedding,
             metadata=json.dumps(record.metadata or {}),
         )
-        return IdRecord(id=result.id) if result else None
+        return result.id if result else None

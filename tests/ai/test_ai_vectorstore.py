@@ -7,7 +7,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,10 +23,9 @@ from gel import _testbase as tb
 from gel.ai.vectorstore import (
     GelVectorstore,
     BaseEmbeddingModel,
-    ItemToInsert,
-    RecordToInsert,
+    InsertItem,
+    InsertRecord,
     Record,
-    IdRecord,
     SearchResult,
 )
 from gel.ai.metadata_filter import (
@@ -38,7 +37,7 @@ from gel.ai.metadata_filter import (
 
 # records to be reused in tests
 records = [
-    ItemToInsert(
+    InsertItem(
         text="""EdgeQL is a next-generation query language designed
                 to match SQL in power and surpass it in terms of clarity,
                 brevity, and intuitiveness. It's used to query the database,
@@ -46,7 +45,7 @@ records = [
                 manage transactions, and more.""",
         metadata={"category": "edgeql"},
     ),
-    ItemToInsert(
+    InsertItem(
         text="""Gel schemas are declared using SDL (Gel's
                 Schema Definition Language). Your schema is defined inside
                 .esdl files. It's common to define your entire schema in a
@@ -54,7 +53,7 @@ records = [
                 multiple files if you wish.""",
         metadata={"category": "schema"},
     ),
-    ItemToInsert(
+    InsertItem(
         text="""Object types can contain computed properties and
                 links. Computed properties and links are not persisted in the
                 database. Instead, they are evaluated on the fly whenever
@@ -167,11 +166,11 @@ class TestAIVectorstore(tb.SyncQueryTestCase):
         hierarchical queries and accelerated development cycles."""
 
         # insert a record
-        records = self.vectorstore.add_items([ItemToInsert(text=text)])
-        record_id = records[0].id
-        self.assertIsNotNone(records)
-        self.assertEqual(len(records), 1)
-        self.assertIsInstance(records[0], IdRecord)
+        ids = self.vectorstore.add_items([InsertItem(text=text)])
+        record_id = ids[0]
+        self.assertIsNotNone(ids)
+        self.assertEqual(len(ids), 1)
+        self.assertIsInstance(ids[0], uuid.UUID)
 
         # verify the inserted record
         records = self.vectorstore.get_by_ids([record_id])
@@ -180,19 +179,19 @@ class TestAIVectorstore(tb.SyncQueryTestCase):
         self.assertIsInstance(records[0], Record)
 
         # delete the record
-        deleted_records = self.vectorstore.delete([record_id])
-        self.assertEqual(deleted_records[0].id, record_id)
-        self.assertIsInstance(deleted_records[0], IdRecord)
+        deleted_records_ids = self.vectorstore.delete([record_id])
+        self.assertEqual(deleted_records_ids[0], record_id)
+        self.assertIsInstance(deleted_records_ids[0], uuid.UUID)
 
         # verify that the record is deleted
         records = self.vectorstore.get_by_ids([record_id])
         self.assertEqual(len(records), 0)
 
     def test_add_multiple(self):
-        results = self.vectorstore.add_items(items=records)
-        self.assertEqual(len(results), 3)
-        for result in results:
-            self.assertIsInstance(result, IdRecord)
+        ids = self.vectorstore.add_items(items=records)
+        self.assertEqual(len(ids), 3)
+        for id in ids:
+            self.assertIsInstance(id, uuid.UUID)
 
     def test_search_no_filters(self):
         self.vectorstore.add_items(items=records)
@@ -234,10 +233,10 @@ class TestAIVectorstore(tb.SyncQueryTestCase):
     def test_update_record(self):
         # insert a record
         initial_metadata = {"category": "test"}
-        records = self.vectorstore.add_vectors(
-            [RecordToInsert(embedding=[0.1] * 1536, metadata=initial_metadata)]
+        ids = self.vectorstore.add_vectors(
+            [InsertRecord(embedding=[0.1] * 1536, metadata=initial_metadata)]
         )
-        record_id = records[0].id
+        record_id = ids[0]
 
         # verify the inserted record
         record = self.vectorstore.get_by_ids([record_id])[0]
@@ -249,10 +248,10 @@ class TestAIVectorstore(tb.SyncQueryTestCase):
 
         # update just metadata
         new_metadata = {"category": "test2", "new_field": "updated"}
-        updated = self.vectorstore.update_record(
+        updated_id = self.vectorstore.update_record(
             Record(id=record_id, metadata=new_metadata)
         )
-        self.assertEqual(updated.id, record_id)
+        self.assertEqual(updated_id, record_id)
 
         # verify the updated record
         record = self.vectorstore.get_by_ids([record_id])[0]
