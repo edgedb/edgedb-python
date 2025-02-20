@@ -1,7 +1,24 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2025-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # Extension Vectorstore Binding
 # ----------------------------
 #
-# `GelVectorstore` is designed to integrate with vector databases following
+# `Vectorstore` is designed to integrate with vector databases following
 # LangChain-LlamaIndex conventions. It enables interaction with embedding models
 # (both within and outside of Gel) through a simple interface.
 #
@@ -9,197 +26,360 @@
 # text, images, or any other embeddings. For example, CLIP can be wrapped into
 # this interface to generate and store image embeddings.
 
-import gel
+
+from __future__ import annotations
+from typing import (
+    Optional,
+    TypeVar,
+    Any,
+    List,
+    Dict,
+    Generic,
+    Self,
+    Union,
+    overload,
+    TYPE_CHECKING,
+    Coroutine,
+)
+
+import abc
+import array
+import dataclasses
+import enum
 import json
+import textwrap
 import uuid
-from dataclasses import dataclass, field
-from abc import abstractmethod
-from typing import Optional, TypeVar, Any, List, Dict, Generic
-from jinja2 import Template
-from .metadata_filter import (
-    get_filter_clause,
-    CompositeFilter,
-)
+
+from gel import abstract
+from gel import errors
+from gel import quote
+from gel.protocol import protocol
 
 
-BATCH_ADD_QUERY = Template(
-    """
-    with items := json_array_unpack(<json>$items)
-    select (
-        for item in items union (
-            insert {{record_type}} {
-                collection := <str>$collection_name,
-                text := <optional str>item['text'],
-                embedding := <optional array<float32>>item['embedding'],
-                metadata := <optional json>item['metadata']
-            }
+if TYPE_CHECKING:
+    try:
+        import numpy as np
+        import numpy.typing as npt
+
+        Vector = Union[
+            List[float], array.array[float], npt.NDArray[np.float32]
+        ]
+    except ImportError:
+        Vector = Union[List[float], array.array[float]]
+
+
+class Query(abstract.AsQueryWithArgs):
+    def __init__(self, query: str, **kwargs):
+        self.query = query
+        self.kwargs = kwargs
+
+    def as_query_with_args(self, *args, **kwargs) -> abstract.QueryWithArgs:
+        if args:
+            raise errors.InvalidArgumentError(
+                "this query does not accept positional arguments"
+            )
+        return abstract.QueryWithArgs(
+            query=self.query,
+            args=args,
+            kwargs={**self.kwargs, **kwargs},
+            input_language=protocol.InputLanguage.EdgeQL,
         )
-    )
-    """.strip()
-)
-
-DELETE_BY_IDS_QUERY = Template(
-    """
-    delete {{record_type}}
-    filter .id in array_unpack(<array<uuid>>$ids) 
-    and .collection = <str>$collection_name;
-    """.strip()
-)
-
-SEARCH_QUERY = Template(
-    """
-    with collection_records := (
-        select {{record_type}} 
-        filter .collection = <str>$collection_name
-        and exists(.embedding)
-    )
-    select collection_records {
-        id,
-        text,
-        embedding,
-        metadata,
-        cosine_similarity := 1 - ext::pgvector::cosine_distance(
-            .embedding, <ext::pgvector::vector>$query_embedding),
-    }
-    {{filter_expression}}
-    order by .cosine_similarity desc empty last
-    limit <optional int64>$limit;
-    """
-)
-
-GET_BY_IDS_QUERY = Template(
-    """
-    select {{record_type}} {
-        id, 
-        text,
-        embedding,
-        metadata,
-    }
-    filter .id in array_unpack(<array<uuid>>$ids)
-    and .collection = <str>$collection_name;
-    """.strip()
-)
-
-UPDATE_QUERY = Template(
-    """
-    with updates := array_unpack(<array<str>>$updates)
-    update {{record_type}}
-    filter .id = <uuid>$id and .collection = <str>$collection_name
-    set {
-        text := <optional str>$text if 'text' in updates else .text,
-        embedding := <optional ext::pgvector::vector>$embedding 
-            if 'embedding' in updates 
-            else .embedding,
-        metadata := <optional json>$metadata 
-            if 'metadata' in updates 
-            else .metadata,
-    };
-    """.strip()
-)
 
 
-@dataclass
-class InsertItem:
-    """An item whose embedding will be created and stored
-    alongside the item in the vector store."""
-
-    text: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class InsertRecord:
+@dataclasses.dataclass(kw_only=True)
+class AddRecord(abstract.AsQueryWithArgs):
     """A record to be added to the vector store with embedding pre-computed."""
 
-    embedding: List[float]
-    text: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    record_type: str
+    collection_name: str
+    embedding: Vector
+    text: Optional[str]
+    metadata: Optional[Dict[str, Any]]
+
+    def asdict(self, json_compat: bool = False, **override) -> Dict[str, Any]:
+        rv = dataclasses.asdict(self)
+        rv.pop("record_type")
+        if self.metadata is not None:
+            rv["metadata"] = json.dumps(self.metadata)
+        rv.update(override)
+        if json_compat and hasattr(rv["embedding"], "tolist"):
+            rv["embedding"] = rv["embedding"].tolist()
+        return rv
+
+    def as_query_with_args(self, *args, **kwargs) -> abstract.QueryWithArgs:
+        if args:
+            raise errors.InvalidArgumentError(
+                "this query does not accept positional arguments"
+            )
+        return abstract.QueryWithArgs(
+            query=textwrap.dedent(
+                f"""
+                insert {quote.quote_ident(self.record_type)} {{
+                    collection := <str>$collection_name,
+                    text := <optional str>$text,
+                    embedding := <optional ext::pgvector::vector>$embedding,
+                    metadata := <optional json>$metadata,
+                }}
+                """
+            ),
+            args=args,
+            kwargs=self.asdict(**kwargs),
+            input_language=protocol.InputLanguage.EdgeQL,
+        )
 
 
-@dataclass(init=False)
-class Record:
-    """A record retrieved from the vector store, or an update record.
+class AddRecords(abstract.AsQueryWithArgs):
+    """Add multiple records to the vector store in a single transaction."""
 
-    Custom `__init__` so we can detect which fields the user passed
-    (even if they pass None or {}).
-    """
-    id: uuid.UUID
-    text: Optional[str] = None
-    embedding: Optional[List[float]] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    def __init__(self, *records: AddRecord):
+        record_type = set(record.record_type for record in records)
+        if len(record_type) == 0:
+            raise errors.InvalidArgumentError("no records provided")
+        if len(record_type) > 1:
+            raise errors.InvalidArgumentError(
+                f"all records must have the same record type, "
+                f"got {record_type}"
+            )
+        self.record_type = record_type.pop()
+        self.records = records
 
-    # We'll fill these dynamically in __init__
-    _explicitly_set_fields: set = field(default_factory=set, repr=False)
+    def as_query_with_args(self, *args, **kwargs) -> abstract.QueryWithArgs:
+        if args:
+            raise errors.InvalidArgumentError(
+                "this query does not accept positional arguments"
+            )
+        return abstract.QueryWithArgs(
+            query=textwrap.dedent(
+                f"""
+                with items := json_array_unpack(<json>$items)
+                for item in items union (
+                    insert {quote.quote_ident(self.record_type)} {{
+                        collection := <str>item['collection_name'],
+                        text := <str>item['text'],
+                        embedding := <array<float32>>item['embedding'],
+                        metadata := to_json(<str>item['metadata']),
+                    }}
+                )
+                """
+            ),
+            args=args,
+            kwargs={
+                "items": json.dumps(
+                    [
+                        r.asdict(json_compat=True, **kwargs)
+                        for r in self.records
+                    ]
+                )
+            },
+            input_language=protocol.InputLanguage.EdgeQL,
+        )
 
-    def __init__(self, id: uuid.UUID, **kwargs):
-        """
-        Force the user to provide `id` positionally/explicitly,
-        then capture any *other* fields in **kwargs.
-        """
 
-        # For text, embedding, metadata, we use what's in kwargs
-        # or fall back to the default already on the class.
-        self.id = id
-        self.text = kwargs.get("text", None)
-        self.embedding = kwargs.get("embedding", None)
-        self.metadata = kwargs.get("metadata", {})
-
-        # Mark which fields were actually passed by the user (ignore 'id').
-        # So if user calls Record(id=..., text=None), "text" will appear here.
-        object.__setattr__(self, "_explicitly_set_fields", set(kwargs.keys()))
-
-    def is_field_set(self, field: str) -> bool:
-        """Check if a field was explicitly set in the constructor call."""
-        return field in self._explicitly_set_fields
+JsonValue = Union[int, float, str, bool]
 
 
-@dataclass
-class SearchResult(Record):
-    """A search result from the vector store."""
+class FilterOperator(str, enum.Enum):
+    EQ = "="
+    NE = "!="
+    GT = ">"
+    GTE = ">="
+    LT = "<"
+    LTE = "<="
 
-    cosine_similarity: float = 0.0
+
+class SearchRecordQuery(abstract.AsQueryWithArgs):
+    def __init__(
+        self,
+        record_type: str,
+        collection_name: str,
+        embedding: Vector,
+        limit: int = 4,
+    ):
+        self.record_type = record_type
+        self.collection_name = collection_name
+        self.embedding = embedding
+        self.limit = limit
+        self.filter_args = []
+        self.filters = []
+
+    def filter(self, expr: str, *args: Any) -> Self:
+        if self.filter_args and args:
+            raise errors.InvalidArgumentError(
+                "filter() with arguments can only be called once before "
+                "adding any filter with arguments"
+            )
+        self.filters.append(f"({expr})")
+        self.filter_args.extend(args)
+        return self
+
+    @overload
+    def filter_metadata(
+        self, *path: str, eq: JsonValue, default: bool = False
+    ) -> Self: ...
+
+    @overload
+    def filter_metadata(
+        self, *path: str, ne: JsonValue, default: bool = False
+    ) -> Self: ...
+
+    @overload
+    def filter_metadata(
+        self, *path: str, gt: JsonValue, default: bool = False
+    ) -> Self: ...
+
+    @overload
+    def filter_metadata(
+        self, *path: str, gte: JsonValue, default: bool = False
+    ) -> Self: ...
+
+    @overload
+    def filter_metadata(
+        self, *path: str, lt: JsonValue, default: bool = False
+    ) -> Self: ...
+
+    @overload
+    def filter_metadata(
+        self, *path: str, lte: JsonValue, default: bool = False
+    ) -> Self: ...
+
+    def filter_metadata(self, *path: str, **op_vals: JsonValue) -> Self:
+        if not path:
+            raise errors.InterfaceError(
+                "at least one path element is required"
+            )
+
+        default = str(op_vals.pop("default", False)).lower()
+        if len(op_vals) != 1:
+            raise errors.InterfaceError(
+                "expected exactly one operator-value pair"
+            )
+
+        op_str, value = op_vals.popitem()
+        if isinstance(value, str):
+            typ = "str"
+        elif isinstance(value, bool):  # bool is a subclass of int, goes first
+            typ = "bool"
+        elif isinstance(value, int):
+            typ = "int64"
+        elif isinstance(value, float):
+            typ = "float64"
+        else:
+            raise errors.InterfaceError(
+                f"unsupported value type: {type(value).__name__}"
+            )
+
+        path_param = ", ".join(quote.quote_literal(p) for p in path)
+        left = f"<{typ}>json_get(.metadata, {path_param})"
+        op = FilterOperator(op_str.upper())
+        right = f"<{typ}>${len(self.filter_args)}"
+        self.filters.append(f"(({left} {op} {right}) ?? {default})")
+        self.filter_args.append(value)
+
+        return self
+
+    def limit(self, limit: int) -> Self:
+        self.limit = limit
+        return self
+
+    def as_query_with_args(self, *args, **kwargs) -> abstract.QueryWithArgs:
+        if args:
+            raise errors.InvalidArgumentError(
+                "this query does not accept positional arguments"
+            )
+        c = len(self.filter_args)
+        if self.filters:
+            filter_expression = "filter " + " and ".join(self.filters)
+        else:
+            filter_expression = ""
+        return abstract.QueryWithArgs(
+            query=textwrap.dedent(
+                f"""
+                with collection_records := (
+                    select {quote.quote_ident(self.record_type)}
+                        filter .collection = <str>${c}
+                            and exists(.embedding)
+                )
+                select collection_records {{
+                    id,
+                    text,
+                    embedding,
+                    metadata,
+                    cosine_similarity := 1 - ext::pgvector::cosine_distance(
+                        .embedding, <ext::pgvector::vector>${c + 1}),
+                }}
+                {filter_expression}
+                order by .cosine_similarity desc empty last
+                limit <optional int64>${c + 2};
+                """
+            ),
+            args=(
+                *self.filter_args,
+                kwargs.pop("collection_name", self.collection_name),
+                kwargs.pop("embedding", self.embedding),
+                kwargs.pop("limit", self.limit),
+            ),
+            kwargs={},
+            input_language=protocol.InputLanguage.EdgeQL,
+        )
 
 
 T = TypeVar("T")
 
 
-class BaseEmbeddingModel(Generic[T]):
-    """
-    Abstract base class for embedding models.
-
-    Any embedding model used with `GelVectorstore` must implement this
-    interface. The model is expected to convert input data (text, images, etc.)
-    into a numerical vector representation.
-    """
-
-    @abstractmethod
-    def __call__(self, item: T) -> List[float]:
-        """
-        Convert an input item into a list of floating-point values (vector
-        embedding). Must be implemented in subclasses.
-        """
-        raise NotImplementedError
-
+class BaseEmbeddingModel(abc.ABC, Generic[T]):
     @property
-    @abstractmethod
+    @abc.abstractmethod
     def dimensions(self) -> int:
         """
         Return the number of dimensions in the embedding vector.
         Must be implemented in subclasses.
         """
-        raise NotImplementedError
+        ...
 
     @property
-    @abstractmethod
+    @abc.abstractmethod
     def target_type(self) -> TypeVar:
         """
         Return the expected data type of the input (e.g., str for text, image
         for vision models). Must be implemented in subclasses.
         """
-        raise NotImplementedError
+        ...
+
+    """
+    Abstract base class for embedding models.
+
+    Any embedding model used with `Vectorstore` must implement this
+    interface. The model is expected to convert input data (text, images, etc.)
+    into a numerical vector representation.
+    """
 
 
-class GelVectorstore:
+class EmbeddingModel(BaseEmbeddingModel[T], Generic[T]):
+    def store(
+        self,
+        collection_name: str = "default",
+        record_type: str = "ext::vectorstore::DefaultRecord",
+    ) -> Vectorstore:
+        return Vectorstore(
+            embedding_model=self,
+            collection_name=collection_name,
+            record_type=record_type,
+        )
+
+    @abc.abstractmethod
+    def generate(self, item: T) -> Vector:
+        """
+        Convert an input item into a list of floating-point values (vector
+        embedding). Must be implemented in subclasses.
+        """
+        ...
+
+    @abc.abstractmethod
+    def generate_text(self, text: str) -> Vector: ...
+
+
+@dataclasses.dataclass
+class BaseVectorstore:
     """
     A framework-agnostic interface for interacting with Gel's ext::vectorstore.
 
@@ -208,98 +388,42 @@ class GelVectorstore:
     different embedding models.
     """
 
-    def __init__(
-        self,
-        embedding_model: Optional[BaseEmbeddingModel] = None,
-        collection_name: str = "default",
-        record_type: str = "ext::vectorstore::DefaultRecord",
-        client_config: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize a new vector store instance.
+    collection_name: str = "default"
+    record_type: str = "ext::vectorstore::DefaultRecord"
 
-        Args:
-            embedding_model (BaseEmbeddingModel): The embedding model used to
-              generate vectors.
-            collection_name (str): The name of the collection.
-            record_type (str): The schema type (table name) for storing records.
-            client_config (Optional[dict]): The config for the Gel client.
-        """
-        self.embedding_model = embedding_model
-        self.collection_name = collection_name
-        self.record_type = record_type
-        self.gel_client = gel.create_client(**(client_config or {}))
-
-    def add_items(self, items: List[InsertItem]) -> List[uuid.UUID]:
-        """
-        Add multiple items to the vector store in a single transaction.
-        Embeddinsg will be generated and stored for all items.
-
-        Args:
-            items (List[InsertItem]): List of items to add. Each contains:
-                - text (str): The text content to be embedded
-                - metadata (Dict[str, Any]): Additional data to store
-
-        Returns:
-            List[uuid.UUID]: List of database record IDs for the inserted items.
-        """
-        items_with_embeddings = [
-            InsertRecord(
-                text=item.text,
-                embedding=(self.embedding_model(item.text)),
-                metadata=item.metadata,
-            )
-            for item in items
-        ]
-        return self.add_vectors(items_with_embeddings)
-
-    def add_vectors(self, records: List[InsertRecord]) -> List[uuid.UUID]:
-        """Add pre-computed vector embeddings to the store.
-
-        Use this method when you have already generated embeddings and want to
-        store them directly without re-computing them.
-
-        Args:
-            records (List[InsertRecord]): List of records. Each contains:
-                - embedding ([List[float]): Pre-computed embeddings
-                - text (Optional[str]): Original text content
-                - metadata ([Dict[str, Any]): Additional data to store
-
-        Returns:
-            List[uuid.UUID]: List of database record IDs for the inserted items.
-        """
-        results = self.gel_client.query(
-            query=BATCH_ADD_QUERY.render(record_type=self.record_type),
+    def add_embedding(
+        self, embedding: Vector, text: Optional[str] = None, **metadata
+    ) -> AddRecord:
+        return AddRecord(
+            record_type=self.record_type,
             collection_name=self.collection_name,
-            items=json.dumps(
-                [
-                    {
-                        "text": record.text,
-                        "embedding": record.embedding,
-                        "metadata": record.metadata or {},
-                    }
-                    for record in records
-                ]
-            ),
+            embedding=embedding,
+            text=text,
+            metadata=metadata or None,
         )
-        return [result.id for result in results]
 
-    def delete(self, ids: List[uuid.UUID]) -> List[uuid.UUID]:
+    def delete(self, *ids: uuid.UUID) -> Query:
         """Delete records from the vector store by their IDs.
 
         Args:
             ids (List[uuid.UUID]): List of record IDs to delete.
 
         Returns:
-            List[uuid.UUID]: List of deleted record IDs.
+            Query: Executable Query, returning the deleted IDs.
         """
-        results = self.gel_client.query(
-            query=DELETE_BY_IDS_QUERY.render(record_type=self.record_type),
+        return Query(
+            textwrap.dedent(
+                f"""
+                delete {quote.quote_ident(self.record_type)}
+                    filter .id in array_unpack(<array<uuid>>$ids)
+                    and .collection = <str>$collection_name;
+                """
+            ),
             collection_name=self.collection_name,
-            ids=ids,
+            ids=list(ids),
         )
-        return [result.id for result in results]
 
-    def get_by_ids(self, ids: List[uuid.UUID]) -> List[Record]:
+    def get_by_ids(self, *ids: uuid.UUID) -> Query:
         """Retrieve specific records by their IDs.
 
         Args:
@@ -312,66 +436,24 @@ class GelVectorstore:
                 - embedding (Optional[List[float]]): The stored vector embedding
                 - metadata (Optional[Dict[str, Any]]): Any associated metadata
         """
-        results = self.gel_client.query(
-            query=GET_BY_IDS_QUERY.render(record_type=self.record_type),
+        return Query(
+            textwrap.dedent(
+                f"""
+                select {self.record_type} {{
+                    id,
+                    text,
+                    embedding,
+                    metadata,
+                }}
+                filter .id in array_unpack(<array<uuid>>$ids)
+                and .collection = <str>$collection_name;
+                """
+            ),
             collection_name=self.collection_name,
-            ids=ids,
-        )
-        return [
-            Record(
-                id=result.id,
-                text=result.text,
-                embedding=result.embedding and list(result.embedding),
-                metadata=(json.loads(result.metadata)),
-            )
-            for result in results
-        ]
-
-    def search_by_item(
-        self,
-        item: Any,
-        filters: Optional[CompositeFilter] = None,
-        limit: Optional[int] = 4,
-    ) -> List[SearchResult]:
-        """Search for similar items in the vector store.
-
-        This method:
-        1. Generates an embedding for the input item
-        2. Finds records with similar embeddings
-        3. Optionally filters results based on metadata
-        4. Returns the most similar items up to the specified limit
-
-        Args:
-            item (Any): The query item to find similar matches for.
-              Must be compatible with the embedding model's target_type.
-            filters (Optional[CompositeFilter]): Metadata-based filters to use.
-            limit (Optional[int]): Max number of results to return.
-              Defaults to 4.
-
-        Returns:
-            List[SearchResult]: List of similar items, ordered by similarity.
-                Each result contains:
-                - id (uuid.UUID): The record's unique identifier
-                - text (Optional[str]): The original text content
-                - embedding (List[float]): The stored vector embedding
-                - metadata (Optional[Dict[str, Any]]): Any associated metadata
-                - cosine_similarity (float): Similarity score
-                  (higher is more similar)
-        """
-        vector = self.embedding_model(item)
-        filter_expression = (
-            f"filter {get_filter_clause(filters)}" if filters else ""
-        )
-        return self.search_by_vector(
-            vector=vector, filter_expression=filter_expression, limit=limit
+            ids=list(ids),
         )
 
-    def search_by_vector(
-        self,
-        vector: List[float],
-        filter_expression: str = "",
-        limit: Optional[int] = 4,
-    ) -> List[SearchResult]:
+    def search_by_vector(self, vector: Vector) -> SearchRecordQuery:
         """Search using a pre-computed vector embedding.
 
         Useful when you have already computed the embedding or want to search
@@ -394,27 +476,159 @@ class GelVectorstore:
                 - cosine_similarity (float): Similarity score
                   (higher is more similar)
         """
-        results = self.gel_client.query(
-            query=SEARCH_QUERY.render(
-                record_type=self.record_type,
-                filter_expression=filter_expression,
-            ),
-            collection_name=self.collection_name,
-            query_embedding=vector,
-            limit=limit,
+        return SearchRecordQuery(
+            self.record_type, self.collection_name, vector
         )
-        return [
-            SearchResult(
-                id=result.id,
-                text=result.text,
-                embedding=list(result.embedding) if result.embedding else None,
-                metadata=json.loads(result.metadata),
-                cosine_similarity=result.cosine_similarity,
-            )
-            for result in results
-        ]
 
-    def update_record(self, record: Record) -> Optional[uuid.UUID]:
+    async def _update_record(self, id: uuid.UUID, **kwargs) -> Query:
+        conditions = []
+        params = {"id": id, "collection_name": self.collection_name}
+        if "text" in kwargs:
+            text = kwargs.pop("text")
+            conditions.append("text := <str>$text")
+            params["text"] = text
+            if "embedding" not in kwargs:
+                kwargs["embedding"] = await self._generate_vector_from_text(
+                    text
+                )
+        if "embedding" in kwargs:
+            conditions.append("embedding := <ext::pgvector::vector>$embedding")
+            params["embedding"] = kwargs.pop("embedding")
+        if "metadata" in kwargs:
+            conditions.append("metadata := <json>$metadata")
+            params["metadata"] = json.dumps(kwargs.pop("metadata"))
+        if not conditions:
+            raise errors.InterfaceError("No fields specified for update.")
+        if kwargs:
+            raise errors.InterfaceError(
+                f"Unexpected fields for update: {', '.join(kwargs.keys())}"
+            )
+        return Query(
+            textwrap.dedent(
+                f"""
+                update {quote.quote_ident(self.record_type)}
+                    filter .id = <uuid>$id
+                        and .collection = <str>$collection_name
+                set {{
+                    {", ".join(conditions)}
+                }};
+                """
+            ),
+            **params,
+        )
+
+    async def _generate_vector_from_text(self, text: str) -> Vector:
+        raise NotImplementedError()
+
+
+V = TypeVar("V")
+
+
+def _iter_coroutine(coro: Coroutine[Any, Any, V]) -> V:
+    try:
+        coro.send(None)
+    except StopIteration as ex:
+        return ex.value
+    finally:
+        coro.close()
+
+
+@dataclasses.dataclass
+class Vectorstore(BaseVectorstore, Generic[T]):
+    embedding_model: Optional[EmbeddingModel] = None
+
+    async def _generate_vector_from_text(self, text: str) -> Vector:
+        if self.embedding_model is None:
+            raise errors.InterfaceError(
+                "No embedding model provided to generate vector for text."
+            )
+
+        return self.embedding_model.generate_text(text)
+
+    def add_text(self, text: str, **metadata) -> AddRecord:
+        return AddRecord(
+            record_type=self.record_type,
+            collection_name=self.collection_name,
+            embedding=_iter_coroutine(self._generate_vector_from_text(text)),
+            text=text,
+            metadata=metadata or None,
+        )
+
+    def search_by_item(self, item: T) -> SearchRecordQuery:
+        """Search for similar items in the vector store.
+
+        This method:
+        1. Generates an embedding for the input item
+        2. Finds records with similar embeddings
+        3. Optionally filters results based on metadata
+        4. Returns the most similar items up to the specified limit
+
+        Args:
+            item (Any): The query item to find similar matches for.
+              Must be compatible with the embedding model's target_type.
+
+        Returns:
+            List[SearchResult]: List of similar items, ordered by similarity.
+                Each result contains:
+                - id (uuid.UUID): The record's unique identifier
+                - text (Optional[str]): The original text content
+                - embedding (List[float]): The stored vector embedding
+                - metadata (Optional[Dict[str, Any]]): Any associated metadata
+                - cosine_similarity (float): Similarity score
+                  (higher is more similar)
+        """
+        if self.embedding_model is None:
+            raise errors.InterfaceError(
+                "No embedding model provided to generate vector."
+            )
+
+        return SearchRecordQuery(
+            self.record_type,
+            self.collection_name,
+            self.embedding_model.generate(item),
+        )
+
+    @overload
+    def update_record(self, id: uuid.UUID, *, embedding: Vector) -> Query: ...
+
+    @overload
+    def update_record(self, id: uuid.UUID, *, text: str) -> Query: ...
+
+    @overload
+    def update_record(
+        self, id: uuid.UUID, *, metadata: Optional[Dict[str, Any]]
+    ) -> Query: ...
+
+    @overload
+    def update_record(
+        self, id: uuid.UUID, *, text: str, embedding: Vector
+    ) -> Query: ...
+
+    @overload
+    def update_record(
+        self, id: uuid.UUID, *, text: str, metadata: Optional[Dict[str, Any]]
+    ) -> Query: ...
+
+    @overload
+    def update_record(
+        self,
+        id: uuid.UUID,
+        *,
+        embedding: Vector,
+        metadata: Optional[Dict[str, Any]],
+    ) -> Query: ...
+
+    @overload
+    def update_record(
+        self,
+        id: uuid.UUID,
+        *,
+        text: str,
+        embedding: Vector,
+        metadata: Optional[Dict[str, Any]],
+    ) -> Query: ...
+
+    def update_record(self, id: uuid.UUID, **kwargs) -> Query:
         """Update an existing record in the vector store.
 
         Only specified fields will be updated. If text is provided but not
@@ -429,34 +643,158 @@ class GelVectorstore:
                 - metadata (Optional[Dict[str, Any]]): New metadata to store
                   with the record. Completely replaces existing metadata.
         Returns:
-            Optional[uuid.UUID]: The updated record's ID if found and updated,
+            Optional[IdRecord]: The updated record's ID if found and updated,
               None if no record was found with the given ID.
         Raises:
             ValueError: If no fields are specified for update.
         """
-        if not any(
-            record.is_field_set(field)
-            for field in ["text", "embedding", "metadata"]
-        ):
-            raise ValueError("No fields specified for update.")
+        return _iter_coroutine(self._update_record(id, **kwargs))
 
-        updates = {
-            field
-            for field in ["text", "embedding", "metadata"]
-            if record.is_field_set(field)
-        }
 
-        if "text" in updates and record.text is not None and "embedding" not in updates:
-            updates.add("embedding")
-            record.embedding = self.embedding_model(record.text)
+class AsyncEmbeddingModel(BaseEmbeddingModel, Generic[T]):
+    """
+    Abstract base class for embedding models.
 
-        result = self.gel_client.query_single(
-            query=UPDATE_QUERY.render(record_type=self.record_type),
-            collection_name=self.collection_name,
-            id=record.id,
-            updates=list(updates),
-            text=record.text,
-            embedding=record.embedding,
-            metadata=json.dumps(record.metadata or {}),
+    Any embedding model used with `Vectorstore` must implement this
+    interface. The model is expected to convert input data (text, images, etc.)
+    into a numerical vector representation.
+    """
+
+    def store(
+        self,
+        collection_name: str = "default",
+        record_type: str = "ext::vectorstore::DefaultRecord",
+    ) -> AsyncVectorstore:
+        return AsyncVectorstore(
+            embedding_model=self,
+            collection_name=collection_name,
+            record_type=record_type,
         )
-        return result.id if result else None
+
+    @abc.abstractmethod
+    async def generate(self, item: T) -> Vector:
+        """
+        Convert an input item into a list of floating-point values (vector
+        embedding). Must be implemented in subclasses.
+        """
+        ...
+
+    @abc.abstractmethod
+    async def generate_text(self, text: str) -> Vector: ...
+
+
+@dataclasses.dataclass
+class AsyncVectorstore(BaseVectorstore, Generic[T]):
+    embedding_model: Optional[AsyncEmbeddingModel] = None
+
+    async def add_text(self, text: str, **metadata) -> AddRecord:
+        if self.embedding_model is None:
+            raise errors.InterfaceError(
+                "No embedding model provided to generate vector for text."
+            )
+
+        return AddRecord(
+            record_type=self.record_type,
+            collection_name=self.collection_name,
+            embedding=await self.embedding_model.generate_text(text),
+            text=text,
+            metadata=metadata or None,
+        )
+
+    async def search_by_item(self, item: str) -> SearchRecordQuery:
+        """Search for similar items in the vector store.
+
+        This method:
+        1. Generates an embedding for the input item
+        2. Finds records with similar embeddings
+        3. Optionally filters results based on metadata
+        4. Returns the most similar items up to the specified limit
+
+        Args:
+            item (Any): The query item to find similar matches for.
+              Must be compatible with the embedding model's target_type.
+
+        Returns:
+            List[SearchResult]: List of similar items, ordered by similarity.
+                Each result contains:
+                - id (uuid.UUID): The record's unique identifier
+                - text (Optional[str]): The original text content
+                - embedding (List[float]): The stored vector embedding
+                - metadata (Optional[Dict[str, Any]]): Any associated metadata
+                - cosine_similarity (float): Similarity score
+                  (higher is more similar)
+        """
+        if self.embedding_model is None:
+            raise errors.InterfaceError(
+                "No embedding model provided to generate vector."
+            )
+
+        return SearchRecordQuery(
+            self.record_type,
+            self.collection_name,
+            await self.embedding_model.generate(item),
+        )
+
+    @overload
+    async def update_record(
+        self, id: uuid.UUID, *, embedding: Vector
+    ) -> Query: ...
+
+    @overload
+    async def update_record(self, id: uuid.UUID, *, text: str) -> Query: ...
+
+    @overload
+    async def update_record(
+        self, id: uuid.UUID, *, metadata: Optional[Dict[str, Any]]
+    ) -> Query: ...
+
+    @overload
+    async def update_record(
+        self, id: uuid.UUID, *, text: str, embedding: Vector
+    ) -> Query: ...
+
+    @overload
+    async def update_record(
+        self, id: uuid.UUID, *, text: str, metadata: Optional[Dict[str, Any]]
+    ) -> Query: ...
+
+    @overload
+    async def update_record(
+        self,
+        id: uuid.UUID,
+        *,
+        embedding: Vector,
+        metadata: Optional[Dict[str, Any]],
+    ) -> Query: ...
+
+    @overload
+    async def update_record(
+        self,
+        id: uuid.UUID,
+        *,
+        text: str,
+        embedding: Vector,
+        metadata: Optional[Dict[str, Any]],
+    ) -> Query: ...
+
+    async def update_record(self, id: uuid.UUID, **kwargs) -> Query:
+        """Update an existing record in the vector store.
+
+        Only specified fields will be updated. If text is provided but not
+        embedding, a new embedding will be automatically generated.
+
+        Args:
+            Record:
+                - id (uuid.UUID): The ID of the record to update
+                - text (Optional[str]): New text content. If provided without
+                  embedding, a new embedding will be generated.
+                - embedding (Optional[List[float]]): New vector embedding.
+                - metadata (Optional[Dict[str, Any]]): New metadata to store
+                  with the record. Completely replaces existing metadata.
+        Returns:
+            Optional[IdRecord]: The updated record's ID if found and updated,
+              None if no record was found with the given ID.
+        Raises:
+            ValueError: If no fields are specified for update.
+        """
+        return await self._update_record(id, **kwargs)

@@ -49,6 +49,84 @@ class QueryWithArgs(typing.NamedTuple):
     kwargs: typing.Dict[str, typing.Any]
     input_language: protocol.InputLanguage = protocol.InputLanguage.EDGEQL
 
+    @classmethod
+    def from_(
+        cls,
+        query: Query,
+        args: typing.Tuple,
+        kwargs: typing.Dict[str, typing.Any],
+        default_input_language: protocol.InputLanguage = (
+            protocol.InputLanguage.EDGEQL
+        ),
+    ) -> typing.Self:
+        if isinstance(query, str):
+            return cls(query, args, kwargs, default_input_language)
+        else:
+            return query.as_query_with_args(*args, **kwargs)
+
+
+class AsQueryWithArgs(abc.ABC):
+    @abc.abstractmethod
+    def as_query_with_args(
+        self,
+        *args,
+        **kwargs,
+    ) -> QueryWithArgs: ...
+
+
+Query = typing.Union[str, AsQueryWithArgs]
+
+
+# class Batch(AsQueryWithArgs):
+#     def __init__(self, *queries: Query):
+#         self._queries = queries
+#
+#     def as_query_with_args(self, *args, **kwargs) -> QueryWithArgs:
+#         query_texts = []
+#         query_args = ()
+#         query_kwargs = {}
+#         for q in self._queries:
+#             query = QueryWithArgs.from_(q, args, kwargs, input_language)
+#
+#             text = query.query.rstrip()
+#             if not text.endswith(";"):
+#                 text += ";"
+#             query_texts.append(text)
+#
+#             query_args += query.args
+#
+#             for k, v in query.kwargs.items():
+#                 if k in query_kwargs:
+#                     if query_kwargs[k] != v:
+#                         raise errors.InvalidArgumentError(
+#                             f"conflicting values for argument {k!r}"
+#                         )
+#                 else:
+#                     query_kwargs[k] = v
+#
+#         return QueryWithArgs(
+#             query="\n\n".join(query_texts),
+#             args=query_args,
+#             kwargs=query_kwargs,
+#             input_language=input_language,
+#         )
+#
+#
+def batch(
+    *queries: Query,
+    input_language: protocol.InputLanguage = protocol.InputLanguage.EDGEQL,
+) -> QueryWithArgs:
+    query_text = ""
+    for q in queries:
+        if isinstance(q, str):
+            query = QueryWithArgs(q, (), {}, input_language)
+        else:
+            query = q.as_query_with_args(input_language=input_language)
+
+    return QueryWithArgs(
+        query="\n\n".join(q.query for q in queries),
+    )
+
 
 class QueryCache(typing.NamedTuple):
     codecs_registry: protocol.CodecsRegistry
@@ -211,9 +289,9 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
     def _query(self, query_context: QueryContext):
         ...
 
-    def query(self, query: str, *args, **kwargs) -> list:
+    def query(self, query: Query, *args, **kwargs) -> list:
         return self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
@@ -223,10 +301,10 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
         ))
 
     def query_single(
-        self, query: str, *args, **kwargs
+        self, query: Query, *args, **kwargs
     ) -> typing.Union[typing.Any, None]:
         return self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
@@ -235,9 +313,11 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             annotations=self._get_annotations(),
         ))
 
-    def query_required_single(self, query: str, *args, **kwargs) -> typing.Any:
+    def query_required_single(
+        self, query: Query, *args, **kwargs
+    ) -> typing.Any:
         return self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
@@ -246,9 +326,9 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             annotations=self._get_annotations(),
         ))
 
-    def query_json(self, query: str, *args, **kwargs) -> str:
+    def query_json(self, query: Query, *args, **kwargs) -> str:
         return self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
@@ -257,9 +337,9 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             annotations=self._get_annotations(),
         ))
 
-    def query_single_json(self, query: str, *args, **kwargs) -> str:
+    def query_single_json(self, query: Query, *args, **kwargs) -> str:
         return self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
@@ -268,9 +348,9 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
             annotations=self._get_annotations(),
         ))
 
-    def query_required_single_json(self, query: str, *args, **kwargs) -> str:
+    def query_required_single_json(self, query: Query, *args, **kwargs) -> str:
         return self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
@@ -299,9 +379,9 @@ class ReadOnlyExecutor(BaseReadOnlyExecutor):
     def _execute(self, execute_context: ExecuteContext):
         ...
 
-    def execute(self, commands: str, *args, **kwargs) -> None:
+    def execute(self, commands: Query, *args, **kwargs) -> None:
         self._execute(ExecuteContext(
-            query=QueryWithArgs(commands, args, kwargs),
+            query=QueryWithArgs.from_(commands, args, kwargs),
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
@@ -338,9 +418,9 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
     async def _query(self, query_context: QueryContext):
         ...
 
-    async def query(self, query: str, *args, **kwargs) -> list:
+    async def query(self, query: Query, *args, **kwargs) -> list:
         return await self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_opts,
             retry_options=self._get_retry_options(),
@@ -349,9 +429,9 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             annotations=self._get_annotations(),
         ))
 
-    async def query_single(self, query: str, *args, **kwargs) -> typing.Any:
+    async def query_single(self, query: Query, *args, **kwargs) -> typing.Any:
         return await self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_single_opts,
             retry_options=self._get_retry_options(),
@@ -361,13 +441,10 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
         ))
 
     async def query_required_single(
-        self,
-        query: str,
-        *args,
-        **kwargs
+        self, query: Query, *args, **kwargs
     ) -> typing.Any:
         return await self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_required_single_opts,
             retry_options=self._get_retry_options(),
@@ -376,9 +453,9 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             annotations=self._get_annotations(),
         ))
 
-    async def query_json(self, query: str, *args, **kwargs) -> str:
+    async def query_json(self, query: Query, *args, **kwargs) -> str:
         return await self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_json_opts,
             retry_options=self._get_retry_options(),
@@ -387,9 +464,9 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             annotations=self._get_annotations(),
         ))
 
-    async def query_single_json(self, query: str, *args, **kwargs) -> str:
+    async def query_single_json(self, query: Query, *args, **kwargs) -> str:
         return await self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_single_json_opts,
             retry_options=self._get_retry_options(),
@@ -399,13 +476,10 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
         ))
 
     async def query_required_single_json(
-        self,
-        query: str,
-        *args,
-        **kwargs
+        self, query: Query, *args, **kwargs
     ) -> str:
         return await self._query(QueryContext(
-            query=QueryWithArgs(query, args, kwargs),
+            query=QueryWithArgs.from_(query, args, kwargs),
             cache=self._get_query_cache(),
             query_options=_query_required_single_json_opts,
             retry_options=self._get_retry_options(),
@@ -414,7 +488,7 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
             annotations=self._get_annotations(),
         ))
 
-    async def query_sql(self, query: str, *args, **kwargs) -> typing.Any:
+    async def query_sql(self, query: Query, *args, **kwargs) -> typing.Any:
         return await self._query(QueryContext(
             query=QueryWithArgs(
                 query,
@@ -434,16 +508,16 @@ class AsyncIOReadOnlyExecutor(BaseReadOnlyExecutor):
     async def _execute(self, execute_context: ExecuteContext) -> None:
         ...
 
-    async def execute(self, commands: str, *args, **kwargs) -> None:
+    async def execute(self, commands: Query, *args, **kwargs) -> None:
         await self._execute(ExecuteContext(
-            query=QueryWithArgs(commands, args, kwargs),
+            query=QueryWithArgs.from_(commands, args, kwargs),
             cache=self._get_query_cache(),
             state=self._get_state(),
             warning_handler=self._get_warning_handler(),
             annotations=self._get_annotations(),
         ))
 
-    async def execute_sql(self, commands: str, *args, **kwargs) -> None:
+    async def execute_sql(self, commands: Query, *args, **kwargs) -> None:
         await self._execute(ExecuteContext(
             query=QueryWithArgs(
                 commands,
