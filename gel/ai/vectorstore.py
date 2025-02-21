@@ -114,12 +114,13 @@ class AddRecord(abstract.AsQueryWithArgs):
         return abstract.QueryWithArgs(
             query=textwrap.dedent(
                 f"""
-                insert {quote.quote_ident(self.record_type)} {{
+                with rec := insert {quote.quote_ident(self.record_type)} {{
                     collection := <str>$collection_name,
                     text := <optional str>$text,
                     embedding := <optional ext::pgvector::vector>$embedding,
                     metadata := <optional json>$metadata,
                 }}
+                select rec.id
                 """
             ),
             args=args,
@@ -151,15 +152,17 @@ class AddRecords(abstract.AsQueryWithArgs):
         return abstract.QueryWithArgs(
             query=textwrap.dedent(
                 f"""
-                with items := json_array_unpack(<json>$items)
-                for item in items union (
-                    insert {quote.quote_ident(self.record_type)} {{
-                        collection := <str>item['collection_name'],
-                        text := <str>item['text'],
-                        embedding := <array<float32>>item['embedding'],
-                        metadata := to_json(<str>item['metadata']),
-                    }}
-                )
+                with
+                    items := json_array_unpack(<json>$items),
+                    recs := for item in items union (
+                        insert {quote.quote_ident(self.record_type)} {{
+                            collection := <str>item['collection_name'],
+                            text := <str>item['text'],
+                            embedding := <array<float32>>item['embedding'],
+                            metadata := to_json(<str>item['metadata']),
+                        }}
+                    )
+                select recs.id
                 """
             ),
             args=args,
@@ -414,9 +417,10 @@ class BaseVectorstore:
         return Query(
             textwrap.dedent(
                 f"""
-                delete {quote.quote_ident(self.record_type)}
+                with recs := delete {quote.quote_ident(self.record_type)}
                     filter .id in array_unpack(<array<uuid>>$ids)
                     and .collection = <str>$collection_name;
+                select recs.id;
                 """
             ),
             collection_name=self.collection_name,
