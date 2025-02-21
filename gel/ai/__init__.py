@@ -1,7 +1,7 @@
 #
-# This source file is part of the EdgeDB open source project.
+# This source file is part of the Gel open source project.
 #
-# Copyright 2024-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2024-present MagicStack Inc. and the Gel authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,12 +20,11 @@ from .types import AIOptions, ChatParticipantRole, Prompt, QueryContext
 from .core import create_ai, EdgeDBAI
 from .core import create_async_ai, AsyncEdgeDBAI
 from .vectorstore import (
-    InsertRecord,
-    InsertItem,
     Record,
+    Item,
     SearchResult,
     BaseEmbeddingModel,
-    GelVectorstore,
+    VectorStore,
 )
 
 __all__ = [
@@ -37,10 +36,9 @@ __all__ = [
     "EdgeDBAI",
     "create_async_ai",
     "AsyncEdgeDBAI",
-    "InsertRecord",
-    "InsertItem",
     "Record",
+    "Item",
     "SearchResult",
     "BaseEmbeddingModel",
-    "GelVectorstore",
+    "VectorStore",
 ]
