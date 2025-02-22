@@ -21,7 +21,7 @@ from .core import create_ai, EdgeDBAI
 from .core import create_async_ai, AsyncEdgeDBAI
 from .vectorstore import (
     Record,
-    Item,
+    Vector,
     SearchResult,
     BaseEmbeddingModel,
     VectorStore,
@@ -37,7 +37,7 @@ __all__ = [
     "create_async_ai",
     "AsyncEdgeDBAI",
     "Record",
-    "Item",
+    "Vector",
     "SearchResult",
     "BaseEmbeddingModel",
     "VectorStore",

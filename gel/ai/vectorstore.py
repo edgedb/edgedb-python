@@ -1,3 +1,20 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2025-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # Extension VectorStore Binding
 # ----------------------------
 #
@@ -139,11 +156,10 @@ class BaseEmbeddingModel(Generic[T], metaclass=ABCMeta):
 
 
 @dataclass
-class Record:
-    """Represents a record in the vector store. If id is None,
-    it is considered a new record to be inserted. Typically used
-    for inserting data with pre-calculated embeddings, especially
-    for non-text formats like images or audio.
+class Vector:
+    """Stores a vector (embeddings) along with its text and metadata.
+    If id is None, it is considered a new record to be inserted. Use
+    this when you have pre-calculated embeddings.
     """
 
     id: Optional[uuid.UUID] = None
@@ -153,17 +169,19 @@ class Record:
 
 
 @dataclass
-class Item:
-    """An item to be inserted into the vector store, where its
+class Record:
+    """A record to be inserted into the vector store, where its
     embedding will be automatically generated in the vectorstore.
-    Typically used when embeddings are created for text data."""
+    Use this when you expect the vectorstore to generate the
+    embeddings using the embedding model you provided.
+    """
 
     text: str
     metadata: Optional[Dict[str, Any]] = None
 
-    def to_record(self, embedding_model: BaseEmbeddingModel) -> Record:
+    def to_vector(self, embedding_model: BaseEmbeddingModel) -> Vector:
         """Convert this item to an Record using the provided embedding model."""
-        return Record(
+        return Vector(
             text=self.text,
             embedding=embedding_model(self.text),
             metadata=self.metadata,
@@ -227,7 +245,7 @@ class VectorStore(Generic[T]):
         self.record_type = record_type
         self.gel_client = gel.create_client(**(client_config or {}))
 
-    def add_items(self, *items: Item) -> List[uuid.UUID]:
+    def add_records(self, *records: Record) -> List[uuid.UUID]:
         """
         Add multiple items to the vector store in a single transaction.
         Embeddinsg will be generated and stored for all items.
@@ -244,10 +262,10 @@ class VectorStore(Generic[T]):
         if not self.embedding_model:
             raise ValueError("Embedding model is not set")
 
-        items_with_embeddings = [item.to_record(self.embedding_model) for item in items]
-        return self.add(*items_with_embeddings)
+        vectors = [record.to_vector(self.embedding_model) for record in records]
+        return self.add_vectors(*vectors)
 
-    def add(self, *records: Record) -> List[uuid.UUID]:
+    def add_vectors(self, *vectors: Vector) -> List[uuid.UUID]:
         """Add pre-computed vector embeddings to the store.
 
         Use this method when you have already generated embeddings and want to
@@ -269,11 +287,11 @@ class VectorStore(Generic[T]):
             items=json.dumps(
                 [
                     {
-                        "text": record.text,
-                        "embedding": record.embedding,
-                        "metadata": _serialize_metadata(record.metadata),
+                        "text": vector.text,
+                        "embedding": vector.embedding,
+                        "metadata": _serialize_metadata(vector.metadata),
                     }
-                    for record in records
+                    for vector in vectors
                 ]
             ),
         )
@@ -326,13 +344,14 @@ class VectorStore(Generic[T]):
             for result in results
         ]
 
-    def search_by_item(
+    # todo think of a better name, also test, use record instead of item
+    def search_by_record(
         self,
         item: T,
         filters: Optional[CompositeFilter] = None,
         limit: Optional[int] = 4,
     ) -> List[SearchResult]:
-        """Search for similar items in the vector store.
+        """Search for similar records in the vector store.
 
         This method:
         1. Generates an embedding for the input item
@@ -366,6 +385,7 @@ class VectorStore(Generic[T]):
             vector=vector, filter_expression=filter_expression, limit=limit
         )
 
+    # todo test and rename maybe
     def search_by_vector(
         self,
         vector: Sequence[float],
@@ -415,7 +435,7 @@ class VectorStore(Generic[T]):
             for result in results
         ]
 
-    def update_item(
+    def update_record(
         self,
         id: uuid.UUID,
         *,
@@ -425,8 +445,9 @@ class VectorStore(Generic[T]):
     ) -> Optional[uuid.UUID]:
         """Update an existing record in the vector store.
 
-        Only specified fields will be updated. If text is provided but not
-        embedding, a new embedding will be automatically generated.
+        Only specified fields will be updated. If text is provided
+        but not embedding, a new embedding will be automatically
+        generated using the embedding model you provided.
 
         Args:
             Record:
@@ -455,7 +476,11 @@ class VectorStore(Generic[T]):
         if not updates:
             raise ValueError("No fields specified for update.")
 
-        if "text" in updates and text is not None and "embedding" not in updates:
+        if (
+            "text" in updates
+            and text is not None
+            and "embedding" not in updates
+        ):
             updates.append("embedding")
             embedding = self.embedding_model(text)
 
@@ -467,60 +492,9 @@ class VectorStore(Generic[T]):
             text=text if text is not _sentinel else None,
             embedding=embedding if embedding is not _sentinel else None,
             metadata=(
-                _serialize_metadata(metadata) if metadata is not _sentinel else None
-            ),
-        )
-        return result.id if result else None
-
-    def update(
-        self,
-        id: uuid.UUID,
-        *,
-        text: Union[str, None, object] = _sentinel,
-        embedding: Union[Sequence[float], None, object] = _sentinel,
-        metadata: Union[Dict[str, Any], None, object] = _sentinel,
-    ) -> Optional[uuid.UUID]:
-        """Update an existing record in the vector store without auto-generating embeddings.
-
-        Only specified fields will be updated. Unlike update_item, this method will not
-        automatically generate new embeddings when text is updated.
-
-        Args:
-            Record:
-                - id (uuid.UUID): The ID of the record to update
-                - text (Optional[str]): New text content. Will not trigger
-                  embedding generation.
-                - embedding (Optional[List[float]]): New vector embedding.
-                - metadata (Optional[Dict[str, Any]]): New metadata to store
-                  with the record. Completely replaces existing metadata.
-        Returns:
-            Optional[uuid.UUID]: The updated record's ID if found and updated,
-              None if no record was found with the given ID.
-        Raises:
-            ValueError: If no fields are specified for update.
-        """
-
-        updates = []
-
-        if text is not _sentinel:
-            updates.append("text")
-        if embedding is not _sentinel:
-            updates.append("embedding")
-        if metadata is not _sentinel:
-            updates.append("metadata")
-
-        if not updates:
-            raise ValueError("No fields specified for update.")
-
-        result = self.gel_client.query_single(
-            query=UPDATE_QUERY.format(record_type=self.record_type),
-            collection_name=self.collection_name,
-            id=id,
-            updates=list(updates),
-            text=text if text is not _sentinel else None,
-            embedding=embedding if embedding is not _sentinel else None,
-            metadata=(
-                _serialize_metadata(metadata) if metadata is not _sentinel else None
+                _serialize_metadata(metadata)
+                if metadata is not _sentinel
+                else None
             ),
         )
         return result.id if result else None
