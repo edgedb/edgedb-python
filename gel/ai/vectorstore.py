@@ -27,13 +27,6 @@
 # this interface to generate and store image embeddings.
 
 from __future__ import annotations
-import gel
-import json
-import uuid
-import httpx
-from dataclasses import dataclass
-from abc import abstractmethod, ABCMeta
-import typing
 from typing import (
     Optional,
     TypeVar,
@@ -42,15 +35,33 @@ from typing import (
     Dict,
     Generic,
     Union,
-    Tuple,
-    Sequence,
+    TYPE_CHECKING,
 )
+
+import gel
+import json
+import uuid
+import abc
+import array
+import textwrap
+import dataclasses
+
+from gel import quote
 from .metadata_filter import (
     get_filter_clause,
     CompositeFilter,
 )
-
 from . import types
+
+
+if TYPE_CHECKING:
+    try:
+        import numpy as np
+        import numpy.typing as npt
+
+        Vector = Union[List[float], array.array[float], npt.NDArray[np.float32]]
+    except ImportError:
+        Vector = Union[List[float], array.array[float]]
 
 
 def create_vstore(client: gel.Client, **kwargs) -> VectorStore:
@@ -58,12 +69,15 @@ def create_vstore(client: gel.Client, **kwargs) -> VectorStore:
     return VectorStore(client, **kwargs)
 
 
-async def create_async_vstore(client: gel.AsyncIOClient, **kwargs) -> AsyncVectorStore:
+async def create_async_vstore(
+    client: gel.AsyncIOClient, **kwargs
+) -> AsyncVectorStore:
     await client.ensure_connected()
-    return AsyncVectorStore(client, types.VStoreOptions(**kwargs))
+    return AsyncVectorStore(client, **kwargs)
 
 
-BATCH_ADD_QUERY = """
+BATCH_ADD_QUERY = textwrap.dedent(
+    """
     with items := json_array_unpack(<json>$items)
       for item in items union (
           insert {record_type} {{
@@ -73,14 +87,17 @@ BATCH_ADD_QUERY = """
               metadata := to_json(<str>item['metadata'])
           }}
       )
-    """.strip()
+    """
+)
 
 
-DELETE_BY_IDS_QUERY = """
+DELETE_BY_IDS_QUERY = textwrap.dedent(
+    """
     delete {record_type}
-    filter .id in array_unpack(<array<uuid>>$ids) 
-    and .collection = <str>$collection_name;
-    """.strip()
+        filter .id in array_unpack(<array<uuid>>$ids) 
+        and .collection = <str>$collection_name;
+    """
+)
 
 
 SEARCH_QUERY = """
@@ -131,46 +148,7 @@ UPDATE_QUERY = """
     """.strip()
 
 
-T = TypeVar("T")
-
-
-class BaseEmbeddingModel(Generic[T], metaclass=ABCMeta):
-    """
-    Abstract base class for embedding models.
-
-    Any embedding model used with `VectorStore` must implement this
-    interface. The model is expected to convert input data (text, images, etc.)
-    into a numerical vector representation.
-    """
-
-    @abstractmethod
-    def __call__(self, item: T) -> Sequence[float]:
-        """
-        Convert an input item into a list of floating-point values (vector
-        embedding). Must be implemented in subclasses.
-        """
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def dimensions(self) -> int:
-        """
-        Return the number of dimensions in the embedding vector.
-        Must be implemented in subclasses.
-        """
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def target_type(self) -> TypeVar:
-        """
-        Return the expected data type of the input (e.g., str for text, image
-        for vision models). Must be implemented in subclasses.
-        """
-        raise NotImplementedError
-
-
-@dataclass
+@dataclasses.dataclass
 class Vector:
     """Stores a vector (embeddings) along with its text and metadata.
     If id is None, it is considered a new record to be inserted. Use
@@ -178,12 +156,12 @@ class Vector:
     """
 
     id: Optional[uuid.UUID] = None
-    embedding: Optional[Sequence[float]] = None
+    embedding: Optional[Vector] = None
     text: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
 
-@dataclass
+@dataclasses.dataclass
 class Record:
     """A record to be inserted into the vector store, where its
     embedding will be automatically generated in the vectorstore.
@@ -194,7 +172,7 @@ class Record:
     text: str
     metadata: Optional[Dict[str, Any]] = None
 
-    def to_vector(self, embedding_model: BaseEmbeddingModel) -> Vector:
+    def to_vector(self, embedding_model: EmbeddingModel) -> Vector:
         """Convert this item to an Record using the provided embedding model."""
         return Vector(
             text=self.text,
@@ -202,14 +180,22 @@ class Record:
             metadata=self.metadata,
         )
 
+    async def ato_vector(self, embedding_model: AsyncEmbeddingModel) -> Vector:
+        """Convert this item to a Vector using the provided async embedding model."""
+        return Vector(
+            text=self.text,
+            embedding=await embedding_model(self.text),
+            metadata=self.metadata,
+        )
 
-@dataclass
+
+@dataclasses.dataclass
 class SearchResult:
     """A search result from the vector store."""
 
     id: uuid.UUID
     text: Optional[str] = None
-    embedding: Optional[Sequence[float]] = None
+    embedding: Optional[Vector] = None
     metadata: Optional[Dict[str, Any]] = None
     cosine_similarity: float = 0.0
 
@@ -226,6 +212,46 @@ def _deserialize_metadata(metadata: Optional[str]) -> Optional[Dict[str, Any]]:
 
 _sentinel = object()
 
+T = TypeVar("T")
+
+
+class BaseEmbeddingModel(abc.ABC, Generic[T]):
+    """
+    Abstract base class for embedding models.
+
+    Any embedding model used with `VectorStore` must implement this
+    interface. The model is expected to convert input data (text, images, etc.)
+    into a numerical vector representation.
+    """
+
+    @property
+    @abc.abstractmethod
+    def dimensions(self) -> int:
+        """
+        Return the number of dimensions in the embedding vector.
+        Must be implemented in subclasses.
+        """
+        ...
+
+    @property
+    @abc.abstractmethod
+    def target_type(self) -> T:
+        """
+        Return the expected data type of the input (e.g., str for text, image
+        for vision models). Must be implemented in subclasses.
+        """
+        ...
+
+
+class EmbeddingModel(BaseEmbeddingModel[T], Generic[T]):
+    @abc.abstractmethod
+    def __call__(self, item: T) -> Vector:
+        """
+        Convert an input item into a list of floating-point values (vector
+        embedding). Must be implemented in subclasses.
+        """
+        ...
+
 
 class BaseVectorStore(Generic[T]):
     """
@@ -239,11 +265,11 @@ class BaseVectorStore(Generic[T]):
         T: The type of items that can be embedded (e.g., str for text...)
     """
 
-    # why is it maybe better to have  class VStoreOptions dataclass?
+    # why is it maybe better to have  class VStoreOptions dataclasses.dataclass?
+    # do I need to use * to require kwargs?
     def __init__(
         self,
-        client: typing.Union[gel.Client, gel.AsyncIOClient],
-        embedding_model: Optional[BaseEmbeddingModel[T]] = None,
+        client: Union[gel.Client, gel.AsyncIOClient],
         collection_name: str = "default",
         record_type: str = "ext::vectorstore::DefaultRecord",
     ):
@@ -260,10 +286,19 @@ class BaseVectorStore(Generic[T]):
         self.client = client
         self.collection_name = collection_name
         self.record_type = record_type
+
+
+# will this work?do I need to use * to require kwargs?
+class VectorStore(BaseVectorStore[T]):
+
+    def __init__(
+        self,
+        embedding_model: Optional[EmbeddingModel] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
         self.embedding_model = embedding_model
 
-
-class VectorStore(BaseVectorStore[T]):
     def add_records(self, *records: Record) -> List[uuid.UUID]:
         """
         Add multiple items to the vector store in a single transaction.
@@ -301,7 +336,9 @@ class VectorStore(BaseVectorStore[T]):
         """
 
         results = self.client.query(
-            query=BATCH_ADD_QUERY.format(record_type=self.record_type),
+            query=BATCH_ADD_QUERY.format(
+                record_type=quote.quote_ident(self.record_type)
+            ),
             collection_name=self.collection_name,
             items=json.dumps(
                 [
@@ -327,7 +364,9 @@ class VectorStore(BaseVectorStore[T]):
         """
 
         results = self.client.query(
-            query=DELETE_BY_IDS_QUERY.format(record_type=self.record_type),
+            query=DELETE_BY_IDS_QUERY.format(
+                record_type=quote.quote_ident(self.record_type)
+            ),
             collection_name=self.collection_name,
             ids=ids,
         )
@@ -348,7 +387,9 @@ class VectorStore(BaseVectorStore[T]):
         """
 
         results = self.client.query(
-            query=GET_BY_IDS_QUERY.format(record_type=self.record_type),
+            query=GET_BY_IDS_QUERY.format(
+                record_type=quote.quote_ident(self.record_type)
+            ),
             collection_name=self.collection_name,
             ids=ids,
         )
@@ -407,7 +448,7 @@ class VectorStore(BaseVectorStore[T]):
     # todo test and rename maybe
     def search_by_vector(
         self,
-        vector: Sequence[float],
+        vector: Vector,
         filter_expression: str = "",
         limit: Optional[int] = 4,
     ) -> List[SearchResult]:
@@ -417,7 +458,7 @@ class VectorStore(BaseVectorStore[T]):
         with a modified/combined embedding vector.
 
         Args:
-            vector (List[float]): The query embedding to search with.
+            vector (Vector): The query embedding to search with.
               Must match the dimensionality of stored embeddings.
             filter_expression (str): Filter expression for metadata filtering.
             limit (Optional[int]): Max number of results to return.
@@ -436,7 +477,7 @@ class VectorStore(BaseVectorStore[T]):
 
         results = self.client.query(
             query=SEARCH_QUERY.format(
-                record_type=self.record_type,
+                record_type=quote.quote_ident(self.record_type),
                 filter_expression=filter_expression,
             ),
             collection_name=self.collection_name,
@@ -459,7 +500,7 @@ class VectorStore(BaseVectorStore[T]):
         id: uuid.UUID,
         *,
         text: Union[str, None, object] = _sentinel,
-        embedding: Union[Sequence[float], None, object] = _sentinel,
+        embedding: Union[Vector, None, object] = _sentinel,
         metadata: Union[Dict[str, Any], None, object] = _sentinel,
     ) -> Optional[uuid.UUID]:
         """Update an existing record in the vector store.
@@ -504,30 +545,52 @@ class VectorStore(BaseVectorStore[T]):
             embedding = self.embedding_model(text)
 
         result = self.client.query_single(
-            query=UPDATE_QUERY.format(record_type=self.record_type),
+            query=UPDATE_QUERY.format(
+                record_type=quote.quote_ident(self.record_type)
+            ),
             collection_name=self.collection_name,
             id=id,
             updates=list(updates),
             text=text if text is not _sentinel else None,
             embedding=embedding if embedding is not _sentinel else None,
             metadata=(
-                _serialize_metadata(metadata) if metadata is not _sentinel else None
+                _serialize_metadata(metadata)
+                if metadata is not _sentinel
+                else None
             ),
         )
         return result.id if result else None
 
 
+class AsyncEmbeddingModel(BaseEmbeddingModel[T], Generic[T]):
+    @abc.abstractmethod
+    async def __call__(self, item: T) -> Vector: ...
+
+
 class AsyncVectorStore(BaseVectorStore[T]):
+
+    def __init__(
+        self,
+        embedding_model: Optional[AsyncEmbeddingModel] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.embedding_model = embedding_model
+
     async def add_records(self, *records: Record) -> List[uuid.UUID]:
         if not self.embedding_model:
             raise ValueError("Embedding model is not set")
         # todo: this is not async
-        vectors = [record.to_vector(self.embedding_model) for record in records]
+        vectors = [
+            record.ato_vector(self.embedding_model) for record in records
+        ]
         return self.add_vectors(*vectors)
 
     async def add_vectors(self, *vectors: Vector) -> List[uuid.UUID]:
         results = await self.client.query(
-            query=BATCH_ADD_QUERY.format(record_type=self.record_type),
+            query=BATCH_ADD_QUERY.format(
+                record_type=quote.quote_ident(self.record_type)
+            ),
             collection_name=self.collection_name,
             items=json.dumps(
                 [
@@ -544,7 +607,9 @@ class AsyncVectorStore(BaseVectorStore[T]):
 
     async def delete(self, *ids: uuid.UUID) -> List[uuid.UUID]:
         results = await self.client.query(
-            query=DELETE_BY_IDS_QUERY.format(record_type=self.record_type),
+            query=DELETE_BY_IDS_QUERY.format(
+                record_type=quote.quote_ident(self.record_type)
+            ),
             collection_name=self.collection_name,
             ids=ids,
         )
@@ -565,7 +630,9 @@ class AsyncVectorStore(BaseVectorStore[T]):
         """
 
         results = await self.client.query(
-            query=GET_BY_IDS_QUERY.format(record_type=self.record_type),
+            query=GET_BY_IDS_QUERY.format(
+                record_type=quote.quote_ident(self.record_type)
+            ),
             collection_name=self.collection_name,
             ids=ids,
         )
@@ -614,15 +681,16 @@ class AsyncVectorStore(BaseVectorStore[T]):
         """
 
         vector = await self.embedding_model(item)
-        filter_expression = f"filter {get_filter_clause(filters)}" if filters else ""
+        filter_expression = (
+            f"filter {get_filter_clause(filters)}" if filters else ""
+        )
         return self.search_by_vector(
             vector=vector, filter_expression=filter_expression, limit=limit
         )
 
-    # todo test and rename maybe
     async def search_by_vector(
         self,
-        vector: Sequence[float],
+        vector: Vector,
         filter_expression: str = "",
         limit: Optional[int] = 4,
     ) -> List[SearchResult]:
@@ -651,7 +719,7 @@ class AsyncVectorStore(BaseVectorStore[T]):
 
         results = await self.client.query(
             query=SEARCH_QUERY.format(
-                record_type=self.record_type,
+                record_type=quote.quote_ident(self.record_type),
                 filter_expression=filter_expression,
             ),
             collection_name=self.collection_name,
@@ -674,7 +742,7 @@ class AsyncVectorStore(BaseVectorStore[T]):
         id: uuid.UUID,
         *,
         text: Union[str, None, object] = _sentinel,
-        embedding: Union[Sequence[float], None, object] = _sentinel,
+        embedding: Union[Vector, None, object] = _sentinel,
         metadata: Union[Dict[str, Any], None, object] = _sentinel,
     ) -> Optional[uuid.UUID]:
         """Update an existing record in the vector store.
@@ -710,19 +778,27 @@ class AsyncVectorStore(BaseVectorStore[T]):
         if not updates:
             raise ValueError("No fields specified for update.")
 
-        if "text" in updates and text is not None and "embedding" not in updates:
+        if (
+            "text" in updates
+            and text is not None
+            and "embedding" not in updates
+        ):
             updates.append("embedding")
             embedding = await self.embedding_model(text)
 
         result = await self.client.query_single(
-            query=UPDATE_QUERY.format(record_type=self.record_type),
+            query=UPDATE_QUERY.format(
+                record_type=quote.quote_ident(self.record_type)
+            ),
             collection_name=self.collection_name,
             id=id,
             updates=list(updates),
             text=text if text is not _sentinel else None,
             embedding=embedding if embedding is not _sentinel else None,
             metadata=(
-                _serialize_metadata(metadata) if metadata is not _sentinel else None
+                _serialize_metadata(metadata)
+                if metadata is not _sentinel
+                else None
             ),
         )
         return result.id if result else None
